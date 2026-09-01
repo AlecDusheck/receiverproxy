@@ -305,7 +305,7 @@ mod more_tests {
 }
 
 #[cfg(test)]
-mod basic_pack_tests {
+mod scan_pack_tests {
     use super::*;
 
     fn record() -> Vec<u8> {
@@ -319,7 +319,7 @@ mod basic_pack_tests {
 
     #[test]
     fn the_pack_identifies_itself_as_the_basic_pack() {
-        let p = basic_pack(&record());
+        let p = scan_pack(&record());
         assert_eq!(p[0], 0x05);
         assert_eq!(p[3], 0x02, "pack sub-index");
         assert_eq!(p[4], BASIC_MARKER);
@@ -327,16 +327,34 @@ mod basic_pack_tests {
 
     #[test]
     fn geometry_and_scan_follow_the_joined_table() {
-        let p = basic_pack(&record());
+        let p = scan_pack(&record());
         assert_eq!((p[0x08], p[0x09]), (0x80, 0x40), "module 128x64");
         assert_eq!(u16::from_be_bytes([p[0x0d], p[0x0e]]), 16, "scan");
         assert_eq!(u16::from_be_bytes([p[0x0f], p[0x10]]), 256, "scan-line clocks");
         assert_eq!(p[0x4b], 0x10, "hub type from R1+0x058");
     }
 
+    /// The arming pack is preserved byte-for-byte: this recipe is the one
+    /// that observably arms the SM16269S drivers, so any change to it must be
+    /// deliberate.
+    #[test]
+    fn the_arming_pack_keeps_its_empirical_layout() {
+        let mut r = vec![0u8; 764];
+        r[0x036] = 0x4c;
+        r[0x204] = 0x01;
+        r[0x020] = 16;
+        let p = basic_pack(&r);
+        assert_eq!(p[3], 0, "sub-index stays zero");
+        assert_eq!(p[4], BASIC_MARKER);
+        assert_eq!(p[0x1e], 0x80);
+        assert_eq!(u16::from_be_bytes([p[0x0d], p[0x0e]]), 16);
+        assert_eq!(p[0x01f], CHIP_ID_ESCAPE);
+        assert_eq!((p[0x0eb], p[0x0ec]), (0x01, 0x4c));
+    }
+
     #[test]
     fn flag_bits_are_split_and_masked() {
-        let p = basic_pack(&record());
+        let p = scan_pack(&record());
         assert_eq!(p[0x16], 1, "R1+0x018 bit 1");
         assert_eq!(p[0x17], 1, "R1+0x018 bit 0");
         assert_eq!(p[0x26], 0x02, "R1+0x03D low nibble only");

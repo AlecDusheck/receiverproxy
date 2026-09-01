@@ -3,6 +3,7 @@ mod config;
 mod display;
 mod flash;
 mod params;
+mod restore;
 mod util;
 
 use capture::{discover, listen, pcap_summary, raw_send, replay};
@@ -50,6 +51,39 @@ struct Cli {
 
     #[command(subcommand)]
     cmd: Cmd,
+}
+
+#[derive(Subcommand)]
+enum RestoreWhat {
+    /// Rewrite the primary firmware bank from a saved image
+    Firmware {
+        image: String,
+        #[arg(long)]
+        commit: bool,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+        #[arg(long, default_value_t = 3)]
+        wait: u64,
+    },
+    /// Rewrite the screen-size record from a saved block image
+    ScreenRecord {
+        from_image: String,
+        #[arg(long)]
+        commit: bool,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+    },
+    /// Restore firmware, configuration and screen record from a snapshot
+    All {
+        #[arg(long, default_value = "snapshot")]
+        dir: String,
+        #[arg(long)]
+        commit: bool,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+        #[arg(long, default_value_t = 3)]
+        wait: u64,
+    },
 }
 
 #[derive(Subcommand)]
@@ -314,6 +348,20 @@ enum Cmd {
         #[arg(long, default_value_t = 0)]
         index: u16,
     },
+    /// Capture everything we know how to restore into a directory
+    Snapshot {
+        #[arg(long, default_value = "snapshot")]
+        dir: String,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+        #[arg(long, default_value_t = 3)]
+        wait: u64,
+    },
+    /// Put the card back the way it was
+    Restore {
+        #[command(subcommand)]
+        what: RestoreWhat,
+    },
     /// Restore a previously dumped 64KB block back to the card
     RestoreFlash {
         image: String,
@@ -518,6 +566,26 @@ fn run_flash(cli: &Cli) -> Result<Option<()>> {
             commit,
             index,
         } => restore_screen_record(cli, from_image, *commit, *index).map(Some),
+        Cmd::Snapshot { dir, index, wait } => restore::snapshot(cli, dir, *index, *wait).map(Some),
+        Cmd::Restore { what } => match what {
+            RestoreWhat::Firmware {
+                image,
+                commit,
+                index,
+                wait,
+            } => restore::firmware(cli, image, *commit, *index, *wait).map(Some),
+            RestoreWhat::ScreenRecord {
+                from_image,
+                commit,
+                index,
+            } => restore::screen_record(cli, from_image, *commit, *index).map(Some),
+            RestoreWhat::All {
+                dir,
+                commit,
+                index,
+                wait,
+            } => restore::all(cli, dir, *commit, *index, *wait).map(Some),
+        },
         Cmd::RestoreFlash {
             image,
             commit,

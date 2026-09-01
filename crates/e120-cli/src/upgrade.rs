@@ -77,6 +77,7 @@ pub fn install(
     commit: bool,
     partition: Partition,
     timeout_s: u64,
+    chunk_delay_us: u64,
     wait: u64,
 ) -> Result<()> {
     let img = std::fs::read(image_path).with_context(|| format!("read {image_path}"))?;
@@ -114,7 +115,11 @@ pub fn install(
             Partition::Golden => "golden",
         }
     );
-    println!("  {} chunks of {} bytes", d.chunks(), upgrade::CHUNK);
+    println!(
+        "  {} chunks of {} bytes, {chunk_delay_us}us apart",
+        d.chunks(),
+        upgrade::CHUNK
+    );
     println!(
         "  the card estimates {:.1}s to program",
         d.estimated_ms() as f64 / 1000.0
@@ -131,8 +136,10 @@ pub fn install(
     for (n, chunk) in staged.chunks(upgrade::CHUNK).enumerate() {
         let offset = (n * upgrade::CHUNK) as u32;
         dev.send(&upgrade::sdram_chunk(sel, offset, chunk))?;
-        // Nothing is acknowledged; the pacing is the protocol.
-        std::thread::sleep(Duration::from_micros(400));
+        // Nothing is acknowledged, so pacing is the only flow control there
+        // is. Sending too fast overruns the card and whole runs of chunks are
+        // dropped silently, leaving stale SDRAM that then gets programmed.
+        std::thread::sleep(Duration::from_micros(chunk_delay_us));
         if n.is_multiple_of(128) {
             println!("  {n} / {} chunks", d.chunks());
         }

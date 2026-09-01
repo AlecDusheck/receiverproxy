@@ -100,9 +100,17 @@ documented in [`firmware/README.md`](firmware/README.md).
 * [`firmware/README.md`](firmware/README.md) — firmware images, flash layout,
   and the upgrade procedure.
 
+Firmware can only be installed through the card's own SDRAM staging path
+(`e120 upgrade install`); direct flash writes cannot reach the bitstream regions
+at all. `firmware/README.md` has the layout and why.
+
 ## Status
 
 Discovery, pixel, sync and brightness frames are verified on the wire, and the
-configuration path reads and writes correctly. The panel this was built for
-stays dark: its driver chips are SM16269S, and the card's firmware was built for
-a different driver IC. Getting it lit means installing matching firmware.
+configuration path reads and writes correctly.
+
+The card now holds `E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex`, built
+for the SM16269S driver ICs this panel uses, installed via SDRAM staging and
+verified byte-for-byte against both bitstream regions. Its configuration is
+restored alongside it: 15 records, width 128, scan 1/16, driver-chip register
+table present. Awaiting a power cycle to load the new bitstream.

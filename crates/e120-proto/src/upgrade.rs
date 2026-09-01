@@ -9,6 +9,12 @@
 //! chunks, tell it to erase, tell it to program, then poll until it reports
 //! done. None of the upload frames are acknowledged; the pacing delays are the
 //! protocol.
+//!
+//! The whole image is uploaded, but the card programs only 0x000000-0x02FFFF
+//! and 0x080000-0x0AFFFF from it. The 320KB in between is reserved for the
+//! card's configuration and is not part of the loadable bitstream, so reading
+//! it back and finding it unchanged means the upgrade worked, not that it
+//! failed. See `firmware/README.md`.
 
 use super::frame;
 

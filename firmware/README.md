@@ -50,12 +50,36 @@ copy of what this specific card shipped with.
 ## Flash layout
 
 ```
-0x000000-0x02FFFF  primary image, first 3 blocks -- WRITE PROTECTED, will not erase
-0x030000-0x0AFFFF  primary image, remainder      -- writable
-0x070000-0x07AFFF  where the card stores its .rcvbp configuration
-0x07F000-0x07FFFF  a page the card will not write by any route we found
+0x000000-0x02FFFF  bitstream, part 1 -- host CANNOT write; only the card can
+0x030000-0x07FFFF  RESERVED          -- not part of the loadable image
+0x070000-0x07AFFF    the card's .rcvbp configuration lives here
+0x07F000-0x07FFFF    redirected to a small EEPROM; no flash write reaches it
+0x080000-0x0AFFFF  bitstream, part 2 -- host CANNOT write; only the card can
 0x200000-0x2AFFFF  golden/backup image
 ```
+
+**The bitstream is not contiguous.** It occupies 0x000000-0x02FFFF and
+0x080000-0x0AFFFF only; the 320KB between them is reserved for configuration
+and is never loaded. The card's own upgrade agent programs exactly those two
+regions and skips the middle, and a `.hex` file's contents there are padding.
+
+This was confirmed the hard way. The card shipped running firmware 10.81 while
+its flash had *holes* at 0x034000-0x040000 and 0x050000-0x070000 and its
+configuration written over 0x070000 — a "corrupt" image by any contiguous
+reading, which nevertheless configured the FPGA perfectly. If an upgrade leaves
+0x030000-0x07FFFF looking stale, that is correct behaviour, not a failed write.
+
+The two write paths are complementary, and this is the whole reason both exist:
+
+| region | host direct write | card SDRAM upgrade |
+|---|---|---|
+| 0x000000-0x02FFFF | refused | **works** |
+| 0x030000-0x07FFFF | works | skipped (by design) |
+| 0x080000-0x0AFFFF | refused | **works** |
+
+So **only the SDRAM path can install firmware.** The direct path reaches only
+the reserved region, which is why every attempt to flash firmware with it
+produced a chimera.
 
 ## Writing firmware
 

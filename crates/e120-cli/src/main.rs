@@ -73,6 +73,9 @@ enum UpgradeWhat {
         /// Seconds to wait for the card to finish programming
         #[arg(long, default_value_t = 120)]
         timeout: u64,
+        /// Microseconds between upload chunks. Too fast and the card drops them.
+        #[arg(long, default_value_t = 3000)]
+        chunk_delay_us: u64,
         #[arg(long, default_value_t = 4)]
         wait: u64,
     },
@@ -174,6 +177,12 @@ enum Cmd {
         /// Actually write. Without this it only reports what it would do.
         #[arg(long)]
         commit: bool,
+        /// First 64KB block to write. Lets a partial image be repaired.
+        #[arg(long, default_value_t = 0x00)]
+        from_block: u8,
+        /// One past the last block to write.
+        #[arg(long, default_value_t = 0x0b)]
+        to_block: u8,
         #[arg(long, default_value_t = 0)]
         index: u16,
         #[arg(long, default_value_t = 3)]
@@ -540,6 +549,7 @@ fn run_firmware(cli: &Cli) -> Result<Option<()>> {
                 commit,
                 golden,
                 timeout,
+                chunk_delay_us,
                 wait,
             } => {
                 let partition = if *golden {
@@ -547,7 +557,16 @@ fn run_firmware(cli: &Cli) -> Result<Option<()>> {
                 } else {
                     protocol::upgrade::Partition::Primary
                 };
-                upgrade::install(cli, image, *commit, partition, *timeout, *wait).map(Some)
+                upgrade::install(
+                    cli,
+                    image,
+                    *commit,
+                    partition,
+                    *timeout,
+                    *chunk_delay_us,
+                    *wait,
+                )
+                .map(Some)
             }
         },
         Cmd::Snapshot { dir, index, wait } => restore::snapshot(cli, dir, *index, *wait).map(Some),
@@ -608,9 +627,20 @@ fn run_flash(cli: &Cli) -> Result<Option<()>> {
             image,
             backup,
             commit,
+            from_block,
+            to_block,
             index,
             wait,
-        } => flash_firmware(cli, image, backup, *commit, *index, *wait).map(Some),
+        } => flash_firmware(
+            cli,
+            image,
+            backup,
+            *commit,
+            *from_block..*to_block,
+            *index,
+            *wait,
+        )
+        .map(Some),
         Cmd::WriteConfig {
             config,
             commit,

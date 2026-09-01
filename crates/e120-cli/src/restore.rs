@@ -14,7 +14,7 @@
 //! Restoring firmware therefore destroys the configuration, so `all` sequences
 //! them in the order that leaves the card whole.
 
-use crate::flash::{read_block, rewrite_block, write_config};
+use crate::flash::{read_blocks, rewrite_block, write_config};
 use crate::util::open;
 use crate::{protocol, Cli};
 use anyhow::{Context, Result};
@@ -183,15 +183,27 @@ pub fn snapshot(cli: &Cli, dir: &str, index: u16, wait: u64) -> Result<()> {
     std::fs::create_dir_all(dir).with_context(|| format!("create {dir}"))?;
     let mut dev = open(cli)?;
 
-    println!("reading the primary bank...");
-    let primary = read_block(&mut dev, index, wait)?;
+    let blocks = protocol::FIRMWARE_BLOCKS.len() as u16;
+    println!("reading the primary bank ({blocks} blocks)...");
+    let primary = read_blocks(
+        &mut dev,
+        index,
+        protocol::FIRMWARE_BLOCKS.start,
+        blocks,
+        wait,
+    )?;
     let path = format!("{dir}/primary-region.bin");
     std::fs::write(&path, &primary).with_context(|| format!("write {path}"))?;
     println!("  {} bytes -> {path}", primary.len());
 
+    println!("reading the golden bank...");
+    let golden = read_blocks(&mut dev, index, protocol::GOLDEN_BLOCK, blocks, wait)?;
+    let path = format!("{dir}/golden-bank.bin");
+    std::fs::write(&path, &golden).with_context(|| format!("write {path}"))?;
+    println!("  {} bytes -> {path}", golden.len());
+
     println!("snapshot written to {dir}");
-    println!("note: the golden bank is not captured here; dump it with");
-    println!("  e120 dump-flash --block 32 --blocks 11 --out {dir}/golden-bank.bin");
+    println!("capture the configuration too:  e120 read-config --out {dir}/config.rcvbp");
     Ok(())
 }
 

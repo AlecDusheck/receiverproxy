@@ -1959,3 +1959,147 @@ being the most promising for "does the card think its config is intact", since i
 implies a card-side CRC over stored data. None of these are traced yet; say the
 word if item 16.1 does not resolve things and I will take `ExecutRcvCrcCheck`
 apart next.
+
+---
+
+## 17. CRC check, output routing, and a hardware observation
+
+Static analysis only. Nothing executed.
+
+### 17.0 Read this first — the current measurement points away from configuration
+
+Your numbers: total draw **~0.63 A**, and the E120 spec rates **the card alone at
+0.6 A / 3.0 W**. So the panel is contributing roughly **0.03 A — essentially
+nothing**.
+
+A P2.5 128x64 module that is powered but idle still draws a real quiescent
+current: its shift registers, driver ICs and decoder are energised even with all
+LEDs off. A powered-but-misconfigured panel looks like *some* current and a dark
+face. A panel drawing ~0 A is not a misconfigured panel — it is a panel that is
+**not powered**.
+
+This single hypothesis explains every observation at once, including the two that
+configuration cannot explain:
+
+* the card's **own physical test button** produces nothing — that path is entirely
+  card-side and needs no host config to light a panel that has power;
+* the panel stays dark across every config we write, verified byte-for-byte;
+* total current equals the card's own rated draw;
+* the card remains fully responsive throughout.
+
+**The HUB75 ribbon carries signals, not panel power.** The panel has a separate
+power input (typically a 4-pin/screw 5V feed) and at P2.5 128x64 it needs amps,
+not milliamps. If only the receiving card is on the bench supply, this is exactly
+what you would measure.
+
+**Please check before any more protocol work:** is the panel's own 5V connector
+energised, is it on the same supply, and does the supply have the headroom? A
+quick test is to watch the current while pressing the card's test button — on a
+powered panel that must move the meter substantially even if the pattern is
+wrong. If it does not move, the problem is upstream of everything in this
+document.
+
+I flag this prominently because I have now spent several rounds decoding
+protocol on the assumption that configuration was the blocker, and the power
+figure is the first piece of evidence that is genuinely inconsistent with that
+assumption.
+
+### 17.1 Item 3 — output routing: probably NOT the cause
+
+From your file's record 0x01 (§9 mapping applied to the real bytes):
+
+| record 0x01 payload | value | meaning |
+|---|---|---|
+| +0x044 | **0x01** | `OBJ+0xb9` = `GetOutputCount` / `GetRealOutPutCount` = **1** |
+| +0x058 | 0x10 | `SetHubType(16)` |
+| +0x04e | 0x00 | `OBJ+0xbb` = `GetOutPutModel` |
+| +0x036 | 0x4c | chip-library selector |
+| +0x03a / +0x03c | 0x00 / 0x00 | `SetLineDir` = 0 |
+
+**Output count is 1**, and I found **no field anywhere that names a physical
+J-connector**. The connector is implied by output index, so a single output means
+the first HUB75 group — **J1**, which is where your ribbon is. Line direction is
+0 (no rotation/mirroring).
+
+So item 3 does not explain the dark panel. That is a useful elimination: you can
+stop chasing connector routing.
+
+### 17.2 Item 1 — `ExecutRcvCrcCheck`: frame shape decoded, but not ready to send
+
+`CReceiverOP::ExecutRcvCrcCheck` @ `0x3b2e00` calls
+`BuildEnableCalcCrcEx` @ `0x30c1c0` with:
+
+```
+rcvIdx        = arg (u16)
+arg4 (uchar)  = byte [param + 0x00]      <-- becomes the TYPE byte
+arg5 (bool)   = 1
+arg6 (bool)   = (byte[param+8] != 0)
+arg7 (uchar)  = byte [param + 0x09]
+arg8 (uchar*) = [param + 0x10]
+arg9 (uint)   = dword [param + 0x04]
+```
+
+Builder body (`0x30c235`–`0x30c279`), 0x80-byte payload:
+
+```
+payload[0]      = arg4                 ; type byte — CALLER-SUPPLIED
+payload[1..2]   = 0
+payload[3]      = rcvIdx >> 8          ; BE
+payload[4]      = rcvIdx & 0xff
+payload[5]      = 0x82 - arg5          ; = 0x81 when arg5 = 1
+payload[6..0xa] = 0
+payload[0x0b]   = arg9 byte 0          ; 32-bit LITTLE-endian
+payload[0x0c]   = arg9 byte 1
+payload[0x0d]   = arg9 byte 2
+payload[0x0e]   = arg9 byte 3
+payload[0x0f]   = !arg6
+payload[0x10]   = arg7
+ (further bytes when arg7 != 0)
+```
+
+**I cannot give you a ready-to-send frame.** The type byte at `payload[0]`, the
+32-bit value, and the two flags all come from `SExecuteRcvCrcCheckParam`, which is
+populated by the UI layer — and `ExecutRcvCrcCheck` has **no callers inside this
+dylib**, so the constants are not recoverable here. Opcode-slot `0x81` and the
+`0x82 - flag` construction are the only literals.
+
+I will not guess a type byte for a command whose semantics I cannot bound —
+`ClearRcvCrcFlag` @ `0x3b2d00` sits in the same family, and a wrong guess in that
+neighbourhood could clear card state rather than query it. Given §17.0 I would
+not spend the risk budget here at all right now.
+
+**On your underlying question — "has the card ever parsed our blob?" — I found no
+validity byte or status word that answers it.** Nothing in the discovery reply
+decoder maps to "config valid". The honest position is that we have no
+card-side confirmation mechanism identified, and the 1024x512 fallback tells us
+only that the card reads page 0xF0 at boot, exactly as you say.
+
+### 17.3 Item 2 — SM16269 is not in the vendor chip library
+
+Searched `ChipSetting.dll`'s chip class list and `ChipData/` (62 `pm_*.dat`
+files) plus the iSet dylib:
+
+* **No `SM16269` anywhere.** Nearest named entries are `CChipSettingSM16188`,
+  `SM16219`, `SM16227`, `SM16237`, `SM16609`, `SM16803`.
+* No `pm_*.dat` filename or content matches `16269`.
+
+So there is **no `.dat` chip profile to decode** — that avenue is closed, and I
+should say so plainly rather than send you after a file that does not exist.
+
+The constructive reading: the pack path is named **`GetChipCustomPlusParamPack`**
+and the accessor is **`GetChipCustomEX`** — *custom*. That is consistent with
+SM16269 being carried as a **custom chip profile**, in which case record 0x84's
+`(reg, R, G, B)` table in your file **is** the chip definition, and it is data you
+already hold. That is the good outcome for buildability.
+
+**Correction, same class of error as §15.5:** in §10.2 I said the 180-byte block
+comes from `GetChipCustomEX()` via `[vtable+0x130]`. That is wrong —
+`GetChipCustomEX` @ `0x16dc80` is a 12-byte accessor returning
+`dword [OBJ+0xd4e1]`, a scalar. The 180-byte source is a different virtual
+function on the object's actual (derived) vtable, which I have not identified.
+**Treat §10.2's naming of that block as unverified.** The frame geometry in §10.2
+(offsets and sizes) came from the literal instructions and still stands; only the
+attribution of the source function was wrong.
+
+I did not complete the trace from record 0x84 into `OBJ+0xd6d0`. Given §17.0 I
+recommend resolving the power question before investing further here.

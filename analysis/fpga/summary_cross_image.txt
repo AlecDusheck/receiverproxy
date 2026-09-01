@@ -1,0 +1,5 @@
+6.69 {'nluts': 18839, 'ninit': 2227, 'onehot': 2149, 'dec': 6, 'wide': 87, 'maxterm': 16, 'xnor9009': 125, 'xnor6996': 82}
+9.53 {'nluts': 19403, 'ninit': 2125, 'onehot': 2069, 'dec': 4, 'wide': 59, 'maxterm': 19, 'xnor9009': 120, 'xnor6996': 103}
+10.81 {'nluts': 20349, 'ninit': 2147, 'onehot': 2157, 'dec': 5, 'wide': 95, 'maxterm': 14, 'xnor9009': 140, 'xnor6996': 105}
+13.39 {'nluts': 19098, 'ninit': 2148, 'onehot': 2191, 'dec': 4, 'wide': 69, 'maxterm': 15, 'xnor9009': 152, 'xnor6996': 70}
+16.53 {'nluts': 20170, 'ninit': 2129, 'onehot': 2191, 'dec': 7, 'wide': 89, 'maxterm': 16, 'xnor9009': 117, 'xnor6996': 106}

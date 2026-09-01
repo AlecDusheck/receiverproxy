@@ -48,6 +48,14 @@ pub enum ColorOrder {
 /// Pixel row frame: wire type 0x55, then data at offset 13:
 /// [row MSB, row LSB, offs MSB, offs LSB, count MSB, count LSB, 0x08, 0x88,
 /// pixels...]
+///
+/// OPEN QUESTION: the card stores neither this layout nor the variant with a
+/// constant `0x5500` EtherType and the row as a u16 at the payload start —
+/// white and black draw identical current either way on a clean boot. The
+/// alternative briefly looked right, but that reading came from a per-run
+/// state toggle (the same colour sent twice alternates the supply current by
+/// over an amp), not from content. Awaiting the vendor sender decode; until
+/// then this keeps FPP's documented 5a-75 layout.
 pub fn pixel_row(row: u16, pixel_offset: u16, rgb: &[[u8; 3]], order: ColorOrder) -> Vec<u8> {
     let count = rgb.len() as u16;
     let mut p = Vec::with_capacity(7 + rgb.len() * 3);

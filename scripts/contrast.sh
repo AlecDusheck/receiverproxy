@@ -17,7 +17,7 @@ e120=./target/debug/e120
 out=/tmp/e120-trials/contrast
 mkdir -p "$out"
 csv=/tmp/e120-trials/contrast.csv
-[ -f "$csv" ] || echo "variant,white_a,black_a,ratio,white_score,black_score" >"$csv"
+[ -f "$csv" ] || echo "variant,white_a,black_a,ratio,white2_a,drift,verdict,white_score,black_score" >"$csv"
 
 cur() { ka3005p status 2>/dev/null | grep -oE 'Current: [0-9.]+' | head -1 | awk '{print $2}'; }
 
@@ -54,10 +54,16 @@ for spec in "$@"; do
 	sleep 1
 	w=$(fill ffffff "$out/$name-white.jpg")
 	b=$(fill 000000 "$out/$name-black.jpg")
+	# Same-colour control: the card toggles state between runs independently
+	# of content, so a white/black difference only counts as content contrast
+	# if the two white measurements agree.
+	w2=$(fill ffffff "$out/$name-white2.jpg")
+	drift=$(awk "BEGIN{printf \"%.2f\", ($w>0)? ($w2>$w? $w2/$w : $w/$w2) : 0}")
 	ratio=$(awk "BEGIN{printf \"%.2f\", ($b>0)? $w/$b : 0}")
+	verdict=$(awk "BEGIN{print ($drift > 1.05)? \"INVALID-state-toggle\" : (($ratio > 1.15 || $ratio < 0.87)? \"CONTENT\" : \"no-contrast\")}")
 	ws=$(python3 scripts/panel-score.py "$out/$name-white.jpg" 2>/dev/null | cut -d, -f2-3)
 	bs=$(python3 scripts/panel-score.py "$out/$name-black.jpg" 2>/dev/null | cut -d, -f2-3)
-	echo "$name,$w,$b,$ratio,$ws,$bs" >>"$csv"
-	printf '%-14s white=%sA black=%sA ratio=%s  (white %s | black %s)\n' \
-		"$name" "$w" "$b" "$ratio" "$ws" "$bs"
+	echo "$name,$w,$b,$ratio,$w2,$drift,$verdict,$ws,$bs" >>"$csv"
+	printf '%-14s white=%sA black=%sA white2=%sA ratio=%s drift=%s  %s\n' \
+		"$name" "$w" "$b" "$w2" "$ratio" "$drift" "$verdict"
 done

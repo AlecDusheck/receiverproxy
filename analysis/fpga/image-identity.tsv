@@ -1,0 +1,45 @@
+# Byte-match of each card dump against each vendor image, alignment delta = 0.
+# "whole" = flash 0x000000-0x0AFFFF (0xB0000 bytes, bank-relative)
+# "frames" = bitstream frame-data region only, 0x00017A-0x08E3FB (7562 x 77 bytes)
+dump	vendor_image	whole_0x0-0xB0000	frame_data_only
+primary-region.bin	E320_PCB6.0_Normal_FPGA13.39_20221101.hex	0.2781	0.1082
+primary-region.bin	E320_PCB6.0_PWM_FPGA10.81_20230907.hex	0.5567	0.4512
+primary-region.bin	E320_PCB6.0_PWM_FPGA9.53_20221031.hex	0.2790	0.1093
+primary-region.bin	E320_PCB6.1_LS0allDA_FPGA6.69_20220907.hex	0.2765	0.1062
+primary-region.bin	E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex	0.2760	0.1056
+golden-bank.bin	E320_PCB6.0_Normal_FPGA13.39_20221101.hex	0.3623	0.2105
+golden-bank.bin	E320_PCB6.0_PWM_FPGA10.81_20230907.hex	0.3447	0.1907
+golden-bank.bin	E320_PCB6.0_PWM_FPGA9.53_20221031.hex	0.3540	0.2002
+golden-bank.bin	E320_PCB6.1_LS0allDA_FPGA6.69_20220907.hex	0.3596	0.2072
+golden-bank.bin	E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex	0.3505	0.1959
+primary-after-restore.bin	E320_PCB6.0_Normal_FPGA13.39_20221101.hex	0.3428	0.1884
+primary-after-restore.bin	E320_PCB6.0_PWM_FPGA10.81_20230907.hex	0.9944	0.9931
+primary-after-restore.bin	E320_PCB6.0_PWM_FPGA9.53_20221031.hex	0.3407	0.1857
+primary-after-restore.bin	E320_PCB6.1_LS0allDA_FPGA6.69_20220907.hex	0.3419	0.1872
+primary-after-restore.bin	E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex	0.3362	0.1802
+#
+# Interpretation:
+#  ~0.19-0.21 frame-data match is the chance floor for two unrelated ECP5-25F
+#  bitstreams of the same design family (skewed by common bit densities), so any
+#  value in the 0.17-0.21 band means "no relationship".
+#  primary-region  = 10.81 in blocks 0x00-0x02 and 0x08-0x0A EXACTLY (1.000000
+#                    per block); blocks 0x03-0x07 hold configuration, not
+#                    bitstream, which drags the aggregate down to 0.5567.
+#  primary-after-restore = 10.81 exactly everywhere except the erased 4K sector
+#                    0x07F000-0x07FFFF (4042 differing bytes).
+#  golden-bank     = matches nothing we have. Header date Sat Jul 09 14:10:43
+#                    2022; all 7562 frame CRCs valid; a build not in the archive.
+#
+# Header dates (all images):
+#  13.39  Sat Nov 12 16:47:59 2022   (Diamond 3.10.3.144, Final 10.27)
+#  10.81  Thu Sep 07 15:47:58 2023   (Diamond 3.10.3.144, Final 10.27)
+#   9.53  Mon Oct 31 15:33:32 2022   (Diamond 3.10.3.144, Final 10.27)
+#   6.69  Wed Sep 07 12:38:29 2022   (Diamond 3.10.3.144, Final 10.27) ctrl=0x40000000
+#  16.53  Wed Dec 27 13:00:41 2023   (Diamond 3.10.2.115, Final 10.25)
+#  golden Sat Jul 09 14:10:43 2022   (Diamond 3.10.3.144, Final 10.27)
+#
+# USERCODE (command 0xC2 @ 0x08E408) is 0x00000000 in every image and every dump
+# — it carries no version.
+#
+# EBR init block (2304 bytes at 0x08E422): byte-identical in 13.39, 9.53, 6.69,
+# 16.53 AND golden-bank.bin; different only in 10.81.

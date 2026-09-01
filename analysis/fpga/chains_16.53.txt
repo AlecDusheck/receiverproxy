@@ -1,0 +1,262 @@
+# CCU2 chains: 652  (len histogram [(1, 175), (2, 52), (3, 31), (4, 64), (5, 47), (6, 20), (7, 124), (8, 28), (9, 12), (10, 4), (11, 11), (12, 5), (13, 8), (14, 27), (15, 10), (16, 3), (17, 5), (18, 4), (19, 3), (20, 2), (21, 5), (22, 1), (23, 1), (24, 1), (26, 1), (27, 1), (28, 1), (29, 1), (30, 1), (32, 1), (36, 1), (39, 1), (46, 1)])
+# chains that are pure constant-compares with >=6 mixed bits: 14
+chain len=16 nets=21  head=R15C48 A0
+    R15C48     A0 init=A0A0  R14C49_Q3=A R12C29_Q2=B R14C49_Q3=C -=D
+    R15C48     A1 init=A0A0  R14C49_Q4=A R12C29_Q3=B R14C49_Q4=C -=D
+    R15C48     B0 init=C0C0  R12C29_Q4=A R14C49_Q5=B R14C49_Q5=C -=D
+    R15C48     B1 init=C0C0  R6C28_Q1=A R14C48_V02S0301=B R14C48_V02S0401=C -=D
+    R15C48     C0 init=C0C0  R9C30_Q4=A R14C48_V02S0201=B R14C48_V02S0201=C -=D
+    R15C48     C1 init=A0A0  R12C48_Q3=A R9C30_Q5=B R12C48_Q3=C -=D
+    R15C48     D0 init=A0A0  R14C47_Q0=A R14C48_V02S0501=B R14C47_Q0=C -=D
+    R15C48     D1 init=C0C0  R8C30_Q5=A R14C48_V02S0701=B R14C48_V02S0701=C -=D
+    R14C48     A0 init=3030  R21C47_F2=A R14C48_V02S0101=B R14C48_V02S0601=C -=D
+    R14C48     A1 init=3030  R16C47_F6=A R12C48_F1=B R17C47_Q3=C -=D
+    R14C48     B0 init=3030  R16C47_F0=A R12C48_F2=B R17C47_Q4=C -=D
+    R14C48     B1 init=3030  R17C47_Q4=A R12C48_F3=B R16C47_F0=C -=D
+    R14C48     C0 init=3030  R17C47_Q4=A R12C48_F4=B R16C47_F0=C -=D
+    R14C48     C1 init=3030  R17C47_Q4=A R12C48_F5=B R16C47_F0=C -=D
+    R14C48     D0 init=3030  R17C47_Q4=A R13C48_V01S0000=B R16C47_F0=C -=D
+    R14C48     D1 init=3030  R17C47_Q4=A R12C48_F7=B R16C47_F0=C -=D
+      R12C48_F1        = 0
+      R12C48_F2        = 0
+      R12C48_F3        = 0
+      R12C48_F4        = 0
+      R12C48_F5        = 0
+      R12C48_F7        = 0
+      R12C48_Q3        = 1
+      R13C48_V01S0000  = 0
+      R14C47_Q0        = 1
+      R14C48_V02S0101  = 0
+      R14C48_V02S0201  = 1
+      R14C48_V02S0301  = 1
+      R14C48_V02S0401  = 1
+      R14C48_V02S0601  = 1
+      R14C48_V02S0701  = 1
+      R14C49_Q3        = 1
+      R14C49_Q4        = 1
+      R14C49_Q5        = 1
+      R16C47_F0        = 1
+      R17C47_Q3        = 1
+      R17C47_Q4        = 1
+chain len=7 nets=16  head=R15C31 A1
+    R15C31     A1 init=2020  R22C25_Q7=A R26C36_Q6=B R12C21_Q6=C -=D
+    R15C31     B0 init=2020  R22C25_Q7=A R26C36_Q7=B R12C21_Q7=C -=D
+    R15C31     B1 init=2020  R22C25_Q7=A R26C38_Q2=B R14C31_V02S0401=C -=D
+    R15C31     C0 init=4040  R26C38_Q3=A R22C25_Q7=B R16C27_Q3=C -=D
+    R15C31     C1 init=4040  R22C36_Q2=A R22C25_Q7=B R14C29_V02S0601=C -=D
+    R15C31     D0 init=4040  R22C36_Q3=A R14C31_V02S0501=B R18C16_Q7=C -=D
+    R15C31     D1 init=2020  R22C25_Q7=A R14C31_V02S0701=B R15C10_Q4=C -=D
+      R12C21_Q6        = 1
+      R12C21_Q7        = 1
+      R14C29_V02S0601  = 1
+      R14C31_V02S0401  = 1
+      R14C31_V02S0501  = 1
+      R14C31_V02S0701  = 0
+      R15C10_Q4        = 1
+      R16C27_Q3        = 1
+      R18C16_Q7        = 1
+      R22C25_Q7        = 1
+      R22C36_Q2        = 0
+      R22C36_Q3        = 0
+      R26C36_Q6        = 0
+      R26C36_Q7        = 0
+      R26C38_Q2        = 0
+      R26C38_Q3        = 0
+chain len=7 nets=15  head=R14C29 A1
+    R14C29     A1 init=1010  R22C25_Q7=A R12C17_Q6=B R12C21_Q6=C -=D
+    R14C29     B0 init=1010  R22C25_Q7=A R14C29_V02S0101=B R12C21_Q7=C -=D
+    R14C29     B1 init=1010  R22C25_Q7=A R12C20_Q4=B R16C27_Q2=C -=D
+    R14C29     C0 init=1010  R22C25_Q7=A R12C20_Q5=B R16C27_Q3=C -=D
+    R14C29     C1 init=1010  R22C25_Q7=A R12C17_Q4=B R14C29_V02S0001=C -=D
+    R14C29     D0 init=1010  R22C25_Q7=A R14C29_V02S0501=B R18C16_Q7=C -=D
+    R14C29     D1 init=1010  R22C25_Q7=A R14C19_Q4=B R15C10_Q4=C -=D
+      R12C17_Q4        = 0
+      R12C17_Q6        = 0
+      R12C20_Q4        = 0
+      R12C20_Q5        = 0
+      R12C21_Q6        = 1
+      R12C21_Q7        = 1
+      R14C19_Q4        = 0
+      R14C29_V02S0001  = 1
+      R14C29_V02S0101  = 0
+      R14C29_V02S0501  = 0
+      R15C10_Q4        = 1
+      R16C27_Q2        = 1
+      R16C27_Q3        = 1
+      R18C16_Q7        = 1
+      R22C25_Q7        = 0
+chain len=12 nets=15  head=R21C57 A1
+    R21C57     A1 init=4040  R22C51_Q1=A R22C57_F1=B R22C57_Q0=C -=D
+    R21C57     B0 init=4040  R22C51_Q1=A R22C57_F1=B R21C57_Q2=C -=D
+    R21C57     B1 init=4040  R22C51_Q1=A R22C57_F1=B R21C57_Q3=C -=D
+    R21C57     C0 init=2020  R22C57_F1=A R22C51_Q1=B R21C57_Q4=C -=D
+    R21C57     C1 init=2020  R22C57_F1=A R22C51_Q1=B R22C56_Q2=C -=D
+    R21C57     D0 init=2020  R22C57_F1=A R22C51_Q1=B R22C56_Q3=C -=D
+    R21C57     D1 init=2020  R22C57_F1=A R22C51_Q1=B R20C55_Q6=C -=D
+    R20C57     A1 init=3030  R20C54_F6=A R18C60_Q6=B R18C59_F4=C -=D
+    R20C57     B0 init=3030  R20C54_F6=A R18C60_Q7=B R18C59_F4=C -=D
+    R20C57     B1 init=3030  R20C54_F6=A R18C59_Q6=B R18C59_F4=C -=D
+    R20C57     C0 init=3030  R20C54_F6=A R18C59_Q7=B R18C59_F4=C -=D
+    R20C57     C1 init=3030  R20C54_F6=A R18C59_Q2=B R18C59_F4=C -=D
+      R18C59_F4        = 1
+      R18C59_Q2        = 0
+      R18C59_Q6        = 0
+      R18C59_Q7        = 0
+      R18C60_Q6        = 0
+      R18C60_Q7        = 0
+      R20C55_Q6        = 1
+      R21C57_Q2        = 1
+      R21C57_Q3        = 1
+      R21C57_Q4        = 1
+      R22C51_Q1        = 0
+      R22C56_Q2        = 1
+      R22C56_Q3        = 1
+      R22C57_F1        = 1
+      R22C57_Q0        = 1
+chain len=5 nets=14  head=R9C26 A1
+    R9C26      A1 init=8080  R9C23_F7=A R10C24_F7=B R3C19_Q0=C -=D
+    R9C26      B0 init=8080  R9C23_F6=A R10C24_F6=B R3C19_Q1=C -=D
+    R9C26      B1 init=8080  R14C30_F7=A R9C23_F0=B R4C19_Q4=C -=D
+    R9C26      C0 init=8080  R9C17_F6=A R9C24_F1=B R4C19_Q5=C -=D
+    R9C26      C1 init=5050  R2C24_V02S0301=A R9C23_F1=B R9C24_F0=C -=D
+      R2C24_V02S0301   = 0
+      R3C19_Q0         = 1
+      R3C19_Q1         = 1
+      R4C19_Q4         = 1
+      R4C19_Q5         = 1
+      R9C17_F6         = 1
+      R9C23_F0         = 1
+      R9C23_F6         = 1
+      R9C23_F7         = 1
+      R9C24_F0         = 1
+      R9C24_F1         = 1
+      R10C24_F6        = 1
+      R10C24_F7        = 1
+      R14C30_F7        = 1
+chain len=7 nets=14  head=R40C63 A1
+    R40C63     A1 init=5050  R45C61_Q6=A R29C67_Q0=B R30C63_Q2=C -=D
+    R40C63     B0 init=5050  R50C61_V06N0103=A R39C63_F1=B R30C63_Q3=C -=D
+    R40C63     B1 init=3030  R39C63_F5=A R34C61_Q3=B R30C62_Q2=C -=D
+    R40C63     C0 init=5050  R34C61_Q4=A R39C62_F1=B R38C62_V02S0401=C -=D
+    R40C63     C1 init=5050  R34C61_Q5=A R39C63_F0=B R26C59_Q2=C -=D
+    R40C63     D0 init=3030  R39C63_F4=A R34C61_Q6=B R26C59_Q3=C -=D
+    R40C63     D1 init=5050  R34C61_Q7=A R39C62_F0=B R40C70_V06S0303=C -=D
+      R26C59_Q2        = 1
+      R26C59_Q3        = 1
+      R30C62_Q2        = 1
+      R30C63_Q2        = 1
+      R30C63_Q3        = 1
+      R34C61_Q3        = 0
+      R34C61_Q4        = 0
+      R34C61_Q5        = 0
+      R34C61_Q6        = 0
+      R34C61_Q7        = 0
+      R38C62_V02S0401  = 1
+      R40C70_V06S0303  = 1
+      R45C61_Q6        = 0
+      R50C61_V06N0103  = 0
+chain len=7 nets=9  head=R19C31 A1
+    R19C31     A1 init=8080  R19C33_F7=A R18C28_F0=B R19C29_Q2=C -=D
+    R19C31     B0 init=8080  R19C33_F7=A R18C28_F0=B R19C29_Q3=C -=D
+    R19C31     B1 init=8080  R19C33_F7=A R18C28_F0=B R19C30_Q6=C -=D
+    R19C31     C0 init=8080  R18C28_F0=A R19C33_F7=B R19C30_Q7=C -=D
+    R19C31     C1 init=8080  R18C28_F0=A R19C33_F7=B R19C29_Q6=C -=D
+    R19C31     D0 init=8080  R18C28_F0=A R19C33_F7=B R19C29_Q7=C -=D
+    R19C31     D1 init=3030  R19C33_F7=A R19C29_Q4=B R18C28_F0=C -=D
+      R18C28_F0        = 1
+      R19C29_Q2        = 1
+      R19C29_Q3        = 1
+      R19C29_Q4        = 0
+      R19C29_Q6        = 1
+      R19C29_Q7        = 1
+      R19C30_Q6        = 1
+      R19C30_Q7        = 1
+      R19C33_F7        = 1
+chain len=7 nets=8  head=R27C15 A1
+    R27C15     A1 init=3030  R29C15_F4=A R27C16_Q4=B R28C15_F7=C -=D
+    R27C15     B0 init=5050  R27C16_Q5=A R29C15_F4=B R28C15_F7=C -=D
+    R27C15     B1 init=5050  R28C17_Q6=A R29C15_F4=B R28C15_F7=C -=D
+    R27C15     C0 init=5050  R28C17_Q7=A R29C15_F4=B R28C15_F7=C -=D
+    R27C15     C1 init=5050  R27C16_Q6=A R29C15_F4=B R28C15_F7=C -=D
+    R27C15     D0 init=3030  R29C15_F4=A R27C16_Q7=B R28C15_F7=C -=D
+    R27C15     D1 init=3030  R29C15_F4=A R27C18_Q6=B R28C15_F7=C -=D
+      R27C16_Q4        = 0
+      R27C16_Q5        = 0
+      R27C16_Q6        = 0
+      R27C16_Q7        = 0
+      R27C18_Q6        = 0
+      R28C15_F7        = 1
+      R28C17_Q6        = 0
+      R28C17_Q7        = 0
+chain len=4 nets=8  head=R14C30 A0
+    R14C30     A0 init=1010  R22C25_Q7=A R14C19_Q5=B R15C10_Q5=C -=D
+    R14C30     A1 init=1010  R22C25_Q7=A R4C21_Q4=B R17C23_Q6=C -=D
+    R14C30     B0 init=1010  R22C25_Q7=A R4C21_Q5=B R17C23_Q7=C -=D
+    R14C30     B1 init=5050  R22C25_Q7=A R18C24_Q6=B R12C31_Q4=C -=D
+      R4C21_Q4         = 0
+      R4C21_Q5         = 0
+      R12C31_Q4        = 1
+      R14C19_Q5        = 0
+      R15C10_Q5        = 1
+      R17C23_Q6        = 1
+      R17C23_Q7        = 1
+      R22C25_Q7        = 0
+chain len=3 nets=7  head=R12C8 A0
+    R12C8      A0 init=4040  R10C4_Q7=A R22C25_Q7=B R15C11_F6=C -=D
+    R12C8      A1 init=4040  R10C5_Q0=A R22C25_Q7=B R15C11_F7=C -=D
+    R12C8      B0 init=4040  R10C5_Q1=A R22C25_Q7=B R16C12_F2=C -=D
+      R10C4_Q7         = 0
+      R10C5_Q0         = 0
+      R10C5_Q1         = 0
+      R15C11_F6        = 1
+      R15C11_F7        = 1
+      R16C12_F2        = 1
+      R22C25_Q7        = 1
+chain len=5 nets=6  head=R8C25 A1
+    R8C25      A1 init=5050  R6C25_Q2=A R9C25_Q0=B R5C26_F3=C -=D
+    R8C25      B0 init=5050  R8C25_Q2=A R9C25_Q1=B R5C26_F3=C -=D
+    R8C25      B1 init=5050  R8C25_Q3=A R9C25_Q4=B R5C26_F3=C -=D
+    R8C25      C0 init=5050  R8C25_Q4=A R9C25_Q5=B R5C26_F3=C -=D
+    R8C25      C1 init=5050  R8C25_Q5=A R9C24_Q2=B R5C26_F3=C -=D
+      R5C26_F3         = 1
+      R6C25_Q2         = 0
+      R8C25_Q2         = 0
+      R8C25_Q3         = 0
+      R8C25_Q4         = 0
+      R8C25_Q5         = 0
+chain len=5 nets=6  head=R7C26 A1
+    R7C26      A1 init=5050  R7C24_Q6=A R6C24_Q6=B R3C26_V06S0303=C -=D
+    R7C26      B0 init=3030  R6C24_Q7=A R6C24_Q2=B R3C26_V06S0303=C -=D
+    R7C26      B1 init=5050  R6C24_Q3=A R8C24_Q6=B R3C26_V06S0303=C -=D
+    R7C26      C0 init=5050  R6C25_Q4=A R8C24_Q7=B R3C26_V06S0303=C -=D
+    R7C26      C1 init=3030  R6C24_Q4=A R6C25_Q5=B R3C26_V06S0303=C -=D
+      R3C26_V06S0303   = 1
+      R6C24_Q2         = 0
+      R6C24_Q3         = 0
+      R6C25_Q4         = 0
+      R6C25_Q5         = 0
+      R7C24_Q6         = 0
+chain len=5 nets=6  head=R24C32 A1
+    R24C32     A1 init=3030  R36C34_F7=A R26C33_Q0=B R24C32_F6=C -=D
+    R24C32     B0 init=3030  R36C34_F7=A R26C33_Q1=B R24C32_F6=C -=D
+    R24C32     B1 init=3030  R36C34_F7=A R24C33_Q0=B R24C32_F6=C -=D
+    R24C32     C0 init=3030  R36C34_F7=A R24C33_Q1=B R24C32_F6=C -=D
+    R24C32     C1 init=3030  R36C34_F7=A R26C33_Q4=B R24C32_F6=C -=D
+      R24C32_F6        = 1
+      R24C33_Q0        = 0
+      R24C33_Q1        = 0
+      R26C33_Q0        = 0
+      R26C33_Q1        = 0
+      R26C33_Q4        = 0
+chain len=5 nets=6  head=R8C24 A1
+    R8C24      A1 init=3030  R9C25_Q0=A R6C24_Q6=B R6C24_F1=C -=D
+    R8C24      B0 init=5050  R6C24_Q7=A R9C25_Q1=B R6C24_F1=C -=D
+    R8C24      B1 init=5050  R8C24_Q6=A R9C25_Q4=B R6C24_F1=C -=D
+    R8C24      C0 init=3030  R9C25_Q5=A R8C24_Q7=B R6C24_F1=C -=D
+    R8C24      C1 init=3030  R9C24_Q2=A R6C24_Q4=B R6C24_F1=C -=D
+      R6C24_F1         = 1
+      R6C24_Q4         = 0
+      R6C24_Q6         = 0
+      R6C24_Q7         = 0
+      R8C24_Q6         = 0
+      R8C24_Q7         = 0

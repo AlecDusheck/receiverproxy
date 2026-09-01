@@ -1,0 +1,28 @@
+#	The LED output stage, in numbers, for ONE Eager P2.5-O16S-SMD1415-128x64-E
+#	module at 1/16 scan on hub J1, driven by config/panels/p25-128x64-sm16269s.toml.
+#	Formulas from crates/e120-rcvbp/src/spec/mod.rs (vendor GetOneScanLen @ 0x138e90,
+#	GetCardScanLen @ 0x145420) and crates/e120-rcvbp/src/spec/mapping.rs.
+#
+quantity	formula	value	meaning	confidence
+module width	spec	128	pixels across	HIGH
+module height	spec	64	pixels down	HIGH
+stored height	height / 2	32	the record stores HALF the height because the module is driven as two vertical halves on the two HUB75 RGB groups (RD1/GD1/BD1 and RD2/GD2/BD2)	HIGH (value) / MEDIUM (the two-halves reading)
+scan	spec	16	1/16 duty; 5 address lines A..E, of which 4 are needed	HIGH
+rows lit per address	height / scan	4	2 rows in each half	HIGH
+OneScanLen	width * storedH / scan	256	serial clocks per scan address per data group per module	HIGH
+CardScanLen	OneScanLen * modulesInLineDir	256	serial clocks per scan address for the whole card (factory wall: 512 for 2 modules)	HIGH
+serial clock setting	rec +0x021	8	vendor units, NOT Hz. Chip-library default for SM16269 is 15; the seller's file used 8 and our spec keeps 8	HIGH (value) / NOT RESOLVED (units)
+grey depth	from chip regs 0x07/0x03	14 bit	basic pack +0x08 = 0x0E; matches the module datasheet	HIGH
+PWM segments	rec +0x0E5 + 1	16	scan-table bucket count	HIGH
+high-refresh style	rec +0x059	0	only style 0 is transcribed in the solver	HIGH
+minimum OE	rec +0x0AE f32	0.0001	feeds the bit-time solver	HIGH
+line_time fed to the solver	CardScanLen * serialClock * 8	16384	arbitrary units	HIGH
+record 0x03 entry count	width * storedH	4096	one 3-byte entry per pixel of ONE half	HIGH
+record 0x03 entry	(line, slot u16)	line = row mod 16; slot = (1 - row div 16) * 128 + col	line = scan address 0..15; slot = position 0..255 in that address's 256-clock shift-out. reversed_groups = true puts the LAST group first	HIGH
+mapping packs on the wire	4096 entries / 16	16 packs of 256 entries	type 0x03, sub 0..15, 0x300 bytes each	HIGH
+scan-table entries used	rendered	0xE7 max, 152 with a non-zero level in our table	(level, 24-bit BE value/8) per entry	HIGH
+scan-table bit-time values	2^L * minOE / seg, snapped to 8	ALL ZERO	at minOE = 1e-4 every snapped bit time rounds to 0. VERIFIED: card-dumps/primary-region.bin at 0x76000 and build/...-block7.bin at 0x6000 are BYTE-IDENTICAL and every 24-bit value field is zero	HIGH
+scan-table tail	+0x39E, +0x39F, +0x3A0.., +0x3C0..	0x10, 0x10, identity 0x00..0x0F, then start/end pairs	scan mode, segment count, identity line order, per-bucket (start,end)	HIGH
+frame rate / refresh	rec +0x0AA f32 / module datasheet	60 Hz frame, >= 3840 Hz refresh	the >=3840 Hz refresh is generated INSIDE the driver chip (S-PWM), not by the card's OE	HIGH (datasheet) / MEDIUM (attribution)
+HUB75 signal set (card connector, vendor spec p.4)	-	RD1 GD1 BD1 RD2 GD2 BD2, A B C D E, CLK, LAT, OE, GND	16-pin HUB75E per hub connector, J1..J12	HIGH
+card data-group capacity (vendor spec p.2)	-	24 parallel RGB groups or 32 serial RGB groups (expandable to 128)	the FPGA drives far more than one hub	HIGH

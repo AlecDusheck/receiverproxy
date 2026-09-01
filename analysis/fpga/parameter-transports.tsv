@@ -1,0 +1,59 @@
+#	Every transport by which configuration reaches the Colorlight E120, with the
+#	frame identifiers this repo has verified. All frames are raw Ethernet:
+#	dst MAC 11:22:33:44:55:66, src MAC 22:22:33:44:55:66, the "EtherType" slot
+#	(frame offset 12..13) abused as a 2-byte packet type. Payload starts at offset 14
+#	for control frames; the FPP pixel/sync/brightness frames put their first DATA
+#	byte at frame offset 13, i.e. inside the second EtherType byte.
+#
+#	Sources: crates/e120-proto/src/{lib,pixel,params,flash,discovery}.rs,
+#	crates/e120-cli/src/params.rs, docs/compiled-image-format.md,
+#	docs/archive/config-protocol.md.
+#
+channel	type_bytes	direction	persistence	payload / identifier	what it carries	confidence
+discovery request	0x07 0x00	host->card	none	270 zero bytes	"who is there"	HIGH
+discovery reply	0x08 0x05	card->host	none	~1056 bytes, src MAC = card MAC	card self-report incl. cols/rows	HIGH
+set layout	0x02 0x00	host->card	RAM	rcvIdx BE at +0, recv w/h at +6/+8, x/y offset at +12/+14, total w/h at +16/+18	this card's window in the wall	HIGH
+real-time pack (basic)	0x05 0x00	host->card	RAM	header [0x05,0x00,0x00,0x00] then 256-byte body	the 256-byte basic parameter pack (see basic-pack-fields.tsv)	HIGH
+real-time pack (chip regs)	0x05 0x00	host->card	RAM	header [0x05,0x00,0x00,0x01] then 256-byte body	record 0x84 verbatim: (reg,R,G,B) quads. This is the pack that ARMS the drivers	HIGH
+real-time pack (data swap)	0x05 0x00	host->card	RAM	header [0x05,0x00,0x00,0x02] then 256-byte body	64-byte lane map + three deseam pairs	HIGH
+void table	0x10 0x00	host->card	RAM	4-byte header, 0x400 body	void-point table (zeros in our config)	HIGH
+module positions	0x17 0x00	host->card	RAM	5-byte header, 0x300 body	10-byte tile entries [outer,inner,x BE,y BE,w BE,h BE]	HIGH
+pixel sequence	0x03 0x00	host->card	RAM	4-byte header, sub-index 0..15, 0x300 body each	record 0x03 = the framebuffer-pixel -> scan-line/slot map, 4096 entries	HIGH
+void line	0x1F 0x00	host->card	RAM	8-byte header, sub 0..3, 0x400 body	void-line packs (zeros here)	HIGH
+anti-void line	0x32 0x00	host->card	RAM	8-byte header, sub 0..7, 0x400 body	2048 u16-BE counters 0x2000+n, twice, sliced	HIGH
+scan table	0x18 0x00	host->card	RAM	4-byte header, 0x400 body	PWM level schedule: 0xE7 x (level, 24-bit BE value/8) + start/end pairs at +0x3C0	HIGH
+brightness	0x0A <b>	host->card	RAM	data [b,b,b,0xFF] from frame offset 13; 77-byte frame	global brightness	HIGH
+pixel row	0x55 <rowHi>	host->card	RAM	frame+13: row u16 BE, pixel offset u16 BE, count u16 BE, 0x08, 0x88, then RGB triples	one row of the framebuffer	HIGH
+display / vsync (latch)	0x01 0x07	host->card	RAM	112-byte frame; brightness at frame offset 35 and 38..40, 0x05 at 36	latches the sent rows; FPP sends it twice per refresh on fw >= 13	HIGH
+card built-in test pattern	0x33 0x00	host->card	RAM	payload[1..3]=rcvIdx BE, payload[3]=0x09, payload[4]=pattern	selects the card's OWN generated pattern - needs no pixel data	HIGH
+flash read (paged)	0x06 0x00	host->card	-	payload[3]=0x44 (read), [4]=0x01, [5..7]=page BE; reply type 0x09 0x01, 1024 B	reads block 0x07 parameter region	HIGH
+flash erase	0x06 0x00	host->card	FLASH	payload[3]=0x23; erases the whole 64 KB block	block 0x07 erase	HIGH
+flash page write	0x06 0x00	host->card	FLASH	payload[3]=0x85, [4]=flag, [5]=block, [6]=page, data at payload+8	one 256-byte page of the boot image	HIGH
+reload params (no reboot)	0x06 0x00	host->card	-	payload[3]=0x79, no data	re-apply flash config	MEDIUM
+reload params full	0x06 0x00	host->card	-	payload[3]=0x77, payload[8..11]=01 01 01	vendor's post-save reload of all three parameter classes	MEDIUM
+linear flash access	0x19 0x00	host->card	FLASH	payload[3]=opcode, [4..8]=addr BE, [8..12]=len BE, data at +12	only used for the screen-size record at flash 0x0007F000 (EEPROM-backed page 0xF0)	HIGH
+program-region unlock	0x23 0x00	host->card	-	payload[3]=0xFF to unlock, 0x00 to relock	gates firmware-region writes	HIGH
+firmware chunk write	0x26 0x00	host->card	FLASH	payload[3]=0x62, [5]=block, [6]=page, data at +8	FPGA bitstream image (blocks 0x00-0x0A primary, 0x20 golden)	HIGH
+#
+#	BOOT-TIME PATH (what the card reads for itself, no host involved)
+#	flash block 0x07 (0x70000..0x7FFFF) holds the compiled parameter image; region
+#	map in docs/compiled-image-format.md. Page 0xF0 (0x7F000) is the EEPROM-backed
+#	screen-size record. The bitstream itself is in blocks 0x00-0x0A with a golden
+#	copy at 0x20. The gateware has CCLK.MODE = USRMCLK and OSC.MODE = OSCG, so the
+#	FPGA drives the config-flash SPI clock AT RUNTIME and can read flash while
+#	running - which is what makes a boot-time parameter load possible at all.
+image_off	len	region	confidence
+0x0000	0x100	basic parameter pack body	HIGH
+0x0100	0x400	void table (zeros here)	HIGH
+0x0500	0x100	data-swap pack body	HIGH
+0x0600	0x300	module-position table	HIGH
+0x0900	0x100	chip-register block = record 0x84 verbatim; written only when arm_at_boot	HIGH
+0x0A00	0x200	current segment (zeros for this chip id)	HIGH
+0x0C00	0x100	current exchange (we write zeros; vendor output NOT RESOLVED)	MEDIUM
+0x1000	0x800	void-line packs 0-1	HIGH
+0x1800	0x1000	anti-void-line packs 0-3	HIGH
+0x3000	0x3000	pixel-sequence packs x16 = record 0x03	HIGH
+0x6000	0x400	scan table	HIGH
+0x6800	0x800	void-line packs 2-3	HIGH
+0x7000	0x1000	anti-void packs 4-7 (zeros)	HIGH
+0x8000	-	u32-LE length + the .rcvbp source, verbatim	HIGH

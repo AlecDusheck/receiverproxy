@@ -1,0 +1,21 @@
+# candidate byte registers swept; constant-match cones found: 20
+reg R4C24 [Q1,Q2,Q3,Q4,Q5,Q6] (6 bits)  cone R5C24 D1 init=4000  matches: 26 2E 36 3E
+reg R5C19 [Q2,Q3,Q4,Q5,Q6,Q7] (6 bits)  cone R7C39 C0 init=0040  matches: 0A 0E 1A 1E
+reg R5C19 [Q2,Q3,Q4,Q5,Q6,Q7] (6 bits)  cone R7C39 C1 init=8000  matches: 2B 2F 3B 3F
+reg R5C25 [Q1,Q2,Q3,Q4,Q5,Q6] (6 bits)  cone R6C25 B1 init=2000  matches: 26 2E 36 3E
+reg R9C47 [Q0,Q1,Q2,Q3,Q4,Q5] (6 bits)  cone R9C48 A1 init=0001  matches: 00 04 08 0C
+reg R10C42 [Q1,Q2,Q3,Q4,Q5,Q6] (6 bits)  cone R11C43 A0 init=4000  matches: 0B 0F 2B 2F
+reg R14C11 [Q0,Q1,Q2,Q3,Q4,Q5] (6 bits)  cone R9C24 B1 init=8000  matches: 0F 1F 2F 3F
+reg R15C28 [Q0,Q1,Q4,Q5,Q6,Q7] (6 bits)  cone R16C27 B1 init=8000  matches: 33 37 3B 3F
+reg R17C40 [Q1,Q2,Q3,Q4,Q5,Q6] (6 bits)  cone R16C42 D1 init=2000  matches: 32 36 3A 3E
+reg R17C40 [Q1,Q2,Q3,Q4,Q5,Q6] (6 bits)  cone R17C43 B1 init=0400  matches: 0C 0E 2C 2E
+reg R17C40 [Q1,Q2,Q3,Q4,Q5,Q6] (6 bits)  cone R16C42 B1 init=1000  matches: 0A 0B 2A 2B
+reg R18C15 [Q1,Q2,Q3,Q4,Q5,Q6,Q7] (7 bits)  cone R20C16 C1 init=1050  matches: 16 17 56 57
+reg R22C61 [Q0,Q1,Q4,Q5,Q6,Q7] (6 bits)  cone R21C60 C0 init=8000  matches: 33 37 3B 3F
+reg R26C5 [Q0,Q1,Q2,Q3,Q6,Q7] (6 bits)  cone R26C8 D0 init=8000  matches: 3C 3D 3E 3F
+reg R28C22 [Q0,Q1,Q2,Q3,Q4,Q5] (6 bits)  cone R27C21 D1 init=8000  matches: 33 37 3B 3F
+reg R29C19 [Q2,Q3,Q4,Q5,Q6,Q7] (6 bits)  cone R27C19 C1 init=8000  matches: 3C 3D 3E 3F
+reg R31C60 [Q2,Q3,Q4,Q5,Q6,Q7] (6 bits)  cone R32C59 D0 init=8000  matches: 3C 3D 3E 3F
+reg R35C41 [Q1,Q2,Q3,Q4,Q5,Q6] (6 bits)  cone R26C46 C1 init=0020  matches: 0C 0D 0E 0F
+reg R38C14 [Q2,Q3,Q4,Q5,Q6,Q7] (6 bits)  cone R39C21 B1 init=0010  matches: 04 14 24 34
+reg R42C46 [Q0,Q1,Q2,Q3,Q4,Q5] (6 bits)  cone R42C46 D0 init=8000  matches: 3C 3D 3E 3F

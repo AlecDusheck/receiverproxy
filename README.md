@@ -99,6 +99,9 @@ documented in [`firmware/README.md`](firmware/README.md).
 * [`docs/rcvbp-format.md`](docs/rcvbp-format.md) — the `.rcvbp` file format.
 * [`firmware/README.md`](firmware/README.md) — firmware images, flash layout,
   and the upgrade procedure.
+* [`docs/vendor-sdk-analysis.md`](docs/vendor-sdk-analysis.md) — how protocol
+  details were worked out from the vendor SDK, and how to extend that.
+* [`HANDOFF.md`](HANDOFF.md) — current bring-up state, traps, and next steps.
 
 Firmware can only be installed through the card's own SDRAM staging path
 (`e120 upgrade install`); direct flash writes cannot reach the bitstream regions

@@ -30,9 +30,11 @@ ka3005p power off       # power-cycling the card is expected and encouraged
 ka3005p power on
 ```
 
-**Binary reverse-engineering must be delegated to an Opus 5 subagent**
-(`Agent` with `model: "opus"`). Do not run radare2/strings on vendor binaries
-inline — the user was explicit about this.
+**Vendor SDK file inspection must be delegated to an Opus 5 subagent**
+(`Agent` with `model: "opus"`), not done in the main loop — the user was
+explicit about this. The procedure, the file map, and a prompt template are in
+[`docs/vendor-sdk-analysis.md`](docs/vendor-sdk-analysis.md). Never execute the
+vendor software.
 
 ---
 
@@ -201,8 +203,9 @@ lives beside it as `scan_pack()`, sent only with `send-params --scan-pack`.
    `docs/config-protocol.md` §3 lists the LEDVISION save-path types seen in
    capture: **0x11** (save config, `data[3]` = rx index), plus `0x1F`, `0x26`,
    `0x31`, `0x32`, `0x76`. I tried a naive `0x1100` frame and it did nothing;
-   the payload layout is unresolved. **Give this to an Opus 5 subagent** with
-   the extracted LEDVISION 9.6 (see §8).
+   the payload layout is unresolved. **Give this to an Opus 5 subagent** —
+   see [`docs/vendor-sdk-analysis.md`](docs/vendor-sdk-analysis.md) for the
+   method and a ready prompt.
 
 3. **Re-test both `pixel_row` layouts** on the now-stable rail, with
    `scripts/ab.sh` for numbers and `snap-avg.sh` for pictures.
@@ -231,5 +234,6 @@ lives beside it as `scan_pack()`, sent only with `send-params --scan-pack`.
   `/private/tmp/claude-501/-Users-amd-e120/261c3dad-ba97-45d2-8ea3-ab7a950a8ff9/scratchpad/ledvision/`
   The x64 sender is `$_15_/x64/Bin/CLTNic.dll` (exports `Nic_SendScreenPicture`,
   `Nic_SetBrightness`, `Nic_SetScreenSize`, `Nic_SetTestModeIndex`, ...) and
-  `CLTDevice.dll` is beside it. **Opus 5 subagent only.**
+  `CLTDevice.dll` is beside it. **Opus 5 subagent only** — method and prompt
+  template in [`docs/vendor-sdk-analysis.md`](docs/vendor-sdk-analysis.md).
 * **Trial output** — photos and current readings — in `/tmp/e120-trials/`.

@@ -4,6 +4,7 @@ mod display;
 mod flash;
 mod params;
 mod restore;
+mod upgrade;
 mod util;
 
 use capture::{discover, listen, pcap_summary, raw_send, replay};
@@ -51,6 +52,30 @@ struct Cli {
 
     #[command(subcommand)]
     cmd: Cmd,
+}
+
+#[derive(Subcommand)]
+enum UpgradeWhat {
+    /// Ask the card what image it expects and how it can be upgraded
+    Info {
+        #[arg(long, default_value_t = 4)]
+        wait: u64,
+    },
+    /// Install a firmware image via the card's own SDRAM staging
+    Install {
+        image: String,
+        /// Actually send it. Without this it only reports what it would do.
+        #[arg(long)]
+        commit: bool,
+        /// Target the golden backup instead of the primary image
+        #[arg(long)]
+        golden: bool,
+        /// Seconds to wait for the card to finish programming
+        #[arg(long, default_value_t = 120)]
+        timeout: u64,
+        #[arg(long, default_value_t = 4)]
+        wait: u64,
+    },
 }
 
 #[derive(Subcommand)]
@@ -357,6 +382,11 @@ enum Cmd {
         #[arg(long, default_value_t = 3)]
         wait: u64,
     },
+    /// Install firmware the way the card supports
+    Upgrade {
+        #[command(subcommand)]
+        what: UpgradeWhat,
+    },
     /// Put the card back the way it was
     Restore {
         #[command(subcommand)]
@@ -500,6 +530,50 @@ fn run_display(cli: &Cli) -> Result<Option<()>> {
 }
 
 /// Commands that read or write the card's flash and EEPROM.
+/// Commands that install or restore firmware.
+fn run_firmware(cli: &Cli) -> Result<Option<()>> {
+    match &cli.cmd {
+        Cmd::Upgrade { what } => match what {
+            UpgradeWhat::Info { wait } => upgrade::info(cli, *wait).map(Some),
+            UpgradeWhat::Install {
+                image,
+                commit,
+                golden,
+                timeout,
+                wait,
+            } => {
+                let partition = if *golden {
+                    protocol::upgrade::Partition::Golden
+                } else {
+                    protocol::upgrade::Partition::Primary
+                };
+                upgrade::install(cli, image, *commit, partition, *timeout, *wait).map(Some)
+            }
+        },
+        Cmd::Snapshot { dir, index, wait } => restore::snapshot(cli, dir, *index, *wait).map(Some),
+        Cmd::Restore { what } => match what {
+            RestoreWhat::Firmware {
+                image,
+                commit,
+                index,
+                wait,
+            } => restore::firmware(cli, image, *commit, *index, *wait).map(Some),
+            RestoreWhat::ScreenRecord {
+                from_image,
+                commit,
+                index,
+            } => restore::screen_record(cli, from_image, *commit, *index).map(Some),
+            RestoreWhat::All {
+                dir,
+                commit,
+                index,
+                wait,
+            } => restore::all(cli, dir, *commit, *index, *wait).map(Some),
+        },
+        _ => Ok(None),
+    }
+}
+
 fn run_flash(cli: &Cli) -> Result<Option<()>> {
     match &cli.cmd {
         Cmd::ReadConfig {
@@ -566,26 +640,6 @@ fn run_flash(cli: &Cli) -> Result<Option<()>> {
             commit,
             index,
         } => restore_screen_record(cli, from_image, *commit, *index).map(Some),
-        Cmd::Snapshot { dir, index, wait } => restore::snapshot(cli, dir, *index, *wait).map(Some),
-        Cmd::Restore { what } => match what {
-            RestoreWhat::Firmware {
-                image,
-                commit,
-                index,
-                wait,
-            } => restore::firmware(cli, image, *commit, *index, *wait).map(Some),
-            RestoreWhat::ScreenRecord {
-                from_image,
-                commit,
-                index,
-            } => restore::screen_record(cli, from_image, *commit, *index).map(Some),
-            RestoreWhat::All {
-                dir,
-                commit,
-                index,
-                wait,
-            } => restore::all(cli, dir, *commit, *index, *wait).map(Some),
-        },
         Cmd::RestoreFlash {
             image,
             commit,
@@ -639,7 +693,7 @@ fn run_params(cli: &Cli) -> Result<Option<()>> {
 }
 
 fn run(cli: &Cli) -> Result<()> {
-    for dispatch in [run_display, run_flash, run_params] {
+    for dispatch in [run_display, run_flash, run_firmware, run_params] {
         if dispatch(cli)?.is_some() {
             return Ok(());
         }

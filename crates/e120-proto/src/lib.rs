@@ -14,6 +14,7 @@ pub mod discovery;
 pub mod flash;
 pub mod params;
 pub mod pixel;
+pub mod upgrade;
 
 pub use discovery::*;
 pub use flash::*;

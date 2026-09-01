@@ -17,3 +17,6 @@ e120-net.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 image.workspace = true
+
+[lints]
+workspace = true

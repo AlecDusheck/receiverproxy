@@ -1021,3 +1021,201 @@ is fully static.
 | 0x162270 | `CHWParamRcvGeneral::ExchangeThirdRegWhenLoadAndSaveFile` | consumes `SRcvParamBasic` |
 | 0x167c50 | `CHWParamRcvGeneral::MakeCurrentOfDeadPixcelValid` | consumes `SRcvParamBasic` |
 
+
+---
+
+## 12. Readback of receiver parameters (read-only)
+
+> Numbering note: the coordinator asked for "## 11"; §11 was already taken by the
+> first-light verdict, so this is §12.
+
+Everything here is static analysis of `libCLTDevice.1.dylib`. **No vendor binary
+was executed and no frame was transmitted.**
+
+### 12.1 Call chain (CONFIRMED)
+
+```
+CReceiverOP::ReadbackRcvBasicParam(u32 devId, int port, int rcvIdx, SRcvParamInfo&)   @ 0x3c2230
+  └─ virtual [vtable+0x620]  ==  CReceiverOP::ReadFlashToBuffer(...)                  @ 0x3c68e0
+       └─ BuildRcvCardFlashOperation(&outLen,&outBuf, rcvIdx, 0x44, hi, lo, 1, NULL, 0) @ 0x30b790
+       └─ virtual [deviceIO + 0x48]   (send + collect reply)
+```
+
+The argument list at `0x3c2272`–`0x3c228b` is literal:
+
+```
+esi = devId          (caller-supplied)
+edx = port           (caller-supplied)
+ecx = rcvIdx         (caller-supplied)
+r8d = 7              <- address HIGH byte
+r9d = 0x80           <- address LOW byte
+push 0x400           <- length: 1024 bytes
+push [r14]           <- destination buffer
+push 0x1f4           <- timeout 500 ms
+```
+
+and the second call at `0x3c22ee` is identical except `r9d = 0x84` and the
+destination advanced by `0x400` — used only when more than 0x3FD bytes are
+requested.
+
+### 12.2 Address encoding (CONFIRMED)
+
+Inside `ReadFlashToBuffer` at `0x3c6962`:
+
+```
+r15d = (arg4 << 8) | arg5      ; = (7 << 8) | 0x80 = 0x0780
+...per 1024-byte chunk:
+r8d = r15w >> 8                ; address high byte  -> payload[7]
+r9d = r15w & 0xff              ; address low  byte  -> payload[8]
+...
+add r15d, 4                    ; advance 4 units per 1024 bytes
+add rbx, 0x400
+```
+
+`+4 units == +1024 bytes`, so **the address unit is a 256-byte page** and the
+basic-parameter region begins at **page 0x0780** (byte address 0x78000).
+`usleep(1000)` runs before each chunk.
+
+### 12.3 Frame layout produced by `BuildRcvCardFlashOperation` (CONFIRMED)
+
+Body at `0x30b81d`–`0x30b858`, with the type byte computed at `0x30b8b3`:
+
+```
+n = max(0x80, datalen + 0xa)          ; datalen = 0  ->  n = 0x80 = 128
+buf = new[n]; bzero(buf, n)
+
+; ---- type byte selection ----
+; opcodes {0x30,0x31,0x32,0x40,0x41,0x42,0x50,0x52} take the direct path: type = 0x26
+; every other opcode falls to 0x30b8b3:
+;     cl = ((addrHi < 3) && (opcode == 0x44)) << 5 | 6
+;     type = (addrHi < 8) ? cl : 0x26
+; our case: opcode 0x44, addrHi 7  ->  (7<3)=false  ->  cl = 0x06 ; (7<8)=true -> type = 0x06
+
+payload[0] = type                     ; 0x06
+payload[1] = 0
+payload[2] = 0
+payload[3] = rcvIdx >> 8              ; big-endian u16, same slot as discovery
+payload[4] = rcvIdx & 0xff
+payload[5] = opcode                   ; 0x44
+payload[6] = flag                     ; 1
+payload[7] = addrHi                   ; 0x07
+payload[8] = addrLo                   ; 0x80
+payload[9] = 0
+; memcpy(payload+0xa, dataptr, datalen) — SKIPPED when dataptr == NULL
+outLen = 0x80
+```
+
+### 12.4 The concrete request frame
+
+Reading the first 1024 bytes of the basic-parameter region. Total on the wire =
+12 MAC bytes + 128 payload bytes = **140 bytes**.
+
+```
+ offset  bytes
+ 0x00    11 22 33 44 55 66      destination MAC (card)
+ 0x06    22 22 33 44 55 66      source MAC (sender)
+ 0x0c    06 00                  type 0x0600            <- payload[0..1]
+ 0x0e    00                     payload[2]
+ 0x0f    00                     payload[3] = rcvIdx MSB   ** see note **
+ 0x10    01                     payload[4] = rcvIdx LSB   ** see note **
+ 0x11    44                     payload[5] = opcode 0x44 (read)
+ 0x12    01                     payload[6] = flag 1
+ 0x13    07                     payload[7] = address high (page 0x07xx)
+ 0x14    80                     payload[8] = address low  (page 0x0780)
+ 0x15    00                     payload[9]
+ 0x16..  00 x 118               payload[0x0a..0x7f], all zero
+```
+
+Second chunk (bytes 0x400–0x7FF of the region): identical, except
+`payload[8] = 0x84`.
+
+**Receiver index — UNKNOWN whether 0- or 1-based.** `ReadbackRcvBasicParam` takes
+it from its caller (UI-driven), so no constant is available statically. The frame
+above uses `0x0001`; if it draws no reply, try `0x0000`. This is the only field I
+would expect to need trial and error, and getting it wrong yields no reply
+rather than any write.
+
+### 12.5 Response (PARTIAL — flagged)
+
+From `0x3c69de`–`0x3c6a83`:
+
+```
+recvBuf   = rbp-0x1030,  size 0x1000 (4096)
+timeout   = 500 ms
+edx       = 0xff09        ; passed to the send/collect call — reply selector/filter (meaning UNCERTAIN)
+on success:
+    memcpy(dst + chunkOffset, rbp-0x1021, min(remaining, 0x400))
+```
+
+`rbp-0x1021` is `recvBuf + 0x0F`, so **the returned data begins 15 bytes into the
+reassembled receive buffer**, and 1024 bytes are taken per request.
+
+**UNCERTAIN, and important:** whether those 15 bytes are an Ethernet header
+remnant or a protocol header of the reassembled payload could not be settled —
+the reassembly happens behind the virtual call `[deviceIO + 0x48]`, which I did
+not trace. The reply's type byte is likewise unconfirmed; `0xff09` is the only
+related constant. In practice you can resolve this by dumping whatever arrives
+with `e120 listen` after sending the request — that is itself read-only.
+
+### 12.6 Does the readback body match the 0x05 send-pack body?
+
+**I could not confirm this, and I want to be explicit because the coordinator
+identified this correspondence as what makes the approach work.**
+
+Evidence against assuming they are identical:
+
+* The readback is a **raw flash region read** (page 0x0780, 1024-byte chunks),
+  not a rendered pack. Its natural layout is the card's flash format.
+* The sibling entry point `CReceiverOP::ReadbackRcvBasicParam(..., SRcvFileBasicParam*)`
+  @ `0x3b54e0` fills a **`SRcvFileBasicParam`** — a *file*-shaped struct — and
+  takes a different path (allocating 0x27000). That naming suggests flash layout
+  tracks the **file** representation (`SRcvParamBasic`, §9) rather than the 0x05
+  wire pack.
+* Nothing in `ReadbackRcvBasicParam` references `GetBasicParam` or the 0xA8 marker.
+
+Where the 260-byte body sits inside the 1024-byte block is therefore **not
+established**. The read is still worth doing — it is safe and it yields real data
+to align against §7 and §9 — but treat "readback body == 0x05 body" as a
+hypothesis to test, not a fact to build on.
+
+### 12.7 Safety verdict: READ-ONLY — no erase, no write
+
+Confirmed by direct comparison of call sites of `BuildRcvCardFlashOperation`
+(93 sites enumerated; representative ones disassembled):
+
+| call site | opcode (`ecx`) | pushes (flag, dataptr, datalen) | nature |
+|---|---|---|---|
+| `0x3c69cc` (`ReadFlashToBuffer`) | **0x44** | `1, NULL, 0` | **read — no payload** |
+| `0x3c67a1` | 0xed | `0, NULL, 0` | read-like |
+| `0x32dd6b` (gamma writer) | **0x85** | `0, buffer, 0x100` | **write — 256-byte payload** |
+| `0x3b9206` (EEPROM writer) | **0x66** | `0, buffer, 1` | **write — payload** |
+
+Three independent reasons the §12.4 frame cannot write:
+
+1. **`dataptr = NULL`, `datalen = 0`.** The builder's `memcpy(payload+0xa, ...)`
+   is guarded by `test rsi,rsi; je` at `0x30b882` — with NULL it is skipped. The
+   frame carries **zero data bytes**; payload[0x0a..0x7f] are the `bzero` output.
+   A write command with nothing to write cannot deliver content.
+2. **Opcode 0x44 is used only by `ReadFlashToBuffer`**, whose entire post-send
+   logic is `memcpy(dst, recvBuf+0x0F, 0x400)` — consuming returned data. Write
+   paths use distinct opcodes (0x85, 0x66) *and* supply real buffers.
+3. **Erase has a separate builder** — `BuildRcvStorageErase` @ `0x30bad0` — which
+   is not on this path at all.
+
+**The arguments that must not be altered**, in order of risk:
+
+* **`payload[5]` (opcode) — the critical byte.** Keep it `0x44`. Changing it to
+  `0x85` or `0x66` selects a write opcode. Note also that `0x30/0x31/0x32/0x40/
+  0x41/0x42/0x50/0x52` change the type byte to `0x26` and take the other branch —
+  do not substitute opcodes experimentally.
+* **`payload[6]` (flag = 1).** Its semantics are **not** decoded. The read path
+  passes 1 and both observed write paths pass 0, so 1 is the value that co-occurs
+  with reads — but do not assume "1 == read"; leave it at 1.
+* **payload[0x0a] onward must stay all zero.** These are where a write's data
+  would land.
+* `payload[7]/[8]` (address) select *which* region is read; a wrong value reads
+  the wrong place, which is harmless.
+
+My verdict: sending the §12.4 frame is **safe** — it is a zero-payload read
+request. The residual uncertainty is `payload[6]`'s meaning; if you want zero
+residual risk, that is the one byte worth further static work before transmitting.

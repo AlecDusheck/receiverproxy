@@ -39,6 +39,36 @@ pub fn sync(brightness: u8) -> Vec<u8> {
     frame([0x01, 0x07], &p)
 }
 
+/// Opcode selecting a flash *read* in a card-flash operation frame.
+///
+/// This is the one byte that decides read versus write: the write paths use
+/// other opcodes (0x85 for gamma tables, 0x66 for EEPROM) and always supply a
+/// data buffer. Never send a flash-operation frame with a different value here
+/// unless you intend to write.
+const FLASH_OP_READ: u8 = 0x44;
+
+/// Flash region holding the receiver's basic parameters, in 256-byte pages.
+pub const FLASH_PAGE_BASIC_PARAM: u16 = 0x0780;
+
+/// Pages advance by 4 per 1024-byte chunk read.
+pub const FLASH_PAGES_PER_CHUNK: u16 = 4;
+
+/// Read-only card-flash request: type 0x0600, 128-byte payload (140-byte frame).
+///
+/// Requests 1024 bytes starting at `page` (a 256-byte page index) from the
+/// receiver at `rcv_index`. Carries no data of its own — the builder in the
+/// vendor library skips its payload copy when there is nothing to write, which
+/// is what makes this frame inherently incapable of modifying the card.
+pub fn read_flash(rcv_index: u16, page: u16) -> Vec<u8> {
+    let mut p = [0u8; 126];
+    p[0] = 0x00;
+    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
+    p[3] = FLASH_OP_READ;
+    p[4] = 0x01;
+    p[5..7].copy_from_slice(&page.to_be_bytes());
+    frame([0x06, 0x00], &p)
+}
+
 /// Brightness frame: type 0x0A<brightness>, 63-byte payload.
 pub fn brightness(b: u8) -> Vec<u8> {
     let mut p = [0u8; 63];

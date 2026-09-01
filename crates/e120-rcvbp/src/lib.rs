@@ -58,14 +58,14 @@ impl Rcvbp {
         if d.len() < 32 {
             bail!("{path}: too short to be a .rcvbp");
         }
-        let version = u32::from_le_bytes(d[0x10..0x14].try_into().unwrap());
+        let version = le_u32(&d, 0x10)?;
 
         // Two variants exist in the wild, distinguished by their 16-byte
         // signature: the newer one zlib-compresses the record stream, the
         // older one stores it inline right after the version field and ends
         // with a 4-byte trailer.
         let (blob, compressed) = if d[0..4] == SIG_COMPRESSED {
-            let raw_len = u32::from_le_bytes(d[0x18..0x1c].try_into().unwrap()) as usize;
+            let raw_len = le_u32(&d, 0x18)? as usize;
             let mut blob = Vec::with_capacity(raw_len);
             flate2::read::ZlibDecoder::new(&d[0x20..])
                 .read_to_end(&mut blob)
@@ -149,4 +149,13 @@ fn parse_records(blob: &[u8], slack: usize) -> Result<Vec<Record>> {
         );
     }
     Ok(records)
+}
+
+/// Read a little-endian u32 without risking a panic on a short buffer.
+fn le_u32(d: &[u8], off: usize) -> Result<u32> {
+    let b: [u8; 4] = d
+        .get(off..off + 4)
+        .context("truncated rcvbp header")?
+        .try_into()?;
+    Ok(u32::from_le_bytes(b))
 }

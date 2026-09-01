@@ -7,7 +7,10 @@ use protocol::ColorOrder;
 use std::time::{Duration, Instant};
 
 #[derive(Parser)]
-#[command(name = "e120", about = "Drive a Colorlight receiving card over raw Ethernet")]
+#[command(
+    name = "e120",
+    about = "Drive a Colorlight receiving card over raw Ethernet"
+)]
 struct Cli {
     /// Network interface directly connected to the receiving card
     #[arg(short, long, global = true, default_value = "en24")]
@@ -68,6 +71,24 @@ enum Cmd {
     },
     /// Blank the panel
     Blank,
+    /// Read the card's stored parameters back (read-only)
+    ReadParams {
+        /// Receiver index on the chain
+        #[arg(long, default_value_t = 1)]
+        index: u16,
+        /// Starting 256-byte flash page
+        #[arg(long, default_value_t = protocol::FLASH_PAGE_BASIC_PARAM)]
+        page: u16,
+        /// Number of 1024-byte chunks to request
+        #[arg(long, default_value_t = 2)]
+        chunks: u16,
+        /// Seconds to listen for replies after each request
+        #[arg(long, default_value_t = 2)]
+        wait: u64,
+        /// Write the reassembled reply payloads here
+        #[arg(long)]
+        out: Option<String>,
+    },
     /// Inspect a .rcvbp receiver-parameter file
     Rcvbp {
         path: String,
@@ -122,8 +143,8 @@ fn main() -> Result<()> {
             let img = image::open(path).with_context(|| format!("open image {path}"))?;
             let img = img
                 .resize_exact(
-                    cli.width as u32,
-                    cli.height as u32,
+                    u32::from(cli.width),
+                    u32::from(cli.height),
                     image::imageops::FilterType::Lanczos3,
                 )
                 .to_rgb8();
@@ -137,9 +158,21 @@ fn main() -> Result<()> {
             let fb = solid(&cli, 0, 0, 0);
             show(&cli, &fb, false)
         }
+        Cmd::ReadParams {
+            index,
+            page,
+            chunks,
+            wait,
+            out,
+        } => read_params(&cli, *index, *page, *chunks, *wait, out.as_deref()),
         Cmd::Rcvbp { path, dump } => rcvbp_info(path, *dump),
         Cmd::PcapSummary { path, dump } => pcap_summary(path, *dump),
-        Cmd::Replay { path, types, gap_us, all } => replay(&cli, path, types.as_deref(), *gap_us, *all),
+        Cmd::Replay {
+            path,
+            types,
+            gap_us,
+            all,
+        } => replay(&cli, path, types.as_deref(), *gap_us, *all),
     }
 }
 
@@ -151,6 +184,67 @@ fn is_sender_frame(d: &[u8]) -> bool {
 /// True for frames sent by the card back to the PC.
 fn is_card_frame(d: &[u8]) -> bool {
     d.len() >= 14 && d[6..12] == protocol::CARD_MAC
+}
+
+/// Read stored parameters out of the card. This only ever sends read-opcode
+/// flash-operation frames, which carry no data and cannot modify the card.
+fn read_params(
+    cli: &Cli,
+    index: u16,
+    page: u16,
+    chunks: u16,
+    wait: u64,
+    out: Option<&str>,
+) -> Result<()> {
+    let mut dev = open(cli)?;
+    let mut collected: Vec<u8> = Vec::new();
+
+    for chunk in 0..chunks {
+        let page = page + chunk * protocol::FLASH_PAGES_PER_CHUNK;
+        let req = protocol::read_flash(index, page);
+        println!(
+            "requesting page 0x{page:04x} (receiver {index}), {} byte frame",
+            req.len()
+        );
+        dev.send(&req)?;
+
+        let deadline = Instant::now() + Duration::from_secs(wait);
+        let mut replies = 0;
+        while Instant::now() < deadline {
+            for f in dev.recv()? {
+                // Only the card's own replies; the interface also carries
+                // unrelated broadcast traffic (DHCP and friends).
+                if f.len() < 14 || f[6..12] != protocol::CARD_MAC {
+                    continue;
+                }
+                replies += 1;
+                println!(
+                    "  reply {replies}: type {:02x}{:02x} len {}",
+                    f[12],
+                    f[13],
+                    f.len()
+                );
+                if replies <= 2 {
+                    hexdump(&f[..f.len().min(96)]);
+                }
+                collected.extend_from_slice(&f[14..]);
+            }
+        }
+        if replies == 0 {
+            println!("  no reply within {wait}s");
+        } else {
+            println!(
+                "  {replies} reply frames, {} payload bytes so far",
+                collected.len()
+            );
+        }
+    }
+
+    if let Some(path) = out {
+        std::fs::write(path, &collected).with_context(|| format!("write {path}"))?;
+        println!("wrote {} bytes to {path}", collected.len());
+    }
+    Ok(())
 }
 
 fn rcvbp_info(path: &str, dump: bool) -> Result<()> {
@@ -187,7 +281,11 @@ fn rcvbp_info(path: &str, dump: bool) -> Result<()> {
             if r.is_empty_table() {
                 continue;
             }
-            println!("\n=== record 0x{:04x} ({} bytes)", r.type_u16(), r.payload.len());
+            println!(
+                "\n=== record 0x{:04x} ({} bytes)",
+                r.type_u16(),
+                r.payload.len()
+            );
             hexdump(&r.payload[..r.payload.len().min(512)]);
         }
     }
@@ -202,7 +300,7 @@ fn describe_record(t: u16, empty: bool) -> &'static str {
         (0x0a84, _) => "driver-chip register table",
         (0x0a8a, _) => "secondary parameters",
         (0x0aca, _) => "cabinet geometry",
-        (0x0a83, _) | (0x0a89, _) => "RGB coefficients",
+        (0x0a83 | 0x0a89, _) => "RGB coefficients",
         _ => "",
     }
 }
@@ -210,7 +308,8 @@ fn describe_record(t: u16, empty: bool) -> &'static str {
 fn pcap_summary(path: &str, dump: bool) -> Result<()> {
     let pkts = pcap::read_pcap(path)?;
     println!("{} packets", pkts.len());
-    let mut counts: std::collections::BTreeMap<(bool, u8), (usize, usize)> = Default::default();
+    let mut counts: std::collections::BTreeMap<(bool, u8), (usize, usize)> =
+        std::collections::BTreeMap::default();
     for p in &pkts {
         let d = &p.data;
         if d.len() < 14 {
@@ -227,8 +326,8 @@ fn pcap_summary(path: &str, dump: bool) -> Result<()> {
         e.0 += 1;
         e.1 += d.len();
         if dump && ty != 0x55 && ty != 0x01 && ty != 0x0a {
-            let t0 = pkts[0].ts_sec as f64 + pkts[0].ts_usec as f64 / 1e6;
-            let t = p.ts_sec as f64 + p.ts_usec as f64 / 1e6 - t0;
+            let t0 = f64::from(pkts[0].ts_sec) + f64::from(pkts[0].ts_usec) / 1e6;
+            let t = f64::from(p.ts_sec) + f64::from(p.ts_usec) / 1e6 - t0;
             println!(
                 "\n[{:9.4}s] {} type 0x{:02x} len {}",
                 t,
@@ -305,8 +404,12 @@ fn discover(cli: &Cli, wait: u64) -> Result<()> {
                 found += 1;
                 println!(
                     "receiver card #{}: id=0x{:02x} firmware={}.{:02} detected size {}x{}",
-                    info.controller, info.card_id, info.ver_major, info.ver_minor,
-                    info.cols, info.rows
+                    info.controller,
+                    info.card_id,
+                    info.ver_major,
+                    info.ver_minor,
+                    info.cols,
+                    info.rows
                 );
                 println!("first 64 payload bytes:");
                 hexdump(&info.raw[..info.raw.len().min(64)]);
@@ -381,7 +484,10 @@ fn show(cli: &Cli, fb: &[[u8; 3]], hold: bool) -> Result<()> {
             send_frame(&mut dev, cli, fb)?;
             std::thread::sleep(Duration::from_millis(33));
         }
-        println!("frame sent ({}x{}, order {:?})", cli.width, cli.height, cli.order);
+        println!(
+            "frame sent ({}x{}, order {:?})",
+            cli.width, cli.height, cli.order
+        );
         Ok(())
     }
 }
@@ -397,11 +503,7 @@ fn test_pattern(cli: &Cli, pattern: &str) -> Result<Vec<[u8; 3]>> {
         "gradient" => {
             for y in 0..h {
                 for x in 0..w {
-                    fb[y * w + x] = [
-                        (x * 255 / w.max(1)) as u8,
-                        (y * 255 / h.max(1)) as u8,
-                        128,
-                    ];
+                    fb[y * w + x] = [(x * 255 / w.max(1)) as u8, (y * 255 / h.max(1)) as u8, 128];
                 }
             }
         }
@@ -464,7 +566,10 @@ fn parse_color(parts: &[String]) -> Result<(u8, u8, u8)> {
 }
 
 fn mac(b: &[u8]) -> String {
-    b.iter().map(|x| format!("{x:02x}")).collect::<Vec<_>>().join(":")
+    b.iter()
+        .map(|x| format!("{x:02x}"))
+        .collect::<Vec<_>>()
+        .join(":")
 }
 
 fn hexdump(data: &[u8]) {

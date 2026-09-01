@@ -176,13 +176,14 @@ pub fn send_frame_as(
     cli: &Cli,
     fb: &[[u8; 3]],
     raster: Raster,
+    row_base: u16,
 ) -> Result<()> {
     dev.send(&protocol::sync(cli.brightness))?;
     dev.send(&protocol::brightness(cli.brightness))?;
     let w = cli.width as usize;
     let h = cli.height as usize;
     if raster == Raster::Rows {
-        return send_rows(dev, cli, fb, w, h);
+        return send_rows(dev, cli, fb, w, h, row_base);
     }
     let half = h / 2;
     let mut line = vec![[0u8; 3]; w * 2];
@@ -197,7 +198,7 @@ pub fn send_frame_as(
         let mut offset = 0usize;
         for chunk in line.chunks(protocol::MAX_PIXELS_PER_PACKET) {
             dev.send(&protocol::pixel_row(
-                r as u16,
+                row_base + r as u16,
                 offset as u16,
                 chunk,
                 cli.order,
@@ -214,13 +215,14 @@ fn send_rows(
     fb: &[[u8; 3]],
     w: usize,
     h: usize,
+    row_base: u16,
 ) -> Result<()> {
     for row in 0..h {
         let line = &fb[row * w..(row + 1) * w];
         let mut offset = 0usize;
         for chunk in line.chunks(protocol::MAX_PIXELS_PER_PACKET) {
             dev.send(&protocol::pixel_row(
-                row as u16,
+                row_base + row as u16,
                 offset as u16,
                 chunk,
                 cli.order,
@@ -334,18 +336,18 @@ pub fn test_pattern(cli: &Cli, pattern: &str) -> Result<Vec<[u8; 3]>> {
 }
 
 /// `show`, but with an explicit raster layout.
-pub fn show_as(cli: &Cli, fb: &[[u8; 3]], hold: bool, raster: Raster) -> Result<()> {
+pub fn show_as(cli: &Cli, fb: &[[u8; 3]], hold: bool, raster: Raster, row_base: u16) -> Result<()> {
     let mut dev = open(cli)?;
     dev.send(&protocol::brightness(cli.brightness))?;
     if hold {
         println!("refreshing at ~30fps ({raster:?}), Ctrl-C to stop");
         loop {
-            send_frame_as(&mut dev, cli, fb, raster)?;
+            send_frame_as(&mut dev, cli, fb, raster, row_base)?;
             std::thread::sleep(Duration::from_millis(33));
         }
     } else {
         for _ in 0..3 {
-            send_frame_as(&mut dev, cli, fb, raster)?;
+            send_frame_as(&mut dev, cli, fb, raster, row_base)?;
             std::thread::sleep(Duration::from_millis(33));
         }
         println!("frame sent ({raster:?})");

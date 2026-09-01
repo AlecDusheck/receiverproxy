@@ -181,6 +181,11 @@ enum Cmd {
         /// How to cut the framebuffer into row packets
         #[arg(long, default_value = "rows")]
         raster: String,
+        /// Added to every transmitted row index. The vendor sender uses
+        /// `(screen - 1) << 12` for screens 1..9, so screen 1 sends plain y;
+        /// a card expecting another screen would ignore every row we send.
+        #[arg(long, default_value_t = 0)]
+        row_base: u16,
     },
     /// Blank the panel
     Blank,
@@ -501,7 +506,7 @@ fn run_display(cli: &Cli) -> Result<Option<()>> {
             let fb = test_pattern(cli, pattern)?;
             show(cli, &fb, *hold).map(Some)
         }
-        Cmd::Image { path, hold, raster } => {
+        Cmd::Image { path, hold, raster, row_base } => {
             let img = image::open(path).with_context(|| format!("open image {path}"))?;
             let img = img
                 .resize_exact(
@@ -516,7 +521,7 @@ fn run_display(cli: &Cli) -> Result<Option<()>> {
             }
             let raster: display::Raster =
                 raster.parse().map_err(|e: String| anyhow::anyhow!(e))?;
-            show_as(cli, &fb, *hold, raster).map(Some)
+            show_as(cli, &fb, *hold, raster, *row_base).map(Some)
         }
         Cmd::Blank => {
             let fb = solid(cli, 0, 0, 0);

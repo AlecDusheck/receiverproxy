@@ -59,22 +59,31 @@ impl Rcvbp {
             bail!("{path}: too short to be a .rcvbp");
         }
         let version = u32::from_le_bytes(d[0x10..0x14].try_into().unwrap());
-        let comp_len = u32::from_le_bytes(d[0x14..0x18].try_into().unwrap()) as usize;
-        let raw_len = u32::from_le_bytes(d[0x18..0x1c].try_into().unwrap()) as usize;
 
-        let mut blob = Vec::with_capacity(raw_len);
-        flate2::read::ZlibDecoder::new(&d[0x20..])
-            .read_to_end(&mut blob)
-            .context("inflate rcvbp payload")?;
-        if blob.len() != raw_len {
-            bail!(
-                "{path}: inflated {} bytes but header says {raw_len}",
-                blob.len()
-            );
-        }
-        let _ = comp_len;
+        // Two variants exist in the wild, distinguished by their 16-byte
+        // signature: the newer one zlib-compresses the record stream, the
+        // older one stores it inline right after the version field and ends
+        // with a 4-byte trailer.
+        let (blob, compressed) = if d[0..4] == SIG_COMPRESSED {
+            let raw_len = u32::from_le_bytes(d[0x18..0x1c].try_into().unwrap()) as usize;
+            let mut blob = Vec::with_capacity(raw_len);
+            flate2::read::ZlibDecoder::new(&d[0x20..])
+                .read_to_end(&mut blob)
+                .context("inflate rcvbp payload")?;
+            if blob.len() != raw_len {
+                bail!(
+                    "{path}: inflated {} bytes but header says {raw_len}",
+                    blob.len()
+                );
+            }
+            (blob, true)
+        } else {
+            (d[0x14..].to_vec(), false)
+        };
 
-        let records = parse_records(&blob)?;
+        // The uncompressed variant carries a 4-byte trailer after the records.
+        let slack = if compressed { 0 } else { 4 };
+        let records = parse_records(&blob, slack)?;
         Ok(Self {
             version,
             blob,
@@ -109,10 +118,13 @@ impl Rcvbp {
     }
 }
 
-fn parse_records(blob: &[u8]) -> Result<Vec<Record>> {
+/// Signature of the newer, zlib-compressed variant.
+const SIG_COMPRESSED: [u8; 4] = [0x20, 0x20, 0x19, 0xbe];
+
+fn parse_records(blob: &[u8], slack: usize) -> Result<Vec<Record>> {
     let mut records = Vec::new();
     let mut off = 0usize;
-    while off + 4 <= blob.len() {
+    while off + 4 + slack <= blob.len() {
         let size = u16::from_le_bytes([blob[off], blob[off + 1]]) as usize;
         if size < 4 {
             bail!("record at 0x{off:05x} has bogus size {size}");
@@ -130,7 +142,7 @@ fn parse_records(blob: &[u8]) -> Result<Vec<Record>> {
         });
         off += size;
     }
-    if off != blob.len() {
+    if blob.len() - off > slack {
         bail!(
             "records do not tile the blob: ended at 0x{off:05x} of 0x{:05x}",
             blob.len()

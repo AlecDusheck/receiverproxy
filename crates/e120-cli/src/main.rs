@@ -4,6 +4,7 @@ mod display;
 mod flash;
 mod params;
 mod restore;
+mod screen;
 mod upgrade;
 mod util;
 
@@ -52,6 +53,19 @@ struct Cli {
 
     #[command(subcommand)]
     cmd: Cmd,
+}
+
+/// Parse a `WIDTHxHEIGHT` geometry argument.
+fn parse_geometry(s: &str) -> Result<(u16, u16), String> {
+    let (w, h) = s
+        .split_once(['x', 'X'])
+        .ok_or_else(|| format!("expected WIDTHxHEIGHT, got {s:?}"))?;
+    let parse = |v: &str, what: &str| {
+        v.trim()
+            .parse::<u16>()
+            .map_err(|e| format!("{what} in {s:?}: {e}"))
+    };
+    Ok((parse(w, "width")?, parse(h, "height")?))
 }
 
 #[derive(Subcommand)]
@@ -355,6 +369,18 @@ enum Cmd {
     ReloadParams {
         #[arg(long, default_value_t = 0)]
         index: u16,
+    },
+    /// Show, and optionally set, the card's screen-size record
+    ScreenSize {
+        /// New geometry as WIDTHxHEIGHT, e.g. 128x64
+        #[arg(long, value_parser = parse_geometry)]
+        set: Option<(u16, u16)>,
+        #[arg(long)]
+        commit: bool,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+        #[arg(long, default_value_t = 3)]
+        wait: u64,
     },
     /// Restore the screen-size record the block erase cleared
     RestoreScreenRecord {
@@ -665,6 +691,12 @@ fn run_flash(cli: &Cli) -> Result<Option<()>> {
             commit,
             index,
         } => write_single_page(cli, *page, from_image, *flag, *commit, *index).map(Some),
+        Cmd::ScreenSize {
+            set,
+            commit,
+            index,
+            wait,
+        } => screen::screen_size(cli, *set, *commit, *index, *wait).map(Some),
         Cmd::RestoreScreenRecord {
             from_image,
             commit,

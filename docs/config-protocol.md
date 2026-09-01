@@ -2509,3 +2509,589 @@ until the panel is lit.
 4. **Power-cycle**, then run discovery — it should report 128x64 again.
 5. Only then re-run the panel tests. Every earlier result was taken from a card in
    the 1024x512 state and should be treated as void.
+
+---
+
+## 21. Building the two type-0x05 packs
+
+Static analysis only. Nothing executed.
+
+### 21.1 The chip pack is SOLVED — it is record 0x84, verbatim, at offset +4
+
+Two halves of the chain, joined:
+
+**Loader** (`LoadBpBufFromBuffer` @ `0x1c8027`–`0x1c8064`) — record 0x84's local
+buffer (which holds the record *including* its 4-byte header, §9.1) into the
+chip-register sub-object at `OBJ[0xd6d0]`:
+
+```
+rax = qword [P + 0xd6d0]
+movups [rax + 0x3c] <- [rbp-0x11d04]   ; local+0xF4 = rec84 payload+0xF0
+movups [rax + 0x00] <- [rbp-0x11d40]   ; local+0xB8 = rec84 payload+0xB4
+movups [rax + 0x10] <- [rbp-0x11d30]   ; local+0xC8 = rec84 payload+0xC4
+movups [rax + 0x20] <- [rbp-0x11d20]   ; local+0xD8 = rec84 payload+0xD4
+movups [rax + 0x30] <- [rbp-0x11d10]   ; local+0xE8 = rec84 payload+0xE4
+```
+
+**Pack builder** (`GetChipCustomPlusParamPack` @ `0x1ea2fb`–`0x1ea334`, §10.2)
+— same sub-object back out into the pack:
+
+```
+pack+0xB8 <- rax[0x00] ; pack+0xC8 <- rax[0x10] ; pack+0xD8 <- rax[0x20]
+pack+0xE8 <- rax[0x30] ; pack+0xF4 <- rax[0x3c]
+```
+
+Composing them gives a **constant +4 delta on all five blocks**:
+
+| pack offset | record 0x84 payload offset | delta |
+|---|---|---|
+| 0xB8 | 0xB4 | +4 |
+| 0xC8 | 0xC4 | +4 |
+| 0xD8 | 0xD4 | +4 |
+| 0xE8 | 0xE4 | +4 |
+| 0xF4 | 0xF0 | +4 |
+
+The pack is `0x104` = **260 bytes** = 4 header + 256, and record 0x84's payload is
+**exactly 256 bytes**. The five independent blocks all land at +4, and the sizes
+match exactly at both ends. So:
+
+```
+chip pack payload[0x00] = 0x05          ; type
+chip pack payload[0x01] = 0x00
+chip pack payload[0x02] = 0x00
+chip pack payload[0x03] = 0x01          ; pack sub-index
+chip pack payload[0x04 .. 0x103] = record 0x84 payload[0x00 .. 0xFF]   verbatim
+```
+
+**Frame = 12 MAC bytes + 260 payload = 272 bytes.** Build it directly from the
+record you already hold; no chip library, no `pm_*.dat`, no transformation.
+
+Two honest caveats:
+
+* The `[0x04..0xB7]` half (180 bytes) is *inferred* by composition — I confirmed
+  the `[0xB8..0x103]` half instruction-by-instruction, and the +4 delta plus the
+  exact 256/256 size match makes the remainder near-certain, but I did not trace
+  the vt+0x130 call that fills it (that is the slot I misattributed in §17.3).
+  If the pack misbehaves, `[0x04..0xB7]` is where to look first.
+* `ExchangeChipRegisterWhenColorChanged` @ `0x1ea370` runs afterwards and permutes
+  registers when a colour swap is configured. Your record 0x01 `+0x0d0`-area
+  colour-swap byte is 0, so this should be identity — but it is why a swapped
+  panel would need the permutation applied.
+
+### 21.2 The basic-param pack — joined table
+
+`payload[0x00]=0x05`, `[0x03]=0x02` (second pack sub-index), `[0x04]=0xA8`.
+Everything not listed is **zero** (the caller `bzero`s 0x103 bytes first, §7.3).
+`R1+` = record 0x01 payload offset. All 16-bit fields **big-endian** (§7.1).
+
+| pack | size | source | chain |
+|---|---|---|---|
+| 0x00 | 1 | `0x05` | constant |
+| 0x03 | 1 | `0x02` | pack sub-index |
+| 0x04 | 1 | `0xA8` | constant |
+| 0x05–0x07 | 3 | **R1+0x028..0x02A** | → OBJ+0x94..0x96 → pack |
+| 0x08–0x09 | 2 | module W/H bytes | order set by `GetLineDir()`; **see note** |
+| 0x0a | 1 | `GetModuleCountInLineDir()` | OBJ+0xd4c0 |
+| 0x0b | 1 | `GetRgbSelValue()` | unresolved member |
+| 0x0c | 1 | `GetGrayLevel()`; `0x10` if 16-bit gray, `8` if `GetSplitSegment()==0x5c` | |
+| 0x0d–0x0e | 2 BE | **`GetScanMode()` = R1+0x020** | the scan denominator (§18) — for you, **16** |
+| 0x0f–0x10 | 2 BE | `GetOneScanLen()` | OBJ+0x68 — **from another record** |
+| 0x11–0x12 | 2 BE | `GetCardScanLen()` | unresolved |
+| 0x14 | 1 | `GetColorSwap()` (+add/or) | OBJ+0xd0 |
+| 0x15 | 1 | `0x99` / `0x77` / `0x00` | branch-dependent; try **0x99** |
+| 0x16 | 1 | **R1+0x018 bit 1** | → OBJ+0xc0 |
+| 0x17 | 1 | **R1+0x018 bit 0** | → OBJ+0xbf |
+| 0x22 | 1 | packed: `(a<<2)|(b<<5)` | inputs unresolved |
+| 0x23–0x24 | 2 BE | `GetVoidPointCount()` | OBJ+0x6e — another record |
+| 0x26 | 1 | **R1+0x03D & 0x0F** | → OBJ+0xb5 |
+| 0x27 | 1 | **R1+0x03E** | → OBJ+0xb6 |
+| 0x28 | 1 | OBJ+0xb7 | R1+0x03E (dup) |
+| 0x2c | 2 | **R1+0x045** | → OBJ+0xc369 |
+| 0x38 | 1 | OBJ+0xba | |
+| 0x3a | 1 | **R1+0x04F** | → OBJ+0xbc |
+| 0x3b | 1 | **R1+0x050** | → OBJ+0xbd (`Get8nsOeEnableInfo`) |
+| 0x3d–0x3e | 2 BE | `GetCardScanLen()` / OBJ+0x44 | |
+| 0x46 | 1 | **R1+0x24E** | → OBJ+0x74 |
+| 0x47 | 1 | **R1+0x24F** | → OBJ+0x76 |
+| 0x48 | 1 | OBJ+0x78 | |
+| 0x49–0x4a | 2 | OBJ+0xd3c0 ← **R1+0x030** | |
+| 0x4a | 1 | `GetModuleInputCount()` | OBJ+0xd4c0 |
+| 0x4b | 1 | `GetHubType()` ← **R1+0x058** | your file: **0x10** |
+| 0x74–0x82 | 15 | packed bitfields, masks `0x80/0xE0/0xC3/0xFC/0x3F` | **unresolved — zero and sweep** |
+| 0x90 | 1 | `0x01` | constant |
+| 0x91 | 1 | OBJ+0xdf16 (masked) | |
+| 0x94 | 1 | `GetSpMoudleSetting()` & 0x3F | |
+| 0x9f–0xa2 | 4 | shift-derived | unresolved |
+| 0xa9 | 1 | `GetColorSwap()` | OBJ+0xd0 |
+| 0xd8 | 1 | `GetCurrentPercent()`-derived | from the R/G/B floats at **R1+0x0B4/0B8/0BC** (§19.2) |
+| 0xdb | 1 | OBJ+0xbe ← **R1+0x191** | |
+| 0xe3 | 1 | `GetSumChipCurrent()` | |
+| 0xed | 1 | `GetRealGrayLevel()` | |
+| 0xf9–0xfb | 3 | OBJ+0xe61e / 0xe620 / 0xe61c | |
+| 0xfc–0xfd | 2 | `GetChipOhmValB()` / `GetDeadPixelsCurrentGain()` | |
+
+**Note on 0x08–0x09:** these come from `qword[OBJ+0x68]` (module width at +0x68,
+height at +0x6a), and §9.2 proved `OBJ+0x68` is written from a *different record*,
+not record 0x01. For a single 128x64 module the values are 128 and 64; the order
+depends on `GetLineDir()` (0 in your file), so try `0x80,0x40` first and swap if
+the image is transposed.
+
+**Realistic assessment:** the basic pack is **not** fully derivable from the
+records — several fields come from computed accessors whose inputs I could not
+resolve, and the 0x74–0x82 bitfield block is the largest gap. It is sendable as a
+best-effort with zeros in the gaps, and since it is RAM-only you can sweep. But I
+would not expect it to be correct first try, and **I would send the chip pack
+first and alone**, since that one is complete.
+
+### 21.3 Send sequence, latching, and confirmation
+
+**Order** (`GetParamPacksBasic` @ `0x31f1e0`, in construction order): chip-custom
+pack (`[3]=1`) → data-swap → **basic param** (`[3]=2`, `[4]=0xA8`) → void table →
+pixel-sequence packs → void-line info → gamma packs. `SendRealTimePacks`
+@ `0x32cf40` transmits the vector in order with `usleep` between groups.
+
+**Are the others mandatory?** I cannot prove which are required — the vendor always
+sends the full list. The two you asked about are built unconditionally; the gamma
+and calibration packs are guarded by feature checks (`IsEnableGammaCalibration`
+etc.) and are plausibly optional for first light.
+
+**Delay:** use **≥5 ms** between packs. The observed literals are `usleep(1000)`
+in the flash read loop and `usleep(5000)` between flash writes; the real-time path
+uses register-loaded delays I did not resolve, so 5 ms is the safe choice.
+
+**Latching (your question 2):** I found **no commit or latch frame** for real-time
+packs — nothing follows them in `SendRealTimePacks` but the next pack. The packs
+appear to take effect on receipt. In practice: send chip pack → basic pack →
+brightness `0x0A` → a `0x55` row + `0x01` sync, and judge by the panel.
+
+**Confirmation (your question 3) — honest answer: I found none.** No discovery
+byte, no query, no status word that reports whether real-time parameters were
+applied. I looked for this in §17.2 as well and came up empty. The only
+card-side "is my state good" candidate remains `ExecutRcvCrcCheck`, whose type
+byte is caller-supplied and unrecoverable (§17.2). So there is no closed feedback
+loop available — you are, as you feared, judging by the panel.
+
+That makes the current meter your best instrument: **if the chip pack lands and
+the drivers begin clocking, panel current should move even with black content.**
+That is the signal to watch, and it is a far better discriminator than the dark
+face.
+
+### 21.4 On the "card never drives HUB75" hypothesis
+
+I think the user's reading is the most economical explanation left, and §21.1 gives
+you the cleanest possible test of it: a complete, first-principles chip pack built
+from your own file with no library dependency and no guesswork. If the drivers are
+uninitialised, that pack is what initialises them.
+
+If sending it changes nothing — no current movement, no light — then the remaining
+candidates are a card-side fault in the HUB75 output stage or a receiver that is
+not applying real-time parameters at all, and neither is reachable from this
+dylib. At that point I would want to compare against a second E120 or a different
+panel before spending more effort on the protocol.
+
+---
+
+## 22. The remaining packs, and where else to look in flash
+
+Static analysis only. Nothing executed.
+
+### 22.1 Item 2 — the "+4 verbatim" pattern is NOT general
+
+Short answer: **no.** The chip pack's `+4` was specific to record 0x84. The
+general shape is *constant-offset block copies*, but **the delta differs per pack
+and per block**, so each one has to be derived individually. Record 0x84 was the
+lucky case where a single delta covered the whole payload.
+
+Worked example — `GetDataSwapEx2ParamPack` @ `0x1ec700`. Pack side:
+
+```
+movups pack+0x04 <- P[0xd40c] ; pack+0x14 <- P[0xd41c]
+movups pack+0x24 <- P[0xd42c] ; pack+0x34 <- P[0xd43c]
+movups pack+0x44 <- P[0xd658] ; pack+0x54 <- P[0xd668]
+movups pack+0x64 <- P[0xd678] ; pack+0x74 <- P[0xd688]
+```
+
+Loader side (`0x1c83c1`–`0x1c83f6` and `0x1c806a`–`0x1c809b`), converting the
+`SRcvParamBasic` stack offsets to record-0x01 payload offsets (`payload = 0x330 -
+var - 4`):
+
+```
+P[0xd40c] <- rec01 payload+0x19A      P[0xd658] <- rec01 payload+0x206
+P[0xd41c] <- rec01 payload+0x1AA      P[0xd668] <- rec01 payload+0x216
+P[0xd42c] <- rec01 payload+0x1BA      P[0xd678] <- rec01 payload+0x226
+P[0xd43c] <- rec01 payload+0x1CA      P[0xd688] <- rec01 payload+0x236
+```
+
+Composing gives **two constant deltas, not one**:
+
+| pack range | record 0x01 payload range | delta |
+|---|---|---|
+| 0x04 – 0x43 | **0x19A – 0x1D9** (64 B) | −0x196 |
+| 0x44 – 0x83 | **0x206 – 0x245** (64 B) | −0x1C2 |
+
+Both verified across four independent 16-byte blocks each. So you can build
+those 128 bytes of the data-swap pack directly from record 0x01 today.
+
+**Caveat:** `GetDataSwapEx2ParamPack` does not stop there — it continues into
+`GetGammaTable` and `P[0xd3b0]`, so bytes beyond 0x84 carry gamma content I did
+not trace. Send it with those zeroed and treat them as sweep territory.
+
+### 22.2 Items 1 and 3 — what I did not get to
+
+I need to be straight about coverage rather than pad this out. Of the packs you
+listed I traced **only the data-swap pack** to record offsets. I did **not**
+establish:
+
+* `GetVoidTablePack`, `Get[Anti]VoidLineInfoPacks` — sources not traced;
+* `GetPixelSequencePacks` — the **chunking rule, per-chunk header and indexing
+  for record 0x03 are unresolved.** This is your item 3 and I have no answer. The
+  function returns a count via an out-parameter, which is consistent with your
+  chunking guess, but I did not decode how a 12 290-byte table is split or how
+  each chunk is addressed. I will not guess at a header format for a 12 KB
+  transfer;
+* the 0x10 and 0x18 packs — I have their type bytes from §2.1 and nothing more;
+* which gamma packs are mandatory.
+
+### 22.3 Item 4 — which packs are mandatory: still unprovable
+
+Unchanged from §21.3, and I want to flag it as a structural limit rather than
+something more analysis will fix. The vendor builds the full list unconditionally
+except for feature-gated gamma/calibration packs. Nothing in the host code
+expresses "the card needs X before it will drive output" — that constraint, if it
+exists, lives in firmware I cannot read. I can tell you what LEDVISION sends; I
+cannot tell you what the card requires.
+
+### 22.4 Other flash regions worth reading — concrete list
+
+This is the most valuable thing in this section, and it is cheap for you. §13.3's
+region map came from resolving every `BuildRcvCardFlashOperation` call site to its
+literal `addrHi`. Each is a **64 KB block**; byte address = `addrHi × 0x10000`.
+You have only ever read block 0x07.
+
+| addrHi | byte address | holds | priority |
+|---|---|---|---|
+| **0x0b** | 0x0B0000 | **module mapping table** | **high** — mapping is exactly the "which output drives what" class |
+| **0x1f** | 0x1F0000 | **driver-chip params** (SC6660/SC6618/XM11202G/ICND2260/3065) | **high** — chip init, our prime suspect |
+| **0x1c** | 0x1C0000 | basic-param overflow chunk Two | high — may hold real data |
+| **0xd6** | 0xD60000 | basic-param overflow chunk One | high — same |
+| 0xe9 | 0xE90000 | multi-module param | medium |
+| 0xe7 | 0xE70000 | anti-pixel sequence | medium |
+| 0x39 | 0x390000 | route table Ex | medium |
+| 0x3b | 0x3B0000 | data remapping | medium |
+| 0x1e | 0x1E0000 | factory bright/current param | medium — factory area |
+| 0x0a | 0x0A0000 | HDR gamma, ROE multi-bright | low |
+| 0x3a / 0x3c | 0x3A0000 / 0x3C0000 | gamma calibration | low |
+| 0xd7 / 0xe0 / 0xe5 | — | HLG / XYZ gamma | low |
+| 0xe2 / 0xe3 | — | multi-bright basic / gamma | low |
+| 0xe8 | 0xE80000 | shutter sync | low |
+
+**Suggested sweep:** read the first 1 KB of blocks **0x0b, 0x1f, 0x1c, 0xd6**
+using the §20 linear-address read frame (type `0x1900`, opcode `0x44`, 32-bit
+big-endian address, no data attached). All-`0xFF` means never written; real
+content means a region we have been ignoring. Widen your address clamp
+deliberately to those four ranges, and keep it a **read-only** widening — do not
+extend the write allowlist.
+
+Two caveats: this list is what the *host* writes, so a region the card populates
+itself (as page 0x07F000 appears to be) would not appear here. And I have no
+evidence any of these blocks holds an "output enable" or "connector select" — that
+was your hypothesis and I could not confirm it from the symbol names.
+
+### 22.5 Where I think this stands
+
+The chip pack was the strongest card I had: it is the one pack I could build
+completely and independently from your own data, and it targets exactly the
+mechanism — uninitialised drivers — that best explains zero output. Sending it
+changed nothing.
+
+Everything remaining on the protocol side is materially weaker: partially-traced
+packs, unresolved chunking, and fields I would be asking you to sweep blind. I can
+keep going, and §22.4 is a genuinely cheap next step, but I do not want to imply
+the remaining surface is likely to contain the answer just because it is
+unexplored.
+
+The strongest untested hypothesis is still the one from §21.4: that the card is
+not driving its outputs for a reason that is not configuration at all. The
+cleanest discriminator remains a **second card or a second panel** — a swap test
+separates "this card's output stage" from "this panel" from "our protocol" in one
+measurement, and no amount of further static analysis can do that. If a spare
+E120 or any other HUB75 panel is available, I would do that before decoding
+`GetPixelSequencePacks`.
+
+---
+
+## 23. Firmware upgrade — gating questions answered
+
+Static analysis only. **Nothing here should be executed as a flash without
+reading §23.5 first.**
+
+### 23.1 Item 4 — the variant is NOT determinable from the card. The gate cannot be satisfied this way.
+
+I searched every binary we have for the variant names:
+
+| binary | `PWM` | `Normal` | `LS0allDA` | `Golden` |
+|---|---|---|---|---|
+| `libCLTDevice.1.dylib` | none | none | none | none |
+| `iSet` main binary | none | none | none | none |
+| `LedAdmin2.dll` (LEDVISION) | none | none | none | none |
+
+**The software has no concept of firmware variants at all.** `Normal` / `PWM` /
+`LS0allDA` are Colorlight *filename conventions* from their release process, not
+protocol-visible fields. There is no variant byte in the discovery reply because
+there is no variant field anywhere in the stack.
+
+On version numbering: the three files are FPGA **13.39**, **9.53**, **6.69** and
+your card reports **10.81**. These are almost certainly **per-variant counters**
+(three independent lineages), and 10.81 matches none of them — so your card runs
+a build we do not have, and its number alone cannot place it in a lineage. 10.81
+could be an older Normal or a newer PWM with equal plausibility.
+
+Version display is via `GetRCVTypeVersionDesp` @ `0x39bab0`, which formats
+`%d.%02d` from receiver-info bytes `+0x10/+0x14/+0x18/+0x1c/+0x20` — matching your
+`0x0a,0x51` → "10.81". Card *type* dispatches on the first byte (yours `0x64`),
+but that identifies the **model**, not the gateware build.
+
+**So the hypothesis cannot be confirmed or killed before flashing** — which was
+precisely the condition you set. See §23.6 for the one route that could still
+settle it without risk.
+
+### 23.2 Item 3 — golden/backup exists in the protocol, but I cannot confirm your card has it
+
+Real capability flags exist:
+
+* `CRcvUpgradeCmdManager::IsAllRcvHasGoldenUpgrade` @ `0x398ae0`
+* `CRcvUpgradeCmdManager::IsAllRcvSupportGoldenUpgrade` @ `0x398b40`
+
+`IsAllRcvHasGoldenUpgrade` reads **byte `+0x10` of each receiver-info element,
+stride `0x1c`**, and requires it non-zero for every receiver:
+
+```
+cmp byte [rdx + 0x10], 0     ; first receiver
+...
+lea rdx, [rdx + 0x1c]        ; stride
+cmp byte [rdx], 0            ; subsequent
+```
+
+Structurally this is consistent with the spec's claim of upgrade redundancy: there
+is a **golden image** concept, and the tool checks whether the attached receivers
+support it before choosing an upgrade strategy.
+
+Corroborating: in `DoSlowUpgradeRcv` the write **address is not a constant in the
+tool** — it comes from `SRcvUpgradeProgramInfo`, i.e. **the card tells the sender
+where to write**. That is exactly how an A/B or golden-bank scheme is normally
+arranged, and it means the host cannot easily target the wrong bank.
+
+**But:** whether *your* card sets that flag is what the flag reports, and I did
+not map receiver-info `+0x10` back to a discovery-reply offset. So I cannot tell
+you your card is recoverable. Given you named this "the single most important
+thing to understand before writing a byte", the honest answer is: **unresolved.**
+
+### 23.3 Item 5 — there is NO compatibility gate
+
+`CRcvUpgradeCmdManager::LoadUpgradeFile` @ `0x396120` opens the file, seeks to
+end, allocates, and reads the whole thing into a buffer. **No header parsing, no
+part-number check, no model comparison, no size validation against the card.**
+
+`VerifyRcvInfo` @ `0x395fe0` — despite the promising name — compares *receivers to
+each other* (building a key from info bytes `+0x16..+0x19` and requiring all
+attached receivers to match), because upgrade is broadcast. It never compares the
+file to the card.
+
+`VerifyFileCrc` @ `0x396430` computes a CRC over the file for post-flash
+verification, not for compatibility.
+
+**Conclusion: iSet will not stop you flashing an incompatible image.** There is no
+safety net in the tool, so any gate has to be one we impose ourselves.
+
+### 23.4 File format — no conversion needed
+
+`LoadUpgradeFile` reads the file **raw**. The 721 024 bytes go to the card exactly
+as they sit on disk, including the leading `FF 00` and the ASCII
+`Lattice Semiconductor Corporation Bitstream` header. Do not strip the header and
+do not attempt an Intel-HEX parse — despite the `.hex` extension these are raw
+ECP5 bitstream containers, and the tool treats them as opaque bytes.
+
+### 23.5 The risk I want on the record before you flash
+
+Four independent factors compound here, and I think they argue against flashing
+right now:
+
+1. **We cannot confirm the hypothesis** (§23.1). We would be flashing to test a
+   theory we have no way to check first.
+2. **We cannot confirm recoverability** (§23.2). The golden mechanism exists in
+   the protocol; whether your card exposes it is unknown.
+3. **There is no compatibility gate** (§23.3). Nothing will refuse a wrong image.
+4. **Board model mismatch.** All three files are **E320 PCB6.0/6.1**. Your card is
+   an **E120**. The evidence they share firmware is an observation about
+   Colorlight's download page, not verified fact. Identical FPGA part
+   (`LFE5U-25F-6CABGA256`) does **not** imply identical board pinout — and an ECP5
+   bitstream is pinout-specific. Wrong pinout means the FPGA drives the wrong
+   physical pins, which is both potentially unrecoverable and potentially
+   electrically harmful to the board or the attached panel.
+
+Point 4 is the one I would weigh most heavily. Everything else in this project so
+far has been reversible: config writes had a backup, the page-0xF0 erase was
+recoverable once we found the linear-address path. **A bad FPGA bitstream may not
+be**, and unlike the config work we have no verified backup of the current
+gateware.
+
+### 23.6 What would actually settle this — dump the current bitstream first
+
+There is a readback path (`QuickReadRcvUpgradeProgramParam` @ the `0x3a6980` area,
+and the linear-address read frame from §20 reaches arbitrary flash). If we can dump
+the card's *current* 721 KB gateware, it solves both gating questions at once:
+
+* **It is the backup** — the thing we most lack. With a verified dump, a bad flash
+  becomes recoverable by re-flashing the original, which changes the risk
+  calculus completely.
+* **It identifies the variant empirically.** Diff the dump against all three
+  candidate files. Bitstreams for the same design differ far less from each other
+  than from a different design; the closest match, and the pattern of differences,
+  will tell us which lineage the card is running — answering §23.1 by measurement
+  rather than by protocol field.
+
+That is the next thing I would decode, and it is **read-only**, so it costs
+nothing but time. If you want, point me at it and I will work out the exact
+readback frames and the flash region (item 2, which I did not get to — the
+upgrade address comes from the card rather than a constant, so I could not simply
+read it off).
+
+**My recommendation: do not flash until we have that dump.** If the dump turns out
+to be impossible, then the decision becomes a genuine risk judgement about an
+E320 image on an E120 board, and that is your call rather than mine — but you
+should make it knowing there is no backup, no compatibility check, and no
+confirmed golden bank.
+
+---
+
+## 24. CORRECTION: the type-0x1900 path is an EEPROM accessor, not a flash path
+
+Static analysis only. **This section corrects §20 and explains the failing read.**
+
+### 24.1 Item 3 — your read is not broken; the frame cannot address flash at all
+
+I resolved every call site of `BulidEepromFlashOperation` @ `0x30bdd0` to its
+enclosing function. **All seven are EEPROM operations:**
+
+| call site | enclosing function |
+|---|---|
+| 0x3b3383 | `CReceiverOP::WriteEepromColorGamutCoef` |
+| 0x3b3a29 | `CReceiverOP::ReadEepromPowerOffBrightCoef` |
+| 0x3b4409 | `CReceiverOP::ReadEepromFullScreenSeamFactorEnable` |
+| 0x3b5f18 | `CReceiverOP::WriteEepromCurrentBrightFlag` |
+| 0x3b6039 | `CReceiverOP::ReadEepromCurrentBrightFlag` |
+| 0x3b4e6f | `CReceiverOP::RealTimeWriteEepromFullScreenSeamFactorEnable` |
+| 0x3c0acf | `CReceiverOP::WriteEepromNoInputShowInfo` |
+
+And the addresses and lengths they pass are decisive:
+
+```
+ReadEepromCurrentBrightFlag        : addr = 0xFA , len = 1
+ReadEepromPowerOffBrightCoef       : addr = 0xF6 , len = 1
+ReadEepromFullScreenSeamFactorEnable: addr = 0x76 , len = 1
+```
+
+**Byte addresses in the range 0x00–0xFF, one byte at a time.** This is a small
+I²C EEPROM on the receiver card — a few hundred bytes — not the 16 MB SPI flash.
+
+That is exactly why your reads return identical data for every address: your
+`0x0007F000` is being masked into a tiny address space, so every request lands in
+the same place. The frame layout in §20 is *correct*; what was wrong was my
+claim about **what device it addresses**. I named it "the linear-address flash
+path" on the strength of the symbol name `EepromFlashOperation` without checking
+the call sites, and that was a mistake — the same class of error as §15.5 and
+§17.3, and I should have applied the lesson.
+
+**Consequence: type 0x1900 cannot read or write SPI flash. It cannot dump the
+bitstream.**
+
+### 24.2 An implication you should check on the bench
+
+Your page-0xF0 "restore" went out as type 0x1900, opcode 0x85, `addr=0x0007F000`,
+`len=0x100`. If the EEPROM is 256 bytes, that address masks to 0 and **you wrote
+your 256 backup bytes over the whole EEPROM**.
+
+It evidently helped — discovery went back to 128x64 — which suggests the
+screen-size record is EEPROM-resident and your backup happened to carry the right
+values at the right offsets. But it also means **other EEPROM contents may have
+been overwritten**: the call sites above show that region holds
+`CurrentBrightFlag` (0xFA), `PowerOffBrightCoef` (0xF6) and
+`FullScreenSeamFactorEnable` (0x76) among others.
+
+Worth reading those three addresses back (opcode `0x44`, `len=1`, addresses
+`0xFA`, `0xF6`, `0x76`) and sanity-checking them. They are brightness/seam flags,
+so a clobbered value there is *another* candidate for a dark panel — and unlike
+the gateware theory it is cheap to check right now.
+
+### 24.3 Items 1 & 2 — the right tool is the page-based SPI read you already have
+
+The path that genuinely reads SPI flash is the one from §12, which you have
+already used successfully to dump all 64 KB of block 0x07:
+
+```
+type 0x0600, opcode 0x44, addrHi = block, addrLo = page, 1024-byte chunks
+```
+
+That addressing is `byte = addrHi*0x10000 + addrLo*0x100`, so with a one-byte
+block index it reaches **16 MB** — the whole device, including wherever the
+bitstream lives. No new frame format is needed.
+
+**Finding the bitstream: scan for the Lattice magic.** Every one of the three
+candidate files begins with:
+
+```
+FF 00 4C 61 74 74 69 63 65 20 53 65 6D 69 63 6F 6E 64 75 63 74 6F 72
+      ^  L  a  t  t  i  c  e     S  e  m  i  c  o  n  d  u  c  t  o  r
+```
+
+So read **page 0 of each block, `addrHi = 0x00 .. 0xFF`, `addrLo = 0x00`**, 1 KB
+each, and look for `FF 00 4C 61 74 74 69 63 65`. That is 256 read requests, all
+read-only, and it will locate the bitstream region — and very likely a **second
+copy**, which would be the golden bank and would answer §23.2 by observation.
+
+Two expectations to calibrate against:
+
+* A bitstream is `721024` bytes = `0xB0000` = **11 blocks**. So expect a run of
+  ~11 consecutive blocks, and if golden exists, a second such run.
+* It is **not** at block 0x00–0x0A, because your config occupies block 0x07 and
+  the region map (§13.3) puts other parameters at 0x0A and 0x0B. Look higher —
+  the large unmapped ranges are 0x0C–0x1B, 0x20–0x38, 0x3D–0xD5 and 0xEA–0xFF.
+
+On `SRcvUpgradeProgramInfo` (asking the card where its firmware lives): I did not
+decode it. Given the block scan is cheap, read-only, and answers the same question
+by direct observation, I would do that first and only come back to the struct if
+the scan is inconclusive.
+
+### 24.4 Item 4 — not mapped, and I want to be clear about that
+
+I did not map receiver-info `+0x10` back to a discovery-reply offset. The
+receiver-info array is built by code I have not traced, and I am not going to
+guess an offset into your 1056-byte payload — a wrong answer here would send you
+looking at the wrong byte to decide whether a flash is recoverable.
+
+If the block scan in §24.3 finds **two** bitstream-sized regions, that is direct
+physical evidence of a golden bank and is worth more than the capability flag
+anyway.
+
+### 24.5 On the SM16380SC / OE-as-grayscale-clock note
+
+I looked and found **nothing** in the upgrade code, or anywhere else in
+`libCLTDevice`, that selects OE behaviour or a GCLK mode. That is consistent with
+your research thread's conclusion rather than contradicting it: if OE free-running
+as the grayscale clock is a property of the *gateware's* output state machine,
+there would be no host-side field for it — which is precisely why no configuration
+we send can fix it, and why the variant question matters.
+
+I flag it as consistent-but-unconfirmed. I have no static evidence either way, and
+§19.3's OE polarity question remains unresolved for the same reason: those
+accessors bottom out in a chip-library sub-object I could not resolve.
+
+### 24.6 Suggested order
+
+1. Read EEPROM addresses `0x76`, `0xF6`, `0xFA` (type 0x1900, opcode 0x44,
+   len 1) and check them against sane values — cheap, and a clobbered brightness
+   flag is an alternative explanation for the dark panel.
+2. Block-scan SPI flash for the Lattice magic (type 0x0600, opcode 0x44,
+   `addrHi = 0x00..0xFF`, `addrLo = 0x00`). Read-only.
+3. Dump whichever region(s) match — that is the backup, and the variant answer by
+   diff.

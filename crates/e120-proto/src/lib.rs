@@ -10,6 +10,8 @@
 //!   0x0Abb       brightness (bb = brightness value; 63-byte payload)
 //!   0x55rr       pixel row data (rr = row number MSB)
 
+pub mod params;
+
 pub const CARD_MAC: [u8; 6] = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66];
 pub const SENDER_MAC: [u8; 6] = [0x22, 0x22, 0x33, 0x44, 0x55, 0x66];
 
@@ -275,6 +277,22 @@ pub fn write_screen_record(rcv_index: u16, addr: u32, data: &[u8]) -> Result<Vec
 /// Refuses any address outside the screen-size record.
 pub fn read_screen_record(rcv_index: u16, addr: u32) -> Result<Vec<u8>, WriteError> {
     linear_frame(rcv_index, FLASH_OP_READ, addr, &[])
+}
+
+/// Read any flash address.
+///
+/// Unlike the write path this is unrestricted, because a read frame carries no
+/// data and the opcode is not one the card will attach data to — it cannot
+/// modify the card wherever it is pointed. Used to dump firmware and to survey
+/// regions we have not mapped.
+#[must_use]
+pub fn read_flash_linear(rcv_index: u16, addr: u32, len: u32) -> Vec<u8> {
+    let mut p = vec![0u8; 12];
+    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
+    p[3] = FLASH_OP_READ;
+    p[4..8].copy_from_slice(&addr.to_be_bytes());
+    p[8..12].copy_from_slice(&len.to_be_bytes());
+    frame([0x19, 0x00], &p)
 }
 
 /// Frame type the card answers a flash read with.

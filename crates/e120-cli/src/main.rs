@@ -91,13 +91,60 @@ enum Cmd {
         #[arg(long, default_value_t = 2)]
         wait: u64,
     },
-    /// Dump a whole 64KB flash block from the card (read-only)
+    /// Scan every 64KB flash block for known signatures (read-only)
+    ScanFlash {
+        #[arg(long, default_value_t = 0)]
+        first: u8,
+        #[arg(long, default_value_t = 255)]
+        last: u8,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+        #[arg(long, default_value_t = 1)]
+        wait: u64,
+    },
+    /// Send a hand-built frame and show any reply (experimentation)
+    RawSend {
+        /// Two type bytes, hex, e.g. 1900
+        #[arg(long)]
+        r#type: String,
+        /// Payload after the type bytes, hex; padded with zeros to --pad
+        #[arg(long, default_value = "")]
+        payload: String,
+        /// Zero-pad the payload to this many bytes
+        #[arg(long, default_value_t = 126)]
+        pad: usize,
+        /// Seconds to listen for a reply
+        #[arg(long, default_value_t = 2)]
+        wait: u64,
+        /// Bytes of reply to hexdump
+        #[arg(long, default_value_t = 64)]
+        show: usize,
+    },
+    /// Dump an arbitrary flash range, including firmware (read-only)
+    DumpRange {
+        #[arg(long, default_value = "flash.bin")]
+        out: String,
+        /// Start address, hex
+        #[arg(long, default_value = "0")]
+        start: String,
+        /// Bytes to read, hex
+        #[arg(long, default_value = "100000")]
+        len: String,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+        #[arg(long, default_value_t = 2)]
+        wait: u64,
+    },
+    /// Dump one or more 64KB flash blocks from the card (read-only)
     DumpFlash {
         #[arg(long, default_value = "block07.bin")]
         out: String,
-        /// 64KB block selector; 0x07 holds the receiver parameters
+        /// First 64KB block; 0x07 holds parameters, 0x00 onward holds firmware
         #[arg(long, default_value_t = 7)]
         block: u8,
+        /// How many consecutive blocks to read
+        #[arg(long, default_value_t = 1)]
+        blocks: u16,
         #[arg(long, default_value_t = 0)]
         index: u16,
         #[arg(long, default_value_t = 2)]
@@ -157,6 +204,34 @@ enum Cmd {
         panel_height: u16,
         #[arg(long, default_value_t = 0)]
         index: u16,
+    },
+    /// Push parameters into the card's RAM from a .rcvbp (no flash, no reboot)
+    SendParams {
+        config: String,
+        /// Send only the chip-register pack, which is the fully decoded one
+        #[arg(long)]
+        chip_only: bool,
+        /// Send a pack for every record we hold, not just the decoded ones
+        #[arg(long)]
+        all_records: bool,
+        /// Milliseconds between packs
+        #[arg(long, default_value_t = 8)]
+        gap_ms: u64,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+    },
+    /// Sweep the sub-index byte of a record's pack, looking for one the card acts on
+    SweepPacks {
+        config: String,
+        /// Record type to send, hex, e.g. 0a84
+        #[arg(long)]
+        record: String,
+        /// Highest sub-index to try
+        #[arg(long, default_value_t = 16)]
+        max: u8,
+        /// Seconds to pause on each
+        #[arg(long, default_value_t = 2)]
+        secs: u64,
     },
     /// Run the card's built-in test pattern (needs no pixel data from us)
     TestMode {
@@ -342,26 +417,36 @@ fn run_display(cli: &Cli) -> Result<Option<()>> {
     }
 }
 
-fn run(cli: &Cli) -> Result<()> {
-    if run_display(cli)?.is_some() {
-        return Ok(());
-    }
+/// Commands that read or write the card's flash and EEPROM.
+fn run_flash(cli: &Cli) -> Result<Option<()>> {
     match &cli.cmd {
-        Cmd::Discover { wait } => discover(cli, *wait),
-        Cmd::Listen { wait } => listen(cli, *wait),
         Cmd::ReadConfig {
             out,
             index,
             page,
             max_chunks,
             wait,
-        } => read_config(cli, *index, *page, *max_chunks, *wait, out),
+        } => read_config(cli, *index, *page, *max_chunks, *wait, out).map(Some),
         Cmd::DumpFlash {
             out,
             block,
+            blocks,
             index,
             wait,
-        } => dump_flash(cli, *block, *index, *wait, out),
+        } => dump_flash(cli, *block, *blocks, *index, *wait, out).map(Some),
+        Cmd::DumpRange {
+            out,
+            start,
+            len,
+            index,
+            wait,
+        } => dump_range(cli, start, len, *index, *wait, out).map(Some),
+        Cmd::ScanFlash {
+            first,
+            last,
+            index,
+            wait,
+        } => scan_flash(cli, *first, *last, *index, *wait).map(Some),
         Cmd::WriteConfig {
             config,
             commit,
@@ -377,12 +462,50 @@ fn run(cli: &Cli) -> Result<()> {
             base_image.as_deref(),
             *index,
             *wait,
-        ),
+        )
+        .map(Some),
+        Cmd::WritePage {
+            page,
+            from_image,
+            flag,
+            commit,
+            index,
+        } => write_single_page(cli, *page, from_image, *flag, *commit, *index).map(Some),
+        Cmd::RestoreScreenRecord {
+            from_image,
+            commit,
+            index,
+        } => restore_screen_record(cli, from_image, *commit, *index).map(Some),
+        Cmd::RestoreFlash {
+            image,
+            commit,
+            index,
+        } => restore_flash(cli, image, *commit, *index).map(Some),
+        _ => Ok(None),
+    }
+}
+
+/// Commands that push parameters or run the card's own test modes.
+fn run_params(cli: &Cli) -> Result<Option<()>> {
+    match &cli.cmd {
+        Cmd::SendParams {
+            config,
+            chip_only,
+            all_records,
+            gap_ms,
+            index,
+        } => send_params(cli, config, *chip_only, *all_records, *gap_ms, *index).map(Some),
+        Cmd::SweepPacks {
+            config,
+            record,
+            max,
+            secs,
+        } => sweep_packs(cli, config, record, *max, *secs).map(Some),
         Cmd::TestMode { pattern, index } => {
             let mut dev = open(cli)?;
             dev.send(&protocol::test_mode(*index, *pattern))?;
             println!("test pattern {pattern} selected");
-            Ok(())
+            Ok(Some(()))
         }
         Cmd::TestSweep { count, secs, index } => {
             let mut dev = open(cli)?;
@@ -393,31 +516,34 @@ fn run(cli: &Cli) -> Result<()> {
             }
             dev.send(&protocol::test_mode(*index, 0))?;
             println!("back to normal");
-            Ok(())
+            Ok(Some(()))
         }
         Cmd::ReloadParams { index } => {
             let mut dev = open(cli)?;
             dev.send(&protocol::reload_params(*index))?;
             println!("asked the card to reload parameters from flash");
-            Ok(())
+            Ok(Some(()))
         }
-        Cmd::RestoreScreenRecord {
-            from_image,
-            commit,
-            index,
-        } => restore_screen_record(cli, from_image, *commit, *index),
-        Cmd::WritePage {
-            page,
-            from_image,
-            flag,
-            commit,
-            index,
-        } => write_single_page(cli, *page, from_image, *flag, *commit, *index),
-        Cmd::RestoreFlash {
-            image,
-            commit,
-            index,
-        } => restore_flash(cli, image, *commit, *index),
+        _ => Ok(None),
+    }
+}
+
+fn run(cli: &Cli) -> Result<()> {
+    for dispatch in [run_display, run_flash, run_params] {
+        if dispatch(cli)?.is_some() {
+            return Ok(());
+        }
+    }
+    match &cli.cmd {
+        Cmd::Discover { wait } => discover(cli, *wait),
+        Cmd::Listen { wait } => listen(cli, *wait),
+        Cmd::RawSend {
+            r#type,
+            payload,
+            pad,
+            wait,
+            show,
+        } => raw_send(cli, r#type, payload, *pad, *wait, *show),
         Cmd::ConfigBuild {
             base,
             copy_from,
@@ -434,7 +560,7 @@ fn run(cli: &Cli) -> Result<()> {
             gap_us,
             all,
         } => replay(cli, path, types.as_deref(), *gap_us, *all),
-        _ => unreachable!("handled by run_display"),
+        _ => unreachable!("handled by a dispatcher above"),
     }
 }
 
@@ -585,7 +711,7 @@ fn play(
     while let Some(frame) = source.next_frame()? {
         wall.show(&frame)?;
         pacer.wait();
-        if wall.frames_sent() % 60 == 0 {
+        if wall.frames_sent().is_multiple_of(60) {
             print!(
                 "\r{} frames, {:.1} fps",
                 wall.frames_sent(),
@@ -641,17 +767,177 @@ fn read_chunk(dev: &mut bpf::Bpf, index: u16, page: u16, wait: u64) -> Result<Ve
     anyhow::bail!("no reply for page 0x{page:04x} within {wait}s")
 }
 
-/// Dump an entire 64KB flash block. Read-only.
-fn dump_flash(cli: &Cli, block: u8, index: u16, wait: u64, out: &str) -> Result<()> {
+/// Read page 0 of each block and report what it looks like. Read-only.
+fn scan_flash(cli: &Cli, first: u8, last: u8, index: u16, wait: u64) -> Result<()> {
+    const LATTICE: &[u8] = b"Lattice Semiconductor";
     let mut dev = open(cli)?;
-    let mut image = Vec::with_capacity(64 * 1024);
-    // Each request returns 1024 bytes, which is four 256-byte pages.
-    for lo in (0u16..0x100).step_by(protocol::FLASH_PAGES_PER_CHUNK as usize) {
-        let page = (u16::from(block) << 8) | lo;
-        image.extend_from_slice(&read_chunk(&mut dev, index, page, wait)?);
-        if lo % 0x40 == 0 {
-            println!("  read {:5} / 65536 bytes", image.len());
+    let mut runs: Vec<(u8, String)> = Vec::new();
+    for blk in first..=last {
+        let page = u16::from(blk) << 8;
+        let Ok(d) = read_chunk(&mut dev, index, page, wait) else {
+            continue;
+        };
+        let kind = if d.windows(LATTICE.len()).any(|w| w == LATTICE) {
+            "LATTICE BITSTREAM HEADER"
+        } else if d.starts_with(&[0x20, 0x20, 0x19, 0xbe]) {
+            "rcvbp config"
+        } else if d.iter().all(|&b| b == 0xff) {
+            continue; // erased
+        } else if d.iter().all(|&b| b == 0) {
+            continue; // blank
+        } else {
+            "data"
+        };
+        println!(
+            "  block 0x{blk:02x} (0x{:06x}): {kind}  {}",
+            u32::from(blk) << 16,
+            d.iter()
+                .take(12)
+                .map(|b| format!("{b:02x}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+        runs.push((blk, kind.to_string()));
+    }
+    let heads: Vec<String> = runs
+        .iter()
+        .filter(|(_, k)| k.starts_with("LATTICE"))
+        .map(|(b, _)| format!("0x{b:02x}"))
+        .collect();
+    println!("\nblocks with data: {}", runs.len());
+    println!("bitstream headers found at blocks: {}", heads.join(", "));
+    Ok(())
+}
+
+fn parse_hex(s: &str) -> Result<Vec<u8>> {
+    let clean: String = s
+        .chars()
+        .filter(|c| !c.is_whitespace() && *c != ',')
+        .collect();
+    anyhow::ensure!(
+        clean.len().is_multiple_of(2),
+        "hex string must have an even length"
+    );
+    (0..clean.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&clean[i..i + 2], 16).context("bad hex"))
+        .collect()
+}
+
+/// Send a hand-built frame and report replies. For probing unknown commands.
+fn raw_send(cli: &Cli, ty: &str, payload: &str, pad: usize, wait: u64, show: usize) -> Result<()> {
+    let t = parse_hex(ty)?;
+    anyhow::ensure!(t.len() == 2, "--type must be exactly two hex bytes");
+    let mut p = parse_hex(payload)?;
+    if p.len() < pad {
+        p.resize(pad, 0);
+    }
+
+    let mut frame = Vec::with_capacity(14 + p.len());
+    frame.extend_from_slice(&protocol::CARD_MAC);
+    frame.extend_from_slice(&protocol::SENDER_MAC);
+    frame.extend_from_slice(&t);
+    frame.extend_from_slice(&p);
+
+    let mut dev = open(cli)?;
+    println!("sending type {}{:02x}, {} byte frame", ty, 0, frame.len());
+    dev.send(&frame)?;
+
+    let deadline = Instant::now() + Duration::from_secs(wait);
+    let mut seen = 0;
+    while Instant::now() < deadline {
+        for f in dev.recv()? {
+            if !is_card_frame(&f) {
+                continue;
+            }
+            seen += 1;
+            println!(
+                "reply {seen}: type {:02x}{:02x}, {} bytes",
+                f[12],
+                f[13],
+                f.len()
+            );
+            hexdump(&f[14..f.len().min(14 + show)]);
+            if seen >= 2 {
+                return Ok(());
+            }
         }
+    }
+    if seen == 0 {
+        println!("no reply within {wait}s");
+    }
+    Ok(())
+}
+
+/// Dump an arbitrary flash range using linear addressing. Read-only.
+fn dump_range(cli: &Cli, start: &str, len: &str, index: u16, wait: u64, out: &str) -> Result<()> {
+    let start = u32::from_str_radix(start.trim_start_matches("0x"), 16).context("bad --start")?;
+    let len = u32::from_str_radix(len.trim_start_matches("0x"), 16).context("bad --len")?;
+    let mut dev = open(cli)?;
+    let mut image = Vec::with_capacity(len as usize);
+
+    // The card answers linear reads one 256-byte page at a time; asking for
+    // more returns nothing useful.
+    let step = protocol::FLASH_PAGE_BYTES as u32;
+    let mut addr = start;
+    let mut misses = 0u32;
+    let mut first_reply = true;
+    while addr < start + len {
+        dev.send(&protocol::read_flash_linear(index, addr, step))?;
+        let deadline = Instant::now() + Duration::from_secs(wait);
+        let mut got = false;
+        while Instant::now() < deadline && !got {
+            for f in dev.recv()? {
+                if !is_card_frame(&f) {
+                    continue;
+                }
+                // Linear reads may answer with a different type than the
+                // page-addressed reads, so take any sufficiently long reply.
+                if f.len() < 15 + step as usize {
+                    continue;
+                }
+                if first_reply {
+                    println!("  reply type {:02x}{:02x}, {} bytes", f[12], f[13], f.len());
+                    first_reply = false;
+                }
+                image.extend_from_slice(&f[15..15 + step as usize]);
+                got = true;
+                break;
+            }
+        }
+        if !got {
+            misses += 1;
+            image.extend(std::iter::repeat_n(0xffu8, step as usize));
+            if misses > 8 {
+                println!("giving up after {misses} unanswered reads at 0x{addr:08x}");
+                break;
+            }
+        }
+        if (addr - start).is_multiple_of(0x10000) {
+            println!("  0x{addr:08x} ({} KB read)", image.len() / 1024);
+        }
+        addr += step;
+    }
+    std::fs::write(out, &image).with_context(|| format!("write {out}"))?;
+    println!(
+        "wrote {} bytes to {out} ({misses} unanswered reads)",
+        image.len()
+    );
+    Ok(())
+}
+
+/// Dump an entire 64KB flash block. Read-only.
+fn dump_flash(cli: &Cli, block: u8, blocks: u16, index: u16, wait: u64, out: &str) -> Result<()> {
+    let mut dev = open(cli)?;
+    let mut image = Vec::with_capacity(64 * 1024 * blocks as usize);
+    for b in 0..blocks {
+        let blk = block.wrapping_add(b as u8);
+        // Each request returns 1024 bytes, which is four 256-byte pages.
+        for lo in (0u16..0x100).step_by(protocol::FLASH_PAGES_PER_CHUNK as usize) {
+            let page = (u16::from(blk) << 8) | lo;
+            image.extend_from_slice(&read_chunk(&mut dev, index, page, wait)?);
+        }
+        println!("  block 0x{blk:02x} done, {} KB total", image.len() / 1024);
     }
     std::fs::write(out, &image).with_context(|| format!("write {out}"))?;
     println!("wrote {} bytes to {out}", image.len());
@@ -759,7 +1045,7 @@ fn rewrite_block(
                 pages[i],
             )?)?;
             std::thread::sleep(Duration::from_millis(8));
-            if repair.len() > 32 && n % 64 == 0 {
+            if repair.len() > 32 && n.is_multiple_of(64) {
                 println!("  wrote {n} / {} pages", repair.len());
             }
         }
@@ -906,6 +1192,95 @@ dry run: nothing was written. Re-run with --commit to install."
     }
 
     println!("power-cycle the card for the new configuration to take effect");
+    Ok(())
+}
+
+/// Push real-time parameter packs into the card's RAM.
+///
+/// This is what the vendor tool does at the start of every session rather than
+/// relying on the copy in flash, and it needs no reboot.
+fn send_params(
+    cli: &Cli,
+    config: &str,
+    chip_only: bool,
+    all_records: bool,
+    gap_ms: u64,
+    _index: u16,
+) -> Result<()> {
+    let f = rcvbp::Rcvbp::load(config)?;
+    let mut dev = open(cli)?;
+    let gap = Duration::from_millis(gap_ms);
+
+    let chip = f
+        .records
+        .iter()
+        .find(|r| r.rtype[1] == 0x84)
+        .context("this config has no chip-register record (0x84)")?;
+    dev.send(&protocol::params::frame_for(&protocol::params::chip_pack(
+        &chip.payload,
+    )))?;
+    println!("chip-register pack: {} bytes", chip.payload.len());
+    std::thread::sleep(gap);
+    if chip_only {
+        return Ok(());
+    }
+
+    let basic = f.record_01().context("this config has no record 0x01")?;
+    dev.send(&protocol::params::frame_for(&protocol::params::basic_pack(
+        &basic.payload,
+    )))?;
+    println!("basic-parameter pack (partially decoded)");
+    std::thread::sleep(gap);
+
+    if all_records {
+        // Send everything else we hold, on the hypothesis that packs are
+        // records copied whole the way the chip pack turned out to be.
+        for (n, r) in f
+            .records
+            .iter()
+            .filter(|r| !matches!(r.rtype[1], 0x84 | 0x01) && !r.is_empty_table())
+            .enumerate()
+        {
+            let sub = (n + 2) as u8;
+            let packs = if r.payload.len() <= protocol::params::PACK_LEN - 4 {
+                vec![protocol::params::verbatim_pack(sub, &r.payload)]
+            } else {
+                protocol::params::chunked_packs(sub, &r.payload)
+            };
+            println!(
+                "record 0x{:04x} as {} pack(s), sub-index {sub} ({} bytes)",
+                r.type_u16(),
+                packs.len(),
+                r.payload.len()
+            );
+            for p in &packs {
+                dev.send(&protocol::params::frame_for(p))?;
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            std::thread::sleep(gap);
+        }
+    }
+    Ok(())
+}
+
+/// Send one record's pack under each sub-index in turn, pausing so the panel
+/// can be watched. Everything here is RAM-only.
+fn sweep_packs(cli: &Cli, config: &str, record: &str, max: u8, secs: u64) -> Result<()> {
+    let want = u16::from_str_radix(record.trim_start_matches("0x"), 16)
+        .with_context(|| format!("bad record type {record:?}"))?;
+    let f = rcvbp::Rcvbp::load(config)?;
+    let rec = f
+        .find(want)
+        .with_context(|| format!("no record 0x{want:04x} in {config}"))?;
+    let mut dev = open(cli)?;
+    for sub in 0..=max {
+        println!("sub-index {sub} (0x{sub:02x})");
+        dev.send(&protocol::params::frame_for(
+            &protocol::params::verbatim_pack(sub, &rec.payload),
+        ))?;
+        std::thread::sleep(Duration::from_secs(secs));
+    }
+    println!("sweep complete");
     Ok(())
 }
 

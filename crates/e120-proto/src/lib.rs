@@ -140,7 +140,7 @@ pub fn erase_block(rcv_index: u16, block: u8) -> Result<Vec<u8>, WriteError> {
     if block != PARAM_BLOCK {
         return Err(WriteError::ForbiddenBlock(block));
     }
-    erase_block_unchecked(rcv_index, block)
+    Ok(erase_block_unchecked(rcv_index, block))
 }
 
 /// Erase a firmware block. Separate from [`erase_block`] so that writing
@@ -152,7 +152,7 @@ pub fn erase_firmware_block(rcv_index: u16, block: u8) -> Result<Vec<u8>, WriteE
     if !FIRMWARE_BLOCKS.contains(&block) {
         return Err(WriteError::ForbiddenBlock(block));
     }
-    erase_block_unchecked(rcv_index, block)
+    Ok(erase_block_unchecked(rcv_index, block))
 }
 
 /// Opcode the firmware-upgrade path uses to write a chunk.
@@ -212,16 +212,16 @@ pub fn write_firmware_page(
     if data.len() != FLASH_PAGE_BYTES {
         return Err(WriteError::WrongPageSize(data.len()));
     }
-    write_page_unchecked(rcv_index, block, page, data, 0)
+    Ok(write_page_unchecked(rcv_index, block, page, data, 0))
 }
 
-fn erase_block_unchecked(rcv_index: u16, block: u8) -> Result<Vec<u8>, WriteError> {
+fn erase_block_unchecked(rcv_index: u16, block: u8) -> Vec<u8> {
     let mut p = [0u8; 126];
     p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
     p[3] = FLASH_OP_ERASE;
     p[4] = 0x01;
     p[5..7].copy_from_slice(&(u16::from(block) << 8).to_be_bytes());
-    Ok(frame([0x06, 0x00], &p))
+    frame([0x06, 0x00], &p)
 }
 
 /// Write one 256-byte page within the parameter block.
@@ -252,16 +252,10 @@ pub fn write_page_flag(
     if data.len() != FLASH_PAGE_BYTES {
         return Err(WriteError::WrongPageSize(data.len()));
     }
-    write_page_unchecked(rcv_index, block, page, data, flag)
+    Ok(write_page_unchecked(rcv_index, block, page, data, flag))
 }
 
-fn write_page_unchecked(
-    rcv_index: u16,
-    block: u8,
-    page: u8,
-    data: &[u8],
-    flag: u8,
-) -> Result<Vec<u8>, WriteError> {
+fn write_page_unchecked(rcv_index: u16, block: u8, page: u8, data: &[u8], flag: u8) -> Vec<u8> {
     // Layout mirrors the read frame, which is verified against hardware:
     // [0] zero, [1..3] receiver index, [3] opcode, [4] flag, [5..7] block/page.
     // The vendor builder copies payload data to offset 0x0a of the frame
@@ -273,7 +267,7 @@ fn write_page_unchecked(
     p[5] = block;
     p[6] = page;
     p[8..].copy_from_slice(data);
-    Ok(frame([0x06, 0x00], &p))
+    frame([0x06, 0x00], &p)
 }
 
 /// Set the receiver layout: this card's size and the size of the whole screen.

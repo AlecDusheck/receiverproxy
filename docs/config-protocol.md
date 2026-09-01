@@ -3285,3 +3285,153 @@ vulnerability is between the first erase and the last verified chunk.
 | Completion signalling | **not determined** — verify by readback |
 | Boot/fallback rule (is golden real insurance?) | **not determined** |
 | "type 100 = E120" | **plausible, unconfirmed** |
+
+---
+
+## 26. THE UNLOCK FRAME — `BuildHwProgramWritable2`
+
+This is the missing step. Static analysis; confidence **high** — the layout is
+five literal instructions and the call sites bracket the whole upgrade.
+
+### 26.1 The frame
+
+`BuildHwProgramWritable2(unsigned int* outLen, unsigned char** outBuf,
+unsigned short rcvIdx, bool enable)` @ **`0x30aad0`**:
+
+```
+buf = new[0x80]; zeroed from +6 onward
+word [buf+0x00] = 0x0023        ; on the wire: 23 00   -> TYPE 0x2300
+byte [buf+0x02] = 0
+byte [buf+0x03] = rcvIdx >> 8   ; big-endian
+byte [buf+0x04] = rcvIdx & 0xff
+neg  r14b                       ; r14b = the `enable` bool
+byte [buf+0x05] = r14b          ; enable=1 -> 0xFF ;  enable=0 -> 0x00
+outLen = 0x80
+```
+
+`neg` on a byte: `neg(1) = 0xFF`, `neg(0) = 0x00`. So **payload[5] is `0xFF` to
+unlock and `0x00` to re-lock** — not 0x01.
+
+**Payload 0x80 = 128 bytes, frame = 12 + 128 = 140 bytes.**
+
+```
+ 0x00  11 22 33 44 55 66      dst MAC
+ 0x06  22 22 33 44 55 66      src MAC
+ 0x0c  23 00                  type 0x2300
+ 0x0e  00                     payload[2]
+ 0x0f  00 00                  payload[3..4]  receiver index, BE
+ 0x11  FF                     payload[5]     0xFF = UNLOCK, 0x00 = RELOCK
+ 0x12  00 x 122               payload[6..0x7f]
+```
+
+Sent via the same path and reply selector as everything else (`edx = 0x807d`,
+`ecx = 0`, `r9d = 0` at `0x3a46f2`).
+
+### 26.2 Why this is the answer to your bench result
+
+`BuildHwProgramWritable2` has exactly three callers, and two of them bracket the
+upgrade:
+
+| call site | argument | meaning |
+|---|---|---|
+| `0x3a46bc` — **early in `DoSlowUpgradeRcv`** | `mov ecx, 1` | **unlock** (payload[5]=0xFF) |
+| `0x3a4faa` — **late in `DoSlowUpgradeRcv`** | `xor ecx, ecx` | **re-lock** (payload[5]=0x00) |
+| `0x3a5054` | — | `CReceiverOP::SendEnableHwProgramWritable` (the public API) |
+
+The early call happens **before any erase or data frame**. That is precisely the
+"step before the data frames" you deduced must exist, and its name —
+*HwProgramWritable* — says exactly what it does: it makes the hardware program
+region writable.
+
+Your bench result is now fully explained: reads work everywhere, writes to the
+parameter window work because that window is not protected, and writes to
+`0x00–0x0A` are refused because the program region is **write-protected until
+unlocked**. No opcode you tried could have worked without it.
+
+(Note: the sibling `BuildHwProgramWritable` @ `0x30aa40`, type **0x2000**, is
+byte-identical in layout but has **no callers** in this dylib — it targets a
+different device class. Use `0x2300`.)
+
+### 26.3 Item 3 — the opcode capability bit
+
+At `0x3a4c01` the selector is `test dil, 4` where `edi = dword [rbp-0x5c]`, and at
+`0x3a46ce` that slot is loaded from `r14d` — an argument passed into
+`DoSlowUpgradeRcv` by its caller, ultimately out of `SSlowUpgradeRcvParam`. It is
+**bit 2 (value 4)** of that word.
+
+I did **not** trace it back to a discovery-reply offset, so I cannot tell you which
+byte to read on your card. But the branch is unambiguous:
+
+* bit clear → opcode **`0x62`** (the default / `cmove`-not-taken path)
+* bit set → opcode **`0x85`**
+
+Since you can now test in seconds, try `0x62` first **with the unlock applied** —
+you tried it without, which is why it failed.
+
+### 26.4 The complete ordered sequence
+
+Confidence: unlock/relock **high**; chunking and delays **high**; erase **still
+undetermined**.
+
+```
+1.  UNLOCK          type 0x2300, payload[5] = 0xFF          140-byte frame
+2.  (erase)         see 26.5 — try skipping first
+3.  for chunk i in 0 .. 2815:
+        type 0x2600, opcode 0x62 (or 0x85),
+        payload[7] = block, payload[8] = page,   page walks 0x0000..0x0AFF
+        payload[0x0a..0x109] = 256 bytes of image
+        278-byte frame
+        usleep 1000                              ; 1 ms
+4.  usleep 30000                                 ; 30 ms
+5.  RELOCK          type 0x2300, payload[5] = 0x00          140-byte frame
+6.  read back with type 0x0600 / opcode 0x44 and byte-compare
+7.  power-cycle
+```
+
+### 26.5 Item 2 — the erase, and a cheap experiment
+
+I still have not resolved the erase vtable call at `0x3a4c49` (`call [rax+8]`,
+35 ms between iterations) — it is the same class of vtable indirection I have
+misattributed three times, and I will not guess at frame bytes for an erase
+aimed at the firmware region.
+
+**But you can now settle it empirically in one test, safely:**
+
+> Send **unlock (0x2300, 0xFF)**, then a single 0x2600 data write to
+> **block 0x03 page 0x50** — the same target you have been using, which reads
+> `0xFF` and is outside both bitstream banks — then read back.
+
+* If the page takes the data: the unlock was the only missing piece, and **no
+  erase is needed for already-erased flash** (writing to `0xFF` NOR only clears
+  bits, exactly as in §20.4). That also means for the real flash you need an erase
+  only because blocks 0x00–0x0A currently hold the old bitstream.
+* If it still refuses: the erase is also a gate, and I will go back at the vtable
+  slot with that knowledge.
+
+Block 0x03 remains the right test target — it is not the running bitstream
+(0x00–0x0A holds it, but 0x03 specifically reads 0xFF per your scan) and not
+golden (0x20).
+
+### 26.6 Item 4 — handshake / display state
+
+I found **no** stop-display, maintenance-mode, or reset frame in either upgrade
+path. The sequence in `DoSlowUpgradeRcv` goes straight from unlock into the
+erase/write loop. The card-selection builders you asked about
+(`BuildRcvCardParamSelectionPack` @ `0x30d3a0`, `BuildRcvCardIsSelectedInfo`
+@ `0x30cab0`) are for choosing *which* receiver in a chain to target — relevant
+for multi-card installs, not for a single card at index 0.
+
+So: no handshake, no mode change, no display stop. **Unlock is the whole gate**,
+as far as the host-side code shows.
+
+### 26.7 Safety note that now matters more
+
+With the unlock frame in hand, the write protection that has been silently
+protecting you is gone. Two consequences:
+
+* Send the **relock (`0x00`)** whenever you finish, including after a failed or
+  aborted attempt. Leaving the program region unlocked means any subsequent
+  addressing bug can reach the bitstream.
+* The §25.5 guard on `payload[7] ∈ 0x00..0x0A` becomes load-bearing rather than
+  belt-and-braces. Golden at 0x20–0x2A is your only fallback and there is nothing
+  else stopping a stray write from reaching it.

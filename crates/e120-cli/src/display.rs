@@ -150,6 +150,9 @@ pub fn send_frame(dev: &mut bpf::Bpf, cli: &Cli, fb: &[[u8; 3]]) -> Result<()> {
             offset += chunk.len();
         }
     }
+    // FPP sends the display/latch frame twice per refresh on firmware v13+
+    // (this card runs 16.53); older firmware tolerates the duplicate.
+    dev.send(&protocol::sync(cli.brightness))?;
     dev.send(&protocol::sync(cli.brightness))?;
     Ok(())
 }

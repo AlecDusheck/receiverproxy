@@ -453,8 +453,11 @@ fn read_config(
     match rcvbp::Rcvbp::load(out) {
         Ok(f) => {
             println!("parsed: {} records", f.records.len());
-            if let Some((w, scan)) = f.geometry() {
-                println!("configured for width {w}, 1/{scan} scan");
+            if let Some((w, _)) = f.geometry() {
+                println!("configured for width {w}");
+            }
+            if let Some(scan) = f.scan() {
+                println!("scan: 1/{scan}");
             }
             let has_chip_regs = f.find(0x0a84).is_some_and(|r| !r.is_empty_table());
             println!(
@@ -928,8 +931,11 @@ fn rcvbp_info(path: &str, dump: bool) -> Result<()> {
         f.blob.len(),
         f.records.len()
     );
-    if let Some((w, scan)) = f.geometry() {
-        println!("  cabinet: width {w}, 1/{scan} scan");
+    if let Some((w, _)) = f.geometry() {
+        println!("  cabinet width: {w}");
+    }
+    if let Some(scan) = f.scan() {
+        println!("  scan: 1/{scan}");
     }
     if let Some((w, scan)) = f.main_geometry() {
         println!("  main param block: width {w}, scan 1/{scan}");

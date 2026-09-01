@@ -2103,3 +2103,131 @@ attribution of the source function was wrong.
 
 I did not complete the trace from record 0x84 into `OBJ+0xd6d0`. Given §17.0 I
 recommend resolving the power question before investing further here.
+
+---
+
+## 18. Scan mode in record 0x01 — resolved
+
+### 18.1 The answer: `payload + 0x020` is the scan denominator
+
+`GetScanMode()` @ `0x16e670` is a one-line accessor:
+
+```
+movzx eax, byte [rdi + 0xc1]      ; OBJ+0xc1, a single byte
+```
+
+and §9.2 showed record 0x01 `payload+0x020` feeding `SetScanMode(u8)` @ `0x131bb0`,
+which writes that member. So the scan field is **one byte at record-0x01
+`payload+0x020`**, holding the **scan denominator directly** — 16, 32 or 64, not a
+log2 index and not a row count.
+
+### 18.2 Verified against every unambiguously-named corpus file — 10/10
+
+| file | name says | `payload+0x020` |
+|---|---|---|
+| `P2.5-16S-16169-64X64-160X160-KSL-V1.0` | 16 | **16** ✓ |
+| `p2.5-2053+2018-128X64-16s` | 16 | **16** ✓ |
+| `P2.5-128_64-32s-2038-138` | 32 | **32** ✓ |
+| `P2.5-128x64-32S-6618+7258-3.80` | 32 | **32** ✓ |
+| `P2.5-128x64-32S-9929+7258-3.0-75B` | 32 | **32** ✓ |
+| `P2.5-64x32-32s-2053` | 32 | **32** ✓ |
+| `P2.5-7347-57D-6464-32s-2121-2038-2012-138` | 32 | **32** ✓ |
+| `P2.5-128x64-64S-9929+9737(mini)-3.15` | 64 | **64** ✓ |
+| `P2.5-128x64-64S-9929+9739-3.15-75E` | 64 | **64** ✓ |
+| `P2.5-128x64-64S-9929+9739-5.0-75B` | 64 | **64** ✓ |
+| `P2.5-9929+9736-128x64-64S` | 64 | **64** ✓ |
+
+Every file whose name states a scan matches, across all three values and across
+marker bytes 0x08, 0x09 and 0x0a.
+
+### 18.3 The installed config is ALREADY 1/16 scan
+
+```
+P2.5-32S-128X64-SM16269S-256X384I.rcvbp   ->  payload+0x020 = 0x10 = 16
+```
+
+Record 0x01 of the user's file, offset 0x20 onward:
+
+```
++0x020: 10 08 00 0e 01 00 bc 00 ff ff ff 03 02 01 00 00
+         ^^ scan = 16
+```
+
+**This is the only file in the whole corpus whose name disagrees with its
+content.** The filename says `32S`; the payload says 16. Every other file agrees
+with its name, which is what makes the rule trustworthy and this file the outlier.
+
+**So the scan-mismatch hypothesis does not hold.** The config on the card already
+specifies 1/16 scan, matching the datasheet's `O16S` / "1/16 duty". There is no
+scan edit to make — the deliverable you asked for (byte edits turning 1/32 into
+1/16) is a no-op, because the installed config is already 1/16.
+
+Two more files corroborate: `P2.5-320x160-2153-138-3840-256X384.rcvbp` — the same
+320x160mm / 128x64 P2.5 module as ours — also carries `payload+0x020 = 16`, as do
+the two `P2.5-2153-128512` files.
+
+### 18.4 `payload+0x001` is not scan
+
+Your suspicion was right. Across the corpus `+0x000 ∈ {64,128}` and
+`+0x001 ∈ {32,64}`, and they track each other rather than scan: the two 16-scan
+files hold 32 and 64 respectively, and 32-scan files hold both 32 and 64. They
+behave like module geometry fields, not scan. The 32→64 movement you saw in the
+32S/64S pair was those two files also differing in geometry — coincidental to
+that pair.
+
+### 18.5 The "derived" fields are derived from clock, not from scan
+
+Exact relationships, holding across **all 19 files**:
+
+```
+payload+0x04b  ==  payload+0x021
+payload+0x049  ==  payload+0x021 // 2      (integer division)
+```
+
+But `payload+0x021` is **not** a function of scan. Observed values are 7, 8, 10,
+12, 14, 15, 16 and 18, and files sharing a scan hold different values (32-scan
+files show 7, 7, 7, 12, 15; 64-scan files show 12, 14, 18, 18). §9.2 maps
+`payload+0x021` to `SetSerialClockFrequency(u16)` — a clock setting that varies
+per panel/driver design.
+
+So the `12->18` / `6->9` movement in your 32S-vs-64S diff was a **clock**
+difference between those two designs that happened to accompany the scan change.
+There is no scan→timing formula to apply. If you ever do change `+0x021`, keep
+the two derived bytes consistent using the two identities above.
+
+### 18.6 The marker byte does not change payload interpretation
+
+**Definitive, from the dispatcher** (`LoadBpBufFromBuffer` @ `0x1c5b8e`):
+
+```
+ecx = dword [r12]        ; the whole 4-byte record header
+ebx = cx                 ; length   <- bytes 0..1
+eax = ecx >> 0x18        ; id       <- byte 3
+al  = id + 0x7f          ; jump-table index
+```
+
+**Byte 2 — the marker — is never extracted or tested anywhere in the parser.** It
+is read as part of the header dword and then discarded; only the length and the
+id participate in dispatch, and the handler memcpys the record verbatim.
+
+Corroborated empirically: the `+0x020` = scan rule in §18.2 holds across markers
+0x08, 0x09 and 0x0a without exception.
+
+**So your cross-family diffs are valid**, a 0x09-marker file is parsed exactly
+like a 0x0a one, and no field translation is needed between them. (Caveat as
+always: this is iSet's parser. The card firmware is not available to analyse.)
+
+### 18.7 Where this leaves the diagnosis
+
+With scan already correct at 1/16, output count 1 → J1 (§17.1), geometry 128x64
+confirmed by the card's own discovery reply, and the blob verified byte-for-byte
+in flash, **the configuration hypothesis is now substantially weakened.** The
+remaining config-side unknown is the driver-chip question: the datasheet says
+plain constant-current with no PWM chip named, the card's *original* config had
+no record 0x84 at all, and `SM16269` appears nowhere in the vendor chip library
+(§17.3) — so the file's chip table may describe a chip this panel does not have.
+
+That is worth testing, and it is cheap: the corpus contains
+`P2.5-320x160-2153-138-3840-256X384.rcvbp`, which is **the same 320x160mm 128x64
+P2.5 module geometry, 1/16 scan, from the vendor's own library**. Installing that
+file is a direct A/B against our SM16269S file and needs no byte editing.

@@ -119,11 +119,27 @@ impl Rcvbp {
 
     /// Width/scan from the main 0x0a01 parameter block: (width, scan).
     pub fn main_geometry(&self) -> Option<(u8, u8)> {
-        let r = self.find(0x0a01)?;
+        let r = self.record_01()?;
         if r.payload.len() < 2 {
             return None;
         }
         Some((r.payload[0], r.payload[1]))
+    }
+
+    /// The main parameter record, whatever container marker it carries.
+    ///
+    /// The marker byte is not part of the record identity — the vendor parser
+    /// takes only the id byte and ignores it — so match on the id alone.
+    pub fn record_01(&self) -> Option<&Record> {
+        self.records.iter().find(|r| r.rtype[1] == 0x01)
+    }
+
+    /// Scan denominator, held literally (16, 32 or 64) at record 0x01 +0x020.
+    ///
+    /// This is the authoritative scan field; the value near the start of the
+    /// record is module geometry and is easily mistaken for it.
+    pub fn scan(&self) -> Option<u8> {
+        self.record_01()?.payload.get(0x20).copied()
     }
 
     pub fn find_mut(&mut self, rtype: u16) -> Option<&mut Record> {

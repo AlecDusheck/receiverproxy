@@ -24,6 +24,8 @@
 //!   0x0a8d / 0x0a91 / 0x0ad8 / 0x0a95 / 0x0ada / 0x0a8e / 0x0acd / 0x008f / 0x0907
 //!           gamma / calibration tables (all zero in an uncalibrated profile)
 
+pub mod compiled;
+
 use anyhow::{bail, Context, Result};
 use std::io::{Read, Write};
 
@@ -64,8 +66,12 @@ pub struct Rcvbp {
 impl Rcvbp {
     pub fn load(path: &str) -> Result<Self> {
         let d = std::fs::read(path).with_context(|| format!("read {path}"))?;
+        Self::from_bytes(&d).with_context(|| format!("parse {path}"))
+    }
+
+    pub fn from_bytes(d: &[u8]) -> Result<Self> {
         if d.len() < 32 {
-            bail!("{path}: too short to be a .rcvbp");
+            bail!("too short to be a .rcvbp");
         }
         let version = le_u32(&d, 0x10)?;
 
@@ -80,10 +86,7 @@ impl Rcvbp {
                 .read_to_end(&mut blob)
                 .context("inflate rcvbp payload")?;
             if blob.len() != raw_len {
-                bail!(
-                    "{path}: inflated {} bytes but header says {raw_len}",
-                    blob.len()
-                );
+                bail!("inflated {} bytes but header says {raw_len}", blob.len());
             }
             (blob, true)
         } else {

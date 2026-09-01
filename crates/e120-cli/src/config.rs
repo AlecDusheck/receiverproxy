@@ -185,3 +185,57 @@ pub fn describe_record(t: u16, empty: bool) -> &'static str {
         _ => "",
     }
 }
+
+/// Compile a complete block-7 flash image from explicit parts, using the
+/// factory dump (or another known-good block) as the base for every region we
+/// cannot yet derive. Offline: writes a file for `restore-flash` to send.
+#[allow(clippy::too_many_arguments)]
+pub fn compile_config(
+    rcvbp_path: &str,
+    basic_pack: Option<&str>,
+    chip_from: Option<&str>,
+    mapping_from: Option<&str>,
+    base: &str,
+    out: &str,
+) -> Result<()> {
+    let (path, off) = match base.split_once(':') {
+        Some((p, o)) => (
+            p,
+            usize::from_str_radix(o.trim_start_matches("0x"), 16)
+                .with_context(|| format!("bad base offset {o:?}"))?,
+        ),
+        None => (base, 0),
+    };
+    let dump = std::fs::read(path).with_context(|| format!("read {path}"))?;
+    anyhow::ensure!(
+        dump.len() >= off + rcvbp::compiled::IMAGE_LEN,
+        "{path} is too short for a 64KB block at 0x{off:x}"
+    );
+    let mut b = rcvbp::compiled::Block7Builder::from_base(
+        &dump[off..off + rcvbp::compiled::IMAGE_LEN],
+    )?;
+
+    if let Some(p) = basic_pack {
+        let body = std::fs::read(p).with_context(|| format!("read {p}"))?;
+        b.basic_pack(&body)?;
+    }
+    if let Some(p) = chip_from {
+        b.chip_registers_from(&rcvbp::Rcvbp::load(p)?)?;
+    }
+    if let Some(p) = mapping_from {
+        b.mapping_from(&rcvbp::Rcvbp::load(p)?)?;
+    }
+    let file = std::fs::read(rcvbp_path).with_context(|| format!("read {rcvbp_path}"))?;
+    b.rcvbp(&file)?;
+
+    let (img, notes, changed) = b.finish();
+    std::fs::write(out, &img).with_context(|| format!("write {out}"))?;
+    println!("wrote {out}");
+    for n in &notes {
+        println!("  {n}");
+    }
+    let pages: Vec<String> = changed.iter().map(|p| format!("{p:02x}")).collect();
+    println!("  pages differing from base: {}: {}", changed.len(), pages.join(" "));
+    println!("flash it with: e120 restore-flash {out} --commit   (then screen-size + power-cycle)");
+    Ok(())
+}

@@ -402,6 +402,10 @@ enum Cmd {
     ReloadParams {
         #[arg(long, default_value_t = 0)]
         index: u16,
+        /// Use the vendor's post-save frame (opcode 0x77, all three classes)
+        /// instead of the bare 0x79 reload
+        #[arg(long)]
+        full: bool,
     },
     /// Show, and optionally set, the card's screen-size record
     ScreenSize {
@@ -483,6 +487,27 @@ enum Cmd {
         #[arg(long, default_value = "")]
         remove: String,
         /// Where to write the result
+        #[arg(long)]
+        out: String,
+    },
+    /// Compile a block-7 flash image (boot config + embedded .rcvbp) from parts
+    CompileConfig {
+        /// The .rcvbp to embed at +0x8000 (and default source for records)
+        #[arg(long)]
+        rcvbp: String,
+        /// 256-byte basic-parameter pack body for page 0
+        #[arg(long)]
+        basic_pack: Option<String>,
+        /// .rcvbp whose chip-register record 0x84 becomes page 0x09
+        #[arg(long)]
+        chip_from: Option<String>,
+        /// .rcvbp whose mapping record 0x03 becomes pages 0x30-0x5F
+        #[arg(long)]
+        mapping_from: Option<String>,
+        /// Base 64KB block image, PATH or PATH:HEXOFFSET into a larger dump
+        #[arg(long, default_value = "firmware/card-dumps/primary-region.bin:0x70000")]
+        base: String,
+        /// Where to write the 64KB image (flash it with restore-flash)
         #[arg(long)]
         out: String,
     },
@@ -789,10 +814,15 @@ fn run_params(cli: &Cli) -> Result<Option<()>> {
             println!("back to normal");
             Ok(Some(()))
         }
-        Cmd::ReloadParams { index } => {
+        Cmd::ReloadParams { index, full } => {
             let mut dev = open(cli)?;
-            dev.send(&protocol::reload_params(*index))?;
-            println!("asked the card to reload parameters from flash");
+            if *full {
+                dev.send(&protocol::reload_params_full(*index))?;
+                println!("sent the vendor's full reload (opcode 0x77, all classes)");
+            } else {
+                dev.send(&protocol::reload_params(*index))?;
+                println!("asked the card to reload parameters from flash");
+            }
             Ok(Some(()))
         }
         _ => Ok(None),
@@ -822,6 +852,21 @@ fn run(cli: &Cli) -> Result<()> {
             remove,
             out,
         } => config_build(base, copy_from.as_deref(), copy, remove, out),
+        Cmd::CompileConfig {
+            rcvbp,
+            basic_pack,
+            chip_from,
+            mapping_from,
+            base,
+            out,
+        } => config::compile_config(
+            rcvbp,
+            basic_pack.as_deref(),
+            chip_from.as_deref(),
+            mapping_from.as_deref(),
+            base,
+            out,
+        ),
         Cmd::ConfigDiff { a, b } => config_diff(a, b),
         Cmd::Rcvbp { path, dump } => rcvbp_info(path, *dump),
         Cmd::PcapSummary { path, dump } => pcap_summary(path, *dump),

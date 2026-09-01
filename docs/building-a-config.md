@@ -32,7 +32,7 @@ e120 config-build \
 # 2. Compile the block-7 boot image.
 e120 compile-config \
   --rcvbp        firmware/derived/p25-128x64-fixed.rcvbp \
-  --basic-pack   firmware/derived/basic-pack-single-module.bin \
+  --basic-pack   firmware/derived/basic-pack-single-module-v2.bin \
   --chip-from    firmware/derived/p25-128x64-fixed.rcvbp \
   --mapping-from firmware/derived/p25-128x64-fixed.rcvbp \
   --out block7.bin
@@ -54,7 +54,7 @@ Send `e120 brightness 25` (or stream black) promptly after power-on.
 |---|---|---|
 | `--base` (records incl. 0x84 chip regs) | the seller's config = the card's own shipped `.rcvbp`. Its 0x84 is the only SM16269S register table known to exist (none in the vendor corpus); matches a vendor `ChipSetting.dll` preset in 31/32 registers | placement proven; register semantics partial |
 | consensus mapping (record 0x0a03) | `donor-P2.5-320x160-2153-consensus.rcvbp` — 34 of 49 unique vendor configs for exactly module 128x64 @ 1/16, across every chip family, share this byte-identical record. The seller's copy is a lone outlier differing in exactly the 2048 even-block entries (base 64+256k vs 128+256k) | high (consensus), entry semantics partial |
-| `basic-pack-single-module.bin` | the vendor-computed basic pack from this card's factory flash (page 0 of the compiled image), with **five fields patched** for one 128x64 module at 1/16 scan: modules-in-line-dir 2→1 (+0x06), scan 8→16 (+0x09..0a BE), OneScanLen 256→128 (+0x0b..0c BE), MaxWidth 256→128 (+0x88..89 BE), MaxHeight 384→64 (+0x8a..8b BE). Field positions decoded instruction-by-instruction from `GetBasicParam` | patched fields high; ~200 bytes verbatim-carried, incl. an unexplained trailing dword `74 a9 51 a3` |
+| `basic-pack-single-module-v2.bin` | the vendor-computed basic pack from this card's factory flash (page 0 of the compiled image), with **four fields patched** for one 128x64 module: modules-in-line-dir 2→1 (+0x06), CardScanLen 512→256 (+0x0d..0e BE, per the formula in `docs/record-0x01-fields.md`), MaxWidth 256→128 (+0x88..89 BE), MaxHeight 384→64 (+0x8a..8b BE). **v1 of this file is superseded**: it wrongly doubled the serial clock (+0x09..0a, misread as scan — the scan byte at +0x07 was already 16) and wrongly halved OneScanLen (+0x0b..0c, which is `W×H/scan` = 256) | patched fields high; remaining verbatim bytes now mostly named — see `docs/record-0x01-fields.md` |
 | everything else in block 7 | the factory dump (`firmware/card-dumps/primary-region.bin` at 0x70000) | carried verbatim, listed by `compile-config` output |
 
 ## Why the seller's config was wrong for this panel

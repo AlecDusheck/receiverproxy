@@ -13,6 +13,7 @@ e120-rcvbp = { path = "crates/e120-rcvbp" }
 e120-net = { path = "crates/e120-net" }
 e120-canvas = { path = "crates/e120-canvas" }
 e120-video = { path = "crates/e120-video" }
+e120-driver = { path = "crates/e120-driver" }
 
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }

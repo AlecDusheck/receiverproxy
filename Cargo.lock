@@ -169,10 +169,24 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "e120-canvas",
+ "e120-driver",
  "e120-net",
  "e120-proto",
  "e120-rcvbp",
+ "e120-video",
  "image",
+ "serde_json",
+]
+
+[[package]]
+name = "e120-driver"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "e120-canvas",
+ "e120-net",
+ "e120-proto",
 ]
 
 [[package]]

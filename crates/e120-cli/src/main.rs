@@ -3,7 +3,9 @@ use clap::{Parser, Subcommand};
 use e120_net::{bpf, pcap};
 use e120_proto as protocol;
 use e120_rcvbp as rcvbp;
+use e120_video::FrameSource;
 use protocol::ColorOrder;
+use std::io::Write;
 use std::time::{Duration, Instant};
 
 #[derive(Parser)]
@@ -119,6 +121,34 @@ enum Cmd {
         #[arg(long, default_value_t = 2)]
         wait: u64,
     },
+    /// Play a video (or any ffmpeg-readable source) on the wall
+    Play {
+        /// File path or URL
+        input: String,
+        #[arg(long, default_value_t = 30)]
+        fps: u32,
+        /// stretch | contain | cover
+        #[arg(long, default_value = "contain")]
+        fit: String,
+        /// Loop forever
+        #[arg(long, name = "loop")]
+        looping: bool,
+        /// Wall layout JSON; defaults to a single panel of --width x --height
+        #[arg(long)]
+        layout: Option<String>,
+    },
+    /// Show a built-in pattern through the wall pipeline
+    Pattern {
+        /// rgb | border | rows | gradient | white
+        #[arg(default_value = "rgb")]
+        name: String,
+        #[arg(long)]
+        hold: bool,
+        #[arg(long)]
+        layout: Option<String>,
+    },
+    /// Print an example wall layout to adapt
+    LayoutExample,
     /// Tell the card its own size and the size of the whole screen
     SetLayout {
         #[arg(long, default_value_t = 128)]
@@ -263,6 +293,21 @@ fn run_display(cli: &Cli) -> Result<Option<()>> {
             dev.send(&protocol::brightness(*value))?;
             dev.send(&protocol::sync(*value))?;
             println!("brightness set to {value}");
+            Ok(Some(()))
+        }
+        Cmd::Play {
+            input,
+            fps,
+            fit,
+            looping,
+            layout,
+        } => play(cli, input, *fps, fit, *looping, layout.as_deref()).map(Some),
+        Cmd::Pattern { name, hold, layout } => {
+            show_pattern(cli, name, *hold, layout.as_deref()).map(Some)
+        }
+        Cmd::LayoutExample => {
+            let canvas = e120_canvas::Canvas::grid(128, 64, 2, 1);
+            println!("{}", serde_json::to_string_pretty(&canvas)?);
             Ok(Some(()))
         }
         Cmd::SetLayout {
@@ -472,6 +517,96 @@ fn read_config(
         Err(e) => println!("saved, but did not parse as .rcvbp: {e}"),
     }
     Ok(())
+}
+
+/// Load a wall layout, or build a single-panel one from the size flags.
+fn load_canvas(cli: &Cli, layout: Option<&str>) -> Result<e120_canvas::Canvas> {
+    match layout {
+        Some(path) => {
+            let text = std::fs::read_to_string(path).with_context(|| format!("read {path}"))?;
+            serde_json::from_str(&text).with_context(|| format!("parse {path}"))
+        }
+        None => Ok(e120_canvas::Canvas::single(
+            u32::from(cli.width),
+            u32::from(cli.height),
+        )),
+    }
+}
+
+fn wall_settings(cli: &Cli) -> e120_driver::Settings {
+    e120_driver::Settings {
+        brightness: cli.brightness,
+        color_order: cli.order,
+        announce_layout: true,
+    }
+}
+
+/// Play a video source onto the wall.
+fn play(
+    cli: &Cli,
+    input: &str,
+    fps: u32,
+    fit: &str,
+    looping: bool,
+    layout: Option<&str>,
+) -> Result<()> {
+    let canvas = load_canvas(cli, layout)?;
+    let fit = match fit {
+        "stretch" => e120_video::Fit::Stretch,
+        "contain" => e120_video::Fit::Contain,
+        "cover" => e120_video::Fit::Cover,
+        other => anyhow::bail!("unknown fit {other:?} (stretch|contain|cover)"),
+    };
+    println!(
+        "playing {input} on {}x{} at {fps} fps",
+        canvas.width, canvas.height
+    );
+
+    let mut source =
+        e120_video::VideoSource::open(input, canvas.width, canvas.height, fps, fit, looping)?;
+    let mut wall = e120_driver::Wall::open(&cli.iface, canvas, wall_settings(cli))?;
+    let mut pacer = e120_driver::Pacer::new(fps);
+
+    while let Some(frame) = source.next_frame()? {
+        wall.show(&frame)?;
+        pacer.wait();
+        if wall.frames_sent() % 60 == 0 {
+            print!(
+                "\r{} frames, {:.1} fps",
+                wall.frames_sent(),
+                pacer.achieved_fps()
+            );
+            std::io::stdout().flush().ok();
+        }
+    }
+    println!(
+        "\rplayed {} frames at {:.1} fps",
+        wall.frames_sent(),
+        pacer.achieved_fps()
+    );
+    Ok(())
+}
+
+/// Draw a built-in pattern through the full wall pipeline.
+fn show_pattern(cli: &Cli, name: &str, hold: bool, layout: Option<&str>) -> Result<()> {
+    let canvas = load_canvas(cli, layout)?;
+    let pattern: e120_video::Pattern = name.parse().map_err(|e: String| anyhow::anyhow!(e))?;
+    let frame = e120_video::pattern(pattern, canvas.width, canvas.height);
+    let mut wall = e120_driver::Wall::open(&cli.iface, canvas, wall_settings(cli))?;
+    if hold {
+        println!("holding {name}, Ctrl-C to stop");
+        let mut pacer = e120_driver::Pacer::new(30);
+        loop {
+            wall.show(&frame)?;
+            pacer.wait();
+        }
+    } else {
+        for _ in 0..3 {
+            wall.show(&frame)?;
+        }
+        println!("sent {name}");
+        Ok(())
+    }
 }
 
 /// Request one 1024-byte chunk of flash and return it.

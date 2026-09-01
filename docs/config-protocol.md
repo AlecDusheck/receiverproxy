@@ -2231,3 +2231,118 @@ That is worth testing, and it is cheap: the corpus contains
 `P2.5-320x160-2153-138-3840-256X384.rcvbp`, which is **the same 320x160mm 128x64
 P2.5 module geometry, 1/16 scan, from the vendor's own library**. Installing that
 file is a direct A/B against our SM16269S file and needs no byte editing.
+
+---
+
+## 19. Display-enable, lock, OE and current gain
+
+Static analysis plus corpus inspection. Nothing executed.
+
+### 19.1 Items 1 & 2 — there is NO display on/off or lock command in our topology
+
+`CProcessorNicOP::SetScreenShowOnOrOff` @ `0x258960` and
+`CProcessorNicOP::SetScreenLocked` @ `0x258970` are **stubs**:
+
+```
+0x258960  push rbp ; mov rbp,rsp ; xor eax,eax ; pop rbp ; ret
+0x258970  push rbp ; mov rbp,rsp ; xor eax,eax ; pop rbp ; ret
+```
+
+They build no frame, send nothing, and return 0. Real implementations exist only
+on the **sender/processor** classes:
+
+* `CProcessorSOP::SetScreenShowOnOrOff` @ `0x261330`, `SetScreenLocked` @ `0x2615f0`
+* `CProcessorZOP::SetScreenShowOnOrOff` @ `0x2f4f40`, `SetScreenLocked` @ `0x2f5060`
+
+Those are S-series and Z-series **sender cards**, not receiving cards. `NicOP` —
+the network-card sender path, which is exactly our topology — implements neither.
+
+This cuts both ways, and the second direction is the useful one:
+
+1. There is no display-enable frame for me to give you; none exists on this path.
+2. **The card cannot be sitting in a software-blanked state waiting for an enable
+   command, because LEDVISION/iSet never sends one when driving through a network
+   card either.** If such a latch existed and defaulted to blanked, the vendor
+   tool could never light this panel over Ethernet.
+
+`IsScreenLocked` @ `0x2588b0` is likewise a `CProcessorNicInfo` accessor over
+locally cached sender state — it queries the host's own model, not the card, so it
+cannot tell you anything about the receiver.
+
+### 19.2 Item 4 — current gains are NOT zero in either config
+
+Three little-endian floats at record 0x01 `+0x0b4`, `+0x0b8`, `+0x0bc` (the
+`SetCurrentByPercent(float,float,float)` / `GetCurrentPercent(float*,float*,float*)`
+triple):
+
+| config | +0x0b4 (R) | +0x0b8 (G) | +0x0bc (B) |
+|---|---|---|---|
+| installed `2153-138` | `00 00 80 3e` = **0.25** | `00 00 80 3e` = **0.25** | `00 00 00 3f` = **0.50** |
+| `SM16269S` file | `cd cc cc 3d` = **0.10** | `cd cc cc 3d` = **0.10** | `cd cc cc 3d` = **0.10** |
+
+**Both are non-zero**, so a zero stored current gain is ruled out as the cause.
+The currently installed file asks for 25/25/50 % — modest but plainly visible.
+(The SM16269S file's 10 % would have been dim, never invisible.)
+
+### 19.3 Item 3 — OE: I could not resolve polarity, and I am not going to guess
+
+The relevant accessors exist — `IsChipHasOE` @ `0x13e080`, `Is8nsOeEnable`
+@ `0x145310`, `Get8nsOeEnableInfo` @ `0x168630`, `GetMinOE` @ `0x13e2b0`,
+`HR_SetMinOE` @ `0x144b90` — and §7 maps pack `payload[0x3b]` to
+`Get8nsOeEnableInfo` (member `OBJ+0xbd`), fed from record 0x01 `+0x050`.
+
+**That byte is `0x01` in both configs**, so it does not differentiate them and it
+is not an explanation for the current behaviour.
+
+I could not establish which field, if any, carries OE *polarity*. These accessors
+dereference a chip-library sub-object and my attempts to resolve them hit the same
+vtable ambiguity that produced two wrong attributions earlier in this document
+(§15.5, §17.3). Rather than produce a third speculative answer on a byte you would
+act on, I am marking this **unresolved**.
+
+### 19.4 What the current signature actually says
+
+I want to put the measurement argument precisely, because I think it points
+somewhere different from the "card scans, display blanked" reading.
+
+The 0.428 A → 0.62 A step on first config write is real and is very likely the
+card moving from idle to actively generating HUB75 output. That part of your
+reading looks right. But note where it leaves the totals: the E120 spec rates
+**the card alone at 0.6 A / 3.0 W**, so 0.62 A is the *card* working. The panel's
+contribution is still ~0.
+
+The decisive detail is the invariance you documented:
+
+* full white vs full black — **identical**
+* brightness 255 vs 8 — **identical**
+* four different configs — **identical**
+* during the card's own test-pattern sweep — **identical**
+
+If the panel were powered and receiving drive, white-vs-black would move the
+meter substantially — that is the single largest current swing an LED panel can
+produce, and no configuration error suppresses it while leaving the card
+scanning. Content-invariant and brightness-invariant current means **the LEDs are
+never sourcing current at all**.
+
+That is consistent with exactly two things, neither of which is configuration:
+
+1. **The panel has no power on its own 5 V input** (the HUB75 ribbon carries
+   signals, not panel power), or
+2. **the drive signals are not reaching the panel** — ribbon seated on the wrong
+   header or reversed, pin-1 orientation flipped, or a failed HUB75 buffer on the
+   card.
+
+A "software blank" would still be inconsistent with the card's own test button
+doing nothing, and §19.1 shows no such blanking command exists on this path.
+
+**The one measurement that discriminates:** put the meter on the *panel's own*
+power feed, not the shared supply rail, and press the card's test button. If that
+feed reads ~0 A, the panel is unpowered or unconnected and no byte in any config
+will change it. If it reads a real quiescent current but nothing lights, the
+drive path is suspect and the ribbon/orientation is the next thing to check.
+
+I recognise you moved away from this line after §17, and I am raising it again
+only because the white-vs-black invariance is new information since then and it
+is the strongest single data point in the set. If that test comes back showing
+real panel current, I will drop it and go straight at the OE polarity question
+with the remaining leads in §19.3.

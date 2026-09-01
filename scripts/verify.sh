@@ -17,7 +17,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$out"
 
 echo "== card state"
-"$e120" discover --wait 2 | head -3 | tee "$out/discover.txt"
+"$e120" discover --wait 2 >"$out/discover.txt" 2>&1 || true
+sed -n '1,3p' "$out/discover.txt"
 
 echo "== screen size"
 "$e120" set-layout

@@ -10,12 +10,15 @@ everything here works on raw Ethernet frames via `/dev/bpf`.
 
 | Crate | Role |
 |---|---|
-| `e120-proto` | The Colorlight wire protocol: frame construction for discovery, pixel rows, sync/latch, and brightness. Pure logic, no I/O. |
-| `e120-net` | Transport. Raw Ethernet send/receive over BPF, plus a reader for pcap capture files. Protocol-agnostic: it moves opaque frames. |
-| `e120-rcvbp` | Parser for Colorlight `.rcvbp` receiver-parameter files (both the compressed and uncompressed variants). |
-| `e120-cli` | The `e120` binary tying the above together. |
+| `e120-proto` | The wire protocol: discovery, pixel rows, sync, brightness, layout, test mode, flash and EEPROM access, and parameter packs. Pure logic, no I/O. |
+| `e120-net` | Transport. Raw Ethernet send/receive over BPF, plus a pcap reader. Protocol-agnostic: it moves opaque frames. |
+| `e120-rcvbp` | Parser and writer for Colorlight `.rcvbp` configuration files, both container variants, including the CRC trailer. |
+| `e120-canvas` | Wall topology: map one image onto any arrangement of panels, at any size, rotation or mirroring, across any number of receivers. |
+| `e120-video` | Frame sources: video via ffmpeg, stills, and built-in test patterns. |
+| `e120-driver` | Joins topology, protocol and transport so anything driving the wall behaves identically. |
+| `e120-cli` | The `e120` binary. |
 
-## Usage
+## Setup
 
 Raw Ethernet access needs permission on the BPF devices:
 
@@ -23,33 +26,83 @@ Raw Ethernet access needs permission on the BPF devices:
 sudo chmod o+rw /dev/bpf*      # resets on reboot
 ```
 
+Global options: `--iface en24 --width 128 --height 64 --order bgr --brightness N`.
+
+## Driving the panel
+
 ```sh
 e120 discover                  # probe for a card; prints firmware and detected size
-e120 listen                    # passively dump frames (debugging)
-
-e120 test rgb                  # test patterns: gradient | rows | border | rgb
+e120 pattern rgb               # rgb | border | rows | gradient | white
 e120 fill ff8000               # solid colour
-e120 image picture.png         # display an image, scaled to the panel
-e120 brightness 128
+e120 image picture.png         # a still, scaled to the wall
+e120 play clip.mp4 --loop      # video, via ffmpeg
 e120 blank
-
-e120 rcvbp panel.rcvbp         # inspect a receiver-parameter file
-e120 pcap-summary cap.pcap     # summarise Colorlight traffic in a capture
 ```
 
-Global options: `--iface en24 --width 128 --height 64 --order bgr --brightness N`.
-Add `--hold` to `test` and `image` to refresh continuously.
+Add `--hold` to keep refreshing. `--layout wall.json` drives a multi-panel wall;
+`e120 layout-example` prints one to adapt.
+
+## Configuration
+
+```sh
+e120 read-config --out card.rcvbp    # what the card currently holds
+e120 rcvbp panel.rcvbp               # inspect a config file
+e120 config-diff a.rcvbp b.rcvbp     # compare two
+e120 config-build --base a.rcvbp --copy-from b.rcvbp --copy 0a84 --out new.rcvbp
+e120 write-config panel.rcvbp        # dry run; add --commit to install
+e120 send-params panel.rcvbp         # push parameters into RAM, no flash, no reboot
+```
+
+## Flash and firmware
+
+Reads are always safe. Writes need `--commit` and are confined by guards in
+`e120-proto`: configuration writes touch only the parameter block, firmware
+writes only the primary bank, and the golden backup bank is unreachable by
+construction.
+
+```sh
+e120 scan-flash                          # find bitstreams and config in flash
+e120 dump-flash --block 0 --blocks 11 --out primary.bin
+e120 upgrade-info                        # what image the bootloader expects
+e120 flash-firmware image.hex --backup primary.bin --commit
+```
+
+**Always snapshot first.** Restoring firmware erases the configuration, because
+the configuration lives inside the firmware image's address range, so
+`restore all` sequences the pieces in the order that leaves the card whole.
+
+```sh
+e120 snapshot --dir before-flash
+e120 restore all --dir before-flash --commit
+```
+
+## What we learned about this hardware
+
+Colorlight builds a **different FPGA bitstream per LED driver chip**. There is
+no runtime setting for it — the driver-chip protocol is implemented in gateware.
+A card whose firmware was built for one driver IC will not light a panel using
+another, no matter how it is configured. See [`firmware/README.md`](firmware/README.md).
+
+`E320` in a firmware filename is a **platform name, not a product name**:
+Colorlight ships one gateware line for the E80, E120, 5A-75B, 5A-75E and E320,
+and names every build after the E320. This card's factory flash is byte-identical
+to `E320_PCB6.0_PWM_FPGA10.81_20230907.hex`.
+
+Flash layout, and the write-protect that gates every firmware write, are
+documented in [`firmware/README.md`](firmware/README.md).
 
 ## Documentation
 
-* [`docs/rcvbp-format.md`](docs/rcvbp-format.md) — the `.rcvbp` file format.
-* [`docs/config-protocol.md`](docs/config-protocol.md) — the receiver
-  configuration protocol, reverse-engineered from vendor binaries by static
+* [`docs/config-protocol.md`](docs/config-protocol.md) — the wire protocol and
+  configuration format, reverse-engineered from vendor binaries by static
   analysis.
+* [`docs/rcvbp-format.md`](docs/rcvbp-format.md) — the `.rcvbp` file format.
+* [`firmware/README.md`](firmware/README.md) — firmware images, flash layout,
+  and the upgrade procedure.
 
 ## Status
 
-Discovery, pixel, sync, and brightness frames are implemented and verified on
-the wire. Sending receiver configuration to the card — which a panel needs
-before its driver chips will light — is still in progress; see
-`docs/config-protocol.md`.
+Discovery, pixel, sync and brightness frames are verified on the wire, and the
+configuration path reads and writes correctly. The panel this was built for
+stays dark: its driver chips are SM16269S, and the card's firmware was built for
+a different driver IC. Getting it lit means installing matching firmware.

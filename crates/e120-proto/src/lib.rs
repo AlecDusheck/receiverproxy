@@ -385,6 +385,76 @@ pub fn read_flash_linear(rcv_index: u16, addr: u32, len: u32) -> Vec<u8> {
     frame([0x19, 0x00], &p)
 }
 
+/// Ask the card to describe its firmware-upgrade capabilities.
+///
+/// A discovery-family frame distinguished by the `ff ff ff` marker and a magic
+/// number. Read-only: it carries no data and no write opcode. The reply states
+/// how long the card expects its firmware image to be, which tells us which
+/// image format its bootloader wants.
+#[must_use]
+pub fn upgrade_info() -> Vec<u8> {
+    let mut p = vec![0u8; 270];
+    p[1..4].copy_from_slice(&[0xff, 0xff, 0xff]);
+    p[4] = 0x01;
+    p[6..10].copy_from_slice(&[0x43, 0x57, 0x83, 0x97]);
+    p[10] = 0x09;
+    frame([0x07, 0x00], &p)
+}
+
+/// What the card reports about its firmware image and recovery options.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UpgradeInfo {
+    /// Size the bootloader expects the firmware image to be.
+    pub declared_len: u32,
+    pub capabilities: u8,
+}
+
+impl UpgradeInfo {
+    /// True when the card keeps a golden image it can fall back to.
+    #[must_use]
+    pub const fn has_golden(self) -> bool {
+        self.capabilities & 0b0010 != 0
+    }
+
+    /// True when the card accepts golden-bank upgrades.
+    #[must_use]
+    pub const fn supports_golden_upgrade(self) -> bool {
+        self.capabilities & 0b1000 != 0
+    }
+
+    /// True when the card can stage an image in SDRAM before committing it.
+    #[must_use]
+    pub const fn supports_sdram_staging(self) -> bool {
+        self.capabilities & 0b0001 != 0
+    }
+}
+
+/// Locate the upgrade descriptor inside a reply.
+///
+/// The absolute offset depends on framing we have not pinned down, but the
+/// spacings between fields come from fixed instruction offsets. So anchor on
+/// the length's high byte — a ~721 KB image starts `0b 00`, which is rare in an
+/// otherwise sparse reply — and read the neighbours relative to it.
+#[must_use]
+pub fn parse_upgrade_info(reply: &[u8]) -> Option<UpgradeInfo> {
+    for i in 5..reply.len().saturating_sub(2) {
+        if reply[i] != 0x0b || reply[i + 1] != 0x00 {
+            continue;
+        }
+        let declared_len =
+            u32::from(reply[i]) << 16 | u32::from(reply[i + 1]) << 8 | u32::from(reply[i + 2]);
+        // Only 0x0b0000 and 0x0b0080 are plausible image lengths.
+        if declared_len != 0x000b_0000 && declared_len != 0x000b_0080 {
+            continue;
+        }
+        return Some(UpgradeInfo {
+            declared_len,
+            capabilities: reply[i - 5],
+        });
+    }
+    None
+}
+
 /// Frame type the card answers a flash read with.
 pub const FLASH_REPLY_TYPE: [u8; 2] = [0x09, 0x01];
 
@@ -710,5 +780,61 @@ mod firmware_frame_tests {
             write_firmware_chunk(0, GOLDEN_BLOCK, 0, &data, FIRMWARE_OP_WRITE),
             Err(WriteError::ForbiddenBlock(GOLDEN_BLOCK))
         );
+    }
+}
+
+#[cfg(test)]
+mod upgrade_info_tests {
+    use super::*;
+
+    #[test]
+    fn the_query_matches_the_documented_layout() {
+        let f = upgrade_info();
+        assert_eq!(f.len(), 284);
+        assert_eq!(&f[12..14], &[0x07, 0x00]);
+        assert_eq!(&f[15..18], &[0xff, 0xff, 0xff], "upgrade-info marker");
+        assert_eq!(&f[20..24], &[0x43, 0x57, 0x83, 0x97], "magic");
+        assert_eq!(f[24], 0x09, "sub-command");
+    }
+
+    #[test]
+    fn the_query_carries_no_write_opcode() {
+        // Every byte past the fixed header is zero, so this cannot modify.
+        assert!(upgrade_info()[25..].iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn a_pwm_family_length_is_recognised() {
+        let mut reply = vec![0u8; 64];
+        reply[20] = 0b1010; // capabilities: golden + supports-golden
+        reply[25] = 0x0b;
+        reply[26] = 0x00;
+        reply[27] = 0x00;
+        let info = parse_upgrade_info(&reply).unwrap();
+        assert_eq!(info.declared_len, 0x000b_0000);
+        assert!(info.has_golden());
+        assert!(info.supports_golden_upgrade());
+        assert!(!info.supports_sdram_staging());
+    }
+
+    #[test]
+    fn a_normal_family_length_is_recognised() {
+        let mut reply = vec![0u8; 64];
+        reply[25] = 0x0b;
+        reply[26] = 0x00;
+        reply[27] = 0x80;
+        assert_eq!(
+            parse_upgrade_info(&reply).unwrap().declared_len,
+            0x000b_0080
+        );
+    }
+
+    #[test]
+    fn implausible_lengths_are_ignored() {
+        let mut reply = vec![0u8; 64];
+        reply[25] = 0x0b;
+        reply[26] = 0x00;
+        reply[27] = 0x42; // not a known image length
+        assert!(parse_upgrade_info(&reply).is_none());
     }
 }

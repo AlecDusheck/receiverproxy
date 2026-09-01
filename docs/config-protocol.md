@@ -3435,3 +3435,143 @@ protecting you is gone. Two consequences:
 * The §25.5 guard on `payload[7] ∈ 0x00..0x0A` becomes load-bearing rather than
   belt-and-braces. Golden at 0x20–0x2A is your only fallback and there is nothing
   else stopping a stray write from reaching it.
+
+---
+
+## 27. The upgrade-descriptor query (read-only) — request and reply decoded
+
+Static analysis. Confidence: request frame **high**; reply field offsets
+**medium-high** (see §27.4 for the empirical anchor that makes this robust).
+
+### 27.1 The request frame
+
+`QuickDetectRcvUpgrade` @ `0x3a2f70` calls
+`BuildQucikDetectRcvCardEx(&len, &buf, 9, ptr, 2)` @ `0x30a780`, which builds:
+
+```
+buf = new[0x110]; bzero(buf+0x0d, 0x103)
+*(u64*)(buf+0x00) = 0x0001FFFFFF000007
+*(u32*)(buf+0x08) = 0x97835743
+byte [buf+0x0c] = arg3            ; = 9 at this call site
+memcpy(buf+0x0d, arg4, min(arg5,0x103))   ; 2 bytes
+outLen = 0x110
+```
+
+Little-endian expansion gives the wire bytes. **Payload 0x110 = 272 bytes,
+frame = 12 + 272 = 284 bytes** (same size as ordinary discovery):
+
+```
+ 0x00  11 22 33 44 55 66      dst MAC
+ 0x06  22 22 33 44 55 66      src MAC
+ 0x0c  07 00                  type 0x0700   (discovery family)
+ 0x0e  00                     payload[0x02]
+ 0x0f  FF FF FF               payload[0x03..0x05]   <- distinguishes it from plain discovery
+ 0x12  01 00                  payload[0x06..0x07]
+ 0x14  43 57 83 97            payload[0x08..0x0b]   <- magic 0x97835743 (LE)
+ 0x18  09                     payload[0x0c]         <- sub-command 9
+ 0x19  00 00                  payload[0x0d..0x0e]   <- 2 caller bytes; try 00 00
+ 0x1b  00 x 241               payload[0x0f..0x10f]
+```
+
+It is a **discovery-family frame (type 0x0700)** with `FF FF FF` at payload[3..5]
+and the magic at payload[8..0x0b] marking it as the upgrade-info variant. Reply
+selector at the send site is `0x8081`.
+
+Read-only: it carries no data and no write opcode.
+
+### 27.2 The reply layout
+
+The parse loop (`0x3a327d`–`0x3a32a0`):
+
+```
+rax   = replyBuffer + 0x26      ; anchor
+count = replyLen >> 0xB         ; i.e. replyLen / 2048
+per receiver: rax += 0x800      ; 2048-byte record per receiver
+```
+
+So **each receiver occupies 0x800 = 2048 bytes** in the reply, and for receiver
+`i` the anchor is `replyBuffer + 0x26 + i*0x800`. Fields, as offsets from the
+**reply buffer** for receiver 0:
+
+| reply offset | read as | → descriptor | meaning |
+|---|---|---|---|
+| **+0x0D** | byte | — | validity; **bit 1 must be set** or the record is skipped |
+| +0x1D | word | +0x0d | |
+| **+0x1F** | byte | +0x0f..+0x12 | **capability bits** (see below) |
+| +0x20 | byte | +0x13 | |
+| +0x22 | word | +0x14 | |
+| **+0x24** | word | +0x16 | **declared length, high** |
+| **+0x26** | word | +0x18 | **declared length, low** |
+
+**Capability bits — all from the single byte at reply `+0x1F`:**
+
+| bit | descriptor | meaning |
+|---|---|---|
+| 0 | +0x0f | supports-SDRAM-staging |
+| **1** | **+0x10** | **has-golden-upgrade** ← what `IsAllRcvHasGoldenUpgrade` reads |
+| 2 | +0x11 | supports-select-part |
+| **3** | **+0x12** | **supports-golden-upgrade** |
+
+So **one byte at reply `+0x1F` answers your golden question**: bit 1 set means the
+card has a golden image; bit 3 means it supports golden upgrade.
+
+### 27.3 The declared program length
+
+`VerifyFileCrc` assembles `desc[0x16]<<16 | desc[0x17]<<8 | desc[0x18]`, and
+`desc[0x16..0x19]` are the two words from reply `+0x24` and `+0x26`. Since the
+words are stored little-endian into the descriptor, the length bytes appear on the
+wire **most-significant first** at reply `+0x24`, `+0x25`, `+0x26`.
+
+**Concrete predictions for your two candidate formats:**
+
+| card declares | reply `+0x24 +0x25 +0x26` |
+|---|---|
+| `0x0B0000` (PWM 9.53 / LS0allDA 6.69 family) | `0B 00 00` |
+| `0x0B0080` (Normal 13.39 family) | `0B 00 80` |
+
+That is the decisive read. If the card declares `0x0B0080`, the PWM file is
+structurally invalid for it and — as you say — the question closes without a
+single write.
+
+### 27.4 How to make this robust to my offsets being slightly off
+
+My `+0x26` anchor is derived from `mov rax, [rbp-0x10050]; add rax, 0x26`, where
+that buffer is the one handed to the send/collect call. Whether the framing layer
+strips an Ethernet header before it (as it did in §12, where data began at
+`recvBuf+0x0F`) I did not re-verify here.
+
+**So anchor empirically instead:** dump the whole reply and **search for the byte
+pattern `0B 00`**. A 24-bit length of ~721 KB has `0x0B` as its high byte, and
+`0x0B 0x00` will be rare in an otherwise sparse reply. Once you find it:
+
+* the byte *after* it is the low length byte (`00` → 0xB0000, `80` → 0xB0080);
+* the capability byte is **5 bytes before** the `0x0B` (`+0x24 − 5 = +0x1F`);
+* the validity byte is **0x17 bytes before** it.
+
+That anchoring holds regardless of any constant header offset, because all the
+field spacings come from literal instruction offsets and are certain.
+
+### 27.5 On the unlock frame not working
+
+Accepted — and your test was sound. Checking your description against §26: you
+wrote "payload[3]=0xFF", and if your indexing starts after the 2-byte type word
+then your payload[3] is wire offset 0x11, which is exactly where my payload[5]
+sits. So you sent the right byte in the right place and it still refused.
+
+That leaves the erase as the more likely remaining gate — which is what I
+suspected in §26.5 and could not resolve. Given §27.3 may close the question
+outright, I would spend the next read on the descriptor query before I spend more
+effort on the write path.
+
+### 27.6 On E120 ≠ E320
+
+Your jump-table anchor at `0x39c41c` — index `(payload[0]+0x78)&0xFF`, entry 220
+for `0x64` → "E120", with `E320`/`E320P` as separate entries — is a much better
+derivation than my attempt in §25.4, which I flagged as over-fitted and
+unconfirmed. I agree with your conclusion and would treat §25.4's "type 100 =
+E120" as superseded by yours.
+
+That does raise the risk of the three files materially, and it makes the
+descriptor query more valuable still: a declared length that matches only one of
+the two format families is evidence about what this card's bootloader expects,
+independent of the SKU question.

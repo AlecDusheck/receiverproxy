@@ -106,6 +106,11 @@ enum Cmd {
         #[arg(long, default_value_t = 3)]
         wait: u64,
     },
+    /// Ask the card what firmware image it expects (read-only)
+    UpgradeInfo {
+        #[arg(long, default_value_t = 4)]
+        wait: u64,
+    },
     /// Scan every 64KB flash block for known signatures (read-only)
     ScanFlash {
         #[arg(long, default_value_t = 0)]
@@ -462,6 +467,7 @@ fn run_flash(cli: &Cli) -> Result<Option<()>> {
             index,
             wait,
         } => scan_flash(cli, *first, *last, *index, *wait).map(Some),
+        Cmd::UpgradeInfo { wait } => upgrade_info(cli, *wait).map(Some),
         Cmd::FlashFirmware {
             image,
             backup,
@@ -787,6 +793,49 @@ fn read_chunk(dev: &mut bpf::Bpf, index: u16, page: u16, wait: u64) -> Result<Ve
         }
     }
     anyhow::bail!("no reply for page 0x{page:04x} within {wait}s")
+}
+
+/// Ask the card what firmware image its bootloader expects. Read-only.
+fn upgrade_info(cli: &Cli, wait: u64) -> Result<()> {
+    let mut dev = open(cli)?;
+    dev.send(&protocol::upgrade_info())?;
+
+    let deadline = Instant::now() + Duration::from_secs(wait);
+    while Instant::now() < deadline {
+        for f in dev.recv()? {
+            if !is_card_frame(&f) || f.len() < 40 {
+                continue;
+            }
+            println!("reply: type {:02x}{:02x}, {} bytes", f[12], f[13], f.len());
+            let Some(info) = protocol::parse_upgrade_info(&f[14..]) else {
+                println!("  no recognisable image length in this reply");
+                hexdump(&f[14..f.len().min(14 + 128)]);
+                continue;
+            };
+            println!("  declared image length: 0x{:06x}", info.declared_len);
+            println!(
+                "    matches: {}",
+                match info.declared_len {
+                    0x000b_0000 => "the PWM / LS0allDA image format",
+                    0x000b_0080 => "the Normal image format",
+                    _ => "neither known format",
+                }
+            );
+            println!("  capabilities: 0b{:04b}", info.capabilities);
+            println!("    golden image present:     {}", info.has_golden());
+            println!(
+                "    golden upgrade accepted:  {}",
+                info.supports_golden_upgrade()
+            );
+            println!(
+                "    SDRAM staging supported:  {}",
+                info.supports_sdram_staging()
+            );
+            return Ok(());
+        }
+    }
+    println!("no reply within {wait}s");
+    Ok(())
 }
 
 /// Install an FPGA bitstream into the primary firmware bank.

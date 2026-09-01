@@ -1,7 +1,7 @@
 # Working out protocol details from the vendor SDK
 
 Everything we know about the wire protocol and the `.rcvbp` format came from
-reading Colorlight's own shipped libraries. `docs/config-protocol.md` is the
+reading Colorlight's own shipped libraries. `docs/archive/config-protocol.md` is the
 output of that work; this file is the *method*, so the next person can extend it
 rather than start over.
 
@@ -51,7 +51,7 @@ If that scratchpad is gone, re-extract with `7z x` (no execution involved):
 | Path | What it is |
 |---|---|
 | `$_15_/x64/Bin/CLTNic.dll` | The sender. Builds and transmits the raw-Ethernet frames via a winpcap send queue. Exports `Nic_SendScreenPicture`, `Nic_SendScreenBlackPicture`, `Nic_SetBrightness`, `Nic_SetScreenSize`, `Nic_SetTestModeIndex`, `Nic_SetScreenConnectionStyle`, `Nic_Write`. |
-| `$_15_/x64/Bin/CLTDevice.dll` | Device/config side: `.rcvbp` loading, parameter packs, flash and EEPROM operations, the firmware upgrade path. Most of `docs/config-protocol.md` came from the macOS build of this library. |
+| `$_15_/x64/Bin/CLTDevice.dll` | Device/config side: `.rcvbp` loading, parameter packs, flash and EEPROM operations, the firmware upgrade path. Most of `docs/archive/config-protocol.md` came from the macOS build of this library. |
 | `$_15_/x64/Bin/ChipData/` | Per-vendor driver-chip data (`AXS`, `DP`, `LS`, `chipone`, `cks`, `xm`) plus `custom_gamma/*.csv`. Worth checking for SM16269 support, which was absent from older releases. |
 | `$_15_/config_files/` | A large tree of vendor `.rcvbp` files by manufacturer and pitch. Useful as known-good examples to diff against. |
 | `$_15_/x64/Bin/LEDSetting.exe` | The configuration UI, where "send" vs "save to flash" is driven from. |
@@ -59,7 +59,7 @@ If that scratchpad is gone, re-extract with `7z x` (no execution involved):
 The earlier work used a **macOS** build, `libCLTDevice.1.dylib`, whose symbols
 are C++-mangled and far easier to navigate than the stripped Windows DLLs. If
 you can find that build again, prefer it — every address in
-`docs/config-protocol.md` refers to it.
+`docs/archive/config-protocol.md` refers to it.
 
 ## Method that worked
 
@@ -80,7 +80,7 @@ you can find that build again, prefer it — every address in
    is an independent, working implementation of the display path for this card
    family. When it and our reading of the vendor code disagree, the hardware
    decides — and it has surprised us both ways.
-5. **Mark confidence honestly.** `docs/config-protocol.md` labels findings
+5. **Mark confidence honestly.** `docs/archive/config-protocol.md` labels findings
    *high* / *medium* / **NOT RESOLVED**. Several hours were lost to treating an
    inferred field as established. Keep doing this.
 
@@ -88,7 +88,7 @@ you can find that build again, prefer it — every address in
 
 ```
 REPO: /Users/amd/e120 (Rust CLI driving a Colorlight E120 LED receiving card
-over raw layer-2 Ethernet). Read HANDOFF.md and docs/config-protocol.md first
+over raw layer-2 Ethernet). Read HANDOFF.md and docs/archive/config-protocol.md first
 for what is already known and how findings should be written up.
 
 VENDOR SDK (unpacked, do NOT execute anything):
@@ -97,7 +97,7 @@ VENDOR SDK (unpacked, do NOT execute anything):
 
 GOAL: <the one specific thing, e.g. "find the frame that makes the card compile
 its .rcvbp into the parameter image at flash 0x70000 -- LEDVISION's save-to-
-flash. docs/config-protocol.md section 3 names types 0x11, 0x1F, 0x26, 0x31,
+flash. docs/archive/config-protocol.md section 3 names types 0x11, 0x1F, 0x26, 0x31,
 0x32, 0x76 from a capture but no payload layout.">
 
 METHOD: start from exported symbol names and demangle them; follow the call

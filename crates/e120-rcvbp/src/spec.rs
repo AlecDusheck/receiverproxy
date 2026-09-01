@@ -36,6 +36,8 @@ pub struct PanelSpec {
     pub current: Current,
     #[serde(default)]
     pub timing: Timing,
+    #[serde(default)]
+    pub mapping: Mapping,
     pub template: Template,
     #[serde(default)]
     pub boot: Boot,
@@ -134,6 +136,27 @@ impl Default for Timing {
     }
 }
 
+/// How the module's pixels are wired into the card's scan-line buffer
+/// (record 0x03). The vendor corpus shows two knobs beyond geometry.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Mapping {
+    /// Data groups (`stored height / scan` of them) in reverse order in the
+    /// buffer — the vendor default (234 of 241 two-group configs).
+    pub reversed_groups: bool,
+    /// Scan lines addressed bottom-up (`scan-1-row`) instead of top-down.
+    pub reversed_lines: bool,
+}
+
+impl Default for Mapping {
+    fn default() -> Self {
+        Self {
+            reversed_groups: true,
+            reversed_lines: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Template {
@@ -145,8 +168,8 @@ pub struct Template {
     /// 64 KB base image for the compiled regions we do not yet compute,
     /// as PATH or PATH:HEXOFFSET.
     pub base_block: String,
-    /// `.rcvbp` whose record 0x03 supplies the pixel mapping; default: the
-    /// template config.
+    /// `.rcvbp` whose record 0x03 replaces the generated pixel mapping, for
+    /// wirings the `[mapping]` knobs cannot express.
     pub mapping_from: Option<String>,
 }
 
@@ -217,45 +240,105 @@ const P_MAX_H: usize = 0x8A;
 const P_CHIP_ID: usize = 0xE7;
 
 impl PanelSpec {
+    /// Read a spec from a TOML file.
+    ///
+    /// # Errors
+    /// Fails on a missing or malformed file.
+    pub fn load(path: &str) -> Result<Self> {
+        let text = std::fs::read_to_string(path).with_context(|| format!("read {path}"))?;
+        toml::from_str(&text).with_context(|| format!("parse {path}"))
+    }
+
+    /// Generate the config and basic pack, loading the templates the spec
+    /// names (paths relative to the working directory).
+    ///
+    /// # Errors
+    /// Fails on an invalid spec or unusable template files.
+    pub fn generate(&self) -> Result<Generated> {
+        let template = Rcvbp::load(&self.template.rcvbp)?;
+        let pack = std::fs::read(&self.template.basic_pack)
+            .with_context(|| format!("read {}", self.template.basic_pack))?;
+        let chip_regs = self
+            .chip
+            .registers_from
+            .as_deref()
+            .map(Rcvbp::load)
+            .transpose()?;
+        let mapping = self
+            .template
+            .mapping_from
+            .as_deref()
+            .map(Rcvbp::load)
+            .transpose()?;
+        generate(self, &template, &pack, chip_regs.as_ref(), mapping.as_ref())
+    }
+
     /// Check the spec against what the generator can actually honour.
     ///
     /// # Errors
     /// Rejects geometry the templates cannot express.
     pub fn validate(&self, template: &Rcvbp) -> Result<()> {
-        if self.module.height % 2 != 0 {
+        if !self.module.height.is_multiple_of(2) {
             bail!("module height must be even (the record stores height/2)");
         }
         if self.module.width > 255 || self.module.height / 2 > 255 {
             bail!("module dimensions exceed the record's byte fields");
         }
-        if self.screen.width % self.module.width != 0 || self.screen.height % self.module.height != 0
+        if !self.screen.width.is_multiple_of(self.module.width)
+            || !self.screen.height.is_multiple_of(self.module.height)
         {
             bail!("screen size must be a whole number of modules");
         }
         if self.module.scan == 0 || u16::from(self.module.scan) > self.module.height {
             bail!("scan denominator must be 1..=module height");
         }
-        // The mapping and chip records come from templates; they are only
-        // valid for the geometry they were authored for.
-        let t = template.record_01().context("template has no record 0x01")?;
-        let (tw, th2) = (u16::from(t.payload[R_MODULE_W]), u16::from(t.payload[R_MODULE_H_HALF]));
-        if (tw, th2) != (self.module.width, self.module.height / 2) {
-            bail!(
-                "template config is for a {tw}x{} module; the mapping record cannot be reused for \
-                 {}x{} (mapping generation is not implemented yet)",
-                th2 * 2,
-                self.module.width,
-                self.module.height
-            );
+        if !(self.module.height / 2).is_multiple_of(u16::from(self.module.scan)) {
+            bail!("stored module height (height/2) must be a whole number of scan groups");
         }
+        // The carried basic-pack bytes include scan-sized row-order tables,
+        // so the reference must have been computed for the same scan.
+        let t = template.record_01().context("template has no record 0x01")?;
         if t.payload[R_SCAN] != self.module.scan {
             bail!(
-                "template config is 1/{} scan; its mapping cannot be reused for 1/{}",
+                "template config is 1/{} scan; its reference pack cannot serve 1/{}",
                 t.payload[R_SCAN],
                 self.module.scan
             );
         }
         Ok(())
+    }
+
+    /// Record 0x03, the pixel mapping: for every module pixel in raster order
+    /// (over the stored height), the scan line it belongs to and its slot in
+    /// that line's buffer. Derived from the vendor's count formula
+    /// (`SaveBpToBuffer` @ 0x1cc404: count = width x stored height) and
+    /// corpus-validated byte-exact against the consensus tables.
+    #[must_use]
+    pub fn mapping_record(&self) -> Vec<u8> {
+        let w = self.module.width;
+        let h = self.module.height / 2;
+        let scan = u16::from(self.module.scan);
+        let groups = h / scan;
+        let n = w * h;
+        let mut out = Vec::with_capacity(2 + usize::from(n) * 3);
+        out.extend_from_slice(&n.to_le_bytes());
+        for i in 0..n {
+            let (row, col) = (i / w, i % w);
+            let line = if self.mapping.reversed_lines {
+                scan - 1 - row % scan
+            } else {
+                row % scan
+            };
+            let group = if self.mapping.reversed_groups {
+                groups - 1 - row / scan
+            } else {
+                row / scan
+            };
+            let slot = group * w + col;
+            out.push(line as u8);
+            out.extend_from_slice(&slot.to_le_bytes());
+        }
+        out
     }
 
     /// Modules chained along the data-line direction (vendor
@@ -425,6 +508,22 @@ pub fn generate(
     }
     if let Some(src) = mapping {
         replace_record(&mut out, src, 0x03, &mut prov, "template.mapping_from")?;
+    } else {
+        let generated = spec.mapping_record();
+        let slot = out
+            .records
+            .iter_mut()
+            .find(|r| r.rtype[1] == 0x03)
+            .context("template has no record 0x03 to replace")?;
+        slot.payload = generated;
+        prov.push(format!(
+            "rcvbp record 0x03 <- generated ({}x{} stored, 1/{}, groups {}, lines {})",
+            spec.module.width,
+            spec.module.height / 2,
+            spec.module.scan,
+            if spec.mapping.reversed_groups { "reversed" } else { "forward" },
+            if spec.mapping.reversed_lines { "reversed" } else { "top-down" },
+        ));
     }
 
     let basic_pack = basic_pack_body(spec, &rec01, template_pack, &mut prov)?;
@@ -523,10 +622,32 @@ mod tests {
     }
 
     #[test]
-    fn geometry_the_template_cannot_express_is_refused() {
+    fn a_scan_the_reference_pack_was_not_computed_for_is_refused() {
         let mut spec = our_panel();
-        spec.module.width = 64;
+        spec.module.scan = 32;
         let template = Rcvbp::load(&repo(&spec.template.rcvbp)).unwrap();
         assert!(spec.validate(&template).is_err());
+    }
+
+    #[test]
+    fn the_generated_mapping_is_the_vendor_consensus_table() {
+        // 34 known-good vendor configs for a 128x64 module at 1/16 share one
+        // byte-identical record 0x03; the geometry formula must land on it.
+        let spec = our_panel();
+        let donor =
+            Rcvbp::load(&repo("firmware/derived/donor-P2.5-320x160-2153-consensus.rcvbp")).unwrap();
+        let consensus = &donor.records.iter().find(|r| r.rtype[1] == 0x03).unwrap().payload;
+        assert_eq!(spec.mapping_record(), *consensus);
+    }
+
+    #[test]
+    fn the_sellers_outlier_is_not_what_the_knobs_produce() {
+        // The seller's table interleaves the two column halves across data
+        // groups; neither knob describes that wiring, and the generator must
+        // not silently reproduce it.
+        let spec = our_panel();
+        let seller = Rcvbp::load(&repo("firmware/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
+        let outlier = &seller.records.iter().find(|r| r.rtype[1] == 0x03).unwrap().payload;
+        assert_ne!(spec.mapping_record(), *outlier);
     }
 }

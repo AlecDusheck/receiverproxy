@@ -3,6 +3,7 @@
 use crate::rcvbp;
 use crate::util::hexdump;
 use anyhow::{Context, Result};
+use std::fmt::Write as _;
 
 /// Parse a comma-separated list of hex record types.
 pub fn parse_types(s: &str) -> Result<Vec<u16>> {
@@ -186,84 +187,12 @@ pub fn describe_record(t: u16, empty: bool) -> &'static str {
     }
 }
 
-/// Compile a complete block-7 flash image from explicit parts, using the
-/// factory dump (or another known-good block) as the base for every region we
-/// cannot yet derive. Offline: writes a file for `restore-flash` to send.
-#[allow(clippy::too_many_arguments)]
-pub fn compile_config(
-    rcvbp_path: &str,
-    basic_pack: Option<&str>,
-    chip_from: Option<&str>,
-    mapping_from: Option<&str>,
-    base: &str,
-    out: &str,
-) -> Result<()> {
-    let (path, off) = match base.split_once(':') {
-        Some((p, o)) => (
-            p,
-            usize::from_str_radix(o.trim_start_matches("0x"), 16)
-                .with_context(|| format!("bad base offset {o:?}"))?,
-        ),
-        None => (base, 0),
-    };
-    let dump = std::fs::read(path).with_context(|| format!("read {path}"))?;
-    anyhow::ensure!(
-        dump.len() >= off + rcvbp::compiled::IMAGE_LEN,
-        "{path} is too short for a 64KB block at 0x{off:x}"
-    );
-    let mut b = rcvbp::compiled::Block7Builder::from_base(
-        &dump[off..off + rcvbp::compiled::IMAGE_LEN],
-    )?;
-
-    if let Some(p) = basic_pack {
-        let body = std::fs::read(p).with_context(|| format!("read {p}"))?;
-        b.basic_pack(&body)?;
-    }
-    if let Some(p) = chip_from {
-        b.chip_registers_from(&rcvbp::Rcvbp::load(p)?)?;
-    }
-    if let Some(p) = mapping_from {
-        b.mapping_from(&rcvbp::Rcvbp::load(p)?)?;
-    }
-    let file = std::fs::read(rcvbp_path).with_context(|| format!("read {rcvbp_path}"))?;
-    b.rcvbp(&file)?;
-
-    let (img, notes, changed) = b.finish();
-    std::fs::write(out, &img).with_context(|| format!("write {out}"))?;
-    println!("wrote {out}");
-    for n in &notes {
-        println!("  {n}");
-    }
-    let pages: Vec<String> = changed.iter().map(|p| format!("{p:02x}")).collect();
-    println!("  pages differing from base: {}: {}", changed.len(), pages.join(" "));
-    println!("flash it with: e120 restore-flash {out} --commit   (then screen-size + power-cycle)");
-    Ok(())
-}
-
 /// Generate a panel's configuration from a TOML spec: the `.rcvbp`, the
 /// basic-pack body, the compiled block-7 boot image, and a provenance list
 /// naming the source of every placed byte.
 pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
-    let text = std::fs::read_to_string(spec_path).with_context(|| format!("read {spec_path}"))?;
-    let spec: rcvbp::spec::PanelSpec =
-        toml::from_str(&text).with_context(|| format!("parse {spec_path}"))?;
-
-    let template = rcvbp::Rcvbp::load(&spec.template.rcvbp)?;
-    let pack = std::fs::read(&spec.template.basic_pack)
-        .with_context(|| format!("read {}", spec.template.basic_pack))?;
-    let chip_regs = spec
-        .chip
-        .registers_from
-        .as_deref()
-        .map(rcvbp::Rcvbp::load)
-        .transpose()?;
-    let mapping = spec
-        .template
-        .mapping_from
-        .as_deref()
-        .map(rcvbp::Rcvbp::load)
-        .transpose()?;
-    let g = rcvbp::spec::generate(&spec, &template, &pack, chip_regs.as_ref(), mapping.as_ref())?;
+    let spec = rcvbp::spec::PanelSpec::load(spec_path)?;
+    let g = spec.generate()?;
 
     std::fs::create_dir_all(out_dir).with_context(|| format!("create {out_dir}"))?;
     let stem = format!("{out_dir}/{}", spec.name);
@@ -308,7 +237,7 @@ pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
     std::fs::write(&img_path, &img).with_context(|| format!("write {img_path}"))?;
 
     let mut report = String::new();
-    report.push_str(&format!("spec: {spec_path}\n\n# record and pack provenance\n"));
+    let _ = writeln!(report, "spec: {spec_path}\n\n# record and pack provenance");
     for line in &g.provenance {
         report.push_str(line);
         report.push('\n');
@@ -319,12 +248,13 @@ pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
         report.push('\n');
     }
     let pages: Vec<String> = changed.iter().map(|p| format!("{p:02x}")).collect();
-    report.push_str(&format!(
-        "scan table <- {} (only region not generated)\npages written: {}: {}\n",
+    let _ = writeln!(
+        report,
+        "scan table <- {} (only region not generated)\npages written: {}: {}",
         spec.template.base_block,
         changed.len(),
         pages.join(" ")
-    ));
+    );
     let report_path = format!("{stem}-provenance.txt");
     std::fs::write(&report_path, &report).with_context(|| format!("write {report_path}"))?;
 

@@ -136,7 +136,7 @@ impl Block7Builder {
             bail!("rcvbp is {} bytes; the vendor clamps at {RCVBP_MAX}", file.len());
         }
         self.img[RCVBP_OFFSET..RCVBP_OFFSET + 4]
-            .copy_from_slice(&u32::try_from(file.len()).expect("clamped above").to_le_bytes());
+            .copy_from_slice(&(file.len() as u32).to_le_bytes());
         self.img[RCVBP_OFFSET + 4..RCVBP_OFFSET + 4 + file.len()].copy_from_slice(file);
         // Erased flash after the file — but stop short of page 0xF0: that page
         // is EEPROM-backed (the screen-size record), never reachable by page
@@ -192,6 +192,26 @@ const R01_MAX_W: usize = 0x0C0;
 const R01_MAX_H: usize = 0x0C2;
 const R01_SWAP_RAMP: usize = 0x19A;
 
+/// The data-swap pack body (`GetDataSwapEx2ParamPack`).
+///
+/// Shared by the boot image and the real-time pack: the 64-byte lane map from
+/// record +0x19A, zeros, and the three deseam-correction pairs, which are 8.8
+/// fixed point 1.0 (`01 00`) with deseam off.
+///
+/// # Errors
+/// Fails if the record is too short.
+pub fn data_swap_body(rec01: &[u8]) -> Result<[u8; 256]> {
+    if rec01.len() < R01_SWAP_RAMP + 64 {
+        bail!("record 0x01 too short for the swap ramp");
+    }
+    let mut body = [0u8; 256];
+    body[..64].copy_from_slice(&rec01[R01_SWAP_RAMP..R01_SWAP_RAMP + 64]);
+    for pair in [0xEA, 0xF0, 0xF6] {
+        body[pair] = 0x01;
+    }
+    Ok(body)
+}
+
 /// Split-segment count from record +0x03E (vendor `GetSplitSegment`).
 const fn split_segment(c: u8) -> u8 {
     if c & 4 != 0 {
@@ -235,15 +255,8 @@ impl Block7Builder {
     /// # Errors
     /// Fails if the record is too short.
     pub fn data_swap_from(&mut self, rec01: &[u8]) -> Result<()> {
-        if rec01.len() < R01_SWAP_RAMP + 64 {
-            bail!("record 0x01 too short for the swap ramp");
-        }
-        let at = DATA_SWAP_OFFSET;
-        self.img[at..at + 0x100].fill(0);
-        self.img[at..at + 64].copy_from_slice(&rec01[R01_SWAP_RAMP..R01_SWAP_RAMP + 64]);
-        for pair in [0xEA, 0xF0, 0xF6] {
-            self.img[at + pair] = 0x01;
-        }
+        let body = data_swap_body(rec01)?;
+        self.img[DATA_SWAP_OFFSET..DATA_SWAP_OFFSET + 0x100].copy_from_slice(&body);
         self.notes
             .push("0x500: data-swap (lane map from record +0x19A, deseam 1.0 x3)".into());
         Ok(())
@@ -271,8 +284,8 @@ impl Block7Builder {
         let dir = rec01[R01_LINE_DIR];
         let gated = mw == 0
             || mh == 0
-            || w % mw != 0
-            || h % mh != 0
+            || !w.is_multiple_of(mw)
+            || !h.is_multiple_of(mh)
             || (w / mw) * (h / mh) > 64
             || dir > 3;
         if gated {

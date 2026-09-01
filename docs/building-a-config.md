@@ -32,7 +32,7 @@ non-derived records are reused, the reference basic pack and block), `[boot]`
 |---|---|---|
 | record 0x01 geometry, scan, clocks, gray, chip id, colour, gains, gamma, refresh, screen size | spec → offsets in `docs/record-0x01-fields.md` (vendor loader/serializer, instruction level; corpus-validated) | high |
 | record 0x01 remaining bytes | template record; every byte named or classified in the field dictionary; ~49% constants | carried |
-| record 0x03 (pixel mapping) | template — the vendor-consensus mapping 34 known-good 128x64/16 configs share | high (consensus), not generated |
+| record 0x03 (pixel mapping) | **generated** from module width, stored height and scan: entry i (pixel in raster order) → scan line `row % scan`, slot `group*width + col` with data groups reversed (vendor default; `[mapping]` knobs cover the two corpus variants). Count formula from `SaveBpToBuffer` @ 0x1cc404; reproduces the 34-config consensus table byte-exact and 1039/1517 corpus tables from geometry alone | high |
 | record 0x84 (chip registers) | template — the only SM16269S register set known (matches a vendor preset 31/32) | carried; colour permutation on install NOT RESOLVED |
 | basic pack: module dims, module count, scan, gray, serial clock, OneScanLen, CardScanLen, colour byte, gains, chip-custom block, screen size, chip id | formulas from `GetBasicParam`, each reproducing the factory bytes (pinned by tests) | high |
 | basic pack remaining ~100 bytes | reference pack (vendor-computed for this chip/clock) | carried |

@@ -15,7 +15,6 @@ use std::time::{Duration, Instant};
 pub struct Settings {
     pub brightness: u8,
     pub color_order: proto::ColorOrder,
-    pub pixel_layout: proto::PixelLayout,
     /// Send a layout frame before the first frame, so the card knows its size.
     pub announce_layout: bool,
 }
@@ -25,7 +24,6 @@ impl Default for Settings {
         Self {
             brightness: 255,
             color_order: proto::ColorOrder::Bgr,
-            pixel_layout: proto::PixelLayout::default(),
             announce_layout: true,
         }
     }
@@ -125,7 +123,6 @@ impl Wall {
                         offset as u16,
                         chunk,
                         self.settings.color_order,
-                        self.settings.pixel_layout,
                     ))?;
                     offset += chunk.len();
                 }

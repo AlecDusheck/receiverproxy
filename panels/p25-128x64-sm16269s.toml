@@ -36,10 +36,16 @@ gamma = 2.8
 refresh_hz = 60.0
 gclock = 0x14
 
+[mapping]
+# Vendor default wiring: data groups reversed in the scan-line buffer,
+# scan lines top-down. Both knobs are corpus-derived; see docs/building-a-config.md.
+reversed_groups = true
+reversed_lines = false
+
 [template]
-# Records the spec does not derive (chip registers, the vendor-consensus
-# pixel mapping, gamma/empty tables) and the compiled-image regions we do
-# not yet compute. Every byte taken from here is listed in the provenance.
+# Records the spec does not derive (chip registers, gamma/empty tables), the
+# reference basic pack for its undecoded bytes, and the reference block for
+# the scan table. Every byte taken from here is listed in the provenance.
 rcvbp = "firmware/derived/p25-128x64-fixed.rcvbp"
 basic_pack = "firmware/derived/factory-basic-pack-body.bin"
 base_block = "firmware/card-dumps/primary-region.bin:0x70000"

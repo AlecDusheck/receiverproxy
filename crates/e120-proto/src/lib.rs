@@ -65,14 +65,3 @@ impl std::str::FromStr for ColorOrder {
         }
     }
 }
-
-impl std::str::FromStr for PixelLayout {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "fpp" => Ok(Self::Fpp),
-            "shifted" => Ok(Self::Shifted),
-            _ => Err(format!("unknown pixel layout {s:?} (fpp|shifted)")),
-        }
-    }
-}

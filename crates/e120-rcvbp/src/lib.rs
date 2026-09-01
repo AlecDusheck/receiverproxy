@@ -74,14 +74,14 @@ impl Rcvbp {
         if d.len() < 32 {
             bail!("too short to be a .rcvbp");
         }
-        let version = le_u32(&d, 0x10)?;
+        let version = le_u32(d,0x10)?;
 
         // Two variants exist in the wild, distinguished by their 16-byte
         // signature: the newer one zlib-compresses the record stream, the
         // older one stores it inline right after the version field and ends
         // with a 4-byte trailer.
         let (blob, compressed) = if d[0..4] == SIG_COMPRESSED {
-            let raw_len = le_u32(&d, 0x18)? as usize;
+            let raw_len = le_u32(d,0x18)? as usize;
             let mut blob = Vec::with_capacity(raw_len);
             flate2::read::ZlibDecoder::new(&d[0x20..])
                 .read_to_end(&mut blob)

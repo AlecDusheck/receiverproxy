@@ -12,10 +12,10 @@ use capture::{discover, listen, pcap_summary, raw_send, replay};
 use config::{config_build, config_diff, rcvbp_info};
 use display::{play, probe, show, show_pattern, solid, test_pattern};
 use flash::{
-    dump_flash, dump_range, flash_firmware, read_config, restore_flash, restore_screen_record,
-    scan_flash, upgrade_info, write_config, write_single_page,
+    dump_flash, dump_range, flash_firmware, read_config, restore_flash, scan_flash,
+    upgrade_info, write_config,
 };
-use params::{send_params, sweep_packs};
+use params::send_params;
 use util::{open, parse_color};
 
 use anyhow::{Context, Result};
@@ -46,10 +46,6 @@ struct Cli {
     /// Color order on the wire
     #[arg(long, global = true, default_value = "bgr")]
     order: ColorOrder,
-
-    /// Pixel row frame layout: fpp | shifted (fpp is correct; shifted kept for A/B)
-    #[arg(long, global = true, default_value = "fpp")]
-    pixel_layout: protocol::PixelLayout,
 
     /// Brightness 0-255 (sent in sync frames)
     #[arg(short, long, global = true, default_value_t = 255)]
@@ -110,14 +106,6 @@ enum RestoreWhat {
         index: u16,
         #[arg(long, default_value_t = 3)]
         wait: u64,
-    },
-    /// Rewrite the screen-size record from a saved block image
-    ScreenRecord {
-        from_image: String,
-        #[arg(long)]
-        commit: bool,
-        #[arg(long, default_value_t = 0)]
-        index: u16,
     },
     /// Restore firmware, configuration and screen record from a snapshot
     All {
@@ -306,9 +294,6 @@ enum Cmd {
         /// Where to save the pre-write backup of the whole block
         #[arg(long, default_value = "block07-backup.bin")]
         backup: String,
-        /// Use this saved 64KB block image instead of reading the card
-        #[arg(long)]
-        base_image: Option<String>,
         #[arg(long, default_value_t = 0)]
         index: u16,
         #[arg(long, default_value_t = 2)]
@@ -351,36 +336,17 @@ enum Cmd {
         #[arg(long, default_value_t = 0)]
         index: u16,
     },
-    /// Push parameters into the card's RAM from a .rcvbp (no flash, no reboot)
+    /// Push a panel spec's parameters into the card's RAM (no flash, no reboot)
     SendParams {
-        config: String,
-        /// Send only the chip-register pack, which is the fully decoded one
+        /// Panel spec, see panels/*.toml
+        #[arg(long)]
+        spec: String,
+        /// Send only the chip-register pack (arms the drivers)
         #[arg(long)]
         chip_only: bool,
-        /// Also send the table-derived scan-engine pack (experimental)
-        #[arg(long)]
-        scan_pack: bool,
-        /// Send a pack for every record we hold, not just the decoded ones
-        #[arg(long)]
-        all_records: bool,
         /// Milliseconds between packs
         #[arg(long, default_value_t = 8)]
         gap_ms: u64,
-        #[arg(long, default_value_t = 0)]
-        index: u16,
-    },
-    /// Sweep the sub-index byte of a record's pack, looking for one the card acts on
-    SweepPacks {
-        config: String,
-        /// Record type to send, hex, e.g. 0a84
-        #[arg(long)]
-        record: String,
-        /// Highest sub-index to try
-        #[arg(long, default_value_t = 16)]
-        max: u8,
-        /// Seconds to pause on each
-        #[arg(long, default_value_t = 2)]
-        secs: u64,
     },
     /// Run the card's built-in test pattern (needs no pixel data from us)
     TestMode {
@@ -418,32 +384,6 @@ enum Cmd {
         index: u16,
         #[arg(long, default_value_t = 3)]
         wait: u64,
-    },
-    /// Restore the screen-size record the block erase cleared
-    RestoreScreenRecord {
-        /// 64KB block image holding the original record
-        #[arg(long)]
-        from_image: String,
-        #[arg(long)]
-        commit: bool,
-        #[arg(long, default_value_t = 0)]
-        index: u16,
-    },
-    /// Write a single flash page taken from a block image (debugging)
-    WritePage {
-        /// Page index within the parameter block
-        #[arg(long)]
-        page: u8,
-        /// 64KB block image to take the page contents from
-        #[arg(long)]
-        from_image: String,
-        /// Flag byte to send; writes normally use 0
-        #[arg(long, default_value_t = 0)]
-        flag: u8,
-        #[arg(long)]
-        commit: bool,
-        #[arg(long, default_value_t = 0)]
-        index: u16,
     },
     /// Capture everything we know how to restore into a directory
     Snapshot {
@@ -487,27 +427,6 @@ enum Cmd {
         #[arg(long, default_value = "")]
         remove: String,
         /// Where to write the result
-        #[arg(long)]
-        out: String,
-    },
-    /// Compile a block-7 flash image (boot config + embedded .rcvbp) from parts
-    CompileConfig {
-        /// The .rcvbp to embed at +0x8000 (and default source for records)
-        #[arg(long)]
-        rcvbp: String,
-        /// 256-byte basic-parameter pack body for page 0
-        #[arg(long)]
-        basic_pack: Option<String>,
-        /// .rcvbp whose chip-register record 0x84 becomes page 0x09
-        #[arg(long)]
-        chip_from: Option<String>,
-        /// .rcvbp whose mapping record 0x03 becomes pages 0x30-0x5F
-        #[arg(long)]
-        mapping_from: Option<String>,
-        /// Base 64KB block image, PATH or PATH:HEXOFFSET into a larger dump
-        #[arg(long, default_value = "firmware/card-dumps/primary-region.bin:0x70000")]
-        base: String,
-        /// Where to write the 64KB image (flash it with restore-flash)
         #[arg(long)]
         out: String,
     },
@@ -681,11 +600,6 @@ fn run_firmware(cli: &Cli) -> Result<Option<()>> {
                 index,
                 wait,
             } => restore::firmware(cli, image, *commit, *index, *wait).map(Some),
-            RestoreWhat::ScreenRecord {
-                from_image,
-                commit,
-                index,
-            } => restore::screen_record(cli, from_image, *commit, *index).map(Some),
             RestoreWhat::All {
                 dir,
                 commit,
@@ -749,37 +663,15 @@ fn run_flash(cli: &Cli) -> Result<Option<()>> {
             config,
             commit,
             backup,
-            base_image,
             index,
             wait,
-        } => write_config(
-            cli,
-            config,
-            *commit,
-            backup,
-            base_image.as_deref(),
-            *index,
-            *wait,
-        )
-        .map(Some),
-        Cmd::WritePage {
-            page,
-            from_image,
-            flag,
-            commit,
-            index,
-        } => write_single_page(cli, *page, from_image, *flag, *commit, *index).map(Some),
+        } => write_config(cli, config, *commit, backup, None, *index, *wait).map(Some),
         Cmd::ScreenSize {
             set,
             commit,
             index,
             wait,
         } => screen::screen_size(cli, *set, *commit, *index, *wait).map(Some),
-        Cmd::RestoreScreenRecord {
-            from_image,
-            commit,
-            index,
-        } => restore_screen_record(cli, from_image, *commit, *index).map(Some),
         Cmd::RestoreFlash {
             image,
             commit,
@@ -793,19 +685,10 @@ fn run_flash(cli: &Cli) -> Result<Option<()>> {
 fn run_params(cli: &Cli) -> Result<Option<()>> {
     match &cli.cmd {
         Cmd::SendParams {
-            config,
+            spec,
             chip_only,
-            scan_pack,
-            all_records,
             gap_ms,
-            index,
-        } => send_params(cli, config, *chip_only, *scan_pack, *all_records, *gap_ms, *index).map(Some),
-        Cmd::SweepPacks {
-            config,
-            record,
-            max,
-            secs,
-        } => sweep_packs(cli, config, record, *max, *secs).map(Some),
+        } => send_params(cli, spec, *chip_only, *gap_ms).map(Some),
         Cmd::TestMode { pattern, index } => {
             let mut dev = open(cli)?;
             dev.send(&protocol::test_mode(*index, *pattern))?;
@@ -861,21 +744,6 @@ fn run(cli: &Cli) -> Result<()> {
             remove,
             out,
         } => config_build(base, copy_from.as_deref(), copy, remove, out),
-        Cmd::CompileConfig {
-            rcvbp,
-            basic_pack,
-            chip_from,
-            mapping_from,
-            base,
-            out,
-        } => config::compile_config(
-            rcvbp,
-            basic_pack.as_deref(),
-            chip_from.as_deref(),
-            mapping_from.as_deref(),
-            base,
-            out,
-        ),
         Cmd::GenConfig { spec, out_dir } => config::gen_config(spec, out_dir),
         Cmd::ConfigDiff { a, b } => config_diff(a, b),
         Cmd::Rcvbp { path, dump } => rcvbp_info(path, *dump),

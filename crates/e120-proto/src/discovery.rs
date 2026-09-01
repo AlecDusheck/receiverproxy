@@ -51,11 +51,12 @@ pub fn reload_params(rcv_index: u16) -> Vec<u8> {
     p[3] = 0x79;
     frame([0x06, 0x00], &p)
 }
-/// The vendor's post-save reload: opcode 0x77 with three enable flags, which
-/// LEDVISION sends after writing flash so the card picks the new parameters
-/// up without a power cycle. Opcode 0x77 is in the data-carrying set, so the
-/// flag bytes ride at payload offset 0x0a (index 8 here); `01 01 01` means
-/// "reload all three parameter classes".
+/// The vendor's post-save reload: opcode 0x77 with three enable flags.
+///
+/// LEDVISION sends this after writing flash so the card picks the new
+/// parameters up without a power cycle. Opcode 0x77 is in the data-carrying
+/// set, so the flag bytes ride at payload offset 0x0a (index 8 here);
+/// `01 01 01` means "reload all three parameter classes".
 pub fn reload_params_full(rcv_index: u16) -> Vec<u8> {
     let mut p = [0u8; 126];
     p[1..3].copy_from_slice(&rcv_index.to_be_bytes());

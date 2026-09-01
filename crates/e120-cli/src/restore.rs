@@ -18,7 +18,6 @@ use crate::flash::{read_blocks, rewrite_block, write_config};
 use crate::util::open;
 use crate::{protocol, Cli};
 use anyhow::{Context, Result};
-use std::time::Duration;
 
 /// A saved copy of everything we know how to put back.
 #[derive(Debug)]
@@ -92,38 +91,6 @@ pub fn firmware(cli: &Cli, image_path: &str, commit: bool, index: u16, wait: u64
     let mut dev = open(cli)?;
     rewrite_block(&mut dev, index, img, wait, 0..0)?;
     println!("done; blocks 0x00-0x02 are write-protected and will not have changed");
-    Ok(())
-}
-
-/// Write the screen-size record back into the EEPROM.
-///
-/// # Errors
-/// Fails if the source image is the wrong size or the card does not answer.
-pub fn screen_record(cli: &Cli, from_image: &str, commit: bool, index: u16) -> Result<()> {
-    let img = std::fs::read(from_image).with_context(|| format!("read {from_image}"))?;
-    let off = protocol::SCREEN_RECORD_ADDR as usize & 0xffff;
-    let record = img
-        .get(off..off + protocol::SCREEN_RECORD_LEN)
-        .with_context(|| format!("{from_image} is too short to hold the screen-size record"))?;
-
-    println!(
-        "screen-size record from {from_image}: geometry {}x{}",
-        u16::from_be_bytes([record[6], record[7]]),
-        u16::from_be_bytes([record[8], record[9]])
-    );
-    if !commit {
-        println!("dry run: nothing written. Re-run with --commit.");
-        return Ok(());
-    }
-
-    let mut dev = open(cli)?;
-    dev.send(&protocol::write_screen_record(
-        index,
-        protocol::SCREEN_RECORD_ADDR,
-        record,
-    )?)?;
-    std::thread::sleep(Duration::from_millis(100));
-    println!("written");
     Ok(())
 }
 

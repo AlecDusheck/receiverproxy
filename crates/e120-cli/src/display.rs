@@ -26,7 +26,6 @@ pub fn wall_settings(cli: &Cli) -> e120_driver::Settings {
     e120_driver::Settings {
         brightness: cli.brightness,
         color_order: cli.order,
-        pixel_layout: cli.pixel_layout,
         announce_layout: true,
     }
 }
@@ -115,7 +114,7 @@ pub fn probe(
     let line = vec![[rgb[0], rgb[1], rgb[2]]; cli.width as usize];
     for pass in 0..repeat {
         for row in 0..rows {
-            dev.send(&protocol::pixel_row(row, 0, &line, cli.order, cli.pixel_layout))?;
+            dev.send(&protocol::pixel_row(row, 0, &line, cli.order))?;
             if row_gap_us > 0 {
                 std::thread::sleep(Duration::from_micros(row_gap_us));
             }
@@ -140,13 +139,7 @@ pub fn send_frame(dev: &mut bpf::Bpf, cli: &Cli, fb: &[[u8; 3]]) -> Result<()> {
         let line = &fb[row as usize * w..(row as usize + 1) * w];
         let mut offset = 0usize;
         for chunk in line.chunks(protocol::MAX_PIXELS_PER_PACKET) {
-            dev.send(&protocol::pixel_row(
-                row,
-                offset as u16,
-                chunk,
-                cli.order,
-                cli.pixel_layout,
-            ))?;
+            dev.send(&protocol::pixel_row(row, offset as u16, chunk, cli.order))?;
             offset += chunk.len();
         }
     }

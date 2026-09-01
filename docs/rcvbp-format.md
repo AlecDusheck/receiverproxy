@@ -2,7 +2,7 @@
 
 Derived independently two ways — by structural analysis of the file bytes, and
 by disassembly of `CHWParamReceiver::LoadFromBuffer` @ `0x170e50` in
-`libCLTDevice.1.dylib` — which agree. Implemented in `src/rcvbp.rs`.
+`libCLTDevice.1.dylib` — which agree. Implemented in `crates/e120-rcvbp`. Record 0x01's fields are decoded in [`record-0x01-fields.md`](record-0x01-fields.md), which supersedes the per-field guesses in the table below.
 
 ## File header (32 bytes)
 
@@ -73,4 +73,4 @@ expressed through record `0x84`'s register table plus these timing values.
 
 The file is **not** replayed verbatim onto the wire. iSet parses it into a
 `CHWParamReceiver` object and re-serializes that into typed packets — see
-`config-protocol.md`. The record IDs above are file-format IDs, not packet types.
+`archive/config-protocol.md`. The record IDs above are file-format IDs, not packet types.

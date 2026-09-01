@@ -1,0 +1,765 @@
+offset_hex,offset_dec,n_unique,top_values,class,best_hypothesis,evidence,counterexamples,agr_S,agr_W,agr_H,agr_chip,agr_geo,agr_chip+S,agr_chip+geo
+0x000,0,26,64:292 104:137 172:133,annotated,module width W (or a divisor of the cabinet width),"single-WxH-token files: token width == byte in 175/335, == byte*2^k in 240/335",95,0.764,1.000,0.779,0.272,1.000,0.820,1.000
+0x001,1,29,32:210 64:133 43:133,annotated,module height / 2,single-WxH-token files: token height == 2*byte in 248/335,87,0.925,0.731,1.000,0.253,1.000,0.939,1.000
+0x002,2,2,0:785 1:434,unknown,,best key chip: agr=0.898 shuf=0.648,0,0.658,0.646,0.649,0.898,0.674,0.921,0.934
+0x003,3,11,0:960 4:133 8:66,"determined-by:geo(W,H,S)","consistent within geo(W,H,S) groups",agr=0.993 shuf=0.790 G=70,9,0.960,0.928,0.931,0.788,0.993,0.973,0.994
+0x004,4,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x005,5,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x006,6,2,0:1210 1:9,near-constant,~const 0x00,1210/1219,9,0.993,0.994,0.995,0.993,0.998,0.995,1.000
+0x007,7,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x008,8,2,2:1216 0:3,near-constant,~const 0x02,1216/1219,3,0.998,0.998,0.998,0.998,1.000,1.000,1.000
+0x009,9,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x00a,10,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x00b,11,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x00c,12,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x00d,13,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x00e,14,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x00f,15,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x010,16,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x011,17,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x012,18,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x013,19,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x014,20,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x015,21,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x016,22,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x017,23,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x018,24,5,0:1196 128:11 8:6,unknown,,best key chip+geo: agr=0.995 shuf=0.985,0,0.983,0.984,0.986,0.982,0.990,0.986,0.995
+0x019,25,4,0:1207 4:7 64:4,near-constant,~const 0x00,1207/1219,12,0.991,0.990,0.991,0.990,0.991,0.992,0.994
+0x01a,26,8,16:670 0:343 64:91,unknown,,best key chip+geo: agr=0.870 shuf=0.664,0,0.661,0.606,0.637,0.591,0.740,0.782,0.870
+0x01b,27,2,0:1132 64:87,unknown,,best key chip+geo: agr=0.982 shuf=0.938,0,0.929,0.955,0.933,0.929,0.960,0.961,0.982
+0x01c,28,5,51:1119 0:69 154:14,annotated,f32 gamma coefficient,"values [(np.float32(2.8), 1119), (np.float32(2.0), 26), (np.float32(3.0), 26), (np.float32(2.5), 17)]; 100.0% in [1,4] or 0 (2.8 is the LEDVision default)",0,0.918,0.918,0.918,0.922,0.919,0.936,0.949
+0x01d,29,5,51:1119 0:69 153:14,annotated,part of field @0x01c (f32 gamma coefficient),"values [(np.float32(2.8), 1119), (np.float32(2.0), 26), (np.float32(3.0), 26), (np.float32(2.5), 17)]; 100.0% in [1,4] or 0 (2.8 is the LEDVision default)",0,0.918,0.918,0.918,0.922,0.919,0.936,0.949
+0x01e,30,7,51:1119 0:26 64:26,annotated,part of field @0x01c (f32 gamma coefficient),"values [(np.float32(2.8), 1119), (np.float32(2.0), 26), (np.float32(3.0), 26), (np.float32(2.5), 17)]; 100.0% in [1,4] or 0 (2.8 is the LEDVision default)",0,0.918,0.918,0.918,0.922,0.919,0.935,0.947
+0x01f,31,1,64:1219,annotated-const,part of field @0x01c (f32 gamma coefficient),"values [(np.float32(2.8), 1119), (np.float32(2.0), 26), (np.float32(3.0), 26), (np.float32(2.5), 17)]; 100.0% in [1,4] or 0 (2.8 is the LEDVision default)",0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x020,32,26,64:148 32:146 43:134,annotated,scan denominator S,== filename <N>S token in 329/334 labeled files,5,1.000,0.659,0.862,0.240,1.000,1.000,1.000
+0x021,33,24,15:274 10:246 14:165,annotated,"timing, chip+scan dependent (== byte 0x4b)",equals 0x4b in 99.4%,7,0.279,0.270,0.272,0.468,0.331,0.622,0.698
+0x022,34,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x023,35,6,16:604 14:283 13:267,unknown,,best key chip+S: agr=0.877 shuf=0.581,0,0.525,0.532,0.523,0.788,0.583,0.877,0.912
+0x024,36,2,1:1144 8:75,unknown,,best key chip+geo: agr=0.979 shuf=0.948,0,0.938,0.952,0.938,0.938,0.953,0.964,0.979
+0x025,37,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x026,38,39,125:237 0:108 138:88,unknown,,best key chip+geo: agr=0.683 shuf=0.399,0,0.225,0.237,0.227,0.293,0.290,0.579,0.683
+0x027,39,3,0:1044 1:173 2:2,unknown,,best key chip+geo: agr=0.938 shuf=0.882,0,0.858,0.859,0.861,0.866,0.864,0.914,0.938
+0x028,40,4,255:1214 227:3 212:1,near-constant,~const 0xff,1214/1219,5,0.996,0.996,0.996,0.996,0.996,0.997,0.997
+0x029,41,4,255:1214 227:3 209:1,near-constant,~const 0xff,1214/1219,5,0.996,0.996,0.996,0.996,0.996,0.997,0.997
+0x02a,42,4,255:1214 227:3 207:1,near-constant,~const 0xff,1214/1219,5,0.996,0.996,0.996,0.996,0.996,0.997,0.997
+0x02b,43,1,3:1219,constant,const 0x03,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x02c,44,3,2:1152 0:61 1:6,unknown,,best key chip+geo: agr=0.961 shuf=0.950,0,0.948,0.948,0.948,0.946,0.949,0.957,0.961
+0x02d,45,3,1:1210 0:7 2:2,near-constant,~const 0x01,1210/1219,9,0.993,0.993,0.993,0.993,0.993,0.996,0.997
+0x02e,46,3,0:1151 2:65 1:3,unknown,,best key chip+geo: agr=0.960 shuf=0.949,0,0.947,0.947,0.947,0.945,0.948,0.956,0.960
+0x02f,47,4,1:1031 0:179 255:7,unknown,,best key chip+geo: agr=0.928 shuf=0.868,0,0.852,0.858,0.852,0.856,0.869,0.900,0.928
+0x030,48,1,50:1219,constant,const 0x32,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x031,49,1,20:1219,constant,const 0x14,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x032,50,37,43:956 230:55 208:47,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.951 shuf=0.797 G=254,60,0.788,0.793,0.792,0.929,0.806,0.951,0.966
+0x033,51,34,43:956 230:55 208:50,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.952 shuf=0.797 G=254,58,0.788,0.793,0.793,0.931,0.806,0.952,0.966
+0x034,52,35,43:956 230:55 208:52,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.952 shuf=0.797 G=254,58,0.788,0.793,0.793,0.932,0.806,0.952,0.966
+0x035,53,1,43:1219,constant,const 0x2b,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x036,54,33,229:186 253:153 187:85,annotated,chip id low byte (with 0x204 high),33 distinct chip ids in corpus,0,0.198,0.194,0.192,1.000,0.249,1.000,1.000
+0x037,55,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x038,56,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x039,57,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x03a,58,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x03b,59,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x03c,60,4,0:1133 3:36 2:31,determined-by:chip+geo,consistent within chip+geo groups,agr=0.989 shuf=0.938 G=375,13,0.934,0.938,0.966,0.929,0.977,0.947,0.989
+0x03d,61,4,242:1186 114:18 2:10,unknown,,best key chip+geo: agr=0.983 shuf=0.978,0,0.974,0.973,0.973,0.973,0.975,0.979,0.983
+0x03e,62,7,0:961 17:166 37:45,unknown,,"best key geo(W,H,S): agr=0.917 shuf=0.793",0,0.871,0.806,0.892,0.790,0.917,0.889,0.942
+0x03f,63,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x040,64,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x041,65,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x042,66,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x043,67,5,0:1202 2:5 28:5,unknown,,best key chip+geo: agr=0.993 shuf=0.987,0,0.989,0.989,0.989,0.986,0.989,0.990,0.993
+0x044,68,3,0:748 1:470 5:1,unknown,,"best key geo(W,H,S): agr=0.782 shuf=0.625",0,0.722,0.710,0.723,0.650,0.782,0.816,0.875
+0x045,69,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x046,70,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x047,71,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x048,72,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x049,73,14,7:437 5:293 4:158,unknown,,best key chip+S: agr=0.699 shuf=0.468,0,0.398,0.391,0.394,0.558,0.453,0.699,0.764
+0x04a,74,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x04b,75,24,15:274 10:246 14:165,annotated,"timing, chip+scan dependent (== byte 0x21)",equals 0x21 in 99.4%,7,0.279,0.270,0.272,0.471,0.331,0.621,0.697
+0x04c,76,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x04d,77,2,0:1216 1:3,near-constant,~const 0x00,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x04e,78,2,0:1211 1:8,near-constant,~const 0x00,1211/1219,8,0.993,0.993,0.993,0.993,0.994,0.995,0.995
+0x04f,79,1,1:1219,constant,const 0x01,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x050,80,19,0:227 1:209 5:100,unknown,,best key chip+geo: agr=0.623 shuf=0.423,0,0.276,0.266,0.281,0.371,0.342,0.546,0.623
+0x051,81,4,0:972 3:215 7:22,unknown,,best key chip+S: agr=0.920 shuf=0.816,0,0.800,0.801,0.801,0.901,0.811,0.920,0.938
+0x052,82,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x053,83,1,0:1219,annotated-const,f32 = 60.0 (frame rate?),exactly 60.0 in 1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x054,84,1,0:1219,annotated-const,part of field @0x053 (f32 = 60.0 (frame rate?)),exactly 60.0 in 1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x055,85,1,112:1219,annotated-const,part of field @0x053 (f32 = 60.0 (frame rate?)),exactly 60.0 in 1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x056,86,1,66:1219,annotated-const,part of field @0x053 (f32 = 60.0 (frame rate?)),exactly 60.0 in 1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x057,87,15,16:823 0:297 128:62,annotated,paired with 0x58 (per-channel value?),equals 0x58 in 97.6%; common values 16/0/128,0,0.724,0.712,0.710,0.700,0.784,0.834,0.897
+0x058,88,16,16:818 0:297 128:64,annotated,paired with 0x57,equals 0x57 in 97.6%,0,0.724,0.712,0.710,0.696,0.784,0.834,0.897
+0x059,89,2,0:1184 16:35,unknown,,best key chip+S: agr=0.980 shuf=0.973,0,0.974,0.974,0.974,0.972,0.974,0.980,0.980
+0x05a,90,16,0:1011 16:108 8:47,annotated,16-entry row-order map,permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.879,0.847,0.889,0.830,0.929,0.895,0.947
+0x05b,91,16,1:992 0:111 9:28,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.873,0.833,0.885,0.815,0.934,0.896,0.956
+0x05c,92,20,2:976 17:82 0:44,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.855,0.815,0.865,0.802,0.920,0.883,0.946
+0x05d,93,19,3:958 1:144 255:51,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.875,0.826,0.887,0.788,0.942,0.900,0.963
+0x05e,94,22,4:953 18:98 255:33,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.846,0.811,0.855,0.783,0.908,0.870,0.936
+0x05f,95,23,5:955 2:106 255:48,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.853,0.814,0.861,0.785,0.916,0.877,0.946
+0x060,96,21,6:954 19:84 255:39,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.838,0.808,0.845,0.785,0.898,0.869,0.936
+0x061,97,20,7:949 3:134 255:71,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.860,0.818,0.870,0.781,0.925,0.890,0.955
+0x062,98,23,8:945 20:98 255:48,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.839,0.804,0.847,0.778,0.902,0.867,0.934
+0x063,99,25,9:948 4:98 255:63,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.842,0.808,0.850,0.780,0.906,0.869,0.937
+0x064,100,24,10:944 21:82 255:49,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.833,0.800,0.842,0.777,0.897,0.864,0.934
+0x065,101,22,11:944 5:129 255:81,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.850,0.814,0.860,0.777,0.917,0.881,0.947
+0x066,102,19,12:938 22:96 255:90,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.833,0.801,0.849,0.773,0.905,0.870,0.934
+0x067,103,24,13:940 255:105 6:96,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.834,0.804,0.850,0.774,0.910,0.869,0.938
+0x068,104,21,14:936 255:93 23:82,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.828,0.796,0.846,0.771,0.901,0.869,0.934
+0x069,105,17,15:937 255:124 7:119,annotated,part of field @0x05a (16-entry row-order map),permutation of 0..15 in 79.8%; other files hold row indices from wider ranges (89.7% all < 128),246,0.842,0.811,0.861,0.772,0.921,0.880,0.947
+0x06a,106,2,128:1201 0:18,unknown,,best key chip+S: agr=0.998 shuf=0.986,0,0.985,0.985,0.985,0.985,0.985,0.998,0.998
+0x06b,107,19,15:881 10:55 8:42,unknown,,best key chip+geo: agr=0.907 shuf=0.761,0,0.724,0.724,0.724,0.769,0.734,0.878,0.907
+0x06c,108,64,0:858 255:29 29:28,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.954 shuf=0.724 G=254,56,0.705,0.705,0.705,0.813,0.714,0.954,0.959
+0x06d,109,45,0:801 185:75 252:42,unknown,,best key chip+S: agr=0.907 shuf=0.685,0,0.658,0.659,0.658,0.846,0.667,0.907,0.923
+0x06e,110,69,0:857 29:28 255:28,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.951 shuf=0.724 G=254,60,0.704,0.705,0.704,0.808,0.713,0.951,0.957
+0x06f,111,39,0:801 185:76 184:60,unknown,,best key chip+S: agr=0.911 shuf=0.686,0,0.658,0.659,0.658,0.858,0.667,0.911,0.926
+0x070,112,66,0:857 29:28 255:28,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.951 shuf=0.724 G=254,60,0.704,0.705,0.704,0.808,0.713,0.951,0.957
+0x071,113,42,0:802 185:76 184:59,unknown,,best key chip+S: agr=0.908 shuf=0.687,0,0.659,0.660,0.659,0.852,0.668,0.908,0.924
+0x072,114,38,0:1077 255:29 127:14,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.968 shuf=0.893 G=254,39,0.884,0.885,0.884,0.931,0.886,0.968,0.974
+0x073,115,35,0:862 3:160 155:49,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.957 shuf=0.731 G=254,52,0.708,0.709,0.708,0.938,0.719,0.957,0.961
+0x074,116,41,0:1028 243:29 16:28,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.962 shuf=0.854 G=254,46,0.844,0.845,0.844,0.923,0.847,0.962,0.968
+0x075,117,34,0:860 3:158 154:38,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.959 shuf=0.729 G=254,50,0.706,0.707,0.706,0.933,0.717,0.959,0.965
+0x076,118,38,0:1032 223:31 16:28,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.968 shuf=0.857 G=254,39,0.847,0.848,0.847,0.925,0.851,0.968,0.972
+0x077,119,34,0:860 3:178 154:34,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.961 shuf=0.730 G=254,48,0.706,0.707,0.706,0.934,0.717,0.961,0.967
+0x078,120,35,0:936 16:79 64:45,unknown,,best key chip+geo: agr=0.933 shuf=0.799,0,0.769,0.769,0.769,0.893,0.776,0.911,0.933
+0x079,121,24,0:958 163:110 7:57,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.954 shuf=0.801 G=254,56,0.787,0.788,0.787,0.932,0.796,0.954,0.961
+0x07a,122,16,16:1004 24:114 255:39,likely-determined-by:chip+geo,consistent within chip+geo groups,agr=0.955 shuf=0.852 G=375,55,0.865,0.861,0.875,0.825,0.928,0.887,0.955
+0x07b,123,19,17:1006 8:84 255:46,unknown,,best key chip+geo: agr=0.945 shuf=0.853,0,0.856,0.851,0.868,0.827,0.915,0.879,0.945
+0x07c,124,20,18:1006 25:95 255:39,unknown,,best key chip+geo: agr=0.948 shuf=0.852,0,0.860,0.856,0.869,0.827,0.921,0.884,0.948
+0x07d,125,17,19:1005 9:98 255:63,unknown,,best key chip+geo: agr=0.946 shuf=0.853,0,0.861,0.855,0.872,0.826,0.920,0.883,0.946
+0x07e,126,20,20:1005 26:114 255:40,likely-determined-by:chip+geo,consistent within chip+geo groups,agr=0.957 shuf=0.853 G=375,52,0.865,0.861,0.875,0.826,0.929,0.887,0.957
+0x07f,127,20,21:1006 10:84 255:47,unknown,,best key chip+geo: agr=0.947 shuf=0.853,0,0.856,0.851,0.868,0.827,0.916,0.879,0.947
+0x080,128,21,22:1004 27:94 255:41,likely-determined-by:chip+geo,consistent within chip+geo groups,agr=0.951 shuf=0.852 G=375,60,0.858,0.854,0.868,0.825,0.920,0.882,0.951
+0x081,129,16,23:1005 11:98 255:65,unknown,,best key chip+geo: agr=0.948 shuf=0.853,0,0.861,0.855,0.872,0.826,0.920,0.883,0.948
+0x082,130,16,24:1004 28:109 255:59,likely-determined-by:chip+geo,consistent within chip+geo groups,agr=0.957 shuf=0.852 G=375,52,0.861,0.859,0.872,0.825,0.926,0.888,0.957
+0x083,131,18,25:1006 12:84 255:66,unknown,,best key chip+geo: agr=0.947 shuf=0.853,0,0.856,0.849,0.869,0.827,0.913,0.883,0.947
+0x084,132,16,26:1004 29:93 255:59,likely-determined-by:chip+geo,consistent within chip+geo groups,agr=0.952 shuf=0.852 G=375,59,0.858,0.852,0.869,0.825,0.918,0.884,0.952
+0x085,133,13,27:1004 13:93 255:80,unknown,,best key chip+geo: agr=0.949 shuf=0.852,0,0.858,0.854,0.869,0.825,0.919,0.884,0.949
+0x086,134,13,28:1001 30:110 255:73,likely-determined-by:chip+geo,consistent within chip+geo groups,agr=0.957 shuf=0.851 G=375,52,0.860,0.857,0.872,0.824,0.927,0.892,0.957
+0x087,135,14,29:1003 14:84 255:80,unknown,,best key chip+geo: agr=0.947 shuf=0.852,0,0.854,0.847,0.870,0.826,0.914,0.885,0.947
+0x088,136,14,30:1002 31:93 255:73,likely-determined-by:chip+geo,consistent within chip+geo groups,agr=0.952 shuf=0.851 G=375,59,0.856,0.852,0.870,0.824,0.919,0.887,0.952
+0x089,137,11,31:1006 15:93 255:93,unknown,,best key chip+geo: agr=0.949 shuf=0.855,0,0.856,0.856,0.870,0.828,0.920,0.888,0.949
+0x08a,138,4,32:1216 21:1 37:1,near-constant,~const 0x20,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x08b,139,4,33:1216 0:1 38:1,near-constant,~const 0x21,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x08c,140,4,34:1216 0:1 39:1,near-constant,~const 0x22,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x08d,141,3,35:1216 255:2 5:1,near-constant,~const 0x23,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x08e,142,3,36:1216 255:2 54:1,near-constant,~const 0x24,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x08f,143,3,37:1216 255:2 38:1,near-constant,~const 0x25,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x090,144,3,38:1216 255:2 55:1,near-constant,~const 0x26,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x091,145,3,39:1216 255:2 0:1,near-constant,~const 0x27,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x092,146,3,40:1216 255:2 0:1,near-constant,~const 0x28,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x093,147,3,41:1216 255:2 39:1,near-constant,~const 0x29,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x094,148,3,42:1216 255:2 22:1,near-constant,~const 0x2a,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x095,149,3,43:1216 255:2 6:1,near-constant,~const 0x2b,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x096,150,3,44:1216 255:2 23:1,near-constant,~const 0x2c,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x097,151,3,45:1216 255:2 0:1,near-constant,~const 0x2d,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x098,152,3,46:1216 255:2 0:1,near-constant,~const 0x2e,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x099,153,3,47:1216 255:2 7:1,near-constant,~const 0x2f,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x09a,154,3,48:1216 255:2 0:1,near-constant,~const 0x30,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x09b,155,3,49:1216 255:2 0:1,near-constant,~const 0x31,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x09c,156,3,50:1216 255:2 0:1,near-constant,~const 0x32,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x09d,157,3,51:1216 255:2 0:1,near-constant,~const 0x33,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x09e,158,3,52:1216 255:2 0:1,near-constant,~const 0x34,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x09f,159,3,53:1216 255:2 0:1,near-constant,~const 0x35,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x0a0,160,3,54:1216 255:2 0:1,near-constant,~const 0x36,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x0a1,161,3,55:1216 255:2 0:1,near-constant,~const 0x37,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x0a2,162,3,56:1216 255:2 0:1,near-constant,~const 0x38,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x0a3,163,3,57:1216 255:2 0:1,near-constant,~const 0x39,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x0a4,164,3,58:1216 255:2 0:1,near-constant,~const 0x3a,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x0a5,165,3,59:1216 255:2 0:1,near-constant,~const 0x3b,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x0a6,166,3,60:1216 255:2 0:1,near-constant,~const 0x3c,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x0a7,167,3,61:1216 255:2 0:1,near-constant,~const 0x3d,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x0a8,168,3,62:1216 255:2 0:1,near-constant,~const 0x3e,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x0a9,169,3,63:1216 255:2 0:1,near-constant,~const 0x3f,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x0aa,170,1,0:1219,annotated-const,f32 refresh rate (Hz),"values [(np.float32(60.0), 758), (np.float32(0.0), 219), (np.float32(120.0), 145), (np.float32(240.0), 80), (np.float32(3300.0), 12)]; 100.0% in 0 or [50,10000]",0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x0ab,171,2,0:1207 64:12,annotated,part of field @0x0aa (f32 refresh rate (Hz)),"values [(np.float32(60.0), 758), (np.float32(0.0), 219), (np.float32(120.0), 145), (np.float32(240.0), 80), (np.float32(3300.0), 12)]; 100.0% in 0 or [50,10000]",0,0.991,0.991,0.991,0.990,0.991,0.993,0.996
+0x0ac,172,7,112:839 0:219 240:145,annotated,part of field @0x0aa (f32 refresh rate (Hz)),"values [(np.float32(60.0), 758), (np.float32(0.0), 219), (np.float32(120.0), 145), (np.float32(240.0), 80), (np.float32(3300.0), 12)]; 100.0% in 0 or [50,10000]",0,0.692,0.693,0.696,0.709,0.710,0.792,0.839
+0x0ad,173,5,66:903 0:219 67:82,annotated,part of field @0x0aa (f32 refresh rate (Hz)),"values [(np.float32(60.0), 758), (np.float32(0.0), 219), (np.float32(120.0), 145), (np.float32(240.0), 80), (np.float32(3300.0), 12)]; 100.0% in 0 or [50,10000]",0,0.745,0.746,0.748,0.757,0.761,0.811,0.854
+0x0ae,174,44,23:1010 0:121 77:9,annotated,"f32, chip-dependent (default 1e-4)","values [(np.float32(1e-04), 1010), (np.float32(24.0), 38), (np.float32(48.0), 15), (np.float32(80.0), 13)]",0,0.832,0.829,0.831,0.934,0.834,0.958,0.962
+0x0af,175,48,183:1010 0:121 123:11,annotated,"part of field @0x0ae (f32, chip-dependent (default 1e-4))","values [(np.float32(1e-04), 1010), (np.float32(24.0), 38), (np.float32(48.0), 15), (np.float32(80.0), 13)]",0,0.832,0.829,0.831,0.931,0.834,0.958,0.962
+0x0b0,176,50,209:1010 192:40 64:15,annotated,"part of field @0x0ae (f32, chip-dependent (default 1e-4))","values [(np.float32(1e-04), 1010), (np.float32(24.0), 38), (np.float32(48.0), 15), (np.float32(80.0), 13)]",0,0.832,0.829,0.831,0.874,0.834,0.938,0.945
+0x0b1,177,7,56:1010 66:96 65:61,annotated,"part of field @0x0ae (f32, chip-dependent (default 1e-4))","values [(np.float32(1e-04), 1010), (np.float32(24.0), 38), (np.float32(48.0), 15), (np.float32(80.0), 13)]",0,0.833,0.829,0.831,0.917,0.835,0.966,0.970
+0x0b2,178,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x0b3,179,2,0:1218 124:1,near-constant,~const 0x00,1218/1219,1,0.999,0.999,0.999,0.999,1.000,0.999,1.000
+0x0b4,180,12,205:616 0:539 228:13,annotated,f32 coefficient (duty/current-gain triple B4/B8/BC),"values [(np.float32(0.1), 613), (np.float32(0.25), 536), (np.float32(0.1007), 13), (np.float32(0.11), 11)]; 100.0% in [0,4]",0,0.688,0.612,0.697,0.720,0.716,0.823,0.859
+0x0b5,181,12,204:616 0:539 56:13,annotated,part of field @0x0b4 (f32 coefficient (duty/current-gain triple B4/B8/BC)),"values [(np.float32(0.1), 613), (np.float32(0.25), 536), (np.float32(0.1007), 13), (np.float32(0.11), 11)]; 100.0% in [0,4]",0,0.688,0.612,0.697,0.720,0.716,0.823,0.859
+0x0b6,182,17,204:613 128:536 206:13,annotated,part of field @0x0b4 (f32 coefficient (duty/current-gain triple B4/B8/BC)),"values [(np.float32(0.1), 613), (np.float32(0.25), 536), (np.float32(0.1007), 13), (np.float32(0.11), 11)]; 100.0% in [0,4]",0,0.686,0.610,0.695,0.719,0.714,0.820,0.858
+0x0b7,183,4,61:649 62:566 0:3,annotated,part of field @0x0b4 (f32 coefficient (duty/current-gain triple B4/B8/BC)),"values [(np.float32(0.1), 613), (np.float32(0.25), 536), (np.float32(0.1007), 13), (np.float32(0.11), 11)]; 100.0% in [0,4]",0,0.708,0.622,0.716,0.742,0.732,0.840,0.877
+0x0b8,184,12,205:611 0:563 56:13,annotated,f32 coefficient (duty/current-gain triple B4/B8/BC),"values [(np.float32(0.1), 607), (np.float32(0.25), 540), (np.float32(0.0), 23), (np.float32(0.3819), 13)]; 100.0% in [0,4]",0,0.692,0.623,0.701,0.719,0.720,0.820,0.860
+0x0b9,185,12,204:611 0:563 142:13,annotated,part of field @0x0b8 (f32 coefficient (duty/current-gain triple B4/B8/BC)),"values [(np.float32(0.1), 607), (np.float32(0.25), 540), (np.float32(0.0), 23), (np.float32(0.3819), 13)]; 100.0% in [0,4]",0,0.692,0.623,0.701,0.719,0.720,0.820,0.860
+0x0ba,186,15,204:607 128:540 0:23,annotated,part of field @0x0b8 (f32 coefficient (duty/current-gain triple B4/B8/BC)),"values [(np.float32(0.1), 607), (np.float32(0.25), 540), (np.float32(0.0), 23), (np.float32(0.3819), 13)]; 100.0% in [0,4]",0,0.689,0.611,0.698,0.716,0.718,0.818,0.858
+0x0bb,187,4,61:627 62:568 0:23,annotated,part of field @0x0b8 (f32 coefficient (duty/current-gain triple B4/B8/BC)),"values [(np.float32(0.1), 607), (np.float32(0.25), 540), (np.float32(0.0), 23), (np.float32(0.3819), 13)]; 100.0% in [0,4]",0,0.709,0.628,0.718,0.734,0.737,0.834,0.875
+0x0bc,188,103,205:420 0:310 115:65,annotated,f32 coefficient (duty/current-gain triple B4/B8/BC),"values [(np.float32(0.1), 414), (np.float32(0.5), 300), (np.float32(0.8169), 65), (np.float32(0.0982), 15)]; 100.0% in [0,4]",0,0.424,0.380,0.420,0.482,0.464,0.634,0.711
+0x0bd,189,103,204:420 0:324 32:65,annotated,part of field @0x0bc (f32 coefficient (duty/current-gain triple B4/B8/BC)),"values [(np.float32(0.1), 414), (np.float32(0.5), 300), (np.float32(0.8169), 65), (np.float32(0.0982), 15)]; 100.0% in [0,4]",0,0.425,0.380,0.421,0.481,0.467,0.635,0.712
+0x0be,190,135,204:418 0:307 81:65,annotated,part of field @0x0bc (f32 coefficient (duty/current-gain triple B4/B8/BC)),"values [(np.float32(0.1), 414), (np.float32(0.5), 300), (np.float32(0.8169), 65), (np.float32(0.0982), 15)]; 100.0% in [0,4]",0,0.423,0.377,0.418,0.477,0.463,0.635,0.711
+0x0bf,191,4,61:510 63:413 62:293,annotated,part of field @0x0bc (f32 coefficient (duty/current-gain triple B4/B8/BC)),"values [(np.float32(0.1), 414), (np.float32(0.5), 300), (np.float32(0.8169), 65), (np.float32(0.0982), 15)]; 100.0% in [0,4]",0,0.527,0.473,0.537,0.614,0.578,0.751,0.810
+0x0c0,192,25,128:341 160:228 172:130,annotated,u16 MaxWidth (configured wall/card width),"(MaxW,MaxH) matches a filename WxH token in 5/5 files with >=2 tokens; MaxH multiple of module H in 1176/1219, MaxW multiple of module W in 1194/1219",0,0.751,0.755,0.770,0.319,0.837,0.841,0.908
+0x0c1,193,3,0:1078 1:122 2:19,annotated,part of field @0x0c0 (u16 MaxWidth (configured wall/card width)),"(MaxW,MaxH) matches a filename WxH token in 5/5 files with >=2 tokens; MaxH multiple of module H in 1176/1219, MaxW multiple of module W in 1194/1219",0,0.884,0.886,0.895,0.885,0.918,0.913,0.948
+0x0c2,194,43,0:417 64:181 128:164,annotated,u16 MaxHeight (configured wall/card height),"(MaxW,MaxH) matches a filename WxH token in 5/5 files with >=2 tokens; MaxH multiple of module H in 1176/1219, MaxW multiple of module W in 1194/1219",0,0.758,0.728,0.784,0.354,0.801,0.820,0.874
+0x0c3,195,7,1:410 2:369 0:172,annotated,part of field @0x0c2 (u16 MaxHeight (configured wall/card height)),"(MaxW,MaxH) matches a filename WxH token in 5/5 files with >=2 tokens; MaxH multiple of module H in 1176/1219, MaxW multiple of module W in 1194/1219",0,0.656,0.603,0.683,0.432,0.722,0.758,0.841
+0x0c4,196,2,0:1209 1:10,near-constant,~const 0x00,1209/1219,10,0.992,0.992,0.992,0.992,0.992,0.992,0.992
+0x0c5,197,2,14:688 0:531,determined-by:chip,consistent within chip groups,agr=1.000 shuf=0.578 G=33,0,0.641,0.615,0.650,1.000,0.670,1.000,1.000
+0x0c6,198,8,0:531 1:361 7:176,determined-by:chip,consistent within chip groups,agr=0.998 shuf=0.445 G=33,3,0.524,0.511,0.532,0.998,0.560,0.999,0.999
+0x0c7,199,3,0:531 5:387 4:301,determined-by:chip,consistent within chip groups,agr=1.000 shuf=0.449 G=33,0,0.539,0.519,0.550,1.000,0.573,1.000,1.000
+0x0c8,200,4,0:555 6:247 8:229,determined-by:chip,consistent within chip groups,agr=1.000 shuf=0.459 G=33,0,0.493,0.512,0.507,1.000,0.550,1.000,1.000
+0x0c9,201,2,1:688 0:531,determined-by:chip,consistent within chip groups,agr=1.000 shuf=0.578 G=33,0,0.641,0.615,0.650,1.000,0.670,1.000,1.000
+0x0ca,202,3,3:687 0:531 2:1,determined-by:chip,consistent within chip groups,agr=1.000 shuf=0.578 G=33,0,0.640,0.614,0.649,1.000,0.669,1.000,1.000
+0x0cb,203,31,0:846 2:138 127:111,unknown,,best key chip: agr=0.894 shuf=0.694,0,0.698,0.701,0.700,0.894,0.722,0.911,0.922
+0x0cc,204,33,0:936 127:113 25:28,unknown,,best key chip+S: agr=0.905 shuf=0.785,0,0.770,0.773,0.772,0.857,0.787,0.905,0.919
+0x0cd,205,19,0:1021 127:113 25:22,unknown,,best key chip+S: agr=0.923 shuf=0.846,0,0.839,0.842,0.841,0.909,0.856,0.923,0.934
+0x0ce,206,3,0:1137 1:67 2:15,determined-by:chip+S,consistent within chip+S groups,agr=0.989 shuf=0.935 G=254,13,0.933,0.933,0.933,0.949,0.933,0.989,0.989
+0x0cf,207,79,0:532 138:122 131:104,unknown,,best key chip+geo: agr=0.855 shuf=0.539,0,0.449,0.468,0.454,0.733,0.507,0.808,0.855
+0x0d0,208,3,0:1137 1:67 2:15,determined-by:chip+S,consistent within chip+S groups,agr=0.989 shuf=0.935 G=254,13,0.933,0.933,0.933,0.949,0.933,0.989,0.989
+0x0d1,209,78,0:532 138:117 134:108,unknown,,best key chip+geo: agr=0.852 shuf=0.539,0,0.449,0.468,0.454,0.726,0.507,0.806,0.852
+0x0d2,210,2,0:1218 3:1,near-constant,~const 0x00,1218/1219,1,0.999,0.999,0.999,0.999,0.999,0.999,0.999
+0x0d3,211,4,0:555 8:247 16:229,determined-by:chip,consistent within chip groups,agr=1.000 shuf=0.459 G=33,0,0.493,0.512,0.507,1.000,0.550,1.000,1.000
+0x0d4,212,4,0:1010 1:141 2:66,unknown,,best key chip+geo: agr=0.906 shuf=0.848,0,0.831,0.833,0.833,0.851,0.843,0.878,0.906
+0x0d5,213,2,0:1195 2:24,unknown,,best key chip: agr=1.000 shuf=0.980,0,0.980,0.980,0.980,1.000,0.980,1.000,1.000
+0x0d6,214,5,0:542 10:282 12:202,determined-by:chip,consistent within chip groups,agr=0.990 shuf=0.450 G=33,12,0.501,0.513,0.512,0.990,0.550,0.994,0.996
+0x0d7,215,5,0:562 2:288 5:192,determined-by:chip,consistent within chip groups,agr=0.984 shuf=0.464 G=33,20,0.518,0.529,0.528,0.984,0.567,0.991,0.996
+0x0d8,216,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x0d9,217,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x0da,218,1,128:1219,constant,const 0x80,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x0db,219,1,63:1219,constant,const 0x3f,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x0dc,220,4,0:1205 1:9 240:4,unknown,,best key chip+S: agr=0.994 shuf=0.989,0,0.989,0.993,0.989,0.989,0.993,0.994,0.996
+0x0dd,221,2,0:1218 24:1,near-constant,~const 0x00,1218/1219,1,0.999,1.000,0.999,0.999,1.000,0.999,1.000
+0x0de,222,6,0:1196 1:16 16:3,unknown,,best key chip+geo: agr=0.986 shuf=0.982,0,0.981,0.981,0.981,0.981,0.981,0.984,0.986
+0x0df,223,4,0:1193 63:16 27:9,unknown,,best key chip+geo: agr=0.986 shuf=0.979,0,0.979,0.979,0.979,0.979,0.979,0.982,0.986
+0x0e0,224,29,0:940 20:67 64:46,unknown,,best key chip+geo: agr=0.930 shuf=0.801,0,0.772,0.773,0.772,0.887,0.779,0.911,0.930
+0x0e1,225,24,0:960 99:113 7:57,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.956 shuf=0.803 G=254,54,0.788,0.788,0.788,0.936,0.797,0.956,0.960
+0x0e2,226,28,0:940 16:75 64:45,unknown,,best key chip+geo: agr=0.934 shuf=0.801,0,0.772,0.773,0.772,0.893,0.780,0.918,0.934
+0x0e3,227,24,0:959 99:114 7:57,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.953 shuf=0.803 G=254,57,0.787,0.788,0.787,0.935,0.796,0.953,0.958
+0x0e4,228,2,0:1211 1:8,near-constant,~const 0x00,1211/1219,8,0.993,0.993,0.993,0.993,0.993,0.994,0.995
+0x0e5,229,4,15:1085 31:109 7:15,likely-determined-by:chip+geo,consistent within chip+geo groups,agr=0.960 shuf=0.906 G=375,49,0.893,0.890,0.891,0.906,0.894,0.942,0.960
+0x0e6,230,10,0:1074 32:93 64:20,unknown,,best key chip+geo: agr=0.924 shuf=0.900,0,0.881,0.881,0.887,0.884,0.889,0.902,0.924
+0x0e7,231,12,32:478 0:416 40:168,unknown,,best key chip+S: agr=0.790 shuf=0.534,0,0.550,0.505,0.556,0.541,0.585,0.790,0.848
+0x0e8,232,41,14:230 0:200 40:137,unknown,,best key chip+geo: agr=0.641 shuf=0.436,0,0.285,0.283,0.295,0.317,0.356,0.541,0.641
+0x0e9,233,44,0:263 253:148 88:98,unknown,,best key chip: agr=0.760 shuf=0.230,0,0.251,0.245,0.258,0.760,0.302,0.854,0.889
+0x0ea,234,11,0:1054 17:119 80:9,unknown,,best key chip+geo: agr=0.943 shuf=0.884,0,0.865,0.869,0.881,0.880,0.901,0.907,0.943
+0x0eb,235,10,0:756 64:412 112:21,unknown,,best key chip+geo: agr=0.917 shuf=0.732,0,0.682,0.658,0.660,0.732,0.719,0.869,0.917
+0x0ec,236,12,0:1018 17:118 64:34,unknown,,best key chip+geo: agr=0.929 shuf=0.857,0,0.835,0.841,0.852,0.851,0.874,0.888,0.929
+0x0ed,237,15,0:647 64:414 3:112,unknown,,best key chip+geo: agr=0.893 shuf=0.677,0,0.604,0.595,0.596,0.659,0.674,0.821,0.893
+0x0ee,238,11,0:1018 17:118 96:36,unknown,,best key chip+geo: agr=0.929 shuf=0.857,0,0.836,0.842,0.853,0.851,0.875,0.888,0.929
+0x0ef,239,15,0:651 64:414 3:112,unknown,,best key chip+geo: agr=0.891 shuf=0.682,0,0.607,0.598,0.600,0.662,0.678,0.819,0.891
+0x0f0,240,2,0:1218 50:1,near-constant,~const 0x00,1218/1219,1,0.999,1.000,0.999,0.999,1.000,0.999,1.000
+0x0f1,241,2,0:1218 2:1,near-constant,~const 0x00,1218/1219,1,0.999,1.000,0.999,0.999,1.000,0.999,1.000
+0x0f2,242,3,0:1215 255:3 50:1,near-constant,~const 0x00,1215/1219,4,0.997,0.998,0.997,0.997,0.998,0.997,0.998
+0x0f3,243,1,100:1219,constant,const 0x64,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x0f4,244,2,0:1208 1:11,near-constant,~const 0x00,1208/1219,11,0.991,0.991,0.991,0.991,0.991,0.992,0.993
+0x0f5,245,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x0f6,246,2,128:1178 129:41,unknown,,best key chip+geo: agr=0.992 shuf=0.970,0,0.970,0.975,0.978,0.966,0.987,0.975,0.992
+0x0f7,247,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x0f8,248,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x0f9,249,2,0:1046 1:173,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.962 shuf=0.871 G=254,46,0.901,0.877,0.895,0.865,0.909,0.962,0.969
+0x0fa,250,2,0:1120 1:99,unknown,,best key chip+S: agr=0.949 shuf=0.924,0,0.919,0.919,0.919,0.927,0.919,0.949,0.952
+0x0fb,251,9,0:1048 8:65 9:57,unknown,,best key chip+S: agr=0.896 shuf=0.863,0,0.860,0.860,0.860,0.864,0.860,0.896,0.901
+0x0fc,252,15,0:703 1:366 76:40,unknown,,best key chip+geo: agr=0.857 shuf=0.682,0,0.643,0.631,0.619,0.604,0.692,0.796,0.857
+0x0fd,253,5,0:682 128:511 92:19,unknown,,best key chip+geo: agr=0.898 shuf=0.715,0,0.714,0.651,0.674,0.600,0.747,0.827,0.898
+0x0fe,254,7,0:679 128:511 110:19,unknown,,best key chip+geo: agr=0.897 shuf=0.714,0,0.712,0.649,0.673,0.597,0.745,0.825,0.897
+0x0ff,255,6,0:648 128:511 94:56,unknown,,best key chip+geo: agr=0.894 shuf=0.700,0,0.703,0.651,0.664,0.584,0.747,0.826,0.894
+0x100,256,6,0:681 128:511 200:19,unknown,,best key chip+geo: agr=0.897 shuf=0.714,0,0.713,0.651,0.674,0.599,0.746,0.826,0.897
+0x101,257,5,0:1189 1:24 92:4,unknown,,best key chip+geo: agr=0.990 shuf=0.980,0,0.975,0.976,0.975,0.975,0.977,0.979,0.990
+0x102,258,10,255:660 0:472 95:56,unknown,,"best key geo(W,H,S): agr=0.782 shuf=0.560",0,0.731,0.655,0.693,0.578,0.782,0.826,0.896
+0x103,259,3,255:660 0:558 117:1,unknown,,"best key geo(W,H,S): agr=0.799 shuf=0.572",0,0.772,0.671,0.733,0.606,0.799,0.848,0.906
+0x104,260,7,0:1132 1:58 136:19,unknown,,best key chip+geo: agr=0.978 shuf=0.939,0,0.929,0.943,0.929,0.929,0.944,0.950,0.978
+0x105,261,7,0:1188 92:19 97:6,unknown,,best key chip+geo: agr=0.991 shuf=0.979,0,0.975,0.975,0.975,0.975,0.976,0.979,0.991
+0x106,262,5,0:1191 110:19 105:6,unknown,,best key chip+geo: agr=0.993 shuf=0.982,0,0.977,0.978,0.977,0.977,0.978,0.981,0.993
+0x107,263,5,0:1153 1:58 118:6,unknown,,best key chip+geo: agr=0.980 shuf=0.954,0,0.946,0.960,0.946,0.946,0.961,0.963,0.980
+0x108,264,8,255:660 0:474 1:56,unknown,,"best key geo(W,H,S): agr=0.783 shuf=0.560",0,0.732,0.656,0.694,0.579,0.783,0.827,0.897
+0x109,265,4,255:660 0:534 92:19,unknown,,"best key geo(W,H,S): agr=0.790 shuf=0.568",0,0.757,0.664,0.719,0.595,0.790,0.839,0.903
+0x10a,266,6,0:1134 1:58 110:19,unknown,,best key chip+geo: agr=0.978 shuf=0.941,0,0.930,0.945,0.930,0.930,0.946,0.951,0.978
+0x10b,267,5,0:1159 2:56 46:2,unknown,,best key chip+geo: agr=0.984 shuf=0.957,0,0.951,0.965,0.951,0.951,0.966,0.968,0.984
+0x10c,268,5,0:1190 96:19 216:7,unknown,,best key chip+geo: agr=0.993 shuf=0.981,0,0.976,0.977,0.976,0.976,0.977,0.980,0.993
+0x10d,269,8,0:1131 1:58 68:19,unknown,,best key chip+geo: agr=0.978 shuf=0.938,0,0.928,0.943,0.928,0.928,0.943,0.949,0.978
+0x10e,270,11,255:660 0:470 3:56,unknown,,"best key geo(W,H,S): agr=0.780 shuf=0.560",0,0.729,0.654,0.692,0.576,0.780,0.825,0.896
+0x10f,271,4,255:660 0:539 118:19,unknown,,"best key geo(W,H,S): agr=0.794 shuf=0.569",0,0.761,0.664,0.723,0.598,0.794,0.842,0.906
+0x110,272,8,0:1131 1:58 168:19,unknown,,best key chip+geo: agr=0.977 shuf=0.938,0,0.928,0.943,0.928,0.928,0.943,0.949,0.977
+0x111,273,9,0:1131 4:56 239:19,unknown,,best key chip+geo: agr=0.977 shuf=0.938,0,0.928,0.943,0.928,0.928,0.943,0.949,0.977
+0x112,274,6,0:1208 70:6 25:2,near-constant,~const 0x00,1208/1219,11,0.991,0.991,0.991,0.991,0.991,0.992,0.994
+0x113,275,5,0:1156 1:58 118:3,unknown,,best key chip+geo: agr=0.984 shuf=0.954,0,0.948,0.962,0.948,0.948,0.963,0.966,0.984
+0x114,276,1,0:1219,annotated-const,96-entry row map (identity default),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x115,277,2,1:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x116,278,2,2:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x117,279,2,3:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x118,280,2,4:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x119,281,2,5:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x11a,282,2,6:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x11b,283,2,7:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x11c,284,2,8:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x11d,285,2,9:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x11e,286,2,10:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x11f,287,2,11:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x120,288,2,12:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x121,289,2,13:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x122,290,2,14:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x123,291,2,15:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x124,292,2,16:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x125,293,2,17:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x126,294,2,18:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x127,295,2,19:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x128,296,2,20:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x129,297,2,21:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x12a,298,2,22:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x12b,299,2,23:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x12c,300,2,24:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x12d,301,2,25:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x12e,302,2,26:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x12f,303,2,27:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x130,304,2,28:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x131,305,2,29:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x132,306,2,30:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x133,307,2,31:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x134,308,2,32:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x135,309,2,33:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x136,310,2,34:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x137,311,2,35:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x138,312,2,36:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x139,313,2,37:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x13a,314,2,38:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x13b,315,2,39:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x13c,316,2,40:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x13d,317,2,41:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x13e,318,2,42:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x13f,319,2,43:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x140,320,2,44:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x141,321,2,45:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x142,322,2,46:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x143,323,2,47:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x144,324,2,48:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x145,325,2,49:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x146,326,2,50:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x147,327,2,51:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x148,328,2,52:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x149,329,2,53:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x14a,330,2,54:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x14b,331,2,55:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x14c,332,2,56:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x14d,333,2,57:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x14e,334,2,58:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x14f,335,2,59:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x150,336,2,60:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x151,337,2,61:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x152,338,2,62:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x153,339,2,63:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x154,340,2,64:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x155,341,2,65:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x156,342,2,66:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x157,343,2,67:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x158,344,2,68:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x159,345,2,69:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x15a,346,2,70:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x15b,347,2,71:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x15c,348,2,72:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x15d,349,2,73:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x15e,350,2,74:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x15f,351,2,75:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x160,352,2,76:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x161,353,2,77:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x162,354,2,78:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x163,355,2,79:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x164,356,2,80:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x165,357,2,81:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x166,358,2,82:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x167,359,2,83:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x168,360,2,84:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x169,361,2,85:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x16a,362,2,86:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x16b,363,2,87:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x16c,364,2,88:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x16d,365,2,89:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x16e,366,2,90:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x16f,367,2,91:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x170,368,2,92:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x171,369,2,93:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x172,370,2,94:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x173,371,2,95:1214 0:5,annotated,part of field @0x114 (96-entry row map (identity default)),"identity 0..95 in 99.6%, all-zero in 5 files, nothing else observed",0,0.997,0.996,0.997,0.996,0.997,0.999,1.000
+0x174,372,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x175,373,2,0:1170 1:49,unknown,,best key chip+geo: agr=0.974 shuf=0.964,0,0.960,0.960,0.960,0.960,0.960,0.970,0.974
+0x176,374,2,0:1218 145:1,near-constant,~const 0x00,1218/1219,1,0.999,0.999,0.999,0.999,0.999,0.999,0.999
+0x177,375,2,0:1218 1:1,near-constant,~const 0x00,1218/1219,1,0.999,0.999,0.999,1.000,0.999,1.000,1.000
+0x178,376,2,15:1218 31:1,annotated,u16 timing (15 default),"[(np.int64(15), 1218), (np.int64(31), 1)]",1,0.999,0.999,0.999,1.000,0.999,1.000,1.000
+0x179,377,1,0:1219,annotated-const,part of field @0x178 (u16 timing (15 default)),"[(np.int64(15), 1218), (np.int64(31), 1)]",1,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x17a,378,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x17b,379,1,232:1219,annotated-const,u16 = 1000 (timing block constant),1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x17c,380,1,3:1219,annotated-const,part of field @0x17b (u16 = 1000 (timing block constant)),1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x17d,381,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x17e,382,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x17f,383,3,7:753 15:279 0:187,unknown,,best key chip+geo: agr=0.877 shuf=0.710,0,0.669,0.649,0.638,0.657,0.724,0.799,0.877
+0x180,384,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x181,385,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x182,386,3,25:1011 1:187 50:21,annotated,u16 PWM-chip timing (1 on non-PWM chips),"values [(np.int64(25), 1011), (np.int64(1), 187), (np.int64(50), 21)]",0,0.857,0.834,0.835,0.839,0.867,0.933,0.957
+0x183,387,1,0:1219,annotated-const,part of field @0x182 (u16 PWM-chip timing (1 on non-PWM chips)),"values [(np.int64(25), 1011), (np.int64(1), 187), (np.int64(50), 21)]",0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x184,388,4,125:1011 1:187 30:14,annotated,u16 PWM-chip timing (1 on non-PWM chips),"values [(np.int64(125), 1011), (np.int64(1), 187), (np.int64(30), 14), (np.int64(80), 7)]",0,0.857,0.834,0.835,0.839,0.867,0.933,0.957
+0x185,389,1,0:1219,annotated-const,part of field @0x184 (u16 PWM-chip timing (1 on non-PWM chips)),"values [(np.int64(125), 1011), (np.int64(1), 187), (np.int64(30), 14), (np.int64(80), 7)]",0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x186,390,4,125:1011 1:187 45:14,annotated,u16 PWM-chip timing (1 on non-PWM chips),"values [(np.int64(125), 1011), (np.int64(1), 187), (np.int64(45), 14), (np.int64(30), 7)]",0,0.857,0.834,0.835,0.839,0.867,0.933,0.957
+0x187,391,1,0:1219,annotated-const,part of field @0x186 (u16 PWM-chip timing (1 on non-PWM chips)),"values [(np.int64(125), 1011), (np.int64(1), 187), (np.int64(45), 14), (np.int64(30), 7)]",0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x188,392,4,62:1011 1:187 60:14,annotated,u16 PWM-chip timing (1 on non-PWM chips),"values [(np.int64(62), 1011), (np.int64(1), 187), (np.int64(60), 14), (np.int64(10), 7)]",0,0.857,0.834,0.835,0.839,0.867,0.933,0.957
+0x189,393,1,0:1219,annotated-const,part of field @0x188 (u16 PWM-chip timing (1 on non-PWM chips)),"values [(np.int64(62), 1011), (np.int64(1), 187), (np.int64(60), 14), (np.int64(10), 7)]",0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x18a,394,20,4:494 19:239 12:220,unknown,,best key chip+S: agr=0.791 shuf=0.497,0,0.424,0.437,0.427,0.681,0.489,0.791,0.842
+0x18b,395,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x18c,396,1,232:1219,annotated-const,u16 = 1000 (timing block constant),1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x18d,397,1,3:1219,annotated-const,part of field @0x18c (u16 = 1000 (timing block constant)),1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x18e,398,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x18f,399,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x190,400,20,4:494 19:239 12:220,unknown,,best key chip+S: agr=0.791 shuf=0.497,0,0.424,0.437,0.427,0.681,0.489,0.791,0.842
+0x191,401,3,0:1192 14:19 12:8,unknown,,best key chip+geo: agr=0.990 shuf=0.983,0,0.978,0.982,0.978,0.978,0.983,0.982,0.990
+0x192,402,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x193,403,2,0:1091 1:128,likely-determined-by:chip+geo,consistent within chip+geo groups,agr=0.959 shuf=0.906 G=375,50,0.901,0.915,0.902,0.902,0.925,0.929,0.959
+0x194,404,1,232:1219,annotated-const,u16 = 1000 (timing block constant),1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x195,405,1,3:1219,annotated-const,part of field @0x194 (u16 = 1000 (timing block constant)),1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x196,406,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x197,407,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x198,408,37,17:357 4:143 77:135,unknown,,best key chip+geo: agr=0.705 shuf=0.475,0,0.315,0.335,0.318,0.486,0.390,0.632,0.705
+0x199,409,2,0:851 1:368,likely-determined-by:chip+geo,consistent within chip+geo groups,agr=0.952 shuf=0.768 G=375,58,0.698,0.711,0.700,0.902,0.719,0.933,0.952
+0x19a,410,2,64:963 0:256,annotated,64-entry table: ramp 64..127 or all-zero,"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x19b,411,2,65:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x19c,412,2,66:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x19d,413,2,67:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x19e,414,2,68:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x19f,415,2,69:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1a0,416,2,70:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1a1,417,2,71:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1a2,418,2,72:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1a3,419,2,73:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1a4,420,2,74:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1a5,421,2,75:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1a6,422,2,76:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1a7,423,2,77:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1a8,424,2,78:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1a9,425,2,79:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1aa,426,2,80:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1ab,427,2,81:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1ac,428,2,82:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1ad,429,2,83:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1ae,430,2,84:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1af,431,2,85:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1b0,432,2,86:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1b1,433,2,87:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1b2,434,2,88:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1b3,435,2,89:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1b4,436,2,90:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1b5,437,2,91:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1b6,438,2,92:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1b7,439,2,93:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1b8,440,2,94:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1b9,441,2,95:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1ba,442,2,96:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1bb,443,2,97:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1bc,444,2,98:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1bd,445,2,99:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1be,446,2,100:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1bf,447,2,101:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1c0,448,2,102:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1c1,449,2,103:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1c2,450,2,104:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1c3,451,2,105:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1c4,452,2,106:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1c5,453,2,107:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1c6,454,2,108:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1c7,455,2,109:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1c8,456,2,110:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1c9,457,2,111:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1ca,458,2,112:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1cb,459,2,113:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1cc,460,2,114:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1cd,461,2,115:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1ce,462,2,116:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1cf,463,2,117:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1d0,464,2,118:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1d1,465,2,119:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1d2,466,2,120:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1d3,467,2,121:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1d4,468,2,122:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1d5,469,2,123:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1d6,470,2,124:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1d7,471,2,125:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1d8,472,2,126:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1d9,473,2,127:963 0:256,annotated,part of field @0x19a (64-entry table: ramp 64..127 or all-zero),"ramp in 79.0%, zero in 21.0%, nothing else; zero/ramp not predicted by any single other byte",0,0.827,0.814,0.819,0.822,0.835,0.916,0.929
+0x1da,474,2,5:788 0:431,unknown,,best key chip+geo: agr=0.880 shuf=0.747,0,0.655,0.667,0.652,0.715,0.692,0.820,0.880
+0x1db,475,7,8:742 16:430 40:31,likely-determined-by:chip+geo,consistent within chip+geo groups,agr=0.951 shuf=0.719 G=375,60,0.613,0.619,0.617,0.909,0.634,0.931,0.951
+0x1dc,476,3,0:1086 32:131 4:2,unknown,,best key chip+geo: agr=0.929 shuf=0.906,0,0.891,0.891,0.893,0.895,0.897,0.918,0.929
+0x1dd,477,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1de,478,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1df,479,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1e0,480,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1e1,481,31,255:985 0:104 128:39,unknown,,best key chip+geo: agr=0.932 shuf=0.831,0,0.811,0.818,0.820,0.880,0.835,0.906,0.932
+0x1e2,482,68,255:538 63:207 31:95,unknown,,best key chip+geo: agr=0.809 shuf=0.555,0,0.455,0.456,0.459,0.676,0.498,0.761,0.809
+0x1e3,483,3,0:1215 255:3 1:1,near-constant,~const 0x00,1215/1219,4,0.997,0.997,0.997,0.997,0.997,0.998,0.998
+0x1e4,484,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1e5,485,24,252:776 255:227 0:157,unknown,,best key chip+geo: agr=0.889 shuf=0.702,0,0.642,0.658,0.653,0.819,0.678,0.863,0.889
+0x1e6,486,105,255:747 127:95 63:57,unknown,,best key chip+geo: agr=0.817 shuf=0.664,0,0.618,0.623,0.624,0.701,0.652,0.769,0.817
+0x1e7,487,6,0:659 3:538 1:13,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.961 shuf=0.670 G=254,48,0.581,0.578,0.576,0.934,0.611,0.961,0.969
+0x1e8,488,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1e9,489,5,192:798 255:227 0:161,unknown,,best key chip+geo: agr=0.899 shuf=0.718,0,0.660,0.676,0.669,0.830,0.694,0.874,0.899
+0x1ea,490,41,255:913 0:67 63:57,unknown,,best key chip+geo: agr=0.867 shuf=0.779,0,0.754,0.757,0.761,0.797,0.774,0.829,0.867
+0x1eb,491,31,63:536 15:211 7:107,unknown,,best key chip+S: agr=0.774 shuf=0.515,0,0.454,0.459,0.458,0.686,0.503,0.774,0.819
+0x1ec,492,2,0:1217 1:2,near-constant,~const 0x00,1217/1219,2,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x1ed,493,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1ee,494,14,0:865 4:93 3:75,unknown,,best key chip+geo: agr=0.889 shuf=0.754,0,0.713,0.715,0.722,0.751,0.738,0.852,0.889
+0x1ef,495,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1f0,496,19,0:865 8:53 6:44,unknown,,best key chip+geo: agr=0.880 shuf=0.751,0,0.713,0.715,0.722,0.730,0.738,0.839,0.880
+0x1f1,497,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1f2,498,2,0:1213 1:6,near-constant,~const 0x00,1213/1219,6,0.998,0.998,0.998,0.995,0.998,0.998,0.998
+0x1f3,499,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1f4,500,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1f5,501,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1f6,502,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1f7,503,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1f8,504,2,0:633 205:586,annotated,"f32 in {0, 0.1}",1219/1219 files,0,0.574,0.551,0.570,0.668,0.615,0.751,0.787
+0x1f9,505,2,0:633 204:586,annotated,"part of field @0x1f8 (f32 in {0, 0.1})",1219/1219 files,0,0.574,0.551,0.570,0.668,0.615,0.751,0.787
+0x1fa,506,2,0:633 204:586,annotated,"part of field @0x1f8 (f32 in {0, 0.1})",1219/1219 files,0,0.574,0.551,0.570,0.668,0.615,0.751,0.787
+0x1fb,507,2,0:633 61:586,annotated,"part of field @0x1f8 (f32 in {0, 0.1})",1219/1219 files,0,0.574,0.551,0.570,0.668,0.615,0.751,0.787
+0x1fc,508,1,232:1219,constant,const 0xe8,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1fd,509,1,3:1219,constant,const 0x03,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1fe,510,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x1ff,511,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x200,512,24,0:535 67:352 52:135,unknown,,best key chip: agr=0.614 shuf=0.452,0,0.452,0.473,0.457,0.614,0.510,0.703,0.755
+0x201,513,5,0:843 1:371 3:2,unknown,,best key chip+geo: agr=0.865 shuf=0.756,0,0.718,0.742,0.730,0.758,0.782,0.834,0.865
+0x202,514,17,0:1171 115:11 10:7,unknown,,best key chip+geo: agr=0.980 shuf=0.963,0,0.961,0.961,0.961,0.961,0.961,0.975,0.980
+0x203,515,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x204,516,2,0:1184 1:35,annotated,chip id high byte (with 0x36 low),1 for 35 files (ids >= 0x100),0,0.971,0.971,0.971,1.000,0.971,1.000,1.000
+0x205,517,2,0:1117 1:102,likely-determined-by:chip+S,consistent within chip+S groups,agr=0.970 shuf=0.920 G=254,36,0.916,0.916,0.916,0.956,0.916,0.970,0.972
+0x206,518,3,0:1212 2:4 5:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x207,519,2,0:1216 1:3,near-constant,~const 0x00,1216/1219,3,0.998,0.998,0.998,0.998,0.998,1.000,1.000
+0x208,520,3,0:1212 2:4 3:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x209,521,2,0:1216 5:3,near-constant,~const 0x00,1216/1219,3,0.998,0.998,0.998,0.998,0.998,1.000,1.000
+0x20a,522,3,0:1212 3:4 1:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x20b,523,3,0:1212 1:4 3:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x20c,524,3,0:1212 4:4 5:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x20d,525,3,0:1212 2:4 1:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x20e,526,2,0:1216 3:3,near-constant,~const 0x00,1216/1219,3,0.998,0.998,0.998,0.998,0.998,1.000,1.000
+0x20f,527,3,0:1212 3:4 5:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x210,528,2,0:1212 1:7,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x211,529,3,0:1212 4:4 3:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x212,530,3,0:1212 2:4 5:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x213,531,2,0:1216 1:3,near-constant,~const 0x00,1216/1219,3,0.998,0.998,0.998,0.998,0.998,1.000,1.000
+0x214,532,2,0:1212 3:7,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x215,533,3,0:1212 1:4 5:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x216,534,3,0:1212 4:4 1:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x217,535,3,0:1212 2:4 3:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x218,536,2,0:1212 3:7,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x219,537,3,0:1212 1:4 5:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x21a,538,3,0:1212 4:4 1:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x21b,539,3,0:1212 2:4 3:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x21c,540,2,0:1216 5:3,near-constant,~const 0x00,1216/1219,3,0.998,0.998,0.998,0.998,0.998,1.000,1.000
+0x21d,541,3,0:1212 3:4 1:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x21e,542,3,0:1212 1:4 3:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x21f,543,3,0:1212 4:4 5:3,near-constant,~const 0x00,1212/1219,7,0.994,0.994,0.994,0.994,0.994,0.998,0.998
+0x220,544,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x221,545,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x222,546,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x223,547,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x224,548,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x225,549,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x226,550,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x227,551,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x228,552,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x229,553,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x22a,554,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x22b,555,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x22c,556,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x22d,557,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x22e,558,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x22f,559,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x230,560,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x231,561,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x232,562,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x233,563,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x234,564,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x235,565,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x236,566,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x237,567,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x238,568,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x239,569,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x23a,570,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x23b,571,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x23c,572,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x23d,573,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x23e,574,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x23f,575,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x240,576,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x241,577,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x242,578,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x243,579,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x244,580,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x245,581,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x246,582,2,20:676 0:543,unknown,,best key chip+S: agr=0.823 shuf=0.664,0,0.619,0.611,0.615,0.731,0.655,0.823,0.856
+0x247,583,2,0:1217 8:2,near-constant,~const 0x00,1217/1219,2,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x248,584,2,0:1154 20:65,unknown,,best key S: agr=0.947 shuf=0.947,0,0.947,0.947,0.947,0.947,0.949,0.950,0.952
+0x249,585,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x24a,586,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x24b,587,8,0:1069 12:53 13:51,unknown,,best key chip+geo: agr=0.910 shuf=0.891,0,0.877,0.879,0.879,0.883,0.887,0.898,0.910
+0x24c,588,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x24d,589,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x24e,590,2,0:1216 1:3,near-constant,~const 0x00,1216/1219,3,0.998,0.998,0.998,0.998,0.998,0.998,0.998
+0x24f,591,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x250,592,2,0:1218 1:1,near-constant,~const 0x00,1218/1219,1,0.999,0.999,0.999,0.999,0.999,0.999,0.999
+0x251,593,2,0:1211 1:8,near-constant,~const 0x00,1211/1219,8,0.993,0.993,0.993,0.998,0.993,0.998,0.998
+0x252,594,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x253,595,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x254,596,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x255,597,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x256,598,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x257,599,3,0:1131 19:83 5:5,unknown,,best key chip+geo: agr=0.965 shuf=0.938,0,0.929,0.933,0.930,0.934,0.938,0.955,0.965
+0x258,600,3,0:1131 39:83 10:5,unknown,,best key chip+geo: agr=0.965 shuf=0.938,0,0.929,0.933,0.930,0.934,0.938,0.955,0.965
+0x259,601,3,0:1131 58:83 15:5,unknown,,best key chip+geo: agr=0.965 shuf=0.938,0,0.929,0.933,0.930,0.934,0.938,0.955,0.965
+0x25a,602,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x25b,603,2,0:1218 1:1,near-constant,~const 0x00,1218/1219,1,0.999,0.999,0.999,0.999,0.999,0.999,0.999
+0x25c,604,2,0:1139 136:80,unknown,,best key chip+geo: agr=0.966 shuf=0.943,0,0.935,0.937,0.935,0.940,0.939,0.957,0.966
+0x25d,605,2,0:1139 16:80,unknown,,best key chip+geo: agr=0.966 shuf=0.943,0,0.935,0.937,0.935,0.940,0.939,0.957,0.966
+0x25e,606,2,0:1139 152:80,unknown,,best key chip+geo: agr=0.966 shuf=0.943,0,0.935,0.937,0.935,0.940,0.939,0.957,0.966
+0x25f,607,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x260,608,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x261,609,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x262,610,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x263,611,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x264,612,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x265,613,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x266,614,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x267,615,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x268,616,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x269,617,4,0:1083 1:131 6:3,unknown,,best key chip+S: agr=0.926 shuf=0.893,0,0.888,0.888,0.888,0.900,0.892,0.926,0.936
+0x26a,618,2,0:1218 2:1,near-constant,~const 0x00,1218/1219,1,0.999,0.999,0.999,0.999,0.999,0.999,1.000
+0x26b,619,2,0:1218 4:1,near-constant,~const 0x00,1218/1219,1,0.999,0.999,0.999,0.999,0.999,0.999,1.000
+0x26c,620,2,0:1186 1:33,unknown,,best key chip+geo: agr=0.988 shuf=0.977,0,0.973,0.973,0.973,0.974,0.974,0.983,0.988
+0x26d,621,2,0:1022 1:197,unknown,,best key chip+geo: agr=0.910 shuf=0.859,0,0.838,0.838,0.842,0.861,0.847,0.893,0.910
+0x26e,622,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x26f,623,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x270,624,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x271,625,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x272,626,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x273,627,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x274,628,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x275,629,2,0:1096 128:123,unknown,,best key chip+geo: agr=0.934 shuf=0.912,0,0.899,0.899,0.902,0.902,0.906,0.924,0.934
+0x276,630,2,0:1096 63:123,unknown,,best key chip+geo: agr=0.934 shuf=0.912,0,0.899,0.899,0.902,0.902,0.906,0.924,0.934
+0x277,631,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x278,632,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x279,633,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x27a,634,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x27b,635,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x27c,636,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x27d,637,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x27e,638,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x27f,639,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x280,640,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x281,641,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x282,642,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x283,643,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x284,644,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x285,645,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x286,646,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x287,647,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x288,648,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x289,649,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x28a,650,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x28b,651,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x28c,652,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x28d,653,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x28e,654,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x28f,655,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x290,656,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x291,657,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x292,658,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x293,659,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x294,660,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x295,661,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x296,662,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x297,663,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x298,664,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x299,665,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x29a,666,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x29b,667,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x29c,668,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x29d,669,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x29e,670,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x29f,671,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2a0,672,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2a1,673,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2a2,674,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2a3,675,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2a4,676,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2a5,677,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2a6,678,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2a7,679,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2a8,680,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2a9,681,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2aa,682,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ab,683,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ac,684,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ad,685,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ae,686,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2af,687,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2b0,688,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2b1,689,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2b2,690,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2b3,691,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2b4,692,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2b5,693,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2b6,694,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2b7,695,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2b8,696,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2b9,697,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ba,698,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2bb,699,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2bc,700,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2bd,701,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2be,702,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2bf,703,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2c0,704,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2c1,705,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2c2,706,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2c3,707,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2c4,708,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2c5,709,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2c6,710,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2c7,711,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2c8,712,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2c9,713,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ca,714,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2cb,715,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2cc,716,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2cd,717,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ce,718,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2cf,719,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2d0,720,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2d1,721,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2d2,722,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2d3,723,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2d4,724,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2d5,725,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2d6,726,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2d7,727,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2d8,728,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2d9,729,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2da,730,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2db,731,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2dc,732,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2dd,733,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2de,734,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2df,735,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2e0,736,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2e1,737,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2e2,738,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2e3,739,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2e4,740,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2e5,741,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2e6,742,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2e7,743,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2e8,744,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2e9,745,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ea,746,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2eb,747,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ec,748,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ed,749,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ee,750,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2ef,751,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2f0,752,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2f1,753,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2f2,754,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2f3,755,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2f4,756,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2f5,757,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2f6,758,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2f7,759,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2f8,760,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2f9,761,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2fa,762,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000
+0x2fb,763,1,0:1219,constant,const 0x00,1219/1219,0,1.000,1.000,1.000,1.000,1.000,1.000,1.000

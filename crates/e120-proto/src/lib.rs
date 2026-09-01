@@ -69,6 +69,24 @@ pub fn read_flash(rcv_index: u16, page: u16) -> Vec<u8> {
     frame([0x06, 0x00], &p)
 }
 
+/// Frame type the card answers a flash read with.
+pub const FLASH_REPLY_TYPE: [u8; 2] = [0x09, 0x01];
+
+/// Payload bytes of flash data carried by each reply frame.
+pub const FLASH_CHUNK_BYTES: usize = 1024;
+
+/// Extract the flash bytes from a reply frame.
+///
+/// A reply is the Ethernet header, a one-byte status, then the flash data,
+/// zero-padded out to a fixed frame size.
+pub fn flash_reply_data(eth_frame: &[u8]) -> Option<&[u8]> {
+    if eth_frame.len() < 15 || eth_frame[12..14] != FLASH_REPLY_TYPE {
+        return None;
+    }
+    let data = &eth_frame[15..];
+    Some(&data[..data.len().min(FLASH_CHUNK_BYTES)])
+}
+
 /// Brightness frame: type 0x0A<brightness>, 63-byte payload.
 pub fn brightness(b: u8) -> Vec<u8> {
     let mut p = [0u8; 63];

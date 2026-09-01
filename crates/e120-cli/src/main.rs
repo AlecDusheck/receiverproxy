@@ -71,23 +71,23 @@ enum Cmd {
     },
     /// Blank the panel
     Blank,
-    /// Read the card's stored parameters back (read-only)
-    ReadParams {
+    /// Read the card's stored configuration into a .rcvbp file (read-only)
+    ReadConfig {
+        /// Where to write the recovered .rcvbp
+        #[arg(long, default_value = "card-config.rcvbp")]
+        out: String,
         /// Receiver index on the chain
-        #[arg(long, default_value_t = 1)]
+        #[arg(long, default_value_t = 0)]
         index: u16,
         /// Starting 256-byte flash page
         #[arg(long, default_value_t = protocol::FLASH_PAGE_BASIC_PARAM)]
         page: u16,
-        /// Number of 1024-byte chunks to request
-        #[arg(long, default_value_t = 2)]
-        chunks: u16,
-        /// Seconds to listen for replies after each request
+        /// Safety stop: most 1024-byte chunks to request
+        #[arg(long, default_value_t = 64)]
+        max_chunks: u16,
+        /// Seconds to wait for each reply
         #[arg(long, default_value_t = 2)]
         wait: u64,
-        /// Write the reassembled reply payloads here
-        #[arg(long)]
-        out: Option<String>,
     },
     /// Inspect a .rcvbp receiver-parameter file
     Rcvbp {
@@ -158,13 +158,13 @@ fn main() -> Result<()> {
             let fb = solid(&cli, 0, 0, 0);
             show(&cli, &fb, false)
         }
-        Cmd::ReadParams {
+        Cmd::ReadConfig {
+            out,
             index,
             page,
-            chunks,
+            max_chunks,
             wait,
-            out,
-        } => read_params(&cli, *index, *page, *chunks, *wait, out.as_deref()),
+        } => read_config(&cli, *index, *page, *max_chunks, *wait, out),
         Cmd::Rcvbp { path, dump } => rcvbp_info(path, *dump),
         Cmd::PcapSummary { path, dump } => pcap_summary(path, *dump),
         Cmd::Replay {
@@ -186,63 +186,83 @@ fn is_card_frame(d: &[u8]) -> bool {
     d.len() >= 14 && d[6..12] == protocol::CARD_MAC
 }
 
-/// Read stored parameters out of the card. This only ever sends read-opcode
-/// flash-operation frames, which carry no data and cannot modify the card.
-fn read_params(
+/// Read the card's stored configuration out of flash and save it as a
+/// `.rcvbp` file. Only ever sends read-opcode flash frames, which carry no
+/// data of their own and so cannot modify the card.
+fn read_config(
     cli: &Cli,
     index: u16,
     page: u16,
-    chunks: u16,
+    max_chunks: u16,
     wait: u64,
-    out: Option<&str>,
+    out: &str,
 ) -> Result<()> {
     let mut dev = open(cli)?;
-    let mut collected: Vec<u8> = Vec::new();
+    let mut flash: Vec<u8> = Vec::new();
+    let mut expected: Option<usize> = None;
 
-    for chunk in 0..chunks {
+    for chunk in 0..max_chunks {
         let page = page + chunk * protocol::FLASH_PAGES_PER_CHUNK;
-        let req = protocol::read_flash(index, page);
-        println!(
-            "requesting page 0x{page:04x} (receiver {index}), {} byte frame",
-            req.len()
-        );
-        dev.send(&req)?;
+        dev.send(&protocol::read_flash(index, page))?;
 
         let deadline = Instant::now() + Duration::from_secs(wait);
-        let mut replies = 0;
-        while Instant::now() < deadline {
+        let mut got = false;
+        while Instant::now() < deadline && !got {
             for f in dev.recv()? {
-                // Only the card's own replies; the interface also carries
-                // unrelated broadcast traffic (DHCP and friends).
-                if f.len() < 14 || f[6..12] != protocol::CARD_MAC {
+                if !is_card_frame(&f) {
                     continue;
                 }
-                replies += 1;
-                println!(
-                    "  reply {replies}: type {:02x}{:02x} len {}",
-                    f[12],
-                    f[13],
-                    f.len()
-                );
-                if replies <= 2 {
-                    hexdump(&f[..f.len().min(96)]);
+                if let Some(data) = protocol::flash_reply_data(&f) {
+                    flash.extend_from_slice(data);
+                    got = true;
+                    break;
                 }
-                collected.extend_from_slice(&f[14..]);
             }
         }
-        if replies == 0 {
-            println!("  no reply within {wait}s");
-        } else {
-            println!(
-                "  {replies} reply frames, {} payload bytes so far",
-                collected.len()
-            );
+        if !got {
+            anyhow::bail!("no reply for page 0x{page:04x} after {wait}s");
+        }
+
+        // The blob opens with its own total length, so we know when to stop.
+        if expected.is_none() && flash.len() >= 4 {
+            let n = u32::from_le_bytes([flash[0], flash[1], flash[2], flash[3]]) as usize;
+            println!("card reports {n} bytes of stored configuration");
+            expected = Some(n);
+        }
+        if expected.is_some_and(|n| flash.len() >= n) {
+            break;
         }
     }
 
-    if let Some(path) = out {
-        std::fs::write(path, &collected).with_context(|| format!("write {path}"))?;
-        println!("wrote {} bytes to {path}", collected.len());
+    let total = expected.context("card returned no length prefix")?;
+    if flash.len() < total {
+        anyhow::bail!(
+            "only read {} of {total} bytes; raise --max-chunks",
+            flash.len()
+        );
+    }
+    // Drop the length prefix; what follows is a .rcvbp file.
+    let file = &flash[4..total];
+    std::fs::write(out, file).with_context(|| format!("write {out}"))?;
+    println!("wrote {} bytes to {out}", file.len());
+
+    match rcvbp::Rcvbp::load(out) {
+        Ok(f) => {
+            println!("parsed: {} records", f.records.len());
+            if let Some((w, scan)) = f.geometry() {
+                println!("configured for width {w}, 1/{scan} scan");
+            }
+            let has_chip_regs = f.find(0x0a84).is_some_and(|r| !r.is_empty_table());
+            println!(
+                "driver-chip register table: {}",
+                if has_chip_regs {
+                    "present"
+                } else {
+                    "ABSENT - panels with PWM driver ICs will stay dark"
+                }
+            );
+        }
+        Err(e) => println!("saved, but did not parse as .rcvbp: {e}"),
     }
     Ok(())
 }

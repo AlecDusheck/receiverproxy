@@ -1219,3 +1219,45 @@ Three independent reasons the §12.4 frame cannot write:
 My verdict: sending the §12.4 frame is **safe** — it is a zero-payload read
 request. The residual uncertainty is `payload[6]`'s meaning; if you want zero
 residual risk, that is the one byte worth further static work before transmitting.
+
+---
+
+# Verified on hardware: reading the card's stored configuration
+
+Confirmed against a real E120 (firmware 10.81) on 2026-08-31.
+
+Sending the read frame (type `0x0600`, opcode `0x44`, page `0x0780`) with
+**receiver index 0** — index 1 gets no answer — makes the card reply with
+frames of type `0x0901`, 1070 bytes each:
+
+```
+[14 bytes Ethernet][1 byte status = 0x01][1024 bytes flash data][zero padding]
+```
+
+Successive 1024-byte chunks come from pages advancing by 4. Concatenated, the
+flash region holds:
+
+```
+[u32 little-endian total length, counting itself][a complete .rcvbp file]
+```
+
+For this card the length was 9112, giving a 9108-byte file: a 32-byte header
+plus a 9076-byte zlib stream that inflated to 33 504 bytes and parsed as 14
+records. **The card stores its configuration in the same `.rcvbp` container
+format as the files shipped with panels**, which means configuring it may not
+require re-serializing into typed packs at all.
+
+## Root cause of the dark panel
+
+Diffing the card's stored configuration against the panel's own `.rcvbp`:
+
+* The card's copy is **missing record `0x84` entirely** — the driver-chip
+  register table.
+* In record `0x01`, the whole region `+0x269`–`+0x282` is zero on the card but
+  populated in the panel's file.
+
+The panel uses an SM16269S, a PWM driver IC that emits nothing until its
+registers are programmed. The card is configured for a panel with plain
+shift-register drivers, which need no such initialisation. Geometry matches
+(128x64, 1/32 scan), which is why the card self-reports the correct size while
+the panel stays dark and draws no current.

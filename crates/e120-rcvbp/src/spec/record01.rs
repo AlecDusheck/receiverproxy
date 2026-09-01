@@ -6,7 +6,7 @@
 use super::PanelSpec;
 use crate::chips::ChipLibrary;
 use crate::record01::{off, LEN};
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 
 /// Non-zero bytes of a freshly constructed config before any user setting:
 /// (offset, bytes). Ramps and floats are spelled out where the constructor
@@ -110,12 +110,12 @@ pub fn build(spec: &PanelSpec, chip: &ChipLibrary, prov: &mut Vec<String>) -> Re
     put(off::COLOR_SOURCE, &spec.color.source, "color.source");
     put(off::GCLOCK, &[spec.timing.gclock], "timing.gclock");
     put(off::GAINS, &spec.current.gains, "current.gains");
-    put(off::CHIP_LO, &[(chip.family_id & 0xFF) as u8], "chip family id low byte");
-    put(off::CHIP_HI, &[(chip.family_id >> 8) as u8], "chip family id high byte");
-    if let Some(sub) = chip.sub_id {
-        put(off::SUB_CHIP_LO, &[(sub & 0xFF) as u8], "chip sub-id low byte");
-        put(off::SUB_CHIP_HI, &[(sub >> 8) as u8], "chip sub-id high byte");
-    }
+    let family = spec.chip.family_id.unwrap_or(chip.family_id);
+    let sub = spec.chip.sub_id.or(chip.sub_id).unwrap_or(0);
+    put(off::CHIP_LO, &[(family & 0xFF) as u8], "chip family id low byte");
+    put(off::CHIP_HI, &[(family >> 8) as u8], "chip family id high byte");
+    put(off::SUB_CHIP_LO, &[(sub & 0xFF) as u8], "chip sub-id low byte");
+    put(off::SUB_CHIP_HI, &[(sub >> 8) as u8], "chip sub-id high byte");
     put(off::LINE_DIR, &[m.line_dir], "module.line_dir");
     put(0x044, &[spec.module.data_groups], "module.data_groups");
     put(off::SERIAL_CLOCK_HALF, &(sck / 2).to_le_bytes(), "serial clock / 2");
@@ -137,5 +137,13 @@ pub fn build(spec: &PanelSpec, chip: &ChipLibrary, prov: &mut Vec<String>) -> Re
     put(off::MAX_W, &spec.screen.width.to_le_bytes(), "screen.width (MaxWidth)");
     put(off::MAX_H, &spec.screen.height.to_le_bytes(), "screen.height (MaxHeight)");
     put(0x0C4, &chip.chip_control, "chip library chip_control (SChipControl)");
+    for (key, value) in &spec.record01_overrides {
+        let at = usize::from_str_radix(key.trim_start_matches("0x"), 16)
+            .with_context(|| format!("bad record01_overrides offset {key:?}"))?;
+        if at >= LEN {
+            bail!("record01_overrides offset {key} is past the record");
+        }
+        put(at, &[*value], "record01_overrides (experiment)");
+    }
     Ok(p)
 }

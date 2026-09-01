@@ -38,6 +38,10 @@ pub struct PanelSpec {
     pub mapping: Mapping,
     #[serde(default)]
     pub boot: Boot,
+    /// Raw record 0x01 byte overrides for experiments: `"0x043" = 0x20`.
+    /// Applied last; every use is reported in the provenance.
+    #[serde(default)]
+    pub record01_overrides: std::collections::BTreeMap<String, u8>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -75,6 +79,10 @@ pub struct Screen {
 pub struct Chip {
     /// Chip library (`config/chips/*.toml`): ids, register defaults, chip control.
     pub library: String,
+    /// Override the library's family id (experiments).
+    pub family_id: Option<u16>,
+    /// Override the library's sub-variant id (experiments); 0 clears it.
+    pub sub_id: Option<u16>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

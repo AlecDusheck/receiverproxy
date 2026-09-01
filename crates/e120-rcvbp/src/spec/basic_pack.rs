@@ -41,7 +41,10 @@ pub fn body(spec: &PanelSpec, rec: &View, prov: &mut Vec<String>) -> [u8; 256] {
     put(0x16, &lum.to_be_bytes(), "record +0x026 (BE)");
     put(0x19, &[r[0x02F]], "record +0x02F");
     put(0x1A, &[0x80], "constant (image writer)");
-    put(0x1B, &[0xFE], "chip-id escape (id >= 0x100)");
+    // ResetChipType @ 0x1e5130: ids below 0x100 go in the byte slot with the
+    // 16-bit field zeroed; larger ids set the 0xFE escape and ride at 0xE7.
+    let chip_id = rec.chip_id();
+    put(0x1B, &[if chip_id < 0x100 { chip_id as u8 } else { 0xFE }], "chip id / escape");
     put(0x1C, &[r[0x037]], "record +0x037 serial type");
     put(0x1D, &[rec.line_dir()], "line dir");
     put(0x1E, &[r[0x0E6]], "record +0x0E6 packed flags");
@@ -81,7 +84,8 @@ pub fn body(spec: &PanelSpec, rec: &View, prov: &mut Vec<String>) -> [u8; 256] {
     put(0xD8, &r[0x0EA..0x0F0], "record +0x0EA");
     put(0xE3, &scan_len.to_be_bytes(), "MaxPsc full (BE)");
     put(0xE5, &scan_len.to_be_bytes(), "MaxPsc max (BE)");
-    put(0xE7, &rec.chip_id().to_be_bytes(), "chip id (BE)");
+    let escaped = if chip_id < 0x100 { 0 } else { chip_id };
+    put(0xE7, &escaped.to_be_bytes(), "chip id (BE, zero when it fits the byte slot)");
     put(0xF5, &[r[0x1EE], r[0x1F0], r[0x1F7]], "record +0x1EE, +0x1F0, +0x1F7");
     put(0xFA, &[r[0x193].wrapping_mul(2)], "2 x record +0x193");
     let crc = body_crc(&b);

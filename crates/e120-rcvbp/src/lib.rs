@@ -25,7 +25,7 @@
 //!           gamma / calibration tables (all zero in an uncalibrated profile)
 
 use anyhow::{bail, Context, Result};
-use std::io::Read;
+use std::io::{Read, Write};
 
 #[derive(Clone)]
 pub struct Record {
@@ -37,6 +37,15 @@ pub struct Record {
 }
 
 impl Record {
+    /// A record not read from a file, ready to be written into one.
+    pub fn new(rtype: u16, payload: Vec<u8>) -> Self {
+        Self {
+            offset: 0,
+            rtype: rtype.to_be_bytes(),
+            payload,
+        }
+    }
+
     pub fn type_u16(&self) -> u16 {
         u16::from_be_bytes(self.rtype)
     }
@@ -116,9 +125,97 @@ impl Rcvbp {
         }
         Some((r.payload[0], r.payload[1]))
     }
+
+    pub fn find_mut(&mut self, rtype: u16) -> Option<&mut Record> {
+        self.records.iter_mut().find(|r| r.type_u16() == rtype)
+    }
+
+    /// Replace a record's payload, or append the record if absent.
+    ///
+    /// New records are inserted before the trailing geometry record when there
+    /// is one, matching where vendor files place them.
+    pub fn upsert(&mut self, rtype: u16, payload: Vec<u8>) {
+        if let Some(r) = self.find_mut(rtype) {
+            r.payload = payload;
+            return;
+        }
+        let rec = Record::new(rtype, payload);
+        match self.records.iter().position(|r| r.type_u16() == 0x0aca) {
+            Some(i) => self.records.insert(i, rec),
+            None => self.records.push(rec),
+        }
+    }
+
+    pub fn remove(&mut self, rtype: u16) -> bool {
+        let before = self.records.len();
+        self.records.retain(|r| r.type_u16() != rtype);
+        self.records.len() != before
+    }
+
+    /// Serialise the records back into a record stream.
+    ///
+    /// # Errors
+    /// Fails if a record is too large for the 16-bit length field.
+    pub fn to_blob(&self) -> Result<Vec<u8>> {
+        let mut out = Vec::new();
+        for r in &self.records {
+            let size: u16 = r
+                .payload
+                .len()
+                .checked_add(4)
+                .and_then(|n| u16::try_from(n).ok())
+                .with_context(|| {
+                    format!(
+                        "record 0x{:04x} is too large to encode ({} bytes)",
+                        r.type_u16(),
+                        r.payload.len()
+                    )
+                })?;
+            out.extend_from_slice(&size.to_le_bytes());
+            out.extend_from_slice(&r.rtype);
+            out.extend_from_slice(&r.payload);
+        }
+        Ok(out)
+    }
+
+    /// Serialise to a complete `.rcvbp` file in the compressed variant.
+    ///
+    /// # Errors
+    /// Fails if a record cannot be encoded or compression fails.
+    pub fn to_file_bytes(&self) -> Result<Vec<u8>> {
+        let blob = self.to_blob()?;
+        let mut enc = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+        enc.write_all(&blob).context("compress record stream")?;
+        let compressed = enc.finish().context("finish compression")?;
+
+        let mut out = Vec::with_capacity(0x20 + compressed.len());
+        out.extend_from_slice(&SIGNATURE);
+        out.extend_from_slice(&self.version.to_le_bytes());
+        out.extend_from_slice(&(compressed.len() as u32).to_le_bytes());
+        out.extend_from_slice(&(blob.len() as u32).to_le_bytes());
+        out.extend_from_slice(&0u32.to_le_bytes());
+        out.extend_from_slice(&compressed);
+        Ok(out)
+    }
+
+    /// Write a `.rcvbp` file.
+    ///
+    /// # Errors
+    /// Fails if serialisation or the write fails.
+    pub fn save(&self, path: &str) -> Result<()> {
+        let bytes = self.to_file_bytes()?;
+        std::fs::write(path, &bytes).with_context(|| format!("write {path}"))?;
+        Ok(())
+    }
 }
 
-/// Signature of the newer, zlib-compressed variant.
+/// Full 16-byte signature of the compressed variant, as written by the vendor
+/// tools and validated by the card. Files we generate reuse it verbatim.
+const SIGNATURE: [u8; 16] = [
+    0x20, 0x20, 0x19, 0xbe, 0x74, 0x23, 0x43, 0x45, 0xb1, 0xc7, 0x93, 0x03, 0x9b, 0x83, 0xae, 0xab,
+];
+
+/// The first four signature bytes, enough to tell the variants apart.
 const SIG_COMPRESSED: [u8; 4] = [0x20, 0x20, 0x19, 0xbe];
 
 fn parse_records(blob: &[u8], slack: usize) -> Result<Vec<Record>> {
@@ -158,4 +255,84 @@ fn le_u32(d: &[u8], off: usize) -> Result<u32> {
         .context("truncated rcvbp header")?
         .try_into()?;
     Ok(u32::from_le_bytes(b))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample() -> Rcvbp {
+        Rcvbp {
+            version: 4,
+            blob: Vec::new(),
+            records: vec![
+                Record::new(0x0a01, vec![0x80, 0x20, 1, 0]),
+                Record::new(0x0a03, vec![7; 32]),
+                Record::new(0x0aca, vec![0x80, 0, 0x20, 0]),
+            ],
+        }
+    }
+
+    #[test]
+    fn records_round_trip_through_a_blob() {
+        let f = sample();
+        let blob = f.to_blob().unwrap();
+        let parsed = parse_records(&blob, 0).unwrap();
+        assert_eq!(parsed.len(), f.records.len());
+        for (a, b) in parsed.iter().zip(&f.records) {
+            assert_eq!(a.type_u16(), b.type_u16());
+            assert_eq!(a.payload, b.payload);
+        }
+    }
+
+    #[test]
+    fn blob_tiles_exactly() {
+        let f = sample();
+        let blob = f.to_blob().unwrap();
+        let expected: usize = f.records.iter().map(|r| r.payload.len() + 4).sum();
+        assert_eq!(blob.len(), expected);
+    }
+
+    #[test]
+    fn upsert_replaces_existing_and_appends_new_before_geometry() {
+        let mut f = sample();
+        f.upsert(0x0a01, vec![1, 2, 3]);
+        assert_eq!(f.find(0x0a01).unwrap().payload, vec![1, 2, 3]);
+        assert_eq!(f.records.len(), 3);
+
+        f.upsert(0x0a84, vec![9; 8]);
+        assert_eq!(f.records.len(), 4);
+        // Inserted ahead of the trailing geometry record.
+        assert_eq!(f.records.last().unwrap().type_u16(), 0x0aca);
+    }
+
+    #[test]
+    fn remove_reports_whether_it_removed_anything() {
+        let mut f = sample();
+        assert!(f.remove(0x0a03));
+        assert!(!f.remove(0x0a03));
+        assert!(f.find(0x0a03).is_none());
+    }
+
+    #[test]
+    fn a_written_file_parses_back_identically() {
+        let f = sample();
+        let bytes = f.to_file_bytes().unwrap();
+        assert_eq!(&bytes[..4], &SIG_COMPRESSED);
+
+        let dir = std::env::temp_dir().join("e120-rcvbp-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("round-trip.rcvbp");
+        let path = path.to_str().unwrap();
+        std::fs::write(path, &bytes).unwrap();
+
+        let back = Rcvbp::load(path).unwrap();
+        assert_eq!(back.version, 4);
+        assert_eq!(back.records.len(), f.records.len());
+        for (a, b) in back.records.iter().zip(&f.records) {
+            assert_eq!(a.type_u16(), b.type_u16());
+            assert_eq!(a.payload, b.payload);
+        }
+        std::fs::remove_file(path).ok();
+    }
 }

@@ -11,8 +11,12 @@ license = "MIT"
 e120-proto = { path = "crates/e120-proto" }
 e120-rcvbp = { path = "crates/e120-rcvbp" }
 e120-net = { path = "crates/e120-net" }
+e120-canvas = { path = "crates/e120-canvas" }
+e120-video = { path = "crates/e120-video" }
 
 anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 libc = "0.2"
 clap = { version = "4", features = ["derive"] }
 flate2 = "1"

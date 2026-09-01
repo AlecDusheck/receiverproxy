@@ -3575,3 +3575,210 @@ That does raise the risk of the three files materially, and it makes the
 descriptor query more valuable still: a declared length that matches only one of
 the two format families is evidence about what this card's bootloader expects,
 independent of the SKU question.
+
+---
+
+## 28. The upgrade path, mapped end to end
+
+This supersedes the fragments in §25 and §26. Confidence is marked per item;
+anything I could not resolve is stated as such rather than omitted.
+
+### 28.0 There are TWO upgrade strategies, and they are structurally different
+
+| | **Quick** | **Slow** |
+|---|---|---|
+| entry | `DoQuickUpgradeRcv` @ `0x3a3610` | `DoSlowUpgradeRcv` @ `0x3a4600` |
+| mechanism | **stages the image into the card's SDRAM**; the card programs its own flash | **host writes flash directly**, frame by frame |
+| builder | `BuildSDRAMOperation` @ `0x30cd70`, type **0x1A00** | `BuildRcvCardFlashOperationEx` @ `0x30b8e0`, type **0x2600** |
+| chunk | **1024 bytes** | 256 bytes |
+| variants | `DoQuickUpgradeRcvBackup` @ `0x3a3e60`, `DoQuickUpgradeRcvNoBackup` @ `0x3a41a0` | single path |
+| gate | `IsAllRcvSupportSDRAM` @ `0x395050` (descriptor `+0x0f`, reply bit 0 — §27.2) | fallback |
+
+**This is the most important thing in this section.** The Quick path never writes
+flash from the host at all — it uploads the image to card RAM and the card's own
+firmware performs the programming. That means the *card* chooses the bank, applies
+its own protection rules, and can validate before committing. It is
+architecturally the safer path and it is the one the tool prefers when the card
+advertises SDRAM support.
+
+The Slow path is the fallback for cards without SDRAM staging, and it is the one
+I specced in §25 — which is also the one whose frames your card rejected.
+
+### 28.1 The SDRAM staging frame (Quick path) — type 0x1A00
+
+`BuildSDRAMOperation(uint* outLen, uchar** outBuf, ushort rcvIdx, uchar mode,
+int, uint addr, uchar* data, uint len, uchar, bool, bool)`:
+
+```
+n = (mode == 1) ? max(0x400, len) + 0x0e : 0x80
+buf = new[n]; bzero
+word [buf+0x00] = 0x001A          ; wire: 1A 00  -> TYPE 0x1A00
+byte [buf+0x02] = 0
+byte [buf+0x03] = rcvIdx >> 8     ; big-endian
+byte [buf+0x04] = rcvIdx & 0xff
+byte [buf+0x05] = mode
+if (mode == 1) {                  ; data-carrying
+    byte [buf+0x06] = 0
+    byte [buf+0x07] = addr >> 16  ; 24-bit SDRAM address, BIG-endian
+    byte [buf+0x08] = addr >> 8
+    byte [buf+0x09] = addr
+}
+if (mode == 0x0a) dword [buf+0x06] = 1
+byte [buf+0x0a] = len >> 24       ; 32-bit length, BIG-endian
+byte [buf+0x0b] = len >> 16
+byte [buf+0x0c] = len >> 8
+byte [buf+0x0d] = len
+if (mode == 1) memcpy(buf + 0x0e, data, len)
+```
+
+Header **0x0e = 14 bytes**. Data frame with 1024-byte chunk → payload
+`0x40e = 1038`, frame **1050 bytes**. Reply selector `0x807d`.
+
+`DoQuickUpgradeRcvBackup` issues three `BuildSDRAMOperation` calls with a
+1024-byte chunk loop (`ebx = 0x400` at `0x3a401d`) — plausibly *begin*, *data*,
+*commit* with different `mode` values, but **I did not resolve which mode value
+each call uses**, so I cannot give you the begin/commit bytes. That is the single
+biggest remaining gap in this section.
+
+### 28.2 The Slow path, in exact order
+
+From `DoSlowUpgradeRcv` @ `0x3a4600`, every call in address order:
+
+| # | address | what | frame? |
+|---|---|---|---|
+| 1 | `0x3a464b` | `[rax+0xa8]` — fills 16 bytes, result XORed with `0x3163` | **no** — local licence/auth check |
+| 2 | `0x3a46bc` | `BuildHwProgramWritable2(enable=1)` → send `0x3a470a` | **UNLOCK**, type 0x2300, payload[5]=0xFF |
+| 3 | `0x3a479b` | `[rax+0x50]` with `esi=0x1e` | **no** — progress/timing |
+| 4 | `0x3a48bd` | `BuildRcvCardFlashOperationEx`, 4 zero stack args → send `0x3a48f8` | type 0x2600, **no data** |
+| 5 | `0x3a49de` | `BuildRcvCardFlashOperationEx`, 4 zero stack args → send `0x3a4a1c` | type 0x2600, **no data** |
+| 6 | `0x3a4ae3`, `0x3a4b80` | `usleep` | |
+| 7 | `0x3a4c62` | `usleep(0x88B8)` = **35 ms**, in a loop | erase pacing |
+| 8 | `0x3a4ce9` | `[rax+0x50]` with `esi=0xf` | **no** — progress/timing |
+| 9 | `0x3a4d36`, `0x3a4e38` | `BuildRcvCardFlashOperationEx`, `push 0x100` + data ptr | type 0x2600, **256-byte data** |
+| 10 | `0x3a4ea4` | `usleep(0x3E8)` = **1 ms** | between chunks |
+| 11 | `0x3a4f17` | `usleep` | |
+| 12 | `0x3a4faa` | `BuildHwProgramWritable2(enable=0)` → send `0x3a4fdf` | **RELOCK**, payload[5]=0x00 |
+| 13 | `0x3a4ffc` | `usleep(0x7530)` = **30 ms** | |
+
+Steps 4 and 5 are the no-data frames that most likely correspond to the erase —
+they sit between the unlock and the data loop and carry no payload. **They are
+type 0x2600, which your card rejects**, so this is consistent with your finding
+that the vendor's Ex frames do not work here while the ordinary config-path
+frames do.
+
+**Ex frame layout** (`0x30b8e0`), for completeness:
+
+```
+byte [buf+0x00] = arg4   ; type byte, 0x26 at every upgrade site
+word [buf+0x01] = 0
+byte [buf+0x03] = rcvIdx >> 8
+byte [buf+0x04] = rcvIdx & 0xff
+byte [buf+0x05] = opcode
+byte [buf+0x06] = stack arg (+0x18)
+byte [buf+0x07] = arg6
+byte [buf+0x08] = stack arg (+0x10)
+byte [buf+0x09] = 0
+memcpy(buf+0x0a, data, len)
+```
+
+Note the field roles differ from the config-path frame — in the Ex frame the
+address bytes are at **[7] and [8]**, not [5] and [6]. That, plus the different
+type byte, is why none of your 0x2600 attempts landed.
+
+### 28.3 Item 2 — which bank: the address comes from the CALLER
+
+**Answer: neither hard-coded nor queried inside the upgrade function.** In
+`DoSlowUpgradeRcv` the destination is built from
+`word [SSlowUpgradeRcvParam + 0x12]` — a **base supplied by the caller** — plus a
+running counter:
+
+```
+0x3a485a  movzx edx, word [rbx + 0x12]   ; rbx = &SSlowUpgradeRcvParam
+0x3a485e  add   edx, r15d                ; r15d = counter, starts at 0 (0x3a4840)
+0x3a4875  movzx eax, dl
+0x3a4878  mov   [var_b0h], eax           ; -> one address byte
+0x3a487e  mov   [var_84h], r15d          ; -> the other address byte
+```
+
+So the bank decision is made **above** this function, by
+`CRcvUpgradeCmdManager` from the upgrade-descriptor data (§27), and passed down.
+I traced it to the parameter struct and no further — **I did not resolve which
+value the manager puts there**, so I cannot tell you "the vendor writes 0x200000"
+or "the vendor writes 0x000000". That is an honest gap, and it is the question you
+most wanted answered.
+
+What the code *does* tell you: the Quick path's split into **Backup** and
+**NoBackup** variants is the bank choice made explicit. A tool that has a
+"backup" upgrade variant is one that knows about two banks and can target either.
+
+Your inference that the card must boot from golden — because the config at
+0x070000–0x07AFFF sits inside the primary image's address range and would corrupt
+it — is sound and I have nothing in the host code that contradicts it.
+
+### 28.4 Item 3 — the protected boot region: the host never unlocks it
+
+I searched the full builder set for any second-level unlock, sector-protection
+register write, or alternate opcode for low blocks. **There is exactly one
+protection primitive in the entire library:** `BuildHwProgramWritable` (type
+0x2000, no callers) and `BuildHwProgramWritable2` (type 0x2300, the receiver one).
+Both take a single `bool` and set one byte. There is no address range, no sector
+mask, no second level.
+
+**Conclusion: the vendor has no mechanism to write blocks 0x00–0x02.** Combined
+with your hardware finding that those blocks refuse erase even when unlocked, the
+192 KB boot region is enforced by the card and the host tooling never touches it.
+
+The implication you drew is right: **only the tail of the image is updatable.**
+Whatever lives in 0x00–0x02 is fixed for the life of the card.
+
+### 28.5 Item 4 — bootability: NOT determinable from host code
+
+Which bank the bootloader tries first, what it validates, and how it decides to
+fall back **is not present in any host-side code**. `libCLTDevice` sends frames
+and parses replies; it contains no model of the card's boot behaviour. The
+descriptor query (§27) reports capability *bits* — has-golden, supports-golden —
+but not the boot policy.
+
+**Stop probing for this on hardware.** It lives in the card's bootloader, which we
+do not have and cannot read over this protocol. The only way to learn it is
+behavioural inference from a card you are willing to risk, which is exactly what
+you should not do.
+
+### 28.6 Item 5 — Quick vs Slow, and which the UI uses
+
+Difference: §28.0. Selection is gated on `IsAllRcvSupportSDRAM` @ `0x395050`,
+which reads descriptor `+0x0f` — **bit 0 of the capability byte** at reply `+0x1F`
+in §27.2. If every attached receiver sets it, the tool uses the SDRAM (Quick)
+path; otherwise it falls back to Slow.
+
+So **the descriptor query you are about to send also tells you which path
+LEDUpgrade would take on your card** — bit 0 of that same byte. I did not trace
+the UI default in `FwUpgrade2.dll` beyond this gate.
+
+### 28.7 What this changes about the plan
+
+Three things worth weighing before any further write:
+
+1. **The Slow path is the wrong tool if your card supports SDRAM staging.** Check
+   bit 0 of the capability byte first. If set, the vendor would never take the
+   path you have been reverse-engineering.
+2. **The Quick path is safer by construction** — the host uploads to RAM and the
+   card programs itself, so bank selection and protection stay under the card's
+   control. If bit 0 is set, that is the path to decode properly, and the gap in
+   §28.1 (the mode values) is what to close next.
+3. **Nothing can update blocks 0x00–0x02.** If the behaviour you need lives in
+   the boot region, no firmware file and no protocol can reach it.
+
+### 28.8 Confidence summary
+
+| item | status |
+|---|---|
+| Quick vs Slow structural difference | **high** |
+| SDRAM frame layout (type 0x1A00, header 0x0e, 1024-byte chunks) | **high** |
+| Slow path call order, unlock/relock, delays | **high** |
+| Ex frame layout and why 0x2600 failed on your card | **high** |
+| Boot region: host has no unlock for 0x00–0x02 | **high** |
+| SDRAM `mode` values for begin/data/commit | **NOT RESOLVED** |
+| Which bank the manager targets | **NOT RESOLVED** — comes from caller |
+| Bootloader validation / fallback policy | **NOT DETERMINABLE from host code** |
+| LEDUpgrade UI default beyond the SDRAM gate | **not traced** |

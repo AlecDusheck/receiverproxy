@@ -93,6 +93,8 @@ pub enum WriteError {
     ForbiddenBlock(u8),
     /// A page payload was not exactly one page.
     WrongPageSize(usize),
+    /// A linear-address frame targeted something outside the allowed range.
+    ForbiddenAddress(u32),
 }
 
 impl std::fmt::Display for WriteError {
@@ -106,6 +108,11 @@ impl std::fmt::Display for WriteError {
             Self::WrongPageSize(n) => {
                 write!(f, "page payload is {n} bytes, must be {FLASH_PAGE_BYTES}")
             }
+            Self::ForbiddenAddress(a) => write!(
+                f,
+                "refusing linear flash access at 0x{a:08x}; only the screen-size \
+                 record at 0x{SCREEN_RECORD_ADDR:08x} may be reached this way"
+            ),
         }
     }
 }
@@ -217,6 +224,57 @@ pub fn reload_params(rcv_index: u16) -> Vec<u8> {
     p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
     p[3] = 0x79;
     frame([0x06, 0x00], &p)
+}
+
+/// Flash address of the screen-size record.
+///
+/// This page sits outside the window the page-addressed frames can reach, so
+/// it is only writable through the linear-address frames below.
+pub const SCREEN_RECORD_ADDR: u32 = 0x0007_f000;
+
+/// Bytes in the screen-size record.
+pub const SCREEN_RECORD_LEN: usize = 256;
+
+/// Linear-address frames can reach any byte of flash, including firmware, so
+/// this crate permits exactly one address range: the screen-size record.
+const LINEAR_ALLOWED: std::ops::Range<u32> =
+    SCREEN_RECORD_ADDR..SCREEN_RECORD_ADDR + SCREEN_RECORD_LEN as u32;
+
+fn linear_frame(rcv_index: u16, opcode: u8, addr: u32, data: &[u8]) -> Result<Vec<u8>, WriteError> {
+    // Deliberately an allowlist of one range: a wrong address here could
+    // overwrite firmware, which the page-addressed frames physically cannot do.
+    let end = addr
+        .checked_add(data.len().max(SCREEN_RECORD_LEN) as u32)
+        .ok_or(WriteError::ForbiddenAddress(addr))?;
+    if addr < LINEAR_ALLOWED.start || end > LINEAR_ALLOWED.end {
+        return Err(WriteError::ForbiddenAddress(addr));
+    }
+    let mut p = vec![0u8; 12 + data.len() + 4];
+    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
+    p[3] = opcode;
+    p[4..8].copy_from_slice(&addr.to_be_bytes());
+    p[8..12].copy_from_slice(&(SCREEN_RECORD_LEN as u32).to_be_bytes());
+    p[12..12 + data.len()].copy_from_slice(data);
+    Ok(frame([0x19, 0x00], &p))
+}
+
+/// Write the screen-size record back to flash.
+///
+/// # Errors
+/// Refuses any address outside the screen-size record, or a wrong length.
+pub fn write_screen_record(rcv_index: u16, addr: u32, data: &[u8]) -> Result<Vec<u8>, WriteError> {
+    if data.len() != SCREEN_RECORD_LEN {
+        return Err(WriteError::WrongPageSize(data.len()));
+    }
+    linear_frame(rcv_index, FLASH_OP_WRITE, addr, data)
+}
+
+/// Read the screen-size record. Carries no data, so it cannot modify anything.
+///
+/// # Errors
+/// Refuses any address outside the screen-size record.
+pub fn read_screen_record(rcv_index: u16, addr: u32) -> Result<Vec<u8>, WriteError> {
+    linear_frame(rcv_index, FLASH_OP_READ, addr, &[])
 }
 
 /// Frame type the card answers a flash read with.
@@ -416,5 +474,66 @@ mod tests {
         assert_eq!(f.len(), 14 + 98);
         assert_eq!(f[14 + 21], 0x7f);
         assert_eq!(f[14 + 22], 0x05);
+    }
+}
+
+#[cfg(test)]
+mod linear_tests {
+    use super::*;
+
+    #[test]
+    fn screen_record_write_matches_the_documented_layout() {
+        let data = vec![0xabu8; SCREEN_RECORD_LEN];
+        let f = write_screen_record(0, SCREEN_RECORD_ADDR, &data).unwrap();
+        assert_eq!(&f[12..14], &[0x19, 0x00]);
+        assert_eq!(f[17], FLASH_OP_WRITE);
+        assert_eq!(&f[18..22], &SCREEN_RECORD_ADDR.to_be_bytes());
+        assert_eq!(&f[22..26], &(SCREEN_RECORD_LEN as u32).to_be_bytes());
+        assert_eq!(&f[26..26 + SCREEN_RECORD_LEN], &data[..]);
+        assert_eq!(f.len(), 286);
+    }
+
+    #[test]
+    fn a_screen_record_read_carries_no_data() {
+        let f = read_screen_record(0, SCREEN_RECORD_ADDR).unwrap();
+        assert_eq!(f[17], FLASH_OP_READ);
+        assert!(f[26..].iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn linear_frames_refuse_every_address_but_the_screen_record() {
+        let data = vec![0u8; SCREEN_RECORD_LEN];
+        for addr in [
+            0x0000_0000,
+            0x0007_0000,
+            0x0007_efff,
+            0x0007_f001,
+            0x0008_0000,
+            0xffff_ffff,
+        ] {
+            assert_eq!(
+                write_screen_record(0, addr, &data),
+                Err(WriteError::ForbiddenAddress(addr)),
+                "address 0x{addr:08x} must be refused"
+            );
+            assert_eq!(
+                read_screen_record(0, addr),
+                Err(WriteError::ForbiddenAddress(addr))
+            );
+        }
+    }
+
+    #[test]
+    fn the_screen_record_address_is_allowed() {
+        let data = vec![0u8; SCREEN_RECORD_LEN];
+        assert!(write_screen_record(0, SCREEN_RECORD_ADDR, &data).is_ok());
+    }
+
+    #[test]
+    fn a_wrong_length_payload_is_refused() {
+        assert_eq!(
+            write_screen_record(0, SCREEN_RECORD_ADDR, &[0; 128]),
+            Err(WriteError::WrongPageSize(128))
+        );
     }
 }

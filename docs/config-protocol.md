@@ -2346,3 +2346,166 @@ only because the white-vs-black invariance is new information since then and it
 is the strongest single data point in the set. If that test comes back showing
 real panel current, I will drop it and go straight at the OE polarity question
 with the remaining leads in §19.3.
+
+---
+
+## 20. Restoring page 0xF0 — the linear-address flash path
+
+Static analysis only. Nothing executed. **This section describes a write path;
+read §20.5 before sending anything.**
+
+### 20.1 The path you were missing
+
+There is a **second flash builder with a completely different frame format**:
+
+```
+BulidEepromFlashOperation(unsigned int* outLen, unsigned char** outBuf,
+                          unsigned short rcvIdx, unsigned char opcode,
+                          unsigned int addr32, unsigned char* data,
+                          unsigned int datalen)                     @ 0x30bdd0
+```
+
+(the vendor's own typo, "Bulid"). Reached from
+`CReceiverOP::WriteDataToEepromFlash` @ `0x3b9d60` and
+`ReadEepromBuffer` @ `0x3d54c0`.
+
+The decisive difference: **it takes a 32-bit linear byte address**, not the
+`(addrHi, addrLo)` 64 KB-block / 256-byte-page pair used by
+`BuildRcvCardFlashOperation`. That is why your page-based writes to page 0xF0 were
+refused while this path can reach it — the page-based window is bounded, this one
+addresses flash directly.
+
+### 20.2 Frame layout (from `0x30be38`–`0x30bea2`)
+
+```
+n = max(0x80, datalen + 0x12)
+buf = new[n]; bzero(buf, n)
+
+word [buf+0x00] = 0x0019           ; on the wire: 19 00   -> TYPE 0x1900
+byte [buf+0x02] = 0
+byte [buf+0x03] = rcvIdx >> 8      ; big-endian u16
+byte [buf+0x04] = rcvIdx & 0xff
+byte [buf+0x05] = opcode
+byte [buf+0x06] = addr >> 24       ; 32-bit address, BIG-ENDIAN
+byte [buf+0x07] = addr >> 16
+byte [buf+0x08] = addr >> 8
+byte [buf+0x09] = addr & 0xff
+byte [buf+0x0a] = datalen >> 24    ; 32-bit length, BIG-ENDIAN
+byte [buf+0x0b] = datalen >> 16
+byte [buf+0x0c] = datalen >> 8
+byte [buf+0x0d] = datalen & 0xff
+
+; data-attach guard:
+r15b = opcode + 0x7b
+if (r15b <= 5 && r15b != 2)  memcpy(buf + 0x0e, data, datalen)
+```
+
+Header is **14 bytes (0x0e)**; the allocation is `datalen + 0x12`, leaving 4
+zero bytes of slack after the data.
+
+### 20.3 Opcodes on this path — same semantics as §13, verified at call sites
+
+| opcode | `+0x7b` | carries data? | meaning |
+|---|---|---|---|
+| **0x85** | 0x00 | yes | write |
+| **0x86** | 0x01 | yes | write (used by `WriteDataToEepromFlash`) |
+| **0x44** | 0xBF | no (>5) | read |
+| 0x87 | 0x02 | no (excluded) | — |
+
+Sampled call sites confirm both in use: `0x3b3383` and `0x3b5f18` pass `0x85`;
+`0x3b3a29`, `0x3b4409`, `0x3b6039` pass `0x44`. So the opcode meanings are
+identical to the page-based path — **only the addressing and the type byte
+differ.**
+
+### 20.4 The exact frame to restore page 0xF0
+
+Address `0x07F000`, 256 bytes, receiver index 0. Payload = 256 + 0x12 = **274
+bytes**; frame = 12 + 274 = **286 bytes**.
+
+```
+ 0x00  11 22 33 44 55 66      dst MAC
+ 0x06  22 22 33 44 55 66      src MAC
+ 0x0c  19 00                  type 0x1900          <- payload[0..1]
+ 0x0e  00                     payload[0x02]
+ 0x0f  00 00                  payload[0x03..04]    receiver index 0, BE
+ 0x11  85                     payload[0x05]        opcode = write
+ 0x12  00 07 F0 00            payload[0x06..09]    address 0x0007F000, BE
+ 0x16  00 00 01 00            payload[0x0a..0d]    length 0x00000100 = 256, BE
+ 0x1a  <256 bytes>            payload[0x0e..0x10d] your backup, verbatim
+ 0x11a 00 00 00 00            payload[0x10e..0x111] slack, zero
+```
+
+**No erase is needed.** The page currently reads `0xff` — already erased — and
+writing to erased NOR flash only clears bits. Do **not** issue an erase; a 4 KB
+sector erase (`ClearFlashSector4KBEx`) would take neighbouring content with it.
+
+**Verify with the same builder, opcode 0x44**, `addr = 0x0007F000`,
+`datalen = 0x100`, no data attached (payload = 0x80 bytes, frame 140):
+
+```
+ 0x0c  19 00
+ 0x0e  00 | 00 00 | 44 | 00 07 F0 00 | 00 00 01 00 | 00 x 114
+```
+
+If `0x86` is refused, try `0x85` — both are write opcodes on this path and I
+cannot tell statically which the firmware prefers for this region. Start with
+`0x85`, since it is the opcode you already know this card accepts.
+
+### 20.5 Safety — this path is OUTSIDE your existing guard
+
+The §13.8-D guard allowlists `addrHi == 0x07` in the **page-based** frame. This is
+a different frame type with a **32-bit linear address**, so that guard does not
+constrain it at all, and a mistyped address here can reach *any* byte of flash
+including firmware. Before sending, extend the guard:
+
+1. frame type must be `0x1900`;
+2. opcode ∈ {`0x44`, `0x85`, `0x86`};
+3. **address clamped to exactly `0x0007F000 .. 0x0007F0FF`** — a hard range check,
+   not a prefix test;
+4. `datalen == 0x100` for the write, and the payload must be exactly your 256
+   backup bytes;
+5. dry-run print first, and re-read with opcode `0x44` immediately after.
+
+Note `0x07F000` lies inside block `0x07`, the region you already own and have a
+full pre-write image of — so this write stays within territory you can restore.
+
+### 20.6 Item 4 — your own evidence already answers it
+
+You do not need me for this one, and it is worth stating plainly: the card
+reports 1024x512 again **after every power cycle**, despite the type-0x02 layout
+having been accepted in RAM. That is direct proof that
+
+* the boot path reads the **flash** record, and
+* the RAM layout does not persist and does not influence what the card configures
+  at boot.
+
+So the type-0x02 command is not the wrong command — it is simply the wrong
+*lifetime*. Restoring 0x07F000 is what makes the geometry survive a reboot, and
+until it is restored every test has indeed started from a card that believes it
+is driving a 1024x512 screen. Your reading of the regression is sound.
+
+### 20.7 Item 3 — I did not decode the page's field layout
+
+I have not traced what writes `0x07F000` field-by-field, so I cannot give you a
+schema. What is established:
+
+* offsets 6–7 = `00 80` = 128 and 8–9 = `00 40` = 64, big-endian, matching the
+  discovery reply's cols/rows — your identification, and consistent with every
+  other 16-bit field in this protocol being big-endian;
+* discovery `payload[0x28]` tracking this page is your observation and I have no
+  static evidence for or against it.
+
+Since you hold the original 256 bytes, **replay them verbatim** — that is exactly
+correct and needs no schema. Decoding the layout only matters if you later want to
+change the geometry rather than restore it, and I would not spend effort there
+until the panel is lit.
+
+### 20.8 Recommended order
+
+1. Read `0x07F000` with opcode `0x44` — confirms the read path and that it still
+   reads `0xff`.
+2. Write the 256 backup bytes with opcode `0x85`.
+3. Read back and compare byte-for-byte.
+4. **Power-cycle**, then run discovery — it should report 128x64 again.
+5. Only then re-run the panel tests. Every earlier result was taken from a card in
+   the 1024x512 state and should be treated as void.

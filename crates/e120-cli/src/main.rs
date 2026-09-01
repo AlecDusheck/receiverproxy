@@ -179,6 +179,16 @@ enum Cmd {
         #[arg(long, default_value_t = 0)]
         index: u16,
     },
+    /// Restore the screen-size record the block erase cleared
+    RestoreScreenRecord {
+        /// 64KB block image holding the original record
+        #[arg(long)]
+        from_image: String,
+        #[arg(long)]
+        commit: bool,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+    },
     /// Write a single flash page taken from a block image (debugging)
     WritePage {
         /// Page index within the parameter block
@@ -391,6 +401,11 @@ fn run(cli: &Cli) -> Result<()> {
             println!("asked the card to reload parameters from flash");
             Ok(())
         }
+        Cmd::RestoreScreenRecord {
+            from_image,
+            commit,
+            index,
+        } => restore_screen_record(cli, from_image, *commit, *index),
         Cmd::WritePage {
             page,
             from_image,
@@ -870,7 +885,92 @@ dry run: nothing was written. Re-run with --commit to install."
     let last = (PARAM_OFFSET + 4 + file.len()).div_ceil(protocol::FLASH_PAGE_BYTES);
     rewrite_block(&mut dev, index, &image, wait, first..last)
         .with_context(|| format!("the original block is saved at {backup}; restore it with: e120 restore-flash {backup} --commit"))?;
+
+    // The block erase also clears the screen-size record, which lives outside
+    // the window these frames can rewrite. Put it back through the
+    // linear-address path, or the card boots with a bogus screen size.
+    let off = protocol::SCREEN_RECORD_ADDR as usize & 0xffff;
+    let record = &original[off..off + protocol::SCREEN_RECORD_LEN];
+    if record.iter().any(|&b| b != 0xff) {
+        dev.send(&protocol::write_screen_record(
+            index,
+            protocol::SCREEN_RECORD_ADDR,
+            record,
+        )?)?;
+        std::thread::sleep(Duration::from_millis(100));
+        println!(
+            "restored the screen-size record ({}x{})",
+            u16::from_be_bytes([record[6], record[7]]),
+            u16::from_be_bytes([record[8], record[9]])
+        );
+    }
+
     println!("power-cycle the card for the new configuration to take effect");
+    Ok(())
+}
+
+/// Put the screen-size record back after the block erase cleared it.
+///
+/// Uses the linear-address frames, which are the only ones that reach this
+/// page. No erase is issued: the page already reads 0xff, and erasing would
+/// take a whole sector with it.
+fn restore_screen_record(cli: &Cli, from_image: &str, commit: bool, index: u16) -> Result<()> {
+    let img = std::fs::read(from_image).with_context(|| format!("read {from_image}"))?;
+    anyhow::ensure!(
+        img.len() == 64 * 1024,
+        "{from_image} must be exactly 65536 bytes"
+    );
+    let off = protocol::SCREEN_RECORD_ADDR as usize & 0xffff;
+    let data = &img[off..off + protocol::SCREEN_RECORD_LEN];
+    println!(
+        "screen-size record from {from_image}: {} non-zero bytes, geometry {}x{}",
+        data.iter().filter(|&&b| b != 0).count(),
+        u16::from_be_bytes([data[6], data[7]]),
+        u16::from_be_bytes([data[8], data[9]])
+    );
+    if !commit {
+        println!("dry run; re-run with --commit");
+        return Ok(());
+    }
+
+    let mut dev = open(cli)?;
+    dev.send(&protocol::write_screen_record(
+        index,
+        protocol::SCREEN_RECORD_ADDR,
+        data,
+    )?)?;
+    std::thread::sleep(Duration::from_millis(100));
+
+    // Read it straight back through the same addressing.
+    dev.send(&protocol::read_screen_record(
+        index,
+        protocol::SCREEN_RECORD_ADDR,
+    )?)?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < deadline {
+        for f in dev.recv()? {
+            if !is_card_frame(&f) || f.len() < 15 + protocol::SCREEN_RECORD_LEN {
+                continue;
+            }
+            let got = &f[15..15 + protocol::SCREEN_RECORD_LEN];
+            if got == data {
+                println!("restored and verified");
+            } else {
+                let diff = got.iter().zip(data).filter(|(a, b)| a != b).count();
+                println!("wrote, but readback differs in {diff} bytes");
+                println!(
+                    "  got: {}",
+                    got[..12]
+                        .iter()
+                        .map(|b| format!("{b:02x}"))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                );
+            }
+            return Ok(());
+        }
+    }
+    println!("no readback reply; check with dump-flash");
     Ok(())
 }
 

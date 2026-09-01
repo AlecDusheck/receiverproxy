@@ -125,7 +125,7 @@ Not assumed. Three arguments, the third decisive:
 to argue LSB-first. **Do not lean on it** — across 54 EBRs that field only
 takes three values, so it is not a clean index and the agreement may be
 coincidence. The bit order genuinely varies per field; see
-[bitstream-format.md](bitstream-format.md#6-the-word-bit-order-trap-high).)
+[bitstream-format.md](bitstream-format.md#6-the-word-bit-order-trap--high-that-it-exists).)
 
 ### Derived frequencies
 
@@ -155,17 +155,16 @@ From set arcs in `LMID_0`, `RMID_0`, `BMID_0V` and the `CMUX_*` tiles:
 | `LDCC3` | pad `J1` `PCLKT7_1` (left RXC) | UL1, LR1 | left PHY RX domain |
 | `RDCC2` | pad `M16` `PCLKT3_0` (right RXC) | UR1, LR0 | right PHY RX domain |
 | `LDCC2` | input arc not set (default) | UL3, LL3 | |
-| `BDCC0` | **fabric FF `Q1_SLICE@(25,48)`** via `G_JBLQPCLKCIB0` | UL9, UR15, LL9, LR9 | 370 / 294 |
+| `BDCC0` | **fabric FF `Q1_SLICE@(25,48)`** via `G_JBLQPCLKCIB0` — used as a clock **enable**, not a clock | UL9, UR15, LL9, LR9 | 370 / 294 |
 | corner DCCs (`DCCTL`/`DCCTR`/`DCCBL`) | CIB-routed | nets 4, 10, 11, 14 | 374 / 294 / 203 / 95 |
 
 **Ten of the 16 primary global nets are in use** (0, 1, 2, 3, 4, 9, 10, 11,
 14, 15).
 
-`BDCC0` is notable: a **fabric-generated clock re-buffered onto the global
-network**, with a fan-out of several hundred. It also feeds `DCS0` / `DCS1`,
-so dynamic clock select is instantiated. — HIGH that it exists. What it is —
-almost certainly the LED shift clock or a divided pixel clock — is
-**NOT RESOLVED**.
+`BDCC0` is notable: a fabric-generated signal re-buffered onto the global
+network with a fan-out of several hundred, also feeding `DCS0` / `DCS1` (so
+dynamic clock select is instantiated). It is **used as a clock enable, not as
+a clock** — see the correction below.
 
 ### Clock domain summary — corrected
 

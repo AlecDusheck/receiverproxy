@@ -121,7 +121,7 @@ only in CLKOS3 phase; 13.39 differs in CLKOS, CLKOS2 and CLKOS3 phase.
 
 Interpretation — MEDIUM: phase is the launch-edge relationship between the
 data, shift-clock and latch outputs. CLKOS3 is the RGMII TXC skew clock
-(see [resources.md](resources.md#clocking)), so 6.69's CLKOS3 difference is
+(see [resources.md](resources.md#3-clocking--resolved-end-to-end)), so 6.69's CLKOS3 difference is
 plausibly a PHY timing tweak, and 13.39's three-way phase change is plausibly
 the panel-side retiming that goes with its 96 IO registers. Neither was traced.
 

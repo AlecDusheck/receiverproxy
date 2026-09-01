@@ -102,10 +102,18 @@ The **only** difference between images at this level — HIGH:
 Bit 5 of ECP5 control register 0 is in the SPI-mode / `MSPI` area of the
 register; the exact meaning here is **NOT RESOLVED**.
 
-The trailer at `0xAFFFC` is byte-identical in all five images. It is what makes
-`ecpunpack` abort (see [decode-method.md](decode-method.md)). What it is —
-possibly a Colorlight-added image descriptor rather than part of the Lattice
-format — is **NOT RESOLVED**.
+The trailer at the end of the file is what makes `ecpunpack` abort (see
+[decode-method.md](decode-method.md)). What it is — possibly a
+Colorlight-added image descriptor rather than part of the Lattice format — is
+**NOT RESOLVED**.
+
+**It is per-image, not universal — HIGH.** 16.53's is
+`00 00 00 01 E0 89 5B A0`; 10.81's is `00 00 00 01 C5 99 12 FD`. And the
+Normal 13.39 image is a *different container* altogether: its `0xFF` run
+continues to `0xB007A` and its marker sits at `0xB007B`, i.e. it declares
+length `0x0B0080` rather than `0x0B0000`. The first four bytes `00 00 00 01`
+are common; the last four differ per image and are presumably a checksum or
+build stamp.
 
 ## 4. Frame geometry and CRC — HIGH
 
@@ -188,7 +196,7 @@ bit order is set **per field** by the database, not globally.
 * The PLL's dividers and manufacturing constants are **MSB-first**: only that
   reading gives `MFG_GMC_TEST = 14`, `MFG_GMCREF_SEL = 2`, `ICP_CURRENT = 5`
   (Lattice's standard values), and only that reading yields a physically
-  possible VCO frequency. See [resources.md](resources.md#clocking).
+  possible VCO frequency. See [resources.md](resources.md#3-clocking--resolved-end-to-end).
 * `EBRn.WID` was initially used as an LSB-first calibrator because
   `110000000` reads as 3, matching `.bram_init 3`. **Do not rely on it** —
   across 54 EBRs the field only ever takes three values

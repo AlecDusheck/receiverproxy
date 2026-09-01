@@ -25,11 +25,14 @@ assumption) or **NOT RESOLVED**. Nothing is inference dressed as fact.
 * **Flash:** one SPI flash holding both the bitstream and the card's
   configuration. `CCLK.MODE USRMCLK` — the running design reads it.
 * **LED side:** roughly **147 pins**, driving up to twelve HUB75E connectors
-  (J1–J12). Which pin is which signal is **NOT RESOLVED**.
-* **Clocking:** one EHXPLLL from a 25 MHz reference on pin `P6`; CLKOP at
-  125 MHz drives ~1953 loads; CLKOS3 supplies the RGMII TXC skew; a
-  fabric-generated clock is re-buffered onto the global network with a
-  fan-out of ~660.
+  (J1–J12). **96 of them are the serial RGB data lines** — 32 groups × 3
+  colours, on the left and right edges. The HUB75 **control** signals (A–E,
+  CLK, LAT, OE) are the top-edge pads, identified as a group but **not yet
+  decomposed**.
+* **Clocking:** one EHXPLLL from a 25 MHz reference on pin `P6`. The design is
+  effectively **single-clock** — 98.9 % of flip-flops run on CLKOP at 125 MHz.
+  CLKOS3 supplies the RGMII TXC skew. The fabric-generated global net is a
+  **clock enable**, not a second domain.
 * **Utilisation:** ~95 %. 20 170 functional LUT4s of 24 288; 13 074 flip-flops;
   the whole DSP row; essentially all the block RAM. **The part is full.**
 
@@ -63,8 +66,19 @@ so `ecpunpack` does not walk into the trailer and abort.
    `SSTL18`/`SSTL15` label in the decode is an artefact — all banks are 3.3 V.
    **Take pin direction from the routing graph, never from `BASE_TYPE`.**
 
-A third, in pytrellis: resolve arc endpoints with `rg.globalise_net(row, col,
-name)`, not `id_at_loc` — the latter silently fails on 62 % of arcs.
+3. **"No combinational source" means nothing on its own.** CCU2 carry travels
+   on fixed, non-configurable wires, so **1012 of 6956 CCU2 LUTs in 16.53 have
+   zero routed inputs**. An arc-only tracer reports every increment stage on
+   the die as sourceless. One promising lead in this project was refuted by
+   exactly this.
+4. In pytrellis, resolve arc endpoints with `rg.globalise_net(row, col, name)`,
+   not `id_at_loc` — the latter silently fails on 62 % of arcs.
+
+And a limit worth knowing before planning work: **deep backward tracing is only
+~93 % reliable and far worse at the die edge** (prjtrellis clamps out-of-range
+span wires to the boundary), so only 45 of the 96 RGB pads resolve to a driver
+cell. **Prefer forward reasoning or one-hop IOLOGIC signatures** — that is how
+the 96 RGB pins were actually found.
 
 ## Which firmware the card is actually running — HIGH
 
@@ -87,8 +101,8 @@ An exhaustive search found **no constant comparator against any chip id** —
 and none against the Ethernet SFD or ethertype either. **This design does not
 build constant comparisons out of LUT4s**, so that search cannot succeed and
 must not be repeated. The surviving hypothesis is a register file compared
-data-vs-data; the concrete lead is `R27C44_Q0..Q3`, a 4-bit field with no
-combinational source feeding ten independent mode flags read by 734 LUTs.
+data-vs-data. (The `R27C44_Q0..Q3` "mode field" lead that once looked concrete
+is **refuted** — it is an ordinary CCU2 accumulator.)
 
 The bench settles what the netlist could not: the gateware **does** branch on
 the id, and **`0x014C` is very likely correct while `0x0214` is not** —

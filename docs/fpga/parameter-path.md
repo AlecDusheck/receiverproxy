@@ -213,7 +213,7 @@ design. — HIGH
 `R27C44_Q0..Q3` — a 4-bit field with no combinational source, feeding a
 10-bit already-decoded mode bundle read by 734 LUTs. That is what a
 parameter-store-loaded mode selector looks like. See
-[chip-id.md](chip-id.md#6-the-one-concrete-lead--medium).
+[chip-id.md](chip-id.md#6-the-lead-that-looked-concrete--refuted).
 
 **Where the parameter store physically is has NOT been identified.** Finding
 it turns "which chip ids does the gateware recognise" into "which stored byte

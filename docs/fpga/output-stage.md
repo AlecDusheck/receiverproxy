@@ -276,7 +276,7 @@ classified as plain fabric-driven outputs in 16.53 (47 LEFT OUT + 48 RIGHT OUT
 96 = **32 serial RGB groups × 3 colour lines**, matching the E120 spec exactly.
 The list is `analysis/fpga/rgb96_pins.txt`.
 
-> **Retraction — HIGH.** [pinout.md](pinout.md#phy-management) suggested `T4`
+> **Retraction — HIGH.** [pinout.md](pinout.md#phy-management--retracted) suggested `T4`
 > was MDIO. `T4` is one of the 96 RGB pins. **There is no MDC/MDIO group
 > anywhere in this design.**
 
@@ -347,7 +347,7 @@ Details in `analysis/fpga/build_comparison.txt`.
 * **There is no slow LED clock domain.** The fabric-divided clock distributed
   on a global net is used as a **clock enable**, not a clock — `G_HPBX0900`
   appears as `.CE` on output-stage flops. This supersedes the earlier reading
-  in [resources.md](resources.md#clocking) of `BDCC0` as a second clock
+  in [resources.md](resources.md#3-clocking--resolved-end-to-end) of `BDCC0` as a second clock
   domain.
 * `G_LDCC2CLKI ← G_JOSC` in all five builds — the internal `OSCG` oscillator
   is on a global net.

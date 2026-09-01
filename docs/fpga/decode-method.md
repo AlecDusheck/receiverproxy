@@ -150,11 +150,67 @@ rg = ch.get_routing_graph(True, True)     # ~8 s for the 25F, both args required
    unrouted input.
 
 5. **`word:` bit order varies per field** and **`BASE_TYPE` names are
-   degenerate** — see [bitstream-format.md](bitstream-format.md#6-the-word-bit-order-trap-high)
+   degenerate** — see [bitstream-format.md](bitstream-format.md#6-the-word-bit-order-trap--high-that-it-exists)
    and [pinout.md](pinout.md#the-base_type-trap). Always check
    `database/ECP5/tiledata/<TILE>/bits.db`.
 
-## 5. Scripts
+## 5. LUT INIT bit order is settled — HIGH
+
+For `word: SLICEx.Kn.INIT`:
+
+```
+INIT[k] = string[k]        where k = A + 2B + 4C + 8D
+```
+
+**Proof:** LUTs with exactly one routed input use only the strings
+`0101…`, `0011…`, `00001111…` and `00000000 11111111` for a routed A, B, C and
+D respectively. Under this indexing every one of them is a clean buffer; under
+the reverse indexing every route-through LUT in the design would be an
+inverter.
+
+This does **not** contradict the MSB-first reading of the PLL `DIV`/`CPHASE`
+words — those are separate database fields with their own bit order. See
+[bitstream-format.md](bitstream-format.md#6-the-word-bit-order-trap--high-that-it-exists).
+
+## 6. How far backward tracing can be trusted — HIGH
+
+Two hard limits, both discovered the expensive way.
+
+### CCU2 carry inputs are invisible to an arc-only tracer
+
+In `MODE = CCU2` the carry travels on **dedicated, non-configurable**
+connections — `FCI ← HFIE0000@(x,y)`, `FCO → HFIE0000@(x+1,y)` — which are
+not set arcs. A tracer following only configured arcs sees a CCU2 LUT with a
+missing input.
+
+Measured in 16.53: of **6956 CCU2-mode LUTs, 1012 have zero routed inputs and
+2295 have exactly one.**
+
+So **"this register has no combinational source" is the normal appearance of
+every increment stage on the die**, not a signature of anything. One lead in
+this project (`R27C44_Q0..Q3`, believed to be a parameter-loaded 4-bit mode
+field) was refuted by exactly this — it is an ordinary 8-bit accumulator. See
+[chip-id.md §6](chip-id.md#6-the-lead-that-looked-concrete--refuted).
+
+### Deep backward walks dead-end at the die edge
+
+**2495 of 38 285 net roots dead-end on a plain span wire**, and **1848 of those
+are at `x ≤ 1`, `x ≥ 71`, `y ≤ 1` or `y ≥ 49`** — prjtrellis clamps
+out-of-range span-wire locations to the die boundary, destroying the
+information needed to continue.
+
+An "undo the clamp" fallback was tried: only 891 of 2477 dead-ends have a
+unique candidate, so it is **unsafe and was not used**.
+
+Practical impact: **only 45 of the 96 RGB pads resolve to a driver cell at
+all.** Backward tracing is roughly 93 % reliable in the interior and much worse
+at the edge — which is exactly where the IO is.
+
+**Prefer forward reasoning, or one-hop IOLOGIC configuration, over deep
+backward walks.** The 96 RGB pins were found by a one-hop IOLOGIC signature,
+not by tracing.
+
+## 7. Scripts
 
 All in `analysis/fpga/scripts/`. They expect the `.config` files in the
 current directory (or edit the path at the top).
@@ -173,7 +229,7 @@ current directory (or edit the path at the top).
 | `parse4.py` | per-EBR-instance settings parser |
 | `padscan3.py`, `diag.py` | early pad-usage scans — **superseded**, kept because they show the failure mode described in trap 1 |
 
-## 6. Large intermediates
+## 8. Large intermediates
 
 `arcs.pkl` (~5 MB) and `full_16.53.pkl` live only in the session scratchpad
 and are **not** committed. Regenerate with `netbuild.py` / `full.py` after

@@ -93,21 +93,24 @@ flash write.
 
 ## Tier 2 — would materially advance the gateware understanding
 
-### 2.1 Which pins carry which HUB75 signal?
+### 2.1 Which top-edge pad carries which HUB75 control signal?
 
-**Status:** NOT RESOLVED. ~147 LED-side pins are classified by direction and
-electrical class ([pinout.md](pinout.md)), but nothing in the bitstream ties a
-pad to a connector, and 147 does not factor cleanly into 12 HUB75E ports under
-any obvious sharing scheme.
+**Partly CLOSED.** The 96 RGB data pins **are** identified — the `IREG_OREG`
+signature in the Normal/LS builds maps exactly onto the 96 left/right-edge
+pads, with zero discrepancy
+([output-stage.md §7.1](output-stage.md#71-the-96-rgb-data-pins-are-identified--high),
+`analysis/fpga/rgb96_pins.txt`). The control group is identified **as a
+group** — the top-edge pads, sharing a global synchronous blank
+(`Q4@23,18`) and a 2:1 source select (`Q5@23,18`), active-low.
 
-**Best lead:** `IOLOGIC*.MODE = IREG_OREG` appears **96 times** in the Normal
-13.39 and LS0allDA 6.69 builds and only 10 times in the PWM builds.
-**96 = 32 serial RGB groups × 3 colour lines**, exactly the E120 spec's "32
-groups of serial RGB data". If that holds, the 96 IOLOGIC sites in 13.39 are
-the RGB data pins, and the same pads can then be found in 16.53.
+**Still NOT RESOLVED:** which of those pads is A, B, C, D, E, CLK, LAT or OE,
+and which pins belong to which of the twelve HUB75E connectors.
 
-**What else would settle it:** continuity-buzzing the PCB from the hub
-connector to the BGA, or a clear photo of the connector traced out.
+**What would settle it:** continuity-buzzing the PCB from the J1 connector to
+the BGA, or a clear photo of the connector traced out. Note that a scan
+address line should be driven by a small counter and CLK by a toggling flop —
+`analysis/fpga/pad_driver_logic_16.53.tsv` has the per-pad driver logic to
+start from.
 
 ### 2.2 What are the 34 bidirectional pins?
 
@@ -137,14 +140,25 @@ opcode.
 **Status:** NOT RESOLVED. The 256-byte pack arrives over Ethernet and lands
 somewhere — BRAM, LUT-RAM or a flop file — and it has not been located.
 
-**Best lead:** `R27C44_Q0..Q3`, a 4-bit field with no combinational source
-feeding a 10-bit already-decoded mode bundle read by 734 LUTs (1022 distinct
-equivalence classes over 1024 input values, so ten *independent* flags). That
-is what a parameter-store-loaded mode selector looks like.
+**Ruled out:** LUT-RAM in 16.53 — only 18 blocks of 16×4, against 59 and 89 in
+13.39 and 6.69. Too small and too fragmented to hold the tables.
 
-**Why it matters:** finding it turns "which chip ids does the gateware
+**The `R27C44_Q0..Q3` lead is REFUTED — do not follow it.** It is an ordinary
+8-bit CCU2 accumulator; it looked sourceless only because CCU2 carry travels
+on fixed, non-configurable wires. 1012 of 6956 CCU2 LUTs in 16.53 have zero
+routed inputs, so "no combinational source" is the normal appearance of every
+increment stage on the die. See
+[chip-id.md §6](chip-id.md#6-the-lead-that-looked-concrete--refuted).
+
+**Best surviving lead:** the block RAM feeding the top-edge control pads is
+`MIB_R25C4/C5` EBR0, `PDPW16KD`, **`WID = 1` — not initialised at config
+time**, so it comes up empty and is written at run time. That is a
+run-time-written table feeding the output stage directly.
+
+**Why it matters:** finding the store turns "which chip ids does the gateware
 recognise" into "which stored byte feeds the mode selector", which is
-tractable.
+tractable. It is also a candidate explanation for the panel scanning garbage
+(§1.1) — an uninitialised RAM being scanned.
 
 ### 2.5 Where is gamma applied?
 
@@ -254,12 +268,30 @@ NOT RESOLVED. It is the only ROM difference among the five builds.
 
 The PLL enables it, but it is **not routed to any DCC**. NOT RESOLVED.
 
-### 4.4 What is the fabric-generated global clock `BDCC0`?
+### 4.4 What is the fabric-generated global net `BDCC0` used for?
 
-A flip-flop (`Q1_SLICE@(25,48)`) re-buffered onto the global network with a
-fan-out of ~660, also feeding both edge-clock trees and `DCS0`/`DCS1`.
-Almost certainly the LED shift clock or a divided pixel clock — **NOT
-RESOLVED**.
+**Partly CLOSED.** It is **not a clock**: the design is single-clock (98.9 % of
+flops on PLL CLKOP) and `G_HPBX0900` appears as `.CE` on output-stage flops, so
+this net is a **clock enable**. Its specific role — presumably the LED shift or
+pixel-rate gate — is NOT RESOLVED.
+
+### 4.7 What does the 2:1 output mux select between?
+
+One leg is a CCU2 counter (`x = 24..26, y = 7..11`), the other is block RAM
+data out. **Whether that is "internal test pattern vs live pixel data" or a
+within-frame command/data time-multiplex (SM16xxx configuration words vs pixel
+data) is NOT RESOLVED** — both readings fit.
+
+This is worth resolving: if it is test-pattern-vs-data, the select bit
+`Q5@23,18` is the card's test-mode control, and the test-pattern question in
+§1.2 becomes answerable from the netlist.
+
+### 4.8 Which top-edge pads are gated by the global blank?
+
+`Q4@23,18` blanks the top-edge control group but **not** the 96 RGB pads. The
+exact membership of the blanked set (20–23 pads) is in
+`analysis/fpga/pad_driver_logic_16.53.tsv`; 4 of 21 classifiable pads did not
+fit the normalised truth table and were not explained.
 
 ### 4.5 What are the six constant-strapped output pins?
 

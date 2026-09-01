@@ -1,1 +1,4 @@
 /target
+
+# Third-party config archives kept locally for research, not source.
+/vendor

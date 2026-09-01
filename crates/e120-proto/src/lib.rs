@@ -23,7 +23,7 @@ pub use pixel::*;
 pub const CARD_MAC: [u8; 6] = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66];
 pub const SENDER_MAC: [u8; 6] = [0x22, 0x22, 0x33, 0x44, 0x55, 0x66];
 
-fn frame(ethertype: [u8; 2], payload: &[u8]) -> Vec<u8> {
+pub fn frame(ethertype: [u8; 2], payload: &[u8]) -> Vec<u8> {
     let mut f = Vec::with_capacity(14 + payload.len());
     f.extend_from_slice(&CARD_MAC);
     f.extend_from_slice(&SENDER_MAC);

@@ -161,6 +161,186 @@ impl Block7Builder {
     }
 }
 
+pub const DATA_SWAP_OFFSET: usize = 0x0500;
+pub const MODULE_POS_OFFSET: usize = 0x0600;
+pub const ANTI_VOID_OFFSET: usize = 0x1800;
+pub const SCAN_TABLE_OFFSET: usize = 0x6000;
+pub const SCAN_TABLE_LEN: usize = 0x0400;
+
+/// The regions the vendor writes as zeros for this chip and config, each
+/// because a gate in its builder fails (see `docs/compiled-image-format.md`):
+/// void table (mode 0), current segment (chip id out of table range),
+/// current exchange, void-line packs (empty table), anti-void packs 4-7
+/// (only 4 packs without large-load support).
+const ZERO_REGIONS: [(usize, usize); 6] = [
+    (0x0100, 0x0500),
+    (0x0A00, 0x0C00),
+    (0x0C00, 0x0D00),
+    (0x1000, 0x1800),
+    (0x6800, 0x7000),
+    (0x7000, 0x8000),
+];
+
+// Record 0x01 fields the region builders read (docs/record-0x01-fields.md).
+const R01_LINE_DIR: usize = 0x03C;
+const R01_SPLIT: usize = 0x03E;
+const R01_GRID_W_LO: usize = 0x057;
+const R01_GRID_H_LO: usize = 0x058;
+const R01_GRID_W_HI: usize = 0x24E;
+const R01_GRID_H_HI: usize = 0x24F;
+const R01_MAX_W: usize = 0x0C0;
+const R01_MAX_H: usize = 0x0C2;
+const R01_SWAP_RAMP: usize = 0x19A;
+
+/// Split-segment count from record +0x03E (vendor `GetSplitSegment`).
+const fn split_segment(c: u8) -> u8 {
+    if c & 4 != 0 {
+        4
+    } else if c & 1 == 0 {
+        1
+    } else if c < 8 {
+        2
+    } else {
+        c >> 3
+    }
+}
+
+impl Block7Builder {
+    /// Start from erased flash — all 0xFF, as the block looks after the
+    /// vendor's erase — so that every byte present is one we placed.
+    #[must_use]
+    pub fn erased() -> Self {
+        let base = vec![0xFF; IMAGE_LEN];
+        Self {
+            img: base.clone(),
+            base,
+            notes: Vec::new(),
+        }
+    }
+
+    /// Write the gated-off regions as zeros (what the vendor's bzero'd pack
+    /// buffers leave behind).
+    pub fn zero_regions(&mut self) {
+        for (lo, hi) in ZERO_REGIONS {
+            self.img[lo..hi].fill(0);
+        }
+        self.notes
+            .push("0x100/0xA00/0xC00/0x1000/0x6800/0x7000: zeros (builders gated off)".into());
+    }
+
+    /// The data-swap pack body at 0x500: the 64-byte lane map from record
+    /// +0x19A, and the three deseam-correction pairs, which are 8.8 fixed
+    /// point 1.0 (`01 00`) when deseam is off.
+    ///
+    /// # Errors
+    /// Fails if the record is too short.
+    pub fn data_swap_from(&mut self, rec01: &[u8]) -> Result<()> {
+        if rec01.len() < R01_SWAP_RAMP + 64 {
+            bail!("record 0x01 too short for the swap ramp");
+        }
+        let at = DATA_SWAP_OFFSET;
+        self.img[at..at + 0x100].fill(0);
+        self.img[at..at + 64].copy_from_slice(&rec01[R01_SWAP_RAMP..R01_SWAP_RAMP + 64]);
+        for pair in [0xEA, 0xF0, 0xF6] {
+            self.img[at + pair] = 0x01;
+        }
+        self.notes
+            .push("0x500: data-swap (lane map from record +0x19A, deseam 1.0 x3)".into());
+        Ok(())
+    }
+
+    /// The module-position table at 0x600 (vendor `GetDefaultModulePos`):
+    /// the screen tiled by the record's grid unit, one 10-byte entry per
+    /// tile, row-major. Left all-zero when the vendor's own gates fail —
+    /// notably more than 64 tiles, which is why the seller's 256x384 wall
+    /// config carries zeros here.
+    ///
+    /// # Errors
+    /// Fails if the record is too short or uses a split layout the builder
+    /// does not implement.
+    pub fn module_positions_from(&mut self, rec01: &[u8]) -> Result<()> {
+        if rec01.len() < 0x250 {
+            bail!("record 0x01 too short for module positions");
+        }
+        let at = MODULE_POS_OFFSET;
+        self.img[at..at + 0x300].fill(0);
+        let mw = u16::from_le_bytes([rec01[R01_GRID_W_LO], rec01[R01_GRID_W_HI]]);
+        let mh = u16::from_le_bytes([rec01[R01_GRID_H_LO], rec01[R01_GRID_H_HI]]);
+        let w = u16::from_le_bytes([rec01[R01_MAX_W], rec01[R01_MAX_W + 1]]);
+        let h = u16::from_le_bytes([rec01[R01_MAX_H], rec01[R01_MAX_H + 1]]);
+        let dir = rec01[R01_LINE_DIR];
+        let gated = mw == 0
+            || mh == 0
+            || w % mw != 0
+            || h % mh != 0
+            || (w / mw) * (h / mh) > 64
+            || dir > 3;
+        if gated {
+            self.notes.push(format!(
+                "0x600: module positions all-zero (vendor gate: {w}x{h} screen / {mw}x{mh} grid)"
+            ));
+            return Ok(());
+        }
+        let k = split_segment(rec01[R01_SPLIT]);
+        if k != 1 {
+            bail!("module positions for split-segment layout {k} are not implemented");
+        }
+        let (nx, ny) = (w / mw, h / mh);
+        self.img[at + 5] = (nx * ny) as u8;
+        for row in 0..ny {
+            for col in 0..nx {
+                let e = at + 0x16 + usize::from(row * nx + col) * 10;
+                // Index bytes: outer loop, inner loop. Under line_dir 0 the
+                // vendor walks rows outer / columns inner (right-to-left);
+                // which of the two indices is which is medium confidence.
+                self.img[e] = row as u8;
+                self.img[e + 1] = col as u8;
+                self.img[e + 2..e + 4].copy_from_slice(&(mw * col).to_be_bytes());
+                self.img[e + 4..e + 6].copy_from_slice(&(mh * row).to_be_bytes());
+                self.img[e + 6..e + 8].copy_from_slice(&mw.to_be_bytes());
+                self.img[e + 8..e + 10].copy_from_slice(&mh.to_be_bytes());
+            }
+        }
+        self.notes.push(format!(
+            "0x600: module positions ({nx}x{ny} tiles of {mw}x{mh}, line_dir {dir})"
+        ));
+        Ok(())
+    }
+
+    /// The anti-void-line packs at 0x1800 (vendor `GetAntiVoidLineParam`):
+    /// with no void lines configured, two identical blocks of big-endian
+    /// counters `0x2000 + n`, sliced into four packs.
+    pub fn anti_void_lines(&mut self) {
+        for block in 0..2 {
+            for n in 0..0x400u16 {
+                let at = ANTI_VOID_OFFSET + block * 0x800 + usize::from(n) * 2;
+                self.img[at..at + 2].copy_from_slice(&(0x2000 + n).to_be_bytes());
+            }
+        }
+        self.notes
+            .push("0x1800: anti-void-line counters (no void lines configured)".into());
+    }
+
+    /// The scan table at 0x6000. Its renderer is decoded but the bit-time
+    /// solver behind it is not, so the bytes are carried from a compiled
+    /// image of the same chip and clock — and the solver's input depends on
+    /// the load width, so a different screen width may need a different
+    /// table.
+    ///
+    /// # Errors
+    /// Rejects a table that is not exactly one pack body.
+    pub fn scan_table(&mut self, table: &[u8]) -> Result<()> {
+        if table.len() != SCAN_TABLE_LEN {
+            bail!("scan table is {} bytes, need 0x400", table.len());
+        }
+        self.img[SCAN_TABLE_OFFSET..SCAN_TABLE_OFFSET + SCAN_TABLE_LEN].copy_from_slice(table);
+        self.notes.push(
+            "0x6000: scan table (carried verbatim — solver untranscribed, width-dependent)".into(),
+        );
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,6 +371,62 @@ mod tests {
         let (img, _, changed) = b.finish();
         assert_eq!(img, base, "round-trip must be byte-exact");
         assert!(changed.is_empty());
+    }
+
+    #[test]
+    fn the_factory_image_rebuilds_from_erased_flash_and_its_own_parts() {
+        // No base image: every region is generated (or, for the scan table,
+        // carried explicitly) and the result must equal the factory block
+        // byte for byte, except page 0xF0, which is EEPROM-backed and not
+        // part of the image the vendor writes.
+        let dump = factory_dump();
+        let base = &dump[0x7_0000..0x8_0000];
+        let n = u32::from_le_bytes(base[RCVBP_OFFSET..RCVBP_OFFSET + 4].try_into().unwrap()) as usize;
+        let file = &base[RCVBP_OFFSET + 4..RCVBP_OFFSET + 4 + n];
+        let cfg = Rcvbp::from_bytes(file).unwrap();
+        let rec01 = &cfg.record_01().unwrap().payload;
+
+        let mut b = Block7Builder::erased();
+        b.zero_regions();
+        b.basic_pack(&base[..0x100]).unwrap();
+        b.data_swap_from(rec01).unwrap();
+        b.module_positions_from(rec01).unwrap();
+        b.anti_void_lines();
+        b.mapping_from(&cfg).unwrap();
+        b.scan_table(&base[SCAN_TABLE_OFFSET..SCAN_TABLE_OFFSET + SCAN_TABLE_LEN]).unwrap();
+        b.rcvbp(file).unwrap();
+        let (img, _, _) = b.finish();
+
+        let bad: Vec<u8> = (0..=255u8)
+            .filter(|&p| p != 0xF0)
+            .filter(|&p| {
+                let at = usize::from(p) * 0x100;
+                img[at..at + 0x100] != base[at..at + 0x100]
+            })
+            .collect();
+        assert!(bad.is_empty(), "pages differing from factory: {bad:02x?}");
+    }
+
+    #[test]
+    fn a_single_module_screen_gets_module_positions() {
+        let dump = factory_dump();
+        let base = &dump[0x7_0000..0x8_0000];
+        let n = u32::from_le_bytes(base[RCVBP_OFFSET..RCVBP_OFFSET + 4].try_into().unwrap()) as usize;
+        let cfg = Rcvbp::from_bytes(&base[RCVBP_OFFSET + 4..RCVBP_OFFSET + 4 + n]).unwrap();
+        let mut rec01 = cfg.record_01().unwrap().payload.clone();
+        rec01[R01_MAX_W..R01_MAX_W + 2].copy_from_slice(&128u16.to_le_bytes());
+        rec01[R01_MAX_H..R01_MAX_H + 2].copy_from_slice(&64u16.to_le_bytes());
+
+        let mut b = Block7Builder::erased();
+        b.module_positions_from(&rec01).unwrap();
+        let (img, _, _) = b.finish();
+        assert_eq!(img[MODULE_POS_OFFSET + 5], 32, "8x4 tiles of 16x16");
+        // Last tile: row 3, col 7 -> x 112, y 48, 16x16.
+        let e = MODULE_POS_OFFSET + 0x16 + 31 * 10;
+        assert_eq!(&img[e..e + 10], &[3, 7, 0, 112, 0, 48, 0, 16, 0, 16]);
+        assert!(img[MODULE_POS_OFFSET + 0x16 + 32 * 10..MODULE_POS_OFFSET + 0x300]
+            .iter()
+            .all(|&x| x == 0));
     }
 
     #[test]

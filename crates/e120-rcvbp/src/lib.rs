@@ -25,6 +25,7 @@
 //!           gamma / calibration tables (all zero in an uncalibrated profile)
 
 pub mod compiled;
+pub mod spec;
 
 use anyhow::{bail, Context, Result};
 use std::io::{Read, Write};

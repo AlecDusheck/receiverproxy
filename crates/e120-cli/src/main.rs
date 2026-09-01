@@ -511,6 +511,15 @@ enum Cmd {
         #[arg(long)]
         out: String,
     },
+    /// Generate a config (.rcvbp + boot image) from a panel spec (TOML)
+    GenConfig {
+        /// Panel spec, see panels/*.toml
+        #[arg(long)]
+        spec: String,
+        /// Directory for the outputs (created if missing)
+        #[arg(long, default_value = "build")]
+        out_dir: String,
+    },
     /// Compare two .rcvbp files record by record
     ConfigDiff { a: String, b: String },
     /// Inspect a .rcvbp receiver-parameter file
@@ -867,6 +876,7 @@ fn run(cli: &Cli) -> Result<()> {
             base,
             out,
         ),
+        Cmd::GenConfig { spec, out_dir } => config::gen_config(spec, out_dir),
         Cmd::ConfigDiff { a, b } => config_diff(a, b),
         Cmd::Rcvbp { path, dump } => rcvbp_info(path, *dump),
         Cmd::PcapSummary { path, dump } => pcap_summary(path, *dump),

@@ -239,3 +239,100 @@ pub fn compile_config(
     println!("flash it with: e120 restore-flash {out} --commit   (then screen-size + power-cycle)");
     Ok(())
 }
+
+/// Generate a panel's configuration from a TOML spec: the `.rcvbp`, the
+/// basic-pack body, the compiled block-7 boot image, and a provenance list
+/// naming the source of every placed byte.
+pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
+    let text = std::fs::read_to_string(spec_path).with_context(|| format!("read {spec_path}"))?;
+    let spec: rcvbp::spec::PanelSpec =
+        toml::from_str(&text).with_context(|| format!("parse {spec_path}"))?;
+
+    let template = rcvbp::Rcvbp::load(&spec.template.rcvbp)?;
+    let pack = std::fs::read(&spec.template.basic_pack)
+        .with_context(|| format!("read {}", spec.template.basic_pack))?;
+    let chip_regs = spec
+        .chip
+        .registers_from
+        .as_deref()
+        .map(rcvbp::Rcvbp::load)
+        .transpose()?;
+    let mapping = spec
+        .template
+        .mapping_from
+        .as_deref()
+        .map(rcvbp::Rcvbp::load)
+        .transpose()?;
+    let g = rcvbp::spec::generate(&spec, &template, &pack, chip_regs.as_ref(), mapping.as_ref())?;
+
+    std::fs::create_dir_all(out_dir).with_context(|| format!("create {out_dir}"))?;
+    let stem = format!("{out_dir}/{}", spec.name);
+    let rcvbp_path = format!("{stem}.rcvbp");
+    g.rcvbp.save(&rcvbp_path)?;
+    let pack_path = format!("{stem}-basic-pack.bin");
+    std::fs::write(&pack_path, g.basic_pack).with_context(|| format!("write {pack_path}"))?;
+
+    // The boot image, built from erased flash: every region generated from
+    // the spec and the generated config, except the scan table, whose
+    // solver is untranscribed and is carried from the reference block.
+    let (base_path, base_off) = match spec.template.base_block.split_once(':') {
+        Some((p, o)) => (
+            p.to_string(),
+            usize::from_str_radix(o.trim_start_matches("0x"), 16)
+                .with_context(|| format!("bad base offset {o:?}"))?,
+        ),
+        None => (spec.template.base_block.clone(), 0),
+    };
+    let dump = std::fs::read(&base_path).with_context(|| format!("read {base_path}"))?;
+    anyhow::ensure!(
+        dump.len() >= base_off + rcvbp::compiled::IMAGE_LEN,
+        "{base_path} is too short for a 64KB block at 0x{base_off:x}"
+    );
+    let scan_at = base_off + rcvbp::compiled::SCAN_TABLE_OFFSET;
+    let rec01 = g.rcvbp.record_01().context("generated config lost record 0x01")?.payload.clone();
+
+    let mut b = rcvbp::compiled::Block7Builder::erased();
+    b.zero_regions();
+    b.basic_pack(&g.basic_pack)?;
+    b.data_swap_from(&rec01)?;
+    b.module_positions_from(&rec01)?;
+    b.anti_void_lines();
+    b.mapping_from(&g.rcvbp)?;
+    b.scan_table(&dump[scan_at..scan_at + rcvbp::compiled::SCAN_TABLE_LEN])?;
+    if spec.boot.arm_at_boot {
+        b.chip_registers_from(&g.rcvbp)?;
+    }
+    b.rcvbp(&g.rcvbp.to_file_bytes()?)?;
+    let (img, notes, changed) = b.finish();
+    let img_path = format!("{stem}-block7.bin");
+    std::fs::write(&img_path, &img).with_context(|| format!("write {img_path}"))?;
+
+    let mut report = String::new();
+    report.push_str(&format!("spec: {spec_path}\n\n# record and pack provenance\n"));
+    for line in &g.provenance {
+        report.push_str(line);
+        report.push('\n');
+    }
+    report.push_str("\n# compiled image\n");
+    for n in &notes {
+        report.push_str(n);
+        report.push('\n');
+    }
+    let pages: Vec<String> = changed.iter().map(|p| format!("{p:02x}")).collect();
+    report.push_str(&format!(
+        "scan table <- {} (only region not generated)\npages written: {}: {}\n",
+        spec.template.base_block,
+        changed.len(),
+        pages.join(" ")
+    ));
+    let report_path = format!("{stem}-provenance.txt");
+    std::fs::write(&report_path, &report).with_context(|| format!("write {report_path}"))?;
+
+    println!("generated {}:", spec.name);
+    println!("  {rcvbp_path}");
+    println!("  {pack_path}");
+    println!("  {img_path}   ({} pages differ from base)", changed.len());
+    println!("  {report_path}");
+    println!("install: e120 restore-flash {img_path} --commit && e120 screen-size --set {}x{} --commit", spec.screen.width, spec.screen.height);
+    Ok(())
+}

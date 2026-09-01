@@ -1,0 +1,50 @@
+# One Eager LED P2.5-O16S-SMD1415-128x64-E module on hub J1 of the E120.
+# Module spec: 128x64, 1/16 duty, 14-bit gray. Driver ICs read off the
+# module: SM16269S (vendor family id 0x014C).
+#
+# Generate with:  e120 gen-config --spec panels/p25-128x64-sm16269s.toml --out-dir build/
+# Field meanings: docs/record-0x01-fields.md; recipe: docs/building-a-config.md.
+
+name = "p25-128x64-sm16269s"
+
+[module]
+width = 128
+height = 64
+scan = 16
+gray_bits = 14
+serial_clock = 8
+line_dir = 0
+
+[screen]
+# One module: the seller's config had 256x384 (a 2x6 wall) here.
+width = 128
+height = 64
+
+[chip]
+id = 0x014C
+
+[color]
+swap = 3
+source = [2, 1, 0]
+
+[current]
+gains = [43, 43, 43, 43]
+percent = [0.1, 0.1, 0.1]
+
+[timing]
+gamma = 2.8
+refresh_hz = 60.0
+gclock = 0x14
+
+[template]
+# Records the spec does not derive (chip registers, the vendor-consensus
+# pixel mapping, gamma/empty tables) and the compiled-image regions we do
+# not yet compute. Every byte taken from here is listed in the provenance.
+rcvbp = "firmware/derived/p25-128x64-fixed.rcvbp"
+basic_pack = "firmware/derived/factory-basic-pack-body.bin"
+base_block = "firmware/card-dumps/primary-region.bin:0x70000"
+
+[boot]
+# Arming at boot with the current config lights the panel unmodulated at
+# full brightness and rails the 5.1 A supply. Leave off until it boots dark.
+arm_at_boot = false

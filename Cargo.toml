@@ -1,11 +1,19 @@
-[package]
-name = "e120"
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
-[dependencies]
+[workspace.dependencies]
+e120-proto = { path = "crates/e120-proto" }
+e120-rcvbp = { path = "crates/e120-rcvbp" }
+e120-net = { path = "crates/e120-net" }
+
+anyhow = "1"
 libc = "0.2"
 clap = { version = "4", features = ["derive"] }
-anyhow = "1"
+flate2 = "1"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "gif"] }
-flate2 = "1.1.10"

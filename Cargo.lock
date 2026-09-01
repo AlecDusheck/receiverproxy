@@ -156,14 +156,35 @@ dependencies = [
 ]
 
 [[package]]
-name = "e120"
+name = "e120-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "flate2",
+ "e120-net",
+ "e120-proto",
+ "e120-rcvbp",
  "image",
+]
+
+[[package]]
+name = "e120-net"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
  "libc",
+]
+
+[[package]]
+name = "e120-proto"
+version = "0.1.0"
+
+[[package]]
+name = "e120-rcvbp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "flate2",
 ]
 
 [[package]]

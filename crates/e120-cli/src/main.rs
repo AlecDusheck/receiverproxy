@@ -1,10 +1,8 @@
-mod bpf;
-mod pcap;
-mod protocol;
-mod rcvbp;
-
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use e120_net::{bpf, pcap};
+use e120_proto as protocol;
+use e120_rcvbp as rcvbp;
 use protocol::ColorOrder;
 use std::time::{Duration, Instant};
 

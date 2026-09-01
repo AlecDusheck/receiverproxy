@@ -47,6 +47,10 @@ struct Cli {
     #[arg(long, global = true, default_value = "bgr")]
     order: ColorOrder,
 
+    /// Pixel row frame layout: fpp | shifted (fpp is correct; shifted kept for A/B)
+    #[arg(long, global = true, default_value = "fpp")]
+    pixel_layout: protocol::PixelLayout,
+
     /// Brightness 0-255 (sent in sync frames)
     #[arg(short, long, global = true, default_value_t = 255)]
     brightness: u8,

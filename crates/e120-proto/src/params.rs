@@ -40,6 +40,9 @@ fn byte(src: &[u8], off: usize) -> u8 {
     src.get(off).copied().unwrap_or(0)
 }
 
+/// Identifiers at or above this need an escape byte in the single-byte slot.
+const CHIP_ID_ESCAPE: u8 = 0xfe;
+
 /// Build the basic-parameter pack from a record 0x01 payload.
 ///
 /// Placements come from joining the pack's store offsets to the record offsets
@@ -70,6 +73,17 @@ pub fn basic_pack(record_01: &[u8]) -> [u8; PACK_LEN] {
     p[0x03a] = byte(record_01, 0x04f);
     p[0x046] = byte(record_01, 0x24e);
     p[0x047] = byte(record_01, 0x24f);
+
+    // The driver-chip identifier. Without it the card is told chip type 0 — a
+    // plain shift register — and will never emit a smart chip's init sequence.
+    let chip = u16::from(byte(record_01, 0x204)) << 8 | u16::from(byte(record_01, 0x036));
+    p[0x01f] = if chip >= 0x100 {
+        CHIP_ID_ESCAPE
+    } else {
+        chip as u8
+    };
+    p[0x0eb] = (chip >> 8) as u8;
+    p[0x0ec] = (chip & 0xff) as u8;
 
     p
 }
@@ -227,5 +241,40 @@ mod more_tests {
         for (i, p) in chunked_packs(3, &rec).iter().enumerate() {
             assert_eq!(u16::from_be_bytes([p[4], p[5]]) as usize, i);
         }
+    }
+}
+
+#[cfg(test)]
+mod chip_id_tests {
+    use super::*;
+
+    fn record_with_chip(id: u16) -> Vec<u8> {
+        let mut r = vec![0u8; 764];
+        r[0x036] = (id & 0xff) as u8;
+        r[0x204] = (id >> 8) as u8;
+        r
+    }
+
+    #[test]
+    fn a_large_chip_id_is_escaped_and_split() {
+        let p = basic_pack(&record_with_chip(0x014c));
+        assert_eq!(p[0x01f], CHIP_ID_ESCAPE, "ids past a byte use the escape");
+        assert_eq!(p[0x0eb], 0x01);
+        assert_eq!(p[0x0ec], 0x4c);
+    }
+
+    #[test]
+    fn a_small_chip_id_goes_in_the_single_byte_slot() {
+        let p = basic_pack(&record_with_chip(0x0042));
+        assert_eq!(p[0x01f], 0x42);
+        assert_eq!(p[0x0eb], 0x00);
+        assert_eq!(p[0x0ec], 0x42);
+    }
+
+    #[test]
+    fn a_pack_without_a_chip_id_still_says_zero() {
+        let p = basic_pack(&vec![0u8; 764]);
+        assert_eq!(p[0x01f], 0);
+        assert_eq!(p[0x0ec], 0);
     }
 }

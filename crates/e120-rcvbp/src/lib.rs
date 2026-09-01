@@ -134,6 +134,16 @@ impl Rcvbp {
         self.records.iter().find(|r| r.rtype[1] == 0x01)
     }
 
+    /// The driver-chip identifier, split across two bytes of record 0x01.
+    ///
+    /// The low byte sits at +0x036 and the high byte a long way off at +0x204;
+    /// reading only the low byte silently mistakes an SM16269S (0x014c) for
+    /// whatever dumb chip shares its low byte.
+    pub fn chip_type(&self) -> Option<u16> {
+        let p = &self.record_01()?.payload;
+        Some(u16::from(*p.get(0x204)?) << 8 | u16::from(*p.get(0x036)?))
+    }
+
     /// Scan denominator, held literally (16, 32 or 64) at record 0x01 +0x020.
     ///
     /// This is the authoritative scan field; the value near the start of the

@@ -88,6 +88,16 @@ pub const FLASH_PAGE_BYTES: usize = 256;
 /// allowlist rather than a denylist on purpose.
 pub const PARAM_BLOCK: u8 = 0x07;
 
+/// Blocks holding the primary firmware image.
+///
+/// The card keeps two bitstreams: a primary at block 0x00 and a golden backup
+/// at block 0x20. Only the primary may be written, so the golden bank always
+/// remains as an in-hardware fallback.
+pub const FIRMWARE_BLOCKS: std::ops::Range<u8> = 0x00..0x0b;
+
+/// First block of the golden backup image, which must never be written.
+pub const GOLDEN_BLOCK: u8 = 0x20;
+
 /// Rejected before anything reaches the wire.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WriteError {
@@ -130,6 +140,82 @@ pub fn erase_block(rcv_index: u16, block: u8) -> Result<Vec<u8>, WriteError> {
     if block != PARAM_BLOCK {
         return Err(WriteError::ForbiddenBlock(block));
     }
+    erase_block_unchecked(rcv_index, block)
+}
+
+/// Erase a firmware block. Separate from [`erase_block`] so that writing
+/// firmware is always an explicit, deliberate act.
+///
+/// # Errors
+/// Refuses any block outside [`FIRMWARE_BLOCKS`].
+pub fn erase_firmware_block(rcv_index: u16, block: u8) -> Result<Vec<u8>, WriteError> {
+    if !FIRMWARE_BLOCKS.contains(&block) {
+        return Err(WriteError::ForbiddenBlock(block));
+    }
+    erase_block_unchecked(rcv_index, block)
+}
+
+/// Opcode the firmware-upgrade path uses to write a chunk.
+const FIRMWARE_OP_WRITE: u8 = 0x62;
+
+/// Write one 256-byte chunk of firmware.
+///
+/// The upgrade path uses its own frame type and layout, distinct from the
+/// parameter-flash frames: type 0x2600, opcode at payload+5, block and page at
+/// payload+7 and +8, data from payload+0x0a.
+///
+/// # Errors
+/// Refuses any block outside [`FIRMWARE_BLOCKS`], or a payload that is not
+/// exactly one page.
+pub fn write_firmware_chunk(
+    rcv_index: u16,
+    block: u8,
+    page: u8,
+    data: &[u8],
+    opcode: u8,
+) -> Result<Vec<u8>, WriteError> {
+    if !FIRMWARE_BLOCKS.contains(&block) {
+        return Err(WriteError::ForbiddenBlock(block));
+    }
+    if data.len() != FLASH_PAGE_BYTES {
+        return Err(WriteError::WrongPageSize(data.len()));
+    }
+    let mut p = vec![0u8; 8 + FLASH_PAGE_BYTES];
+    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
+    p[3] = opcode;
+    p[5] = block;
+    p[6] = page;
+    p[8..].copy_from_slice(data);
+    Ok(frame([0x26, 0x00], &p))
+}
+
+/// The default firmware write opcode.
+#[must_use]
+pub const fn firmware_write_opcode() -> u8 {
+    FIRMWARE_OP_WRITE
+}
+
+/// Write one page of a firmware block.
+///
+/// # Errors
+/// Refuses any block outside [`FIRMWARE_BLOCKS`], or a payload that is not
+/// exactly one page.
+pub fn write_firmware_page(
+    rcv_index: u16,
+    block: u8,
+    page: u8,
+    data: &[u8],
+) -> Result<Vec<u8>, WriteError> {
+    if !FIRMWARE_BLOCKS.contains(&block) {
+        return Err(WriteError::ForbiddenBlock(block));
+    }
+    if data.len() != FLASH_PAGE_BYTES {
+        return Err(WriteError::WrongPageSize(data.len()));
+    }
+    write_page_unchecked(rcv_index, block, page, data, 0)
+}
+
+fn erase_block_unchecked(rcv_index: u16, block: u8) -> Result<Vec<u8>, WriteError> {
     let mut p = [0u8; 126];
     p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
     p[3] = FLASH_OP_ERASE;
@@ -166,6 +252,16 @@ pub fn write_page_flag(
     if data.len() != FLASH_PAGE_BYTES {
         return Err(WriteError::WrongPageSize(data.len()));
     }
+    write_page_unchecked(rcv_index, block, page, data, flag)
+}
+
+fn write_page_unchecked(
+    rcv_index: u16,
+    block: u8,
+    page: u8,
+    data: &[u8],
+    flag: u8,
+) -> Result<Vec<u8>, WriteError> {
     // Layout mirrors the read frame, which is verified against hardware:
     // [0] zero, [1..3] receiver index, [3] opcode, [4] flag, [5..7] block/page.
     // The vendor builder copies payload data to offset 0x0a of the frame
@@ -552,6 +648,73 @@ mod linear_tests {
         assert_eq!(
             write_screen_record(0, SCREEN_RECORD_ADDR, &[0; 128]),
             Err(WriteError::WrongPageSize(128))
+        );
+    }
+}
+
+#[cfg(test)]
+mod firmware_tests {
+    use super::*;
+
+    #[test]
+    fn firmware_writes_are_confined_to_the_primary_image() {
+        let page = [0u8; FLASH_PAGE_BYTES];
+        for block in FIRMWARE_BLOCKS {
+            assert!(erase_firmware_block(0, block).is_ok());
+            assert!(write_firmware_page(0, block, 0, &page).is_ok());
+        }
+        // The golden bank and everything past the primary image are refused.
+        for block in [GOLDEN_BLOCK, 0x0b, 0x0c, 0x21, 0xff] {
+            assert_eq!(
+                erase_firmware_block(0, block),
+                Err(WriteError::ForbiddenBlock(block)),
+                "block 0x{block:02x} must be refused"
+            );
+            assert_eq!(
+                write_firmware_page(0, block, 0, &page),
+                Err(WriteError::ForbiddenBlock(block))
+            );
+        }
+    }
+
+    #[test]
+    fn the_golden_bank_is_outside_the_writable_range() {
+        assert!(!FIRMWARE_BLOCKS.contains(&GOLDEN_BLOCK));
+    }
+
+    #[test]
+    fn the_parameter_helpers_still_refuse_firmware_blocks() {
+        // Config writes must not stray into the firmware image.
+        assert_eq!(erase_block(0, 0x00), Err(WriteError::ForbiddenBlock(0x00)));
+        assert_eq!(
+            write_page(0, 0x00, 0, &[0u8; FLASH_PAGE_BYTES]),
+            Err(WriteError::ForbiddenBlock(0x00))
+        );
+    }
+}
+
+#[cfg(test)]
+mod firmware_frame_tests {
+    use super::*;
+
+    #[test]
+    fn firmware_chunk_matches_the_documented_layout() {
+        let data: Vec<u8> = (0..=255u8).collect();
+        let f = write_firmware_chunk(0, 0x03, 0x40, &data, FIRMWARE_OP_WRITE).unwrap();
+        assert_eq!(f.len(), 278, "12 MAC + 266 payload");
+        assert_eq!(&f[12..14], &[0x26, 0x00]);
+        assert_eq!(f[17], FIRMWARE_OP_WRITE);
+        assert_eq!(f[19], 0x03, "block at payload+7");
+        assert_eq!(f[20], 0x40, "page at payload+8");
+        assert_eq!(&f[22..], &data[..], "data from payload+0x0a");
+    }
+
+    #[test]
+    fn firmware_chunks_refuse_the_golden_bank() {
+        let data = vec![0u8; FLASH_PAGE_BYTES];
+        assert_eq!(
+            write_firmware_chunk(0, GOLDEN_BLOCK, 0, &data, FIRMWARE_OP_WRITE),
+            Err(WriteError::ForbiddenBlock(GOLDEN_BLOCK))
         );
     }
 }

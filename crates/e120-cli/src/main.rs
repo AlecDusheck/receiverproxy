@@ -91,6 +91,21 @@ enum Cmd {
         #[arg(long, default_value_t = 2)]
         wait: u64,
     },
+    /// Write an FPGA bitstream into the card's primary firmware bank
+    FlashFirmware {
+        /// The .hex bitstream to install
+        image: String,
+        /// A prior dump of the primary bank, required as a recovery path
+        #[arg(long)]
+        backup: String,
+        /// Actually write. Without this it only reports what it would do.
+        #[arg(long)]
+        commit: bool,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+        #[arg(long, default_value_t = 3)]
+        wait: u64,
+    },
     /// Scan every 64KB flash block for known signatures (read-only)
     ScanFlash {
         #[arg(long, default_value_t = 0)]
@@ -447,6 +462,13 @@ fn run_flash(cli: &Cli) -> Result<Option<()>> {
             index,
             wait,
         } => scan_flash(cli, *first, *last, *index, *wait).map(Some),
+        Cmd::FlashFirmware {
+            image,
+            backup,
+            commit,
+            index,
+            wait,
+        } => flash_firmware(cli, image, backup, *commit, *index, *wait).map(Some),
         Cmd::WriteConfig {
             config,
             commit,
@@ -765,6 +787,125 @@ fn read_chunk(dev: &mut bpf::Bpf, index: u16, page: u16, wait: u64) -> Result<Ve
         }
     }
     anyhow::bail!("no reply for page 0x{page:04x} within {wait}s")
+}
+
+/// Install an FPGA bitstream into the primary firmware bank.
+///
+/// Only the primary is written; the golden backup at block 0x20 is left alone
+/// so the card retains an in-hardware fallback. A local dump of the current
+/// primary is required as well, so the previous image can be put back.
+fn flash_firmware(
+    cli: &Cli,
+    image: &str,
+    backup: &str,
+    commit: bool,
+    index: u16,
+    wait: u64,
+) -> Result<()> {
+    const LATTICE: &[u8] = b"Lattice Semiconductor";
+
+    let img = std::fs::read(image).with_context(|| format!("read {image}"))?;
+    anyhow::ensure!(
+        img.windows(LATTICE.len()).take(256).any(|w| w == LATTICE),
+        "{image} does not look like a Lattice bitstream"
+    );
+    let span = protocol::FIRMWARE_BLOCKS.len() * 64 * 1024;
+    anyhow::ensure!(
+        img.len() <= span,
+        "{image} is {} bytes, more than the {span}-byte primary bank",
+        img.len()
+    );
+
+    // Refuse to proceed without a local copy of what we are about to replace.
+    let old = std::fs::read(backup).with_context(|| format!("read backup {backup}"))?;
+    anyhow::ensure!(
+        old.len() >= span && old.windows(LATTICE.len()).take(256).any(|w| w == LATTICE),
+        "{backup} is not a usable dump of the current primary bank"
+    );
+
+    let header: String = img[..200]
+        .iter()
+        .map(|&b| {
+            if b.is_ascii_graphic() || b == b' ' {
+                b as char
+            } else {
+                ' '
+            }
+        })
+        .collect();
+    println!("installing {image} ({} bytes)", img.len());
+    for field in ["Design name", "Part", "Date"] {
+        if let Some(i) = header.find(field) {
+            println!("  {}", header[i..].split("  ").next().unwrap_or("").trim());
+        }
+    }
+    println!(
+        "  target: blocks 0x{:02x}..0x{:02x}; golden bank at 0x{:02x} untouched",
+        protocol::FIRMWARE_BLOCKS.start,
+        protocol::FIRMWARE_BLOCKS.end - 1,
+        protocol::GOLDEN_BLOCK
+    );
+    println!("  recovery: {backup}");
+
+    if !commit {
+        println!("\ndry run: nothing was written. Re-run with --commit to install.");
+        return Ok(());
+    }
+
+    let mut dev = open(cli)?;
+    for block in protocol::FIRMWARE_BLOCKS {
+        println!("erasing block 0x{block:02x}");
+        dev.send(&protocol::erase_firmware_block(index, block)?)?;
+        std::thread::sleep(Duration::from_secs(3));
+    }
+
+    let mut written = 0usize;
+    for block in protocol::FIRMWARE_BLOCKS {
+        for page in 0..=0xffu8 {
+            let off = (usize::from(block) * 256 + usize::from(page)) * protocol::FLASH_PAGE_BYTES;
+            let mut buf = [0xffu8; protocol::FLASH_PAGE_BYTES];
+            if off < img.len() {
+                let n = (img.len() - off).min(protocol::FLASH_PAGE_BYTES);
+                buf[..n].copy_from_slice(&img[off..off + n]);
+            }
+            dev.send(&protocol::write_firmware_page(index, block, page, &buf)?)?;
+            std::thread::sleep(Duration::from_millis(6));
+            written += protocol::FLASH_PAGE_BYTES;
+        }
+        println!(
+            "  block 0x{block:02x} written ({} KB total)",
+            written / 1024
+        );
+    }
+
+    println!("verifying...");
+    let mut bad = 0usize;
+    for block in protocol::FIRMWARE_BLOCKS {
+        for lo in (0u16..0x100).step_by(protocol::FLASH_PAGES_PER_CHUNK as usize) {
+            let page = (u16::from(block) << 8) | lo;
+            let got = read_chunk(&mut dev, index, page, wait)?;
+            let off =
+                (usize::from(block) * 256 + usize::from(lo as u8)) * protocol::FLASH_PAGE_BYTES;
+            for (i, g) in got.iter().enumerate() {
+                let want = img.get(off + i).copied().unwrap_or(0xff);
+                if *g != want {
+                    bad += 1;
+                }
+            }
+        }
+    }
+    if bad == 0 {
+        println!("verified: the primary bank matches the image");
+    } else {
+        println!("WARNING: {bad} bytes differ after writing");
+        println!(
+            "  the golden bank at 0x{:02x} is untouched, and {backup} can be written back with:",
+            protocol::GOLDEN_BLOCK
+        );
+        println!("  e120 flash-firmware {backup} --backup {backup} --commit");
+    }
+    println!("\npower-cycle the card to load the new bitstream");
+    Ok(())
 }
 
 /// Read page 0 of each block and report what it looks like. Read-only.

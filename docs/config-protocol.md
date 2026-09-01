@@ -3095,3 +3095,193 @@ accessors bottom out in a chip-library sub-object I could not resolve.
    `addrHi = 0x00..0xFF`, `addrLo = 0x00`). Read-only.
 3. Dump whichever region(s) match — that is the backup, and the variant answer by
    diff.
+
+---
+
+## 25. Firmware flash — implementable spec
+
+Static analysis. Confidence marked per item as requested.
+
+### 25.0 Where the code lives (CONFIRMED)
+
+`FwUpgrade2.dll` exports exactly **one** symbol, `CreateHwUpgrade`, and imports
+exactly **one** function from `CLTDevice.dll`:
+`GetHwDeviceManager()` → `IDeviceManager*`. It is a UI/orchestration layer; **all
+frame construction happens in CLTDevice**, the Windows twin of the
+`libCLTDevice.1.dylib` analysed throughout this document. So the dylib analysis
+*is* the analysis of the flashing tool — the "two independent implementations"
+you wanted to cross-check are the same implementation behind two front-ends.
+
+### 25.1 Item 1 — the upgrade frame (HIGH confidence on layout, MEDIUM on field roles)
+
+Builder: **`BuildRcvCardFlashOperationEx` @ `0x30b8e0`** — note this is the *Ex*
+variant, distinct from the config-path builder, and its **type byte is
+caller-supplied** rather than computed:
+
+```
+n = max(0x80, datalen + 0xa)
+buf = new[n]; bzero
+byte [buf+0x00] = arg4              ; TYPE BYTE  -> 0x26 at every upgrade call site
+word [buf+0x01] = 0
+byte [buf+0x03] = rcvIdx >> 8       ; big-endian
+byte [buf+0x04] = rcvIdx & 0xff
+byte [buf+0x05] = arg5              ; OPCODE
+byte [buf+0x06] = stack arg (+0x18) ; 0 at the data-carrying sites
+byte [buf+0x07] = arg6 (r9d)        ; address HIGH  (block)
+byte [buf+0x08] = stack arg (+0x10) ; address LOW   (page)
+byte [buf+0x09] = 0
+memcpy(buf + 0x0a, data, datalen)   ; guarded on opcode
+```
+
+**Data-carrying call sites** (`0x3a4d36`, `0x3a4e38` in `DoSlowUpgradeRcv`) pass:
+
+```
+type    = 0x26
+datalen = 0x100                      ; 256 bytes per chunk   <- CONFIRMED, literal push 0x100
+data    = rbx                        ; firmware buffer + offset
+payload[6] = 0
+```
+
+So the on-wire frame is **payload 0x10A = 266 bytes, frame = 12 + 266 = 278
+bytes**, type word `26 00`.
+
+**Write opcode (HIGH confidence):** at `0x3a4c05`–`0x3a4c12`:
+
+```
+mov eax, 0x85
+mov ecx, 0x62
+cmove ecx, eax        ; selected by a capability bit (dil & 4)
+mov [var_9ch], ecx    ; -> feeds payload[5]
+```
+
+So the opcode is **`0x62`**, or **`0x85`** when the card advertises the
+capability bit. `0x85` is the same write opcode as the config path (§13.4), which
+is a reassuring cross-check. **Try `0x62` first**; it is the default branch.
+
+**Delays (CONFIRMED, literal `usleep` arguments):**
+
+| site | value | meaning |
+|---|---|---|
+| `0x3a4c4f` | `0x88B8` = **35 000 µs = 35 ms** | in the erase loop |
+| `0x3a4e9f` | `0x3E8` = **1 000 µs = 1 ms** | between data chunks |
+| `0x3a4ff7` | `0x7530` = **30 000 µs = 30 ms** | at completion |
+
+**Erase step (MEDIUM):** a loop at `0x3a4c37`–`0x3a4c74` calls a device vtable
+method `[rax+8]`, iterating `var_c8h` times with the 35 ms delay between
+iterations. I did **not** resolve that vtable slot to a named function (see the
+repeated vtable-misattribution problem in §15.5/§17.3/§24.1), so I cannot give
+you the erase frame bytes. Given the erase count is a variable, it is very likely
+one erase per 64 KB block over the image span.
+
+**Completion (LOW):** I found no explicit completion frame — the sequence ends
+with the 30 ms delay. `VerifyFileCrc` @ `0x396430` exists for post-flash
+verification, and re-reading the region with the page-based read you already have
+is the verification I would actually trust.
+
+### 25.2 Item 2 — target address (MEDIUM-HIGH)
+
+`payload[7]/[8]` are the **same page addressing as the config path**:
+`byte address = payload[7] * 0x10000 + payload[8] * 0x100`.
+
+At `0x3a4875`–`0x3a4878` the low byte is computed as
+`(word[rbx+0x12] + chunk_index) & 0xff` — i.e. **a base page from card-supplied
+info plus a running chunk counter**. So the tool asks the card for the base and
+walks forward one 256-byte page per chunk.
+
+**For your case:** you have measured the banks directly — primary at block 0x00,
+golden at block 0x20. A 721 024-byte image is 0xB0000 = **11 blocks**, so the
+primary occupies blocks **0x00–0x0A** and the golden **0x20–0x2A**.
+
+**Write the primary only: `payload[7]` must stay in `0x00..0x0A`.** That leaves
+golden as your in-hardware fallback, which is exactly what you want. Do not let
+the address reach 0x20.
+
+### 25.3 Item 3 — image sent verbatim (HIGH)
+
+`LoadUpgradeFile` @ `0x396120` opens, seeks to end, allocates, reads the whole
+file, and returns the buffer. **No header parse, no conversion, no stripping.**
+The 721 024 bytes go out as-is including the leading `FF 00` and the ASCII
+Lattice header — chunked into 2 816 frames of 256 bytes (`0xB0000 / 0x100`).
+
+I did **not** examine the `.fw` container in `UpgradePack` (no E-series samples,
+and the raw `.hex` path is what applies to us). If the card expected a `.fw`
+wrapper, `LoadUpgradeFile` would have to parse one, and it does not — so raw is
+right for our files.
+
+### 25.4 The E120/E320 type question (IMPORTANT — read this)
+
+I found the packed model table and enumerated it. **E120 and E320 are separate
+entries** — the software distinguishes them as distinct card types:
+
+```
+... i7+ , E320P , E320 , K5+ , i9+ , E80 , K9+ , RI17 , ...
+... K8S , E200 , E260 , GST32 , ... , RI21 , E120 , K8 , N6s , ...
+```
+
+**I could not reliably derive the numeric type for E120.** Anchoring the table
+against `RcvPackInfo.xml` is inconsistent: one alignment makes `K8 = 101`
+(matching the XML exactly) and would put `E120 = 100` — matching your card's
+reported `0x64` — but the same alignment puts `E200/E260` two off from their XML
+values. That is over-fitting on a coincidence, so **treat "type 100 = E120" as
+plausible but unconfirmed.**
+
+What this does *not* settle is gateware compatibility, and here your physical
+evidence is much stronger than anything in the model table: identical
+`Design name`, `Part`, `Rows`/`Cols`/`Bits` and header CRC across your dump and
+the E320 files means it is the same design compiled at different dates. A
+distinct *model type number* is a product/SKU distinction, not necessarily a
+pinout distinction.
+
+### 25.5 Item 4 — minimum viable procedure and guards
+
+**Must happen, in order:**
+
+1. Verify both bank dumps are on disk and their Lattice headers parse. You have
+   this.
+2. Confirm the target image size is exactly 721 024 bytes.
+3. Erase the primary span (blocks 0x00–0x0A), 35 ms between erases.
+4. Write 2 816 chunks of 256 bytes, `payload[7]:[8]` walking `0x0000` → `0x0AFF`,
+   1 ms between chunks.
+5. 30 ms settle.
+6. **Read the region back with the page-based read and byte-compare against the
+   file before power-cycling.** This is the step I would not skip — it is
+   read-only, you already have the tooling, and it is the difference between
+   "probably flashed" and "verified flashed".
+7. Power-cycle.
+
+**Must never happen — hard-code these:**
+
+* `payload[7]` **outside `0x00..0x0A`**. Reaching `0x20..0x2A` destroys the golden
+  bank, which is the one thing that makes this recoverable.
+* Any write with type ≠ `0x26` on this path.
+* Any erase whose count could exceed the 11-block span.
+* Any `0x1900` frame during the flash — that is the EEPROM (§24.1) and has no
+  business in this sequence.
+
+**The failure that cannot be walked back:** the card stops answering Ethernet. That
+happens if the *running* gateware is destroyed and the golden bank cannot take
+over. Two implications: (a) never touch block 0x20–0x2A, and (b) if the card
+boots from the primary unconditionally rather than falling back on a bad CRC,
+then a half-written primary is fatal regardless of golden. **I could not determine
+the boot/fallback rule** — it is in the bootloader, not in any host-side code —
+so the golden bank is *probable* but not *proven* insurance.
+
+Given that, the sequencing that minimises exposure is: erase and write in one
+uninterrupted run, on a wired link with nothing else on the interface, on a
+machine that will not sleep, with the panel's supply stable. The window of
+vulnerability is between the first erase and the last verified chunk.
+
+### 25.6 Confidence summary
+
+| item | confidence |
+|---|---|
+| Frame layout (offsets, type 0x26, 256-byte chunks, 278-byte frame) | **high** |
+| Write opcode 0x62 / 0x85 | **high** |
+| Delays 35 ms / 1 ms / 30 ms | **high** (literal immediates) |
+| Address = `payload[7]*0x10000 + payload[8]*0x100` | **medium-high** |
+| Primary at blocks 0x00–0x0A, golden 0x20–0x2A | **high** (your measurement) |
+| Image sent raw, header included | **high** |
+| Erase frame bytes | **not determined** |
+| Completion signalling | **not determined** — verify by readback |
+| Boot/fallback rule (is golden real insurance?) | **not determined** |
+| "type 100 = E120" | **plausible, unconfirmed** |

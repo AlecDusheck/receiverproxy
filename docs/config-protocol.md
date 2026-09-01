@@ -1646,3 +1646,172 @@ relying on a "nobody checks" argument.
 **It is not a nonce or timestamp.** It is fully deterministic from content: the
 two 18 766-byte corpus files that differ in exactly two content bytes produce
 different trailers, and both are reproduced exactly by the algorithm above.
+
+---
+
+## 15. The layout / screen-size command (type 0x02) — RAM-only
+
+Static analysis only. Nothing executed.
+
+### 15.1 It is a real-time (RAM) command — safe to test immediately
+
+`CReceiverOP::SendOrSaveLayout` @ `0x3b5990` → `DoSendOrSaveLayout` →
+`CRcvLayoutSendAndWriter`. Its `DoSendSave` @ `0x37c840` has two clearly separated
+phases:
+
+```
+phase 1 (RAM):   GetCardAreaParamPacks* ... -> SendRealTimePacks()
+phase 2 (persist): DoWriteConnectionToEeprom / WriteBackUpConncetion / SaveSenderCardArea ...
+```
+
+Scanned for flash operations (`BuildRcvCardFlashOperation`, `ClearFlashSector`,
+`BuildRcvStorage*`):
+
+| function | flash ops |
+|---|---|
+| `DoSendSave` @ 0x37c840 | **0** |
+| `PrepareData` @ 0x386530 | **0** |
+| `GetRealTimePacks` @ 0x37d760 | **0** |
+
+The only flash writes anywhere in the layout writer are
+`WriteBackUpConncetion` @ `0x37f8ae` and `...ForBackup` @ `0x37ff42`, and both
+target **region `addrHi = 0x1d`** — not block 0x07, and not page 0xF0.
+
+**So sending the type-0x02 pack changes RAM only.** It cannot erase or write
+flash, and it cannot make the current situation worse. It is the ideal thing to
+test right now.
+
+### 15.2 Frame layout (from `GetParamPacksLayout` @ `0x3b9540`)
+
+Buffer base = `rbp-0x2850` = payload[0]; built at `0x3b9574`–`0x3b969c`:
+
+```
+bzero(payload+1, 0x503)
+payload[0] = 2                       ; type byte
+
+ebx = GetRcvMaxWidth()               ; receiver width
+eax = GetRcvMaxHeight()              ; receiver height
+ecx = ebx >> 8 ; edx = eax >> 8      ; MSBs
+rsi = 0xd
+loop:
+   dword [payload + rsi - 9] = 0     ; entry: xOffset, yOffset
+   byte  [payload + rsi - 5] = cl    ; width  MSB
+   byte  [payload + rsi - 4] = bl    ; width  LSB
+   byte  [payload + rsi - 3] = dl    ; height MSB
+   byte  [payload + rsi - 2] = al    ; height LSB
+   word  [payload + rsi - 1] = 0
+   rsi += 0xa
+until rsi == 0x50d
+CSendControl(payload, 0x504)
+```
+
+Which gives, in payload coordinates:
+
+```
+payload[0]        = 0x02                     type
+payload[1..3]     = 0
+payload[4 + 10*i] for i = 0 .. 127           128 receiver entries, 10 bytes each:
+      +0..1  xOffset  (big-endian u16)
+      +2..3  yOffset  (big-endian u16)
+      +4..5  width    (big-endian u16)
+      +6..7  height   (big-endian u16)
+      +8..9  reserved 0
+payload length    = 0x504 = 1284 bytes
+frame length      = 12 + 1284 = 1296 bytes
+```
+
+Entry count = `(0x50d - 0xd) / 0xa` = **128**, stride 10, spanning
+payload[4 .. 0x503]. All 16-bit fields are **big-endian**, consistent with the
+rest of the protocol.
+
+**This independently confirms FPP's documented offsets.** Their `Data[]` starts at
+payload[1], so their `Data[7]` = payload[8] = width MSB and `Data[9]` =
+payload[10] = height MSB — exactly what the instructions above produce. Their
+`Data[13]`/`Data[15]` (next receiver x/y offset) line up with entry 1's offset
+fields at payload[14]/payload[16]. So FPP's header was right; you can now trust it.
+
+### 15.3 The exact frame to restore 128x64
+
+The initialisation loop writes the *same* width/height into all 128 entries and
+zeroes every offset — so for a single receiver at (0,0) the initialisation alone
+already produces the correct entry 0.
+
+```
+ 0x00  11 22 33 44 55 66      dst MAC
+ 0x06  22 22 33 44 55 66      src MAC
+ 0x0c  02 00                  type 0x0200          <- payload[0..1]
+ 0x0e  00 00                  payload[2..3]
+ 0x10  00 00 00 00 00 80 00 40 00 00     entry 0: xOff=0 yOff=0 w=128 h=64
+ 0x1a  ... 127 more 10-byte entries ...
+```
+
+Two options for entries 1..127, in order of preference:
+
+1. **Replicate the vendor initialisation** — every entry `00 00 00 00 00 80 00 40 00 00`.
+   This is literally what the disassembled loop produces, so it is the
+   behaviour most likely to be accepted.
+2. Entry 0 populated, entries 1..127 all zero. More conservative in intent, but
+   *not* what the code does — try it only if option 1 misbehaves.
+
+Note the type word on the wire is `02 00`: `payload[0]=2`, `payload[1]=0`,
+matching the `0x0700` / `0x0600` pattern of the other commands.
+
+### 15.4 Why your page-0xF0 writes are refused (hypothesis, well-supported)
+
+The parameter window is image offset `0x8000` + 4-byte prefix + max `0x6FFC`
+= **exactly `0xF000`** (§13.6). Page 0xF0 begins precisely where the parameter
+window ends — it is the next record, outside the window, which is consistent with
+a firmware bounds check on opcode 0x85 writes.
+
+Nothing in the vendor tool writes block 0x07 page 0xF0 via `BuildRcvCardFlashOperation`:
+
+* `DoWriteToRcvForSeparate` writes only pages drawn from its parameter page list,
+  which by construction covers the `0x80..0xEF` window.
+* Every other `addrHi` in the region map (§13.3) is a *different* 64 KB block.
+* The layout persistence path writes region `0x1d` and the EEPROM path — never
+  `(0x07, 0xF0)`.
+
+**Best explanation: the host never writes 0x07F000 directly — the card's firmware
+writes it itself when it receives and persists a layout.** That accounts for both
+observations: the page had valid content originally, and the host-side page write
+is rejected now.
+
+If that is right, the repair is not a raw page write at all: send the layout
+(§15.3), and if you then want it persisted, use the layout *save* path rather
+than trying to place the bytes yourself.
+
+### 15.5 Correction to §12/§13: vtable slot names were misattributed
+
+While tracing this I read the `CReceiverOP` vtable at `0x454c40` and got
+`vt+0x610 = WriteDataToEepromFlashEx`, `vt+0x620 = ClearFlashSector` — which
+contradicts §12 (where I called `[rax+0x620]` `ReadFlashToBuffer`) and §13 (where
+I called `[rax+0x610]` `ClearFlashSector`).
+
+The **argument shapes**, not the vtable read, are the reliable evidence:
+
+* §12's `[rax+0x620]` call passes 8 arguments matching
+  `ReadFlashToBuffer(u32,int,int,uchar,uchar,uint,uchar*,int)` exactly — and the
+  frame it produced worked on hardware, which settles it empirically.
+* §13's `[rax+0x610]` call passes `this` + 4 arguments, matching
+  `ClearFlashSector(u32,u16,u16,u8)` and **not** the 6-argument
+  `WriteDataToEepromFlashEx`.
+
+So the frame-level conclusions in §12 and §13 stand; only the vtable-slot
+*labels* were wrong. The likely cause is that these objects are a derived class
+whose vtable is not the one at `0x454c40`. **Treat any vtable-slot name in this
+document as indicative only; argument arity and the literal immediates are the
+load-bearing evidence.**
+
+### 15.6 What is still unknown
+
+* The exact per-receiver patching that follows the initialisation loop (I read the
+  init and the `CSendControl` wrap; a middle section may adjust entries for
+  multi-receiver setups — irrelevant for a single 128x64 receiver).
+* Whether the card persists the layout on its own or needs an explicit save
+  command; I did not identify a distinct "save layout" frame type. FPP's
+  documented `0x11` ("Save Config", 1283 data bytes) has *exactly* the same data
+  length as this pack's `0x503`, which is suggestive of a save-variant sharing the
+  structure — **unverified**, do not send it blind.
+* The full semantic layout of page 0xF0 beyond the width/height fields you
+  already identified. You have the 256 original bytes, so this only matters if a
+  direct write path turns up.

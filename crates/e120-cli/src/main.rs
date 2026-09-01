@@ -203,24 +203,20 @@ enum Cmd {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    run(&cli)
+}
+
+/// Commands that put an image on the panel.
+fn run_display(cli: &Cli) -> Result<Option<()>> {
     match &cli.cmd {
-        Cmd::Discover { wait } => discover(&cli, *wait),
-        Cmd::Listen { wait } => listen(&cli, *wait),
-        Cmd::Brightness { value } => {
-            let mut dev = open(&cli)?;
-            dev.send(&protocol::brightness(*value))?;
-            dev.send(&protocol::sync(*value))?;
-            println!("brightness set to {value}");
-            Ok(())
-        }
         Cmd::Fill { color } => {
             let (r, g, b) = parse_color(color)?;
-            let fb = solid(&cli, r, g, b);
-            show(&cli, &fb, false)
+            let fb = solid(cli, r, g, b);
+            show(cli, &fb, false).map(Some)
         }
         Cmd::Test { pattern, hold } => {
-            let fb = test_pattern(&cli, pattern)?;
-            show(&cli, &fb, *hold)
+            let fb = test_pattern(cli, pattern)?;
+            show(cli, &fb, *hold).map(Some)
         }
         Cmd::Image { path, hold } => {
             let img = image::open(path).with_context(|| format!("open image {path}"))?;
@@ -235,47 +231,25 @@ fn main() -> Result<()> {
             for (x, y, px) in img.enumerate_pixels() {
                 fb[y as usize * cli.width as usize + x as usize] = [px[0], px[1], px[2]];
             }
-            show(&cli, &fb, *hold)
+            show(cli, &fb, *hold).map(Some)
         }
         Cmd::Blank => {
-            let fb = solid(&cli, 0, 0, 0);
-            show(&cli, &fb, false)
+            let fb = solid(cli, 0, 0, 0);
+            show(cli, &fb, false).map(Some)
         }
-        Cmd::ReadConfig {
-            out,
-            index,
-            page,
-            max_chunks,
-            wait,
-        } => read_config(&cli, *index, *page, *max_chunks, *wait, out),
-        Cmd::DumpFlash {
-            out,
-            block,
-            index,
-            wait,
-        } => dump_flash(&cli, *block, *index, *wait, out),
-        Cmd::WriteConfig {
-            config,
-            commit,
-            backup,
-            base_image,
-            index,
-            wait,
-        } => write_config(
-            &cli,
-            config,
-            *commit,
-            backup,
-            base_image.as_deref(),
-            *index,
-            *wait,
-        ),
+        Cmd::Brightness { value } => {
+            let mut dev = open(cli)?;
+            dev.send(&protocol::brightness(*value))?;
+            dev.send(&protocol::sync(*value))?;
+            println!("brightness set to {value}");
+            Ok(Some(()))
+        }
         Cmd::SetLayout {
             panel_width,
             panel_height,
             index,
         } => {
-            let mut dev = open(&cli)?;
+            let mut dev = open(cli)?;
             dev.send(&protocol::set_layout(
                 *index,
                 *panel_width,
@@ -286,20 +260,60 @@ fn main() -> Result<()> {
                 *panel_height,
             ))?;
             println!("sent layout: {panel_width}x{panel_height}");
-            Ok(())
+            Ok(Some(()))
         }
+        _ => Ok(None),
+    }
+}
+
+fn run(cli: &Cli) -> Result<()> {
+    if run_display(cli)?.is_some() {
+        return Ok(());
+    }
+    match &cli.cmd {
+        Cmd::Discover { wait } => discover(cli, *wait),
+        Cmd::Listen { wait } => listen(cli, *wait),
+        Cmd::ReadConfig {
+            out,
+            index,
+            page,
+            max_chunks,
+            wait,
+        } => read_config(cli, *index, *page, *max_chunks, *wait, out),
+        Cmd::DumpFlash {
+            out,
+            block,
+            index,
+            wait,
+        } => dump_flash(cli, *block, *index, *wait, out),
+        Cmd::WriteConfig {
+            config,
+            commit,
+            backup,
+            base_image,
+            index,
+            wait,
+        } => write_config(
+            cli,
+            config,
+            *commit,
+            backup,
+            base_image.as_deref(),
+            *index,
+            *wait,
+        ),
         Cmd::WritePage {
             page,
             from_image,
             flag,
             commit,
             index,
-        } => write_single_page(&cli, *page, from_image, *flag, *commit, *index),
+        } => write_single_page(cli, *page, from_image, *flag, *commit, *index),
         Cmd::RestoreFlash {
             image,
             commit,
             index,
-        } => restore_flash(&cli, image, *commit, *index),
+        } => restore_flash(cli, image, *commit, *index),
         Cmd::ConfigBuild {
             base,
             copy_from,
@@ -315,7 +329,8 @@ fn main() -> Result<()> {
             types,
             gap_us,
             all,
-        } => replay(&cli, path, types.as_deref(), *gap_us, *all),
+        } => replay(cli, path, types.as_deref(), *gap_us, *all),
+        _ => unreachable!("handled by run_display"),
     }
 }
 

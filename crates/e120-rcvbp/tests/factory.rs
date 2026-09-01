@@ -69,7 +69,7 @@ fn differing_bytes(a: &[u8], b: &[u8]) -> Vec<usize> {
 fn the_sellers_config_is_regenerated_record_for_record() {
     // Every record the seller's file carries, from defaults + spec alone.
     let g = sellers_panel().generate().unwrap();
-    let seller = Rcvbp::load(&fixture("p25-128x64-fixed.rcvbp")).unwrap();
+    let seller = Rcvbp::load(&repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
     assert_eq!(g.rcvbp.records.len(), seller.records.len());
     for rec in &seller.records {
         let ours = record(&g.rcvbp, rec.rtype[1]);
@@ -88,10 +88,17 @@ fn the_sellers_config_reproduces_the_factory_pack_byte_for_byte() {
 #[test]
 fn our_panel_differs_from_the_sellers_only_where_intended() {
     let ours = our_panel().generate().unwrap();
-    let seller = Rcvbp::load(&fixture("p25-128x64-fixed.rcvbp")).unwrap();
-    // Record 0x01: one module instead of the wall, and the SM16269 sub-id.
+    let seller = Rcvbp::load(&repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
+    // Record 0x01: one module instead of their 256x384 wall, and nothing else.
+    // The secondary chip id at +0x0E9/+0x205 used to differ too; the seller
+    // writes none, and claiming one (0x14D) would declare max scan 64 on a
+    // 1/16 module, so config/chips/sm16269s-factory.toml leaves it clear.
     let d = differing_bytes(record(&ours.rcvbp, 0x01), record(&seller, 0x01));
-    assert_eq!(d, vec![0x0C0, 0x0C1, 0x0C2, 0x0C3, 0x0E9, 0x205]);
+    assert_eq!(d, vec![0x0C0, 0x0C1, 0x0C2, 0x0C3]);
+    // The mapping and the chip registers now agree with theirs exactly.
+    assert!(differing_bytes(record(&ours.rcvbp, 0x03), record(&seller, 0x03)).is_empty());
+    assert!(differing_bytes(record(&ours.rcvbp, 0x84), record(&seller, 0x84)).is_empty());
+    let seller = Rcvbp::load(&fixture("p25-128x64-fixed.rcvbp")).unwrap();
     // Secondary parameters: the screen size the vendor mirrors there.
     let d = differing_bytes(record(&ours.rcvbp, 0x8a), record(&seller, 0x8a));
     assert_eq!(d, vec![0x10, 0x11, 0x12, 0x13]);
@@ -157,15 +164,27 @@ fn a_single_module_screen_gets_a_module_position_table() {
 }
 
 #[test]
-fn the_generated_mapping_is_the_vendor_consensus_table() {
+fn the_default_block_gives_the_vendor_consensus_table() {
+    // With no `block` set, each data group takes one contiguous half of the
+    // shift chain. That is the majority wiring across the vendor corpus, so it
+    // stays the default — but it is not the wiring of the panel on this bench.
     let donor = Rcvbp::load(&repo("third-party/configs/donor-P2.5-320x160-2153-consensus.rcvbp")).unwrap();
-    assert_eq!(our_panel().mapping_record(), *record(&donor, 0x03));
+    let mut spec = our_panel();
+    spec.mapping.block = None;
+    assert_eq!(spec.mapping_record(), *record(&donor, 0x03));
 }
 
 #[test]
-fn the_sellers_outlier_mapping_is_not_what_the_knobs_produce() {
+fn the_sellers_mapping_is_reproduced_by_the_block_knob() {
+    // The seller's own file for this panel interleaves the two row-halves
+    // every 64 columns rather than once at the midpoint. That is a real
+    // property of the module's wiring, and `mapping.block` is the knob for
+    // it: with block = 64 the generated table is theirs byte-for-byte.
+    // (Earlier this difference was recorded as an unreproducible "outlier",
+    // and the contiguous table was flashed to the card instead, which
+    // scrambled every column.)
     let seller = Rcvbp::load(&repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
-    assert_ne!(our_panel().mapping_record(), *record(&seller, 0x03));
+    assert_eq!(our_panel().mapping_record(), *record(&seller, 0x03));
 }
 
 #[test]

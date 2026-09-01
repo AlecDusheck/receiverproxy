@@ -23,7 +23,7 @@ width = 128
 height = 64
 
 [chip]
-library = "config/chips/sm16269.toml"
+library = "config/chips/sm16269s-factory.toml"
 
 [color]
 swap = 3
@@ -44,6 +44,10 @@ oe_8ns = true
 [mapping]
 reversed_groups = true
 reversed_lines = false
+# Read straight out of the seller's own file for this panel: the two row-halves
+# alternate along the shift chain every 64 columns, not once at the midpoint.
+# Without this the columns land scrambled however correct the pixel data is.
+block = 64
 
 [boot]
 # Arming at boot with the current config lights the panel unmodulated at

@@ -30,7 +30,12 @@ pub fn record(spec: &PanelSpec) -> Vec<u8> {
         } else {
             row / scan
         };
-        let slot = group * w + col;
+        // The chain is walked in blocks of `blk` columns; each block holds
+        // one run per data group, so a group's columns are contiguous only
+        // within a block. With `blk == w` this collapses to `group * w + col`,
+        // the one-contiguous-half-per-group wiring.
+        let blk = spec.mapping.block.unwrap_or(w).clamp(1, w);
+        let slot = (col / blk) * (groups * blk) + group * blk + col % blk;
         out.push(line as u8);
         out.extend_from_slice(&slot.to_le_bytes());
     }

@@ -3,3 +3,6 @@
 # Third-party config archives kept locally for research, not source.
 /vendor
 build/
+
+# Python bytecode from the analysis scripts
+__pycache__/

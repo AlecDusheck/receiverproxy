@@ -133,6 +133,104 @@ pub fn probe(
     Ok(())
 }
 
+/// How a framebuffer is cut into row packets.
+///
+/// The card's own pixel map (record 0x03) is indexed by `row * width + col`
+/// over the *stored* height — half the panel — because the two halves of the
+/// module hang off separate hub data groups. That leaves open whether the wire
+/// wants one packet per panel row or one double-width packet per stored row,
+/// and if the latter, which panel row supplies the second half. The vendor
+/// sender is no help here: it packetises whatever framebuffer it is handed
+/// without knowing the panel geometry at all (docs/pixel-protocol.md §3).
+/// So the layout is a measurement, not a derivation.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Raster {
+    /// One packet per panel row, `width` pixels: the FPP layout.
+    Rows,
+    /// `height/2` packets of `2*width`: row r carries panel rows r and r+h/2.
+    SplitHalves,
+    /// `height/2` packets of `2*width`: the halves the other way round.
+    SplitHalvesSwapped,
+    /// `height/2` packets of `2*width`: row r carries panel rows 2r and 2r+1.
+    SplitInterleaved,
+}
+
+impl std::str::FromStr for Raster {
+    type Err = String;
+    fn from_str(s: &str) -> std::result::Result<Self, String> {
+        match s {
+            "rows" => Ok(Self::Rows),
+            "halves" => Ok(Self::SplitHalves),
+            "halves-swapped" => Ok(Self::SplitHalvesSwapped),
+            "interleaved" => Ok(Self::SplitInterleaved),
+            other => Err(format!(
+                "unknown raster {other:?} (rows|halves|halves-swapped|interleaved)"
+            )),
+        }
+    }
+}
+
+/// Send one frame using the chosen raster layout.
+pub fn send_frame_as(
+    dev: &mut bpf::Bpf,
+    cli: &Cli,
+    fb: &[[u8; 3]],
+    raster: Raster,
+) -> Result<()> {
+    dev.send(&protocol::sync(cli.brightness))?;
+    dev.send(&protocol::brightness(cli.brightness))?;
+    let w = cli.width as usize;
+    let h = cli.height as usize;
+    if raster == Raster::Rows {
+        return send_rows(dev, cli, fb, w, h);
+    }
+    let half = h / 2;
+    let mut line = vec![[0u8; 3]; w * 2];
+    for r in 0..half {
+        let (a, b) = match raster {
+            Raster::SplitHalves => (r, r + half),
+            Raster::SplitHalvesSwapped => (r + half, r),
+            _ => (2 * r, 2 * r + 1),
+        };
+        line[..w].copy_from_slice(&fb[a * w..(a + 1) * w]);
+        line[w..].copy_from_slice(&fb[b * w..(b + 1) * w]);
+        let mut offset = 0usize;
+        for chunk in line.chunks(protocol::MAX_PIXELS_PER_PACKET) {
+            dev.send(&protocol::pixel_row(
+                r as u16,
+                offset as u16,
+                chunk,
+                cli.order,
+            ))?;
+            offset += chunk.len();
+        }
+    }
+    Ok(())
+}
+
+fn send_rows(
+    dev: &mut bpf::Bpf,
+    cli: &Cli,
+    fb: &[[u8; 3]],
+    w: usize,
+    h: usize,
+) -> Result<()> {
+    for row in 0..h {
+        let line = &fb[row * w..(row + 1) * w];
+        let mut offset = 0usize;
+        for chunk in line.chunks(protocol::MAX_PIXELS_PER_PACKET) {
+            dev.send(&protocol::pixel_row(
+                row as u16,
+                offset as u16,
+                chunk,
+                cli.order,
+            ))?;
+            offset += chunk.len();
+        }
+    }
+    Ok(())
+}
+
 pub fn send_frame(dev: &mut bpf::Bpf, cli: &Cli, fb: &[[u8; 3]]) -> Result<()> {
     // The vendor's own sender leads each frame with the latch, follows it with
     // the brightness frame, and only then sends the rows — the whole burst
@@ -233,4 +331,24 @@ pub fn test_pattern(cli: &Cli, pattern: &str) -> Result<Vec<[u8; 3]>> {
         other => anyhow::bail!("unknown pattern {other:?} (gradient|rows|border|rgb)"),
     }
     Ok(fb)
+}
+
+/// `show`, but with an explicit raster layout.
+pub fn show_as(cli: &Cli, fb: &[[u8; 3]], hold: bool, raster: Raster) -> Result<()> {
+    let mut dev = open(cli)?;
+    dev.send(&protocol::brightness(cli.brightness))?;
+    if hold {
+        println!("refreshing at ~30fps ({raster:?}), Ctrl-C to stop");
+        loop {
+            send_frame_as(&mut dev, cli, fb, raster)?;
+            std::thread::sleep(Duration::from_millis(33));
+        }
+    } else {
+        for _ in 0..3 {
+            send_frame_as(&mut dev, cli, fb, raster)?;
+            std::thread::sleep(Duration::from_millis(33));
+        }
+        println!("frame sent ({raster:?})");
+        Ok(())
+    }
 }

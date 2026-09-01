@@ -10,7 +10,7 @@ mod util;
 
 use capture::{discover, listen, pcap_summary, raw_send, replay};
 use config::{config_build, config_diff, rcvbp_info};
-use display::{play, probe, show, show_pattern, solid, test_pattern};
+use display::{play, probe, show, show_as, show_pattern, solid, test_pattern};
 use flash::{
     dump_flash, dump_range, flash_firmware, read_config, restore_flash, scan_flash,
     upgrade_info, write_config,
@@ -178,6 +178,9 @@ enum Cmd {
         /// Keep refreshing until Ctrl-C
         #[arg(long)]
         hold: bool,
+        /// How to cut the framebuffer into row packets
+        #[arg(long, default_value = "rows")]
+        raster: String,
     },
     /// Blank the panel
     Blank,
@@ -498,7 +501,7 @@ fn run_display(cli: &Cli) -> Result<Option<()>> {
             let fb = test_pattern(cli, pattern)?;
             show(cli, &fb, *hold).map(Some)
         }
-        Cmd::Image { path, hold } => {
+        Cmd::Image { path, hold, raster } => {
             let img = image::open(path).with_context(|| format!("open image {path}"))?;
             let img = img
                 .resize_exact(
@@ -511,7 +514,9 @@ fn run_display(cli: &Cli) -> Result<Option<()>> {
             for (x, y, px) in img.enumerate_pixels() {
                 fb[y as usize * cli.width as usize + x as usize] = [px[0], px[1], px[2]];
             }
-            show(cli, &fb, *hold).map(Some)
+            let raster: display::Raster =
+                raster.parse().map_err(|e: String| anyhow::anyhow!(e))?;
+            show_as(cli, &fb, *hold, raster).map(Some)
         }
         Cmd::Blank => {
             let fb = solid(cli, 0, 0, 0);

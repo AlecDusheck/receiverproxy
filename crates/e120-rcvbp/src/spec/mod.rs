@@ -159,6 +159,14 @@ pub struct Mapping {
     pub reversed_groups: bool,
     /// Scan lines addressed bottom-up (`scan-1-row`) instead of top-down.
     pub reversed_lines: bool,
+    /// Columns per block of the shift chain before it switches to the other
+    /// data group. A module whose two halves hang off one chain in alternating
+    /// runs — `[lower 0..b][upper 0..b][lower b..2b]...` — needs the run
+    /// length here. The default, the full module width, gives each group one
+    /// contiguous half of the chain; the seller's own file for the panel on
+    /// this bench uses 64, i.e. the halves alternate every four driver chips.
+    #[serde(default)]
+    pub block: Option<u16>,
 }
 
 impl Default for Mapping {
@@ -166,6 +174,7 @@ impl Default for Mapping {
         Self {
             reversed_groups: true,
             reversed_lines: false,
+            block: None,
         }
     }
 }

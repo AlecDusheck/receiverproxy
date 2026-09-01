@@ -119,6 +119,31 @@ enum Cmd {
         #[arg(long, default_value_t = 2)]
         wait: u64,
     },
+    /// Tell the card its own size and the size of the whole screen
+    SetLayout {
+        #[arg(long, default_value_t = 128)]
+        panel_width: u16,
+        #[arg(long, default_value_t = 64)]
+        panel_height: u16,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+    },
+    /// Write a single flash page taken from a block image (debugging)
+    WritePage {
+        /// Page index within the parameter block
+        #[arg(long)]
+        page: u8,
+        /// 64KB block image to take the page contents from
+        #[arg(long)]
+        from_image: String,
+        /// Flag byte to send; writes normally use 0
+        #[arg(long, default_value_t = 0)]
+        flag: u8,
+        #[arg(long)]
+        commit: bool,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+    },
     /// Restore a previously dumped 64KB block back to the card
     RestoreFlash {
         image: String,
@@ -245,6 +270,31 @@ fn main() -> Result<()> {
             *index,
             *wait,
         ),
+        Cmd::SetLayout {
+            panel_width,
+            panel_height,
+            index,
+        } => {
+            let mut dev = open(&cli)?;
+            dev.send(&protocol::set_layout(
+                *index,
+                *panel_width,
+                *panel_height,
+                0,
+                0,
+                *panel_width,
+                *panel_height,
+            ))?;
+            println!("sent layout: {panel_width}x{panel_height}");
+            Ok(())
+        }
+        Cmd::WritePage {
+            page,
+            from_image,
+            flag,
+            commit,
+            index,
+        } => write_single_page(&cli, *page, from_image, *flag, *commit, *index),
         Cmd::RestoreFlash {
             image,
             commit,
@@ -624,6 +674,48 @@ dry run: nothing was written. Re-run with --commit to install."
     rewrite_block(&mut dev, index, &image, wait, first..last)
         .with_context(|| format!("the original block is saved at {backup}; restore it with: e120 restore-flash {backup} --commit"))?;
     println!("power-cycle the card for the new configuration to take effect");
+    Ok(())
+}
+
+/// Write one page, for probing which regions the card will accept.
+fn write_single_page(
+    cli: &Cli,
+    page: u8,
+    from_image: &str,
+    flag: u8,
+    commit: bool,
+    index: u16,
+) -> Result<()> {
+    let img = std::fs::read(from_image).with_context(|| format!("read {from_image}"))?;
+    anyhow::ensure!(
+        img.len() == 64 * 1024,
+        "{from_image} must be exactly 65536 bytes"
+    );
+    let off = usize::from(page) * protocol::FLASH_PAGE_BYTES;
+    let data = &img[off..off + protocol::FLASH_PAGE_BYTES];
+    println!("page 0x{page:02x} from {from_image}, flag {flag}");
+    if !commit {
+        println!("dry run; re-run with --commit");
+        return Ok(());
+    }
+    let mut dev = open(cli)?;
+    dev.send(&protocol::write_page_flag(
+        index,
+        protocol::PARAM_BLOCK,
+        page,
+        data,
+        flag,
+    )?)?;
+    std::thread::sleep(Duration::from_millis(50));
+
+    let got = read_chunk(
+        &mut dev,
+        index,
+        (u16::from(protocol::PARAM_BLOCK) << 8) | u16::from(page),
+        2,
+    )?;
+    let ok = got[..protocol::FLASH_PAGE_BYTES] == *data;
+    println!("readback: {}", if ok { "MATCHES" } else { "still differs" });
     Ok(())
 }
 

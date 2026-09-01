@@ -135,6 +135,22 @@ pub fn erase_block(rcv_index: u16, block: u8) -> Result<Vec<u8>, WriteError> {
 /// Refuses any block other than [`PARAM_BLOCK`], or a payload that is not
 /// exactly one page.
 pub fn write_page(rcv_index: u16, block: u8, page: u8, data: &[u8]) -> Result<Vec<u8>, WriteError> {
+    write_page_flag(rcv_index, block, page, data, 0)
+}
+
+/// As [`write_page`], with control over the flag byte, for probing regions the
+/// card refuses to write with the usual value.
+///
+/// # Errors
+/// Refuses any block other than [`PARAM_BLOCK`], or a payload that is not
+/// exactly one page.
+pub fn write_page_flag(
+    rcv_index: u16,
+    block: u8,
+    page: u8,
+    data: &[u8],
+    flag: u8,
+) -> Result<Vec<u8>, WriteError> {
     if block != PARAM_BLOCK {
         return Err(WriteError::ForbiddenBlock(block));
     }
@@ -148,10 +164,35 @@ pub fn write_page(rcv_index: u16, block: u8, page: u8, data: &[u8]) -> Result<Ve
     let mut p = vec![0u8; 8 + FLASH_PAGE_BYTES];
     p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
     p[3] = FLASH_OP_WRITE;
+    p[4] = flag;
     p[5] = block;
     p[6] = page;
     p[8..].copy_from_slice(data);
     Ok(frame([0x06, 0x00], &p))
+}
+
+/// Set the receiver layout: this card's size and the size of the whole screen.
+///
+/// Field positions follow the type 0x02 packet documented by FPP, expressed
+/// here relative to the payload that follows the two type bytes.
+pub fn set_layout(
+    rcv_index: u16,
+    recv_w: u16,
+    recv_h: u16,
+    x_offset: u16,
+    y_offset: u16,
+    total_w: u16,
+    total_h: u16,
+) -> Vec<u8> {
+    let mut p = [0u8; 98];
+    p[0..2].copy_from_slice(&rcv_index.to_be_bytes());
+    p[6..8].copy_from_slice(&recv_w.to_be_bytes());
+    p[8..10].copy_from_slice(&recv_h.to_be_bytes());
+    p[12..14].copy_from_slice(&x_offset.to_be_bytes());
+    p[14..16].copy_from_slice(&y_offset.to_be_bytes());
+    p[16..18].copy_from_slice(&total_w.to_be_bytes());
+    p[18..20].copy_from_slice(&total_h.to_be_bytes());
+    frame([0x02, 0x00], &p)
 }
 
 /// Frame type the card answers a flash read with.

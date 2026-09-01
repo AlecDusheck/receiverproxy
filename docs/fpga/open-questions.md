@@ -32,6 +32,65 @@ are in [output-stage.md](output-stage.md#ranked-hypotheses-for-the-panel-not-ren
    raster are indistinguishable under a uniform fill and completely different
    under one pixel.
 
+### 1.1b Does the card window `0x55` pixel packets against a cabinet position?
+
+**Status:** NOT RESOLVED in the gateware, but it is now the leading
+explanation and it has a cheap decisive test. See
+[pixel-write-path.md §5](pixel-write-path.md).
+
+The `row` and `x-offset` fields of a `0x55` packet are **absolute coordinates
+in the whole virtual display** — both FPP and CLTNic broadcast one stream for
+an entire wall and every receiver windows out its own rectangle. If this card's
+stored window is not `(0,0) 128×64`, our rows miss.
+
+**What would settle it:** a `0x07` discovery frame with the wire quiet, and a
+dump of the `0x08` reply — `Data[21..24]` is the cabinet width and height *as
+the card believes them*, `Data[38..41]` is the received-packet counter (send
+exactly *K* pixel packets between two reads), `Data[2..3]` is the firmware
+version. Read-only, one frame, no flash write.
+
+**Loose end, stated honestly:** a fully-windowed-out stream should make an
+all-black frame and an all-white frame look identical, and the bench says they
+do not. Either the overlap is partial or a second mechanism is in play.
+
+### 1.1c Where does a pixel byte physically go? — partly CLOSED
+
+**CLOSED — HIGH:** every Ethernet frame enters through one of exactly two block
+RAMs, `EBR@39,37` (left PHY RX clock) and `EBR@42,37` (right PHY RX clock),
+1024 × 9 each, the design's only clock-domain crossings. At 1024 bytes they
+cannot hold a maximum-size pixel packet, so the header is decoded and the
+payload consumed **while the packet streams**.
+
+**CLOSED — HIGH:** the only two candidate destination memories are a
+**Bank A** of 8 EBRs (2048 × 9, shared `WEA = Q4@21,22`) and a **Bank B** of 12
+EBRs (16 384 bits each, shared `WEA = Q4@44,26`). Both start uninitialised and
+are written at run time; the same two-bank shape is in 10.81.
+
+**REFUTED — HIGH:** the double-buffer-swap hypothesis. There is no third array
+and the two banks are structurally different, so there is nowhere for an
+un-swapped back buffer to live.
+
+**CLOSED — HIGH:** the memory feeding the HUB75 pads is `EBR@4,25`
+(`= MIB_R25C4/C5 EBR0`, the uninitialised `WID = 1` block of
+[output-stage.md §7.4](output-stage.md#74-the-control-group-source-ram-starts-empty--high)):
+`PDPW16KD`, 512 × 36, `WEAMUX = INV` so `WEA` is **tied high**, which makes
+`CSA0 ← Q6@9,27` the **entire** write enable of the output-stage buffer. 512
+entries is a scan/line buffer, not a frame buffer — so there is at least one
+more stage between a bank and the pads.
+
+**Still NOT RESOLVED:** which bank the raster reads, which the Ethernet writes,
+and what gates either bank's write.
+
+**Do not repeat:** any LUT-constant search for the `0x55` type byte, the
+`08 88` marker, or a row-field comparator. The positive control (the Ethernet
+SFD and the EtherType) already failed — this design does not build constant
+comparisons out of LUT4s. Nor a shallow EBR-to-EBR dataflow search: depth 3
+finds zero edges chip-wide (`negative_results_and_method.txt` N6–N9).
+
+**Best surviving gateware lead:** forward netlist recovery of what consumes
+`DOA*`/`DOB*` of `EBR@39,37` and `EBR@42,37`. That is a *localised* task in
+`x 38..46, y 30..45`, the one region of the die whose function is now certain.
+
 ### 1.2 What does the card's test-pattern selector byte mean?
 
 **Status:** NOT RESOLVED. The frame is right (`33 00`, `0x09` at payload+5,
@@ -151,9 +210,18 @@ increment stage on the die. See
 [chip-id.md §6](chip-id.md#6-the-lead-that-looked-concrete--refuted).
 
 **Best surviving lead:** the block RAM feeding the top-edge control pads is
-`MIB_R25C4/C5` EBR0, `PDPW16KD`, **`WID = 1` — not initialised at config
-time**, so it comes up empty and is written at run time. That is a
-run-time-written table feeding the output stage directly.
+`MIB_R25C4/C5` EBR0 = **`EBR@4,25`**, `PDPW16KD`, 512 × 36, **`WID = 1` — not
+initialised at config time**, so it comes up empty and is written at run time.
+That is a run-time-written table feeding the output stage directly.
+
+**Now searchable:** `analysis/fpga/ebr_map_16.53.txt` records the driven pins,
+clock, write gate and generator locations of **all 53** instantiated block
+RAMs, so "which EBR holds the parameter pack" is now a question you can pose
+against a table rather than against the whole die. A 256-byte pack wants a
+small, singly-written, CLKOP-clocked block whose address generator is *not*
+part of either large bank — several candidates in the map fit.
+See [pixel-write-path.md §1](pixel-write-path.md) for why this was not
+possible before (EBR pins are not set-arc sinks).
 
 **Why it matters:** finding the store turns "which chip ids does the gateware
 recognise" into "which stored byte feeds the mode selector", which is

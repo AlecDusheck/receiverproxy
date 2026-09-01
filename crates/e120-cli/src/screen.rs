@@ -48,6 +48,34 @@ pub fn read(dev: &mut bpf::Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
     anyhow::bail!("the card did not return its screen-size record within {wait}s")
 }
 
+/// Offsets of the receiver's control area within the record: the rectangle
+/// `(startX, startY) -> (endX, endY)` the card windows incoming pixels
+/// against. `endX`/`endY` are the geometry fields above.
+const START_X: usize = 2;
+const START_Y: usize = 4;
+
+/// True when the record has been erased rather than programmed.
+///
+/// This write path sends all 256 bytes, which spans **every** record in the
+/// card's EEPROM (`docs/eeprom-map.md`) — the control area, the calibration
+/// flags, the card name, the seam settings. So a read that came back erased
+/// must never be written back: doing so persists `0xFF` across all of them.
+///
+/// That is not hypothetical. Erasing flash block 0x07 clears this record, and
+/// setting the geometry afterwards restored the size while leaving
+/// `startX`/`startY` at `0xFFFF` — an empty window, after which the card
+/// silently drops every pixel sent to it while still reporting a healthy
+/// 128x64 to `discover`. It cost this project a long time to find.
+#[must_use]
+pub fn looks_erased(record: &[u8]) -> bool {
+    let empty_window = |o: usize| {
+        matches!((record.get(o), record.get(o + 1)), (Some(0xFF), Some(0xFF)))
+    };
+    empty_window(START_X)
+        || empty_window(START_Y)
+        || record.iter().filter(|&&b| b == 0xFF).count() > record.len() / 2
+}
+
 /// Geometry encoded in a record.
 #[must_use]
 pub fn geometry(record: &[u8]) -> Option<(u16, u16)> {
@@ -81,6 +109,18 @@ pub fn screen_size(
     if (nw, nh) == (w, h) {
         println!("\nalready {nw}x{nh}; nothing to write");
         return Ok(());
+    }
+    if looks_erased(&record) {
+        let sx = u16::from_be_bytes([record[START_X], record[START_X + 1]]);
+        let sy = u16::from_be_bytes([record[START_Y], record[START_Y + 1]]);
+        anyhow::bail!(
+            "refusing to write: the card's EEPROM record reads as erased \
+             (control area starts at {sx},{sy}). Writing it back would persist \
+             0xFF across every record in it — the control area, calibration \
+             flags, card name and seam settings (docs/eeprom-map.md). Restore \
+             it from the day-one dump first:\n  \
+             python3 scripts/eeprom-restore.py --commit"
+        );
     }
     println!("\nsetting geometry to {nw}x{nh}");
     if !commit {
@@ -125,5 +165,31 @@ mod tests {
     #[test]
     fn a_short_record_has_no_geometry() {
         assert_eq!(geometry(&[0u8; 4]), None);
+    }
+
+    #[test]
+    fn an_erased_record_is_recognised_before_it_can_be_written_back() {
+        // The exact shape the card was left in: geometry restored, control
+        // area still erased. `discover` reports a healthy 128x64 in this
+        // state, so the geometry fields alone cannot be the check.
+        let mut r = vec![0u8; protocol::SCREEN_RECORD_LEN];
+        r[START_X..START_X + 4].copy_from_slice(&[0xFF; 4]);
+        r[WIDTH..WIDTH + 2].copy_from_slice(&128u16.to_be_bytes());
+        r[HEIGHT..HEIGHT + 2].copy_from_slice(&64u16.to_be_bytes());
+        assert_eq!(geometry(&r), Some((128, 64)), "geometry still reads fine");
+        assert!(looks_erased(&r), "but the record must not be written back");
+    }
+
+    #[test]
+    fn a_wholly_erased_record_is_recognised() {
+        assert!(looks_erased(&[0xFFu8; protocol::SCREEN_RECORD_LEN]));
+    }
+
+    #[test]
+    fn the_factory_record_is_accepted() {
+        let mut r = vec![0u8; protocol::SCREEN_RECORD_LEN];
+        r[WIDTH..WIDTH + 2].copy_from_slice(&128u16.to_be_bytes());
+        r[HEIGHT..HEIGHT + 2].copy_from_slice(&64u16.to_be_bytes());
+        assert!(!looks_erased(&r));
     }
 }

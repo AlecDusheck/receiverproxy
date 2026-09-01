@@ -30,6 +30,7 @@ confident-sounding claim elsewhere about the same thing as suspect.
 | [resources.md](resources.md) | LUT / FF / BRAM / DSP utilisation, the PLL decoded with its bit-order argument, the reference clock pin, every global clock net and DCC, clock domains, and how the LED outputs are registered. |
 | [pinout.md](pinout.md) | The full 197-pin table with direction from the routing graph (not from `BASE_TYPE`, which is a degenerate decode), the two RGMII gigabit ports proven pin by pin, the SPI flash bank, the ~147 LED-side pins including the 96 identified RGB data lines, and the board architecture that implies. |
 | [block-ram.md](block-ram.md) | The one initialised BRAM: location, size, contents, the 21-bit opcode+immediate decode, what it is and is not, and every other block RAM's mode and width. |
+| [pixel-write-path.md](pixel-write-path.md) | **What a type-`0x55` pixel frame meets inside the card.** The decode trap that had blocked all block-RAM work, the two Ethernet receive FIFOs (one per PHY, the design's only clock-domain crossings), the two banked destination memories, why the packet decode itself is not recoverable by any LUT-constant method, and the windowing mechanism the vendor's and FPP's senders both imply. |
 | [parameter-path.md](parameter-path.md) | All three transports (live Ethernet, flash writes, boot read), the 41-pack real-time push, the complete 256-byte basic pack, what is shipped precomputed vs derived, and every constant searched for with FOUND / NOT FOUND / NEVER SEARCHED. |
 | [output-stage.md](output-stage.md) | HUB75E connector and signal set, what the SM16269 family requires, the S-PWM structure, scan handling and the OneScanLen/CardScanLen arithmetic, the scan table (and why its all-zero bit times are normal), the pixel mapping, **the output stage traced in the netlist** (96 RGB pins, the global blank and 2:1 source select, counter-vs-BRAM), and a ranked list of hypotheses for why the panel does not render. |
 | [version-diff.md](version-diff.md) | 16.53 vs 10.81 vs 9.53 vs 13.39 vs 6.69 at the decoded level, what separates the PWM / Normal / LS families, and why the version numbers are not one sequence. |
@@ -74,6 +75,8 @@ Durable data and scripts live in **`analysis/fpga/`**:
 | `output-stage-arithmetic.tsv` | scan/mapping numbers for this panel, verified |
 | `minoe_corpus_survey.py` | the 370-file corpus survey behind the minOE result |
 | `rgb96_pins.txt` | **the 96 RGB data pins**, with how they were found |
+| `ebr_map_16.53.txt`, `ebr_map_10.81.txt` | **every instantiated block RAM**: driven pins, clocks, write-enable / chip-select / reset sources, and where its address and data generators sit on the die |
+| `scripts/netlist/ebrmap.py` | regenerates those, and documents the CIB-pin → EBR-pin fixed-connection trap |
 | `output_stage_16.53.txt` | the output stage traced from the pads backward |
 | `led_pin_classification_16.53.txt` | LED-side pins grouped by role |
 | `pad_driver_logic_16.53.tsv` | per-pad driver-LUT logic |

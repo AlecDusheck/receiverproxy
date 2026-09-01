@@ -39,6 +39,28 @@ assumption) or **NOT RESOLVED**. Nothing is inference dressed as fact.
 → [pinout.md](fpga/pinout.md), [resources.md](fpga/resources.md),
 [block-ram.md](fpga/block-ram.md)
 
+## Where a received packet goes — HIGH
+
+**Exactly two block RAMs have `CLKA ≠ CLKB`** — `EBR@39,37` on the left PHY's
+receive clock and `EBR@42,37` on the right PHY's. They are the design's only
+clock-domain crossings, 1024 × 9 each, gated by port CE rather than a
+write-enable pin. **Every Ethernet frame the card accepts enters through one of
+those two and nothing else.** At 1024 bytes they cannot hold a maximum-size
+pixel packet, so the header is decoded and the payload consumed while the
+packet is still streaming.
+
+Downstream there are **two banked memories and no third**: 8 EBRs of 2048 × 9
+sharing one write-enable flop, and 12 EBRs of 16 384 bits sharing another. Both
+start empty and are written at run time. The RAM that actually feeds the HUB75
+pads is neither — it is `EBR@4,25`, 512 × 36, whose write enable is a **single
+flip-flop, `Q6@9,27`** (`WEA` is strapped high, so `CSA0` is the whole gate).
+
+**The double-buffer-swap explanation for the dead panel is refuted:** there is
+nowhere for an un-swapped back buffer to live.
+
+→ [pixel-write-path.md](fpga/pixel-write-path.md),
+`analysis/fpga/ebr_map_16.53.txt`
+
 ## The bitstream — HIGH
 
 The `.hex` files are raw Lattice `.bit` images: 342-byte ASCII header,

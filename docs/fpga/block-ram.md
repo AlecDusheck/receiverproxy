@@ -169,6 +169,13 @@ Robust summary: **10 EBRs are unambiguously wide-write `PDPW16KD` with
   configuration exists anywhere in any of the five images, and the left/right
   edges have no bidirectional pins except one. All buffering is on-chip. — HIGH
 
+> **Superseded in part.** The per-EBR pin, clock, write-gate and generator map
+> is now in `analysis/fpga/ebr_map_16.53.txt` / `ebr_map_10.81.txt`, and the two
+> Ethernet receive FIFOs, the two write banks and the output-stage buffer are
+> identified in [pixel-write-path.md](pixel-write-path.md). The reason this was
+> not possible earlier is a decode trap: **EBR bel pins are not set-arc sinks**
+> — they hang off ordinary CIB J-pins by fixed connections.
+
 **What the EBRs are *for* is NOT RESOLVED.** The mix (ten wide 512×36 blocks
 plus ~43 narrow ×9 blocks) is what you would expect from a pixel buffer plus
 many small FIFOs — Ethernet RX/TX, per-port scan FIFOs, a configuration store.

@@ -98,3 +98,62 @@ be no buffer LUT anywhere in the design, which does not happen.
 NOTE this is a per-field database fact, not a global serializer rule: it
 does NOT contradict the MSB-first reading established for the PLL DIV /
 CPHASE words, which rests on its own physical argument.
+
+--------------------------------------------------------------------
+N6.  EBR bel pins are NOT set-arc sinks.  METHOD FIX, not a
+      negative -- this is what blocked block-RAM analysis.   [HIGH]
+--------------------------------------------------------------------
+Searching d.drivenby for any wire whose name contains 'EBR' returns
+ZERO hits in all five images.  That is not "the block RAMs are
+unconnected"; it is that JADA0_EBR / JDIA0_EBR / JWEA_EBR / JCSA0_EBR /
+JCLKA_EBR ... are reached by a FIXED (non-configurable) connection from
+an ordinary CIB J-pin in the adjacent CIB_EBR tile.  The routed net ends
+at JA1 / JC0 / JD0 / JCE0 / JCLK0 / JLSR0, and THOSE are the arc sinks.
+Verified mapping at CIB_R25C4:
+    JA0 -> ADB5   JA1 -> ADA5   JB0 -> DIB1   JC0 -> ADA4   JD0 -> DIA0
+    JCE0 -> OCEA  JCLK0 -> CLKA JLSR0 -> RSTA
+    JQ0 <- DOB0   JF0 <- DOA0      (JQ#/JF# are bel OUTPUTS)
+Recipe: enumerate driven J-pins, fixed_dn one hop to learn the EBR pin,
+then walk back to the driving cell.  analysis/fpga/scripts/netlist/
+ebrmap.py does exactly this; it recovers all 53 instantiated EBRs with
+pins, clocks, control sources and generator locations.
+==> Anyone who concludes "no EBR is connected" has hit this trap.
+
+--------------------------------------------------------------------
+N7.  EBR-to-EBR dataflow is NOT recoverable at shallow depth.
+                                                    [NOT RESOLVED]
+--------------------------------------------------------------------
+Tried: for every EBR data-in pin, a bounded BACKWARD cone of depth 3
+over LUT/FF inputs, collecting any DO*_EBR wire met on the way.
+Result: ZERO EBR-to-EBR edges anywhere in 16.53.  The pipeline depth
+between any two memories in this design exceeds three levels of logic.
+Going deeper immediately meets the 93%-reliable / edge-clamped backward
+walk of N4, so the answer would not be trustworthy.
+Also tried: FORWARD tracing from the RX FIFO outputs (EBR@39,37 and
+EBR@42,37 DOA*/DOB*) through drives + fixed_dn.  The fan-out explodes
+across shared span wires and did not terminate.
+Bug worth knowing if you retry: the output wire is named JDOA0_EBR, so
+a test of the form name.startswith('DO') silently matches nothing.
+
+--------------------------------------------------------------------
+N8.  The double-buffer-swap hypothesis for the dead panel is
+      REFUTED.                                             [HIGH]
+--------------------------------------------------------------------
+Grouping all 53 EBRs by shared write-enable flop gives exactly two
+multi-EBR arrays in 16.53 (8 blocks sharing WEA=Q4@21,22; 12 blocks
+sharing WEA=Q4@44,26) plus a tail of singletons and pairs.  The two
+banks differ in depth, width and control, so they are not two halves of
+a ping-pong pair, and there is no third array anywhere.  There is
+nowhere for a back buffer that never becomes the front buffer to live.
+The same two-bank shape is present in 10.81 (8 blocks on Q3@41,6, 13 on
+Q4@43,29), so it is a property of the design, not of one build.
+
+--------------------------------------------------------------------
+N9.  Do not re-derive "196608 bits = one 128x64 frame".      [HIGH]
+--------------------------------------------------------------------
+The 12-EBR bank in 16.53 uses exactly 16384 bits per block whatever the
+aspect ratio (8192x2, 4096x4, 1024x16), totalling 196608 = 8192 x 24.
+That is arithmetically exact and MEANS NOTHING: the same bank in 10.81
+has 13 members (212992 bits), and the mixed aspect ratios mean the bank
+is not a plain 8192x24 array.  Recorded because it is exactly the kind
+of coincidence a later reader will find and over-trust.

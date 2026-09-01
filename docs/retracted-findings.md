@@ -96,6 +96,47 @@ The owner reports the button does nothing when pressed. Do not build a
 diagnosis around it. `e120 test-mode <n>` reaches the same generator over the
 wire.
 
+## "Our photos are 24-frame averages" — WRONG until 2026-09-01
+
+`scripts/snap-avg.sh` claimed to average 24 frames and did not. `tmix=frames=N`
+emits one output frame per *input* frame, and its early outputs average only
+the frames seen so far — the very first is a single frame. The script then took
+`-frames:v 1`, i.e. exactly that first output. **Every photo in this project
+before 2026-09-01 was a single 1/30 s exposure.**
+
+The panel multiplexes 1/16, so a single exposure catches one arbitrary phase of
+the scan cycle and comes out as horizontal banding. A great deal of that
+banding was read as scrambled content when it was only the refresh. The fix is
+to prime the filter — capture 2N frames and keep one from after the window is
+full — and it visibly changes what the panel appears to be showing.
+
+## We broke the card ourselves, and it looked like a panel fault
+
+Erasing flash block 0x07 clears the EEPROM mirror. `e120 screen-size --set` is
+a read-modify-write over all **256** bytes, which spans every record in
+[eeprom-map.md](eeprom-map.md) — so run after that erase it faithfully
+persisted `0xFF` across the control area, the calibration flags, the card name
+and the seam settings.
+
+The consequence was severe and silent. The receiver keeps only pixels falling
+inside its control area, and ours became `startX = startY = 0xFFFF` — an empty
+window — so the card discarded every pixel sent to it while continuing to
+report a healthy `128x64` to `discover`. Frames were accepted, the packet
+counter advanced, the current changed, and nothing we sent ever appeared.
+
+Lessons kept in the tooling:
+
+* `screen-size --set` now refuses to write a record that reads as erased.
+* `scripts/flash-review.py` diffs block 0x07 against the day-one dump and names
+  every differing run from the EEPROM map, so this damage is visible instead of
+  latent. Run it after **any** flash operation.
+* `scripts/eeprom-restore.py` rewrites damaged records from the day-one dump.
+  **Each record must be written at its own address and length** — the card
+  silently ignores a write spanning record boundaries, which is why a 16-byte
+  write at `0x040` did nothing while the 42-byte write at `0x002` took.
+* Flashing firmware also erases block 0x07, so the config must be rewritten
+  after — and the EEPROM checked.
+
 ## Camera traps that produced false structure
 
 * **Auto-exposure clips every LED to white** at normal brightness, which reads

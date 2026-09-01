@@ -202,32 +202,16 @@ pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
     std::fs::write(&pack_path, g.basic_pack).with_context(|| format!("write {pack_path}"))?;
 
     // The boot image, built from erased flash: every region generated from
-    // the spec and the generated config, except the scan table, whose
-    // solver is untranscribed and is carried from the reference block.
-    let (base_path, base_off) = match spec.template.base_block.split_once(':') {
-        Some((p, o)) => (
-            p.to_string(),
-            usize::from_str_radix(o.trim_start_matches("0x"), 16)
-                .with_context(|| format!("bad base offset {o:?}"))?,
-        ),
-        None => (spec.template.base_block.clone(), 0),
-    };
-    let dump = std::fs::read(&base_path).with_context(|| format!("read {base_path}"))?;
-    anyhow::ensure!(
-        dump.len() >= base_off + rcvbp::compiled::IMAGE_LEN,
-        "{base_path} is too short for a 64KB block at 0x{base_off:x}"
-    );
-    let scan_at = base_off + rcvbp::compiled::SCAN_TABLE_OFFSET;
+    // the spec and the generated config.
     let rec01 = g.rcvbp.record_01().context("generated config lost record 0x01")?.payload.clone();
-
-    let mut b = rcvbp::compiled::Block7Builder::erased();
+    let mut b = rcvbp::image::Block7Builder::erased();
     b.zero_regions();
     b.basic_pack(&g.basic_pack)?;
     b.data_swap_from(&rec01)?;
     b.module_positions_from(&rec01)?;
     b.anti_void_lines();
     b.mapping_from(&g.rcvbp)?;
-    b.scan_table(&dump[scan_at..scan_at + rcvbp::compiled::SCAN_TABLE_LEN])?;
+    b.scan_table_from(&rec01, spec.card_scan_len())?;
     if spec.boot.arm_at_boot {
         b.chip_registers_from(&g.rcvbp)?;
     }
@@ -250,8 +234,7 @@ pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
     let pages: Vec<String> = changed.iter().map(|p| format!("{p:02x}")).collect();
     let _ = writeln!(
         report,
-        "scan table <- {} (only region not generated)\npages written: {}: {}",
-        spec.template.base_block,
+        "pages written: {}: {}",
         changed.len(),
         pages.join(" ")
     );

@@ -43,12 +43,11 @@ reversed_groups = true
 reversed_lines = false
 
 [template]
-# Records the spec does not derive (chip registers, gamma/empty tables), the
-# reference basic pack for its undecoded bytes, and the reference block for
-# the scan table. Every byte taken from here is listed in the provenance.
+# Records the spec does not derive yet (chip registers, gamma/empty tables)
+# and the reference basic pack for its undecoded bytes. Every byte taken
+# from here is listed in the provenance; this section is scheduled to go.
 rcvbp = "firmware/derived/p25-128x64-fixed.rcvbp"
 basic_pack = "firmware/derived/factory-basic-pack-body.bin"
-base_block = "firmware/card-dumps/primary-region.bin:0x70000"
 
 [boot]
 # Arming at boot with the current config lights the panel unmodulated at

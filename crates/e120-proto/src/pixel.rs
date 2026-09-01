@@ -1,28 +1,36 @@
 //! Pixel data, latching, and brightness: the frames sent every refresh.
+//!
+//! Layouts follow FPP's ColorLight-5a-75 output, which drives this hardware
+//! family in production: the type is a single byte at frame offset 12, offset
+//! 13 is zero, and the payload begins at offset 14. Treating the type as two
+//! meaningful bytes shifts every field by one and the card silently ignores
+//! the frame — both earlier "corrections" of these layouts did exactly that.
 
 use super::frame;
 
 /// Max pixels per row packet (keeps the frame under the 1500-byte MTU).
-pub const MAX_PIXELS_PER_PACKET: usize = 497;
+pub const MAX_PIXELS_PER_PACKET: usize = 490;
 
-/// Display/vsync frame: type 0x0107, 98 bytes. Latches the previously sent
-/// row data onto the panel and sets overall brightness.
+/// Display/vsync frame: type 0x01, payload opens 0x07 ("PC sender"). Latches
+/// the previously sent row data onto the panel and sets overall brightness.
 pub fn sync(brightness: u8) -> Vec<u8> {
-    let mut p = [0u8; 98];
-    p[21] = brightness;
-    p[22] = 0x05;
-    p[24] = brightness;
+    let mut p = [0u8; 99];
+    p[0] = 0x07;
+    p[22] = brightness;
+    p[23] = 0x05;
     p[25] = brightness;
     p[26] = brightness;
-    frame([0x01, 0x07], &p)
+    p[27] = brightness;
+    frame([0x01, 0x00], &p)
 }
-/// Brightness frame: type 0x0A<brightness>, 63-byte payload.
+/// Brightness frame: type 0x0A, payload [b, b, b, 0xff].
 pub fn brightness(b: u8) -> Vec<u8> {
-    let mut p = [0u8; 63];
+    let mut p = [0u8; 64];
     p[0] = b;
     p[1] = b;
-    p[2] = 0xff;
-    frame([0x0a, b], &p)
+    p[2] = b;
+    p[3] = 0xff;
+    frame([0x0a, 0x00], &p)
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ColorOrder {
@@ -30,18 +38,13 @@ pub enum ColorOrder {
     Bgr,
     Grb,
 }
-/// Pixel row frame: type `0x55`, then the row number as the second type byte.
-///
-/// Payload: [offs MSB, offs LSB, count MSB, count LSB, 0x08, 0x88, pixels...]
-///
-/// The row goes in the second type byte, not the payload. Putting `row >> 8`
-/// there instead — always zero for a panel under 256 rows — and prepending the
-/// low byte to the payload shifts every following field along by one, so the
-/// card reads the offset as `(row << 8) | offs MSB` and writes every row into
-/// row 0 at a different horizontal offset.
+/// Pixel row frame: type 0x55, payload:
+/// [row MSB, row LSB, offs MSB, offs LSB, count MSB, count LSB, 0x08, 0x88,
+/// pixels...]
 pub fn pixel_row(row: u16, pixel_offset: u16, rgb: &[[u8; 3]], order: ColorOrder) -> Vec<u8> {
     let count = rgb.len() as u16;
-    let mut p = Vec::with_capacity(6 + rgb.len() * 3);
+    let mut p = Vec::with_capacity(8 + rgb.len() * 3);
+    p.extend_from_slice(&row.to_be_bytes());
     p.extend_from_slice(&pixel_offset.to_be_bytes());
     p.extend_from_slice(&count.to_be_bytes());
     p.push(0x08);
@@ -54,7 +57,7 @@ pub fn pixel_row(row: u16, pixel_offset: u16, rgb: &[[u8; 3]], order: ColorOrder
             ColorOrder::Grb => p.extend_from_slice(&[g, r, b]),
         }
     }
-    frame([0x55, (row & 0xff) as u8], &p)
+    frame([0x55, 0x00], &p)
 }
 
 #[cfg(test)]
@@ -62,43 +65,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pixel_rows_carry_the_row_in_the_second_type_byte() {
+    fn pixel_rows_follow_the_fpp_layout() {
         let px = [[1u8, 2, 3], [4, 5, 6]];
-        let f = pixel_row(9, 5, &px, ColorOrder::Rgb);
-        assert_eq!(&f[12..14], &[0x55, 9], "row is the second type byte");
-        assert_eq!(&f[14..16], &5u16.to_be_bytes(), "offset follows immediately");
-        assert_eq!(&f[16..18], &2u16.to_be_bytes(), "then the pixel count");
-        assert_eq!(&f[18..20], &[0x08, 0x88], "then the marker");
-        assert_eq!(&f[20..26], &[1, 2, 3, 4, 5, 6], "then the pixels");
-    }
-
-    /// The layout bug that kept the panel dark: every row landed in row 0 at a
-    /// different offset, so the image marched sideways instead of appearing.
-    #[test]
-    fn every_row_addresses_its_own_row_and_the_same_offset() {
-        let px = [[7u8, 7, 7]];
-        for row in 0u16..64 {
-            let f = pixel_row(row, 0, &px, ColorOrder::Rgb);
-            assert_eq!(f[13], row as u8, "row {row} must address itself");
-            assert_eq!(&f[14..16], &0u16.to_be_bytes(), "row {row} offset stays 0");
-        }
+        let f = pixel_row(0x0102, 5, &px, ColorOrder::Rgb);
+        assert_eq!(&f[12..14], &[0x55, 0x00], "one type byte, then zero");
+        assert_eq!(&f[14..16], &[0x01, 0x02], "16-bit row opens the payload");
+        assert_eq!(&f[16..18], &5u16.to_be_bytes());
+        assert_eq!(&f[18..20], &2u16.to_be_bytes());
+        assert_eq!(&f[20..22], &[0x08, 0x88]);
+        assert_eq!(&f[22..28], &[1, 2, 3, 4, 5, 6]);
     }
 
     #[test]
     fn colour_order_reorders_the_channels() {
         let px = [[1u8, 2, 3]];
         let bgr = pixel_row(0, 0, &px, ColorOrder::Bgr);
-        assert_eq!(&bgr[20..23], &[3, 2, 1]);
+        assert_eq!(&bgr[22..25], &[3, 2, 1]);
         let grb = pixel_row(0, 0, &px, ColorOrder::Grb);
-        assert_eq!(&grb[20..23], &[2, 1, 3]);
+        assert_eq!(&grb[22..25], &[2, 1, 3]);
     }
 
     #[test]
-    fn sync_frame_carries_brightness_where_the_card_expects_it() {
+    fn sync_frame_carries_brightness_where_fpp_puts_it() {
         let f = sync(0x7f);
-        assert_eq!(&f[12..14], &[0x01, 0x07]);
-        assert_eq!(f.len(), 14 + 98);
-        assert_eq!(f[14 + 21], 0x7f);
-        assert_eq!(f[14 + 22], 0x05);
+        assert_eq!(&f[12..14], &[0x01, 0x00]);
+        assert_eq!(f.len(), 14 + 99);
+        assert_eq!(f[14], 0x07, "PC sender marker opens the payload");
+        assert_eq!(f[14 + 22], 0x7f);
+        assert_eq!(f[14 + 23], 0x05);
+        assert_eq!(&f[14 + 25..14 + 28], &[0x7f; 3]);
+    }
+
+    #[test]
+    fn brightness_frame_is_three_copies_and_a_terminator() {
+        let f = brightness(0x40);
+        assert_eq!(&f[12..14], &[0x0a, 0x00]);
+        assert_eq!(&f[14..18], &[0x40, 0x40, 0x40, 0xff]);
     }
 }

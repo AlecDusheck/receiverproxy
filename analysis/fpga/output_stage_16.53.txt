@@ -1,0 +1,180 @@
+E120 / LFE5U-25F : THE OUTPUT STAGE OF 16.53 (PWM build)
+=========================================================
+All node names are prjtrellis absolute nodes written NAME@x,y  (x=col, y=row),
+so Q4@23,18 is slice-C FF0 of the PLC2 tile at R18C23.
+
+--------------------------------------------------------------------------
+1. THE TWO MASTER CONTROL BITS                                  [HIGH]
+--------------------------------------------------------------------------
+Counting how often each signal appears as an input to a pad-driver LUT
+(i.e. the LUT that ultimately drives a pad's JPADDO), across all 197 pads:
+
+     Q5@23,18   feeds 23 pad-driver LUTs
+     Q4@23,18   feeds 20 pad-driver LUTs
+     F1@63,4    feeds 10
+     Q5@39,18   feeds  7      (duplicate of Q5@23,18 for the lower half)
+     Q4@39,18   feeds  3      (duplicate of Q4@23,18)
+     ...everything else feeds 1-3.
+
+Q4@23,18 and Q5@23,18 are FF0 and FF1 of the SAME slice (SLICEC of R18C23).
+They are by a wide margin the most-shared signals in the whole output stage.
+
+--------------------------------------------------------------------------
+2. WHAT THEY DO -- normalised truth table                       [HIGH]
+--------------------------------------------------------------------------
+For every pad whose driver LUT takes both of them plus two other inputs
+(d0,d1), I evaluated the LUT INIT as a function of (G1,G2)=(Q4@23,18,Q5@23,18)
+with d0,d1 free.  Result, over the 21 pads that classify:
+
+   (G1,G2) =   (0,0)    (0,1)    (1,0)    (1,1)    count
+                 0        0       !d1      !d0      11
+                 0        0       !d0      !d1       6      <-- same shape,
+                                                                d0/d1 swapped
+                !d0       d1       d1      !d0       2      (no blanking)
+                 0        d0      mix      d0        1
+                 0        d1       d1      mix       1
+
+So for 17 of 21 pads the function is exactly:
+
+        pad  =  0                       when G1 = 0
+        pad  =  NOT( G2 ? dA : dB )     when G1 = 1
+
+  => G1 = Q4@23,18 is a SYNCHRONOUS GLOBAL BLANK for that pad group:
+     when it is low the pads are driven to 0.
+  => G2 = Q5@23,18 is a 2:1 DATA-SOURCE SELECT shared by the whole group.
+  => the data is emitted INVERTED (active-low at the pad).
+
+The two pads that show no blanking (F1 R14C00A and G12 R11C72A) are members
+of the 96-pad RGB set: the RGB data lines are NOT blanked by G1.
+The blanked group is the top-edge (bank 0/1) control pads + C3 (R02C00C).
+
+--------------------------------------------------------------------------
+3. WHAT THE 2:1 MUX SELECTS BETWEEN                             [HIGH]
+--------------------------------------------------------------------------
+For every pad examined, one mux leg is a COUNTER and the other is BLOCK RAM:
+
+  leg "counter": always a CCU2-mode flip-flop in the region x=24..26, y=7..11,
+      e.g. Q4@24,7  Q0@25,8  Q0@25,11  Q5@24,7  Q2@24,7  Q0@25,7
+      They share a clock enable:  .CE = F3@26,8
+      (CCU2 = carry-chain mode, i.e. these are literally counter/adder bits.)
+
+  leg "BRAM": always a LOGIC-mode flip-flop whose fan-in cone terminates on
+      CIB wires in the EBR row (row 25).  Verified by fixed-connection lookup:
+          JQ5@5,25  <-  JDOB13_EBR@4,25      (block-RAM data-out bit B13)
+          JQ2@4,25  <-  JDOB2_EBR@4,25       (block-RAM data-out bit B2)
+      so this leg carries BLOCK-RAM READ DATA.
+      These FFs also share a common companion FF Q2@10,5 whose clock enable
+      is the global net G_HPBX0900 (see section 5).
+
+  => G2 selects, for the whole top-edge group at once, between a
+     COUNTER-derived value and a BRAM-derived value.
+
+INTERPRETATION -- NOT RESOLVED.  Two readings fit the evidence equally well:
+  (a) G2 = "internal test pattern (counter) vs live frame data (BRAM)".
+  (b) G2 = a within-frame time-multiplex: the same pads carry a
+      counter/address phase and a data phase in each output cycle.  This is
+      how SM16xxx-class "smart" driver chips are configured (a special
+      CLK/LAT sequence carries a command word).
+  I cannot discriminate: both G1 and G2 are produced by the same fast FSM
+  (see section 4) and update on the CLKOP domain.
+
+--------------------------------------------------------------------------
+4. WHERE G1/G2 COME FROM                                        [HIGH]
+--------------------------------------------------------------------------
+  Q4@23,18 <- F4@23,18 = A | B&D
+  Q5@23,18 <- F5@23,18 = A | !B&D | C&D
+     A = F7@23,18 = A&!B&C&D   -- a 4-input AND decode over the state bits
+                                  Q4@24,18, Q6@19,20, Q0@32,18, Q0@33,20
+     B = Q6@24,14   (itself = a 4-input AND decode of Q7@23,20, Q6@30,9,
+                     Q7@27,14, Q6@21,15)
+     C = Q6@29,15   ( = !A&C&D over Q2@28,14, Q6@21,15, Q7@27,14 )
+     D = Q0@21,6    ( .CE = G_HPBX0900 -- the slow tick, see 5 )
+  i.e. G1/G2 are outputs of a small sequencer whose terminal-count decodes
+  are plain AND gates over a handful of state flops.  This is the HUB75
+  scan/serial-out sequencer.  Its state advance is gated by the slow tick.
+
+--------------------------------------------------------------------------
+5. CLOCKING OF THE OUTPUT STAGE                                 [HIGH]
+--------------------------------------------------------------------------
+The whole design is effectively single-clock.  FF clock-domain census
+(resolved one hop: MUXCLK<slice> <- CLK0/CLK1 <- G_HPBX####):
+
+    16.53 : 9096 FFs on net 2 + 3493 on net 3  -> both are PLL CLKOP
+            (net2=CLKOP in quadrants UL/LL/LR, net3=CLKOP in UR)
+             69 + 67 FFs on the two Ethernet RX-clock nets
+            => 12589 / 12725 = 98.9% of all flip-flops are on PLL CLKOP
+    10.81 : 13484 / 13644 on net 0 = PLL CLKOP
+    13.39 : 10926 / 11018 on net 0 = PLL CLKOP
+
+There is NO separate slow LED clock domain.  Instead a fabric-generated
+divided clock is distributed on a global net and used as a CLOCK ENABLE:
+    BDCC0  <- G_JBLQPCLKCIB0 <- JD7@25,49 <- ... <- Q1@25,48   (a fabric FF)
+    -> global net 9 (G_HPBX0900) in 16.53
+    and G_HPBX0900 appears as ".CE" on output-stage flops (Q0@21,6, Q2@10,5).
+Also note (correction to my earlier report): G_LDCC2CLKI <- G_JOSC in ALL
+five builds -- the internal oscillator (OSC.MODE OSCG, OSC.DIV 9) is on a
+global clock net too.
+
+--------------------------------------------------------------------------
+6. NEGATIVE RESULT: no pad is driven from a clock net             [HIGH]
+--------------------------------------------------------------------------
+I checked every one of the 197 pads: none has its JPADDO CIB wire driven by
+an arc whose source is a G_* global clock net.  So the HUB75 DCLK is NOT a
+routed clock; it is generated as ordinary data by fabric logic on the CLKOP
+domain (or by an ODDR, but the only ODDR clock outputs on the device are the
+two RGMII TXC pads L1 and J16, which are already accounted for).
+
+--------------------------------------------------------------------------
+7. THE RGB-96 PADS DO *NOT* SHARE THE CONTROL GROUP'S BRAM PATH
+--------------------------------------------------------------------------
+Bounded backward cone search (up to 6 cell levels, collecting any
+EBR/DSP-flavoured wire encountered along every routing walk):
+
+  positive control -- top-edge control pads:
+      A3  -> JDOB2_EBR     (found at depth 3)
+      A11 -> JDOB13_EBR
+      A2  -> JDOB4_EBR
+      E6  -> JDOA5_EBR
+      E5  -> none          (its walk dead-ends, see N4)
+  the 96 RGB data pads:
+      45 of 96 have a resolvable driver cell at all
+      0 of those 45 reach ANY EBR or DSP wire within 6 cell levels.
+
+STATUS: MEDIUM as a positive statement about the control group (4 of 5
+probes hit block RAM directly), WEAK as a negative about the RGB pads --
+47 of the 96 RGB nets dead-end immediately (N4), so the cone is truncated
+and "no BRAM within 6 levels" may simply mean "the serialiser pipeline is
+deeper than 6 stages", which is exactly what a serial-RGB shift path
+would look like.  Do not treat the RGB negative as settled.
+
+--------------------------------------------------------------------------
+8. ONLY ONE BLOCK RAM IN THE DEVICE IS INITIALISED            [HIGH]
+--------------------------------------------------------------------------
+Every one of the five bitstreams contains exactly ONE .bram_init block:
+        .bram_init 3
+i.e. only the EBR whose EBR?.WID word decodes to 3 receives contents at
+configuration time.  All the other ~53 instantiated EBRs come up with no
+bitstream-supplied contents.
+
+The EBR that feeds the top-edge control group is:
+        MIB_R25C4 / MIB_R25C5 , EBR0
+        MODE PDPW16KD, DATA_WIDTH_R 36, REGMODE_A/B OUTREG,
+        RSTAMUX/RSTBMUX INV, WEAMUX INV, GSR DISABLED
+        word: EBR0.WID 100000000   ->  WID = 1
+WID 1, not 3.  So the RAM that supplies the top-edge control/data group is
+NOT initialised by the bitstream; its contents come only from whatever the
+gateware writes into it at run time.
+
+WID word bit order: the WID strings present are 100000000, 110000000 and
+100011111.  Reading string index k as bit k gives 1, 3 and 497; the
+.bram_init block is numbered 3 and exactly one EBR carries 110000000, so
+that reading is the consistent one.   [HIGH]
+
+BENCH RELEVANCE -- and the honest limit of it:
+  This says the control-group source RAM starts empty, so until the host
+  (or an internal generator) writes it, the G2=BRAM leg carries whatever
+  is in an unwritten RAM.  It does NOT by itself explain "constant noise
+  scaled by brightness": Lattice EBRs come up all-zero, and an all-zero
+  leg would give a blank panel, not noise.  Treat this as a lead about
+  where the run-time parameter/command store lives, not as a diagnosis.
+  [status: NOT RESOLVED as an explanation of the bench symptom]

@@ -256,11 +256,108 @@ RESOLVED.**
   **the 96 IOLOGIC sites in 13.39 are the RGB data pins** — the fastest route
   to a classified HUB75 pin list.
 
+## 7. The output stage in the netlist
+
+Traced from the pads backward. Artefacts:
+`analysis/fpga/output_stage_16.53.txt`, `analysis/fpga/rgb96_pins.txt`,
+`analysis/fpga/led_pin_classification_16.53.txt`,
+`analysis/fpga/pad_driver_logic_16.53.tsv`,
+`analysis/fpga/build_comparison.txt`,
+`analysis/fpga/negative_results_and_method.txt`.
+
+### 7.1 The 96 RGB data pins are identified — HIGH
+
+The `IREG_OREG` lead in §5 holds. The 96 IOLOGIC sites in 13.39 and 6.69 are
+**byte-identical between those two builds**, and mapping them to package pins
+gives **exactly** the 96 left- and right-edge pads that the pin census
+classified as plain fabric-driven outputs in 16.53 (47 LEFT OUT + 48 RIGHT OUT
++ 1 LEFT BIDIR). **Zero discrepancy in either direction.**
+
+96 = **32 serial RGB groups × 3 colour lines**, matching the E120 spec exactly.
+The list is `analysis/fpga/rgb96_pins.txt`.
+
+> **Retraction — HIGH.** [pinout.md](pinout.md#phy-management) suggested `T4`
+> was MDIO. `T4` is one of the 96 RGB pins. **There is no MDC/MDIO group
+> anywhere in this design.**
+
+### 7.2 Two master control bits — HIGH
+
+Counting how often each signal feeds a pad-driver LUT across all 197 pads, two
+flip-flops in **one slice** dominate — `Q5@23,18` (23 pads) and `Q4@23,18`
+(20 pads), with duplicates `Q5@39,18` / `Q4@39,18` for the lower half.
+Everything else feeds 1–3 pads.
+
+Normalising the pad LUTs against them gives, for 17 of 21 classifiable pads:
+
+```
+pad = 0                                 when Q4@23,18 = 0
+pad = NOT( Q5@23,18 ? dA : dB )         otherwise
+```
+
+So:
+
+* **`Q4@23,18` is a global synchronous BLANK.**
+* **`Q5@23,18` is a 2:1 source select.**
+* **The outputs are active-low.**
+
+The 96 RGB pads are **not** gated by this — the blanked group is the
+**top-edge control pads**.
+
+### 7.3 What the 2:1 mux selects between — HIGH that it is counter vs BRAM
+
+* One leg is always a **CCU2 counter** at `x = 24..26, y = 7..11`, sharing
+  `.CE = F3@26,8`.
+* The other leg always terminates on **block RAM data out** — verified:
+  `JQ5@5,25 ← JDOB13_EBR`, `JQ2@4,25 ← JDOB2_EBR`, with probes
+  `A3 → JDOB2`, `A11 → JDOB13`, `A2 → JDOB4`, `E6 → JDOA5`.
+
+**Whether that is "test pattern vs live data" or a within-frame command/data
+time-multiplex (i.e. SM16xxx configuration words vs pixel data) is NOT
+RESOLVED.** Both readings fit the structure.
+
+### 7.4 The control-group source RAM starts empty — HIGH
+
+Every build contains exactly one `.bram_init` block, and it targets the EBR
+with `WID = 3`. The block RAM feeding the top-edge control group is
+`MIB_R25C4/C5` EBR0, `PDPW16KD`, **`WID = 1` — not initialised**.
+
+So that RAM comes up **empty at configuration time and must be written at run
+time.** That is a concrete mechanism by which a card with no valid parameters
+loaded would scan a buffer of nothing.
+
+No 256-byte parameter-pack store was located. LUT-RAM is ruled out as the
+store in 16.53: only 18 blocks of 16×4, against 59 and 89 in 13.39 and 6.69 —
+too small and too fragmented.
+
+### 7.5 The build difference, confirmed — HIGH
+
+The one large output-stage difference between the dead-on-panel family and the
+working family is exactly the `IREG_OREG` count. In 13.39 and 6.69 **all 96
+RGB pads go through the IO output register**, clocked by PLL CLKOP, with LSR
+tied on all 96 and CE tied on 72. In the PWM builds only 10 do.
+
+Details in `analysis/fpga/build_comparison.txt`.
+
+### 7.6 Clocking of the output stage — HIGH, and it corrects an earlier reading
+
+* **No pad anywhere is driven from a global clock net.** HUB75 DCLK is
+  **fabric-generated data**, not a routed clock.
+* **The design is single-clock.** 98.9 % of flip-flops are on PLL CLKOP in
+  16.53 (12 589 of 12 725); the same holds in 10.81 and 13.39.
+* **There is no slow LED clock domain.** The fabric-divided clock distributed
+  on a global net is used as a **clock enable**, not a clock — `G_HPBX0900`
+  appears as `.CE` on output-stage flops. This supersedes the earlier reading
+  in [resources.md](resources.md#clocking) of `BDCC0` as a second clock
+  domain.
+* `G_LDCC2CLKI ← G_JOSC` in all five builds — the internal `OSCG` oscillator
+  is on a global net.
+
 ### NOT RESOLVED about the physical output
 
-* **Which pins carry which HUB75 signal.** ~147 LED-side pins are identified
-  by direction and electrical class, but nothing in the bitstream ties a pad
-  to a connector. See [pinout.md](pinout.md#4-the-led-side--147-pins-structure-not-resolved).
+* **Which top-edge pad carries which HUB75 control signal** (A–E vs CLK vs LAT
+  vs OE). The **RGB data group is now identified** (§7.1) and the control
+  group is identified *as a group* (§7.2), but it has not been decomposed.
+* **Whether the scan counter's terminal count is 16.** Not determined.
 * **Whether the FPGA drives HUB75 directly or through buffers.** All banks are
   3.3 V so every FPGA IO is 3.3 V, but the board has driver ICs visible in the
   vendor photo and the bitstream says nothing about what is on the far side of

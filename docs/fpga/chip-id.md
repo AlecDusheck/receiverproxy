@@ -162,9 +162,9 @@ Surviving hypotheses, none of which could be distinguished:
   is indistinguishable from ordinary logic.
 * **(c) Only a 2–4 bit field of the id is used**, below the detection floor.
 
-## 6. The one concrete lead — MEDIUM
+## 6. The lead that looked concrete — REFUTED
 
-A **10-bit high-fanout mode-flag bundle**:
+A **10-bit high-fanout mode-flag bundle** was found:
 
 ```
 R22C41_Q0, Q1, Q2, Q3, Q6, Q7
@@ -174,20 +174,38 @@ R21C45_Q4
 + a global qualifier R14C31_Q0 (feeds 114 one-hot LUTs)
 ```
 
-**734 LUTs read this bundle** and 193 are pure functions of it. Simulating all
-1024 values gives **1022 distinct equivalence classes**, so these are ten
-*independent* already-decoded mode flags — plausibly the **outputs** of
-whatever the chip-id decode is.
+**734 LUTs read this bundle** and 193 are pure functions of it; simulating all
+1024 values gives 1022 distinct equivalence classes, so these are ten
+*independent* already-decoded flags. That part still stands — MEDIUM.
 
-Their fan-in traces back to:
+Its fan-in appeared to terminate at **`R27C44_Q0..Q3`**, described as "a 4-bit
+field with no combinational source" — exactly what a parameter-store-loaded
+mode selector would look like.
 
-* **`R27C44_Q0..Q3`** — a 4-bit field whose D-side LUTs are trivial
-  (`SD`/M-input bypass flops) and which has **no visible combinational
-  source**. That is exactly what a field loaded from a parameter store looks
-  like. **This is the place to keep digging.**
-* `R28C39_Q6/Q7` — which decode a one-hot FSM state at `R30C35`/`R28C35`
-  (confirmed one-hot because the AND cone evaluates to constant-0 over free
-  inputs).
+> **That lead is REFUTED — HIGH. Do not follow it.**
+>
+> `R27C44` is an ordinary **8-bit CCU2 accumulator**: all four slices are
+> `MODE = CCU2`, giving `F0..F7` and `Q0..Q7`, all sharing one clock enable
+> `.CE = F7@42,31`. Each bit's routed operand comes from a different register
+> (`Q0@46,27`, `Q1@46,27`, `Q6@45,27`…) — it adds a value to itself.
+>
+> **Why it looked sourceless:** in CCU2 mode the carry travels on the
+> *dedicated* carry chain (`FCI ← HFIE0000@(x,y)`, `FCO → HFIE0000@(x+1,y)`),
+> which are **fixed, non-configurable connections, not set arcs**. Any tracer
+> that follows only configured arcs sees a CCU2 LUT missing an input.
+>
+> Measured: of the **6956 CCU2-mode LUTs in 16.53, 1012 have zero routed
+> inputs and 2295 have exactly one.** So "no combinational source" is the
+> normal appearance of *every increment stage on the die*, not a signature of
+> anything.
+
+This is a good example of the failure mode this document set exists to
+prevent: a striking structural observation that turns out to be an artefact of
+the tool. Details in `analysis/fpga/negative_results_and_method.txt`.
+
+`R28C39_Q6/Q7` — which decode a one-hot FSM state at `R30C35`/`R28C35`
+(confirmed one-hot because the AND cone evaluates to constant-0 over free
+inputs) — was not re-examined and is still MEDIUM.
 
 ## 7. What would resolve it
 
@@ -199,11 +217,19 @@ Ranked by cost:
    frame so a bumped camera fails loudly. This answers the question that
    actually matters ("which id should we send") without resolving the
    gateware at all.
-2. **Trace `R27C44_Q0..Q3` backwards** through the routing graph to whatever
-   writes it. If it lands in a BRAM read port, hypothesis (a) is confirmed and
-   the id decode is a table lookup, not a comparator.
+2. **Find the parameter store.** The output-stage trace narrowed where to
+   look: the block RAM feeding the top-edge control pads is
+   `MIB_R25C4/C5` EBR0, `PDPW16KD`, **`WID = 1` — not initialised at config
+   time**, so it starts empty and is written at run time. That is a
+   run-time-written table feeding the output stage directly. A 256-byte pack
+   store was **not** located, and LUT-RAM is ruled out as too small in 16.53
+   (18 blocks of 16×4, against 59 and 89 in 13.39 and 6.69). See
+   [output-stage.md](output-stage.md#7-the-output-stage-in-the-netlist).
 3. **Full netlist recovery** — LUT + FF + BRAM + routing → RTL, then simulate.
    Expensive, and the only route to a definitive "these ids and no others".
+   Note the tracing-reliability caveat in
+   [decode-method.md](decode-method.md#6-how-far-backward-tracing-can-be-trusted--high):
+   deep backward walks are only ~93 % reliable and far worse at the die edge.
 
 ## 8. What this means for the bench
 

@@ -136,15 +136,15 @@ Why this is RGMII and not something else — HIGH:
 
 **Conclusion: exactly two Ethernet ports, RGMII, Gigabit class.** — HIGH
 
-### PHY management
+### PHY management — RETRACTED
 
-Six pins on left bank 6 use `IOLOGIC MODE IREG_OREG` (single-rate registered
-IO): `N1`, `N4`, `P3`, `P4`, `R5` as outputs and **`T4` (R44C0B) as a
-registered BIDIR** (`PADDO`, `PADDT` and `PADDI` all live).
+An earlier reading of this file identified six left-bank-6 `IREG_OREG` pins as
+PHY management, with **`T4` as MDIO**.
 
-* `T4` is a registered bidirectional control pin — HIGH.
-* `T4` is **MDIO** and one of the others **MDC**, the rest PHY resets/straps —
-  MEDIUM.
+> **That is retracted — HIGH.** `T4` is one of the 96 RGB data pins
+> (see [output-stage.md §7.1](output-stage.md#71-the-96-rgb-data-pins-are-identified--high)).
+> **There is no MDC/MDIO group anywhere in this design.** The two PHYs are
+> presumably strapped rather than managed.
 
 ---
 
@@ -162,36 +162,48 @@ same flash it booted from — see [parameter-path.md](parameter-path.md).
 
 ---
 
-## 4. The LED side — 147 pins, structure NOT RESOLVED
+## 4. The LED side — ~147 pins, partly decomposed
 
-After removing 24 RGMII pins, 6 PHY-management pins and 13 bank-8 SPI pins,
-roughly **147 pins remain on the LED side** (≈52 top, ≈44 left, ≈51 right), of
-which 32 are bidirectional. — HIGH
+After removing 24 RGMII pins and 13 bank-8 SPI pins, roughly **147 pins remain
+on the LED side** (≈52 top, ≈47 left, ≈51 right), of which 32 are
+bidirectional. — HIGH
 
 **That is about ten times a single HUB75 port.** An early worry in this
 analysis — "only 7 output pins, too few for HUB75" — was an artefact of the
 `BASE_TYPE` trap and is **wrong**. Discard it.
 
-One striking structural feature — HIGH: a contiguous run of **14 top-edge pins
-at `DRIVE 8` / `SLEWRATE FAST`** spanning `R0C27`…`R0C44`:
+### The RGB data group is identified — HIGH
+
+**96 of those pins are the serial RGB data lines**: the 96 left- and
+right-edge pads (47 LEFT OUT + 48 RIGHT OUT + 1 LEFT BIDIR). 96 = **32 serial
+RGB groups × 3 colour lines**, exactly the E120 spec's figure. Found via the
+`IREG_OREG` signature in the Normal/LS builds, with zero discrepancy in either
+direction. List: `analysis/fpga/rgb96_pins.txt`; method:
+[output-stage.md §7.1](output-stage.md#71-the-96-rgb-data-pins-are-identified--high).
+
+### The control group is identified as a group — HIGH
+
+The **top-edge pads** are the HUB75 control signals. They share a global
+synchronous blank (`Q4@23,18`) and a 2:1 source select (`Q5@23,18`), and are
+**active-low**. Within them, one contiguous run of **14 pins at `DRIVE 8` /
+`SLEWRATE FAST`** spans `R0C27`…`R0C44`:
 
 ```
 C7  B7  A8   E8 D8   C8 B8   B9 C9   D9 E9   A9   B10 C10
 ```
 
-These are the only pins on the top edge with that drive/slew combination. 14
-is exactly a HUB75E port's signal count (6 RGB + 5 address + CLK + LAT + OE),
-which is suggestive — but suggestive is all it is. **MEDIUM at best**, and it
-does not survive as evidence on its own because the left and right edges carry
-~95 more LED-side outputs with no comparable grouping.
+These are the only top-edge pins with that drive/slew combination, and 14 is
+exactly a HUB75E port's signal count (6 RGB + 5 address + CLK + LAT + OE) —
+but with the RGB lines now known to be on the left/right edges, that
+coincidence should not be over-read. **MEDIUM.**
 
 ### What is NOT RESOLVED
 
-* **Which pins form which physical connector.** Nothing in the bitstream ties
-  a pad to a connector. 147 does not factor cleanly into HUB75E ports under
-  any obvious sharing scheme (14/port → 10.5; 6 data + OE per port with
-  shared A–E/CLK/LAT → 19.3), so no port count is claimed here.
-  *Resolving this needs continuity-buzzing the PCB, or a clear photo of the
+* **Which top-edge pad carries which control signal** — A, B, C, D, E vs CLK
+  vs LAT vs OE. The group is identified; it has not been decomposed.
+* **Which pins form which of the twelve physical HUB75E connectors.** Nothing
+  in the bitstream ties a pad to a connector.
+  *Resolving either needs continuity-buzzing the PCB, or a clear photo of the
   hub connector pinout traced to the BGA.*
 * **What the 34 bidirectional pins are.** They are real (out-enable driven
   from fabric, `HYSTERESIS ON` input buffers) and 20 share one OE flip-flop.
@@ -210,17 +222,18 @@ does not survive as evidence on its own because the left and right edges carry
 ## 5. Board architecture implied by the pinout — HIGH unless noted
 
 ```
-                    +-------------------------------+
+                     +-------------------------------+
   RJ45 #1  ===RGMII==|  LEFT  bank 6/7               |
-  (PHY-A)   12 pins  |    + 6 PHY mgmt (MDIO/MDC?)   |
-                     |    + ~44 LED-side outputs     |
+  (PHY-A)   12 pins  |    + 48 of the 96 RGB data    |
+                     |      lines                    |
                      |                               |
-                     |        LFE5U-25F              |==  ~52 LED-side  ==  TOP bank 0/1
-                     |        CABGA256               |     (29 BIDIR, 20 OUT,
-                     |        3.3 V, all banks       |      incl. the 14-pin DRIVE 8 run)
-                     |                               |
+                     |        LFE5U-25F              |==  ~52 HUB75 CONTROL  == TOP bank 0/1
+                     |        CABGA256               |     A-E / CLK / LAT / OE
+                     |        3.3 V, all banks       |     (global blank + 2:1 select,
+                     |                               |      active-low; not decomposed)
   RJ45 #2  ===RGMII==|  RIGHT bank 2/3               |
-  (PHY-B)   12 pins  |    + ~51 LED-side outputs     |
+  (PHY-B)   12 pins  |    + 48 of the 96 RGB data    |
+                     |      lines                    |
                      +-------------------------------+
                                    |
                             BOTTOM bank 8
@@ -228,9 +241,13 @@ does not survive as evidence on its own because the left and right edges carry
                             (boot + runtime, USRMCLK)
 ```
 
-* Two gigabit Ethernet ports (in and out / daisy-chain).
+* Two gigabit Ethernet ports (in and out / daisy-chain), **strapped, not
+  managed** — there is no MDIO/MDC.
 * One SPI flash holding both the bitstream and the card's configuration.
 * No external RAM of any kind — all buffering is in the FPGA's 53 block RAMs.
-* Everything else — ~147 pins — goes to the LED hub connector(s).
-* No dedicated LED/button pins were identified. The six constant-strapped
-  outputs are the only candidates, and their function is NOT RESOLVED.
+* Everything else — ~147 pins — goes to the twelve HUB75E connectors: **96 RGB
+  data lines on the left and right edges, the control signals on the top
+  edge.**
+* No dedicated status-LED or button pins were identified. The six
+  constant-strapped outputs are the only candidates, and their function is NOT
+  RESOLVED.

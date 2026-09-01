@@ -167,16 +167,27 @@ so dynamic clock select is instantiated. — HIGH that it exists. What it is —
 almost certainly the LED shift clock or a divided pixel clock — is
 **NOT RESOLVED**.
 
-### Clock domain summary
+### Clock domain summary — corrected
+
+**The design is effectively single-clock — HIGH.** 98.9 % of flip-flops are on
+PLL CLKOP in 16.53 (12 589 of 12 725), and the same holds in 10.81 and 13.39.
 
 | domain | source | drives |
 |---|---|---|
-| system, 125 MHz (MEDIUM-HIGH) | PLL CLKOP | ~1953 loads: most of the fabric, RGMII TXD |
+| **system, 125 MHz** (MEDIUM-HIGH on the frequency) | PLL CLKOP | ~1953 loads — **98.9 % of all flip-flops**, plus RGMII TXD |
 | RGMII TXC | PLL CLKOS3 | 2 pins |
 | PHY-A RX | pad `J1` | left PHY receive path |
 | PHY-B RX | pad `M16` | right PHY receive path |
-| fabric-derived | `Q1_SLICE@(25,48)` via `BDCC0` | ~660 loads + both edge-clock trees |
-| slow / housekeeping | internal oscillator `OSC.MODE OSCG`, `OSC.DIV 9` | NOT RESOLVED |
+| internal oscillator | `OSC.MODE OSCG`, `OSC.DIV 9` → `G_LDCC2CLKI ← G_JOSC` in all five builds | on a global net; loads NOT RESOLVED |
+
+> **Correction — HIGH.** `BDCC0` (the fabric-generated clock re-buffered onto
+> the global network) is **not a second clock domain**. It is distributed on a
+> global net and used as a **clock enable**: `G_HPBX0900` appears as `.CE` on
+> output-stage flip-flops. **There is no slow LED clock domain** — the LED
+> output stage runs at CLKOP and is gated down with enables.
+>
+> Relatedly: **no pad anywhere is driven from a global clock net.** The HUB75
+> DCLK is fabric-generated *data*, not a routed clock.
 
 ### Edge clocks — HIGH for the arcs, MEDIUM for the reading
 

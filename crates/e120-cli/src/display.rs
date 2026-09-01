@@ -134,6 +134,12 @@ pub fn probe(
 }
 
 pub fn send_frame(dev: &mut bpf::Bpf, cli: &Cli, fb: &[[u8; 3]]) -> Result<()> {
+    // The vendor's own sender leads each frame with the latch, follows it with
+    // the brightness frame, and only then sends the rows — the whole burst
+    // back to back (docs/pixel-protocol.md). We previously sent rows first and
+    // latched afterwards, which is FPP's order, not Colorlight's.
+    dev.send(&protocol::sync(cli.brightness))?;
+    dev.send(&protocol::brightness(cli.brightness))?;
     let w = cli.width as usize;
     for row in 0..cli.height {
         let line = &fb[row as usize * w..(row as usize + 1) * w];
@@ -143,10 +149,6 @@ pub fn send_frame(dev: &mut bpf::Bpf, cli: &Cli, fb: &[[u8; 3]]) -> Result<()> {
             offset += chunk.len();
         }
     }
-    // FPP sends the display/latch frame twice per refresh on firmware v13+
-    // (this card runs 16.53); older firmware tolerates the duplicate.
-    dev.send(&protocol::sync(cli.brightness))?;
-    dev.send(&protocol::sync(cli.brightness))?;
     Ok(())
 }
 

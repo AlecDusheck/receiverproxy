@@ -1,0 +1,100 @@
+E120 FPGA REVERSE ENGINEERING -- NEGATIVE RESULTS AND METHOD CAVEATS
+====================================================================
+Negative results are recorded here deliberately so nobody re-runs them.
+
+--------------------------------------------------------------------
+N1.  "R27C44_Q0..Q3 is a 4-bit mode field with no combinational
+      source" -- REFUTED.                                   [HIGH]
+--------------------------------------------------------------------
+R27C44 (x=44,y=27) is an ordinary 8-bit CCU2 ACCUMULATOR/COUNTER:
+  all four slices A,B,C,D are in MODE=CCU2, giving 8 LUTs F0..F7 and
+  8 flip-flops Q0..Q7, ALL sharing one clock enable .CE = F7@42,31.
+  Each bit's routed operand comes from a different register elsewhere
+  (Q0@46,27, Q1@46,27, Q6@45,27 ...), i.e. it adds a value to itself.
+
+WHY IT LOOKED LIKE "no combinational source":
+  In CCU2 mode the carry travels on the DEDICATED carry chain:
+      FCI  <- HFIE0000@(x,y)        FCO -> HFIE0000@(x+1,y)
+  Those are FIXED (non-configurable) connections, NOT set arcs.  Any
+  tracer that follows only configured arcs sees a CCU2 LUT missing an
+  input.  Measured: of the 6956 CCU2-mode LUTs in 16.53, 1012 have ZERO
+  routed inputs and 2295 have exactly one -- they are pure increment
+  stages whose real input is the carry chain.
+  ==> Do not interpret "few routed inputs" as "constant" in CCU2 slices.
+
+Also: my LUT boolean printer is only valid for MODE=LOGIC LUTs.  In CCU2
+mode the 16-bit INIT is two 8-bit half-LUTs plus carry logic, so the
+printed expression is meaningless there.  Distribution in 16.53:
+   LOGIC 17224, CCU2 6956, DPRAM 72, RAMW 36.
+
+--------------------------------------------------------------------
+N2.  There is NO MDC/MDIO group.  Retraction.               [HIGH]
+--------------------------------------------------------------------
+My earlier report called T4 (R44C0B) "MDIO" and N1/N4/P3/P4/R5 "PHY
+management".  Wrong.  All 10 pads that still carry IOLOGIC MODE=IREG_OREG
+in 16.53 (M3 M4 N1 N3 N4 N5 P3 P4 R5 T4) are members of the 96-pad RGB
+data set.  There is no separate management bus in the bitstream.
+
+--------------------------------------------------------------------
+N3.  No pad is driven from a global clock net.              [HIGH]
+--------------------------------------------------------------------
+Checked all 197 pads.  DCLK is fabric-generated data, not a routed clock.
+
+--------------------------------------------------------------------
+N4.  Backward tracing through prjtrellis nets is only ~93%
+      reliable, and worse at the die edge.                  [HIGH]
+--------------------------------------------------------------------
+Of 38285 net roots in 16.53:
+   29904 terminate on a real cell output (F#/Q#/F5*/FX*)
+    4911 on a global clock net
+     975 on a J* special wire
+    2495 dead-end on a plain span routing wire  (6.5%)
+         of those, 1848 are at the die edge (x<=1, x>=71, y<=1, y>=49)
+                    647 are interior.
+Cause: prjtrellis models a span wire as a chain of nodes and CLAMPS
+out-of-range locations to the die boundary, which both merges distinct
+physical wires and loses the driver near the edges.
+I tried an "undo the clamp" fallback (look for a same-named driven node
+within the span distance along the same row/column): only 891 of 2477
+dead-ends have a UNIQUE candidate, 707 have 2, 310 have 3, 393 have none.
+==> the fallback is NOT safe; I did not use it.
+Practical impact: of the 96 RGB pads, only 45 resolve to a driving cell,
+47 dead-end and 4 loop.  Top edge is better: 27 CELL / 17 DEAD / 5 LOOP.
+Any future work should prefer FORWARD reasoning from cells, or the
+one-hop-resolvable IOLOGIC config, over deep backward walks.
+
+--------------------------------------------------------------------
+N5.  The 256-byte parameter pack was NOT located.      [NOT RESOLVED]
+--------------------------------------------------------------------
+What I ruled out / measured:
+ * Distributed LUT-RAM exists but is small and fragmented:
+      16.53:  18 blocks (36 DPRAM + 18 RAMW slices)
+      10.81:  20 blocks     9.53: 20      13.39: 59      6.69: 89
+   Each block is a 16-deep x 4-bit DPRAM (2 DPRAM slices + 1 RAMW).
+   16 deep x 4 bits is far too small for a 256-byte pack unless ~32
+   blocks were cascaded, and in 16.53 there are only 18 in total, spread
+   over 18 different tiles.  So the pack is probably NOT in LUT-RAM in
+   the PWM builds.  (It might be in 13.39/6.69, which have 59/89.)
+ * 54 of 56 EBRs are instantiated in 16.53, so a 256-byte store could
+   trivially live in one EBR -- but I could not identify WHICH, because
+   distinguishing a parameter EBR from a frame-buffer EBR requires
+   tracing the write-address path, which runs into N4.
+ * I did NOT search for chip-id constants (ruled out by prior work).
+
+--------------------------------------------------------------------
+M1.  LUT INIT bit order -- SETTLED.                         [HIGH]
+--------------------------------------------------------------------
+For SLICE?.K?.INIT the printed 16-character string is indexed by LUT
+ADDRESS: INIT[k] = string[k], with k = A + 2B + 4C + 8D.
+Proof: take the LUTs that have exactly ONE routed input and look at the
+only INIT value each class uses:
+    only A driven : "0101010101010101"  (12 instances)  -> f = A
+    only B driven : "0011001100110011"  ( 7 instances)  -> f = B
+    only C driven : "0000111100001111"  (17 instances)  -> f = C
+    only D driven : "0000000011111111"  (12 instances)  -> f = D
+Under this indexing all four classes are clean route-through BUFFERS.
+Under the reversed indexing all four would be INVERTERS and there would
+be no buffer LUT anywhere in the design, which does not happen.
+NOTE this is a per-field database fact, not a global serializer rule: it
+does NOT contradict the MSB-first reading established for the PLL DIV /
+CPHASE words, which rests on its own physical argument.

@@ -1,0 +1,216 @@
+E120 / LFE5U-25F : CLASSIFIED PIN TABLE (16.53)
+================================================
+CLASS column meanings and confidence:
+  RGB-DATA      one of the 96 serial-RGB data lines.  HIGH (see rgb96_pins.txt)
+  RGMII-*       Ethernet, settled in the earlier report.  HIGH
+  SPI-FLASH     bank 8 boot/runtime flash.  HIGH
+  CTRL-MUXED    top-edge pad whose driver LUT is gated by G1=Q4@23,18 and
+                source-selected by G2=Q5@23,18 (the blanked control group).
+                HIGH that it is in that group; which HUB75 signal it carries
+                (A/B/C/D/E vs CLK vs LAT vs OE) is NOT RESOLVED.
+  CTRL-OTHER    top-edge / other LED-side pad, driver does not classify into
+                the G1/G2 pattern (usually because the net dead-ends, N4).
+  STATIC-0/1    pad tied to a constant through the CIB input mux.  HIGH
+  INPUT         fabric input.  HIGH
+  UNUSED        no config, no routing.  HIGH
+
+PIN   EDGE   BANK  SITE      CLASS          G1/G2?   driver / note
+A2    TOP    bank0 R00C04A   CTRL-MUXED     Q4@23,18,Q5@23,18 F4@21,9
+B3    TOP    bank0 R00C04B   CTRL-OTHER              V02S0701@5,1
+A3    TOP    bank0 R00C06A   CTRL-MUXED     Q4@23,18,Q5@23,18 F4@20,7
+A4    TOP    bank0 R00C06B   CTRL-MUXED     Q5@23,18 F5@17,2
+D4    TOP    bank0 R00C09B   CTRL-OTHER              F3@63,4
+E4    TOP    bank0 R00C09A   CTRL-OTHER              V06S0003@33,1
+B4    TOP    bank0 R00C11B   CTRL-MUXED     Q5@23,18 F4@17,2
+C4    TOP    bank0 R00C11A   CTRL-OTHER              F3@60,2
+D5    TOP    bank0 R00C13B   CTRL-MUXED     Q4@23,18,Q5@23,18 F7@21,8
+E5    TOP    bank0 R00C13A   CTRL-MUXED     Q4@23,18,Q5@23,18 F5@23,7
+B5    TOP    bank0 R00C15B   CTRL-OTHER              V02S0701@16,1
+C5    TOP    bank0 R00C15A   CTRL-MUXED     Q4@23,18,Q5@23,18 F5@24,2
+A5    TOP    bank0 R00C18A   CTRL-MUXED     Q5@23,18 F6@19,2
+A6    TOP    bank0 R00C18B   CTRL-OTHER              V02S0501@19,1
+D6    TOP    bank0 R00C20B   CTRL-MUXED     Q4@23,18,Q5@23,18 F3@18,3
+E6    TOP    bank0 R00C20A   CTRL-MUXED     Q4@23,18,Q5@23,18 F5@23,8
+B6    TOP    bank0 R00C22B   CTRL-OTHER              F6@21,14
+C6    TOP    bank0 R00C22A   CTRL-OTHER              V02S0001@22,1
+D7    TOP    bank0 R00C24B   CTRL-OTHER              V02S0701@25,1
+E7    TOP    bank0 R00C24A   CTRL-MUXED     Q4@23,18,Q5@23,18 F7@23,8
+B7    TOP    bank0 R00C27B   CTRL-MUXED     Q4@23,18,Q5@23,18 F6@13,8
+C7    TOP    bank0 R00C27A   CTRL-OTHER              ?-1@-1,-1
+A7    TOP    bank0 R00C29A   UNUSED/STATIC           
+A8    TOP    bank0 R00C29B   CTRL-MUXED     Q4@23,18,Q5@23,18 F3@25,2
+D8    TOP    bank1 R00C33B   CTRL-OTHER              ?-1@-1,-1
+E8    TOP    bank1 R00C33A   CTRL-OTHER              ?-1@-1,-1
+B8    TOP    bank1 R00C35B   CTRL-OTHER              F4@16,4
+C8    TOP    bank1 R00C35A   CTRL-OTHER              V02S0501@35,1
+B9    TOP    bank1 R00C38A   CTRL-OTHER              V06S0203@31,1
+C9    TOP    bank1 R00C38B   CTRL-OTHER              V02S0501@39,1
+D9    TOP    bank1 R00C40A   CTRL-OTHER              F4@16,2
+E9    TOP    bank1 R00C40B   CTRL-MUXED     Q4@23,18,Q5@23,18 F2@14,5
+A10   TOP    bank1 R00C42B   INPUT                   
+A9    TOP    bank1 R00C42A   CTRL-OTHER              V06S0003@30,1
+B10   TOP    bank1 R00C44A   CTRL-OTHER              ?-1@-1,-1
+C10   TOP    bank1 R00C44B   CTRL-OTHER              V02S0501@45,1
+D10   TOP    bank1 R00C47A   CTRL-MUXED     Q4@23,18,Q5@23,18 F1@26,6
+E10   TOP    bank1 R00C47B   CTRL-MUXED     Q4@23,18,Q5@23,18 F5@20,7
+B11   TOP    bank1 R00C49A   CTRL-MUXED     Q4@23,18,Q5@23,18 F6@21,8
+C11   TOP    bank1 R00C49B   CTRL-OTHER              ?-1@-1,-1
+D11   TOP    bank1 R00C51A   CTRL-OTHER              V02S0501@51,1
+E11   TOP    bank1 R00C51B   CTRL-OTHER              V02S0501@52,1
+A11   TOP    bank1 R00C53A   CTRL-MUXED     Q4@23,18,Q5@23,18 F5@13,8
+A12   TOP    bank1 R00C53B   INPUT                   
+B12   TOP    bank1 R00C56A   CTRL-OTHER              V02S0701@56,1
+C12   TOP    bank1 R00C56B   CTRL-MUXED     Q4@23,18,Q5@23,18 F3@20,8
+D12   TOP    bank1 R00C58A   INPUT                   
+E12   TOP    bank1 R00C58B   UNUSED/STATIC           
+B13   TOP    bank1 R00C60A   CTRL-OTHER              V02S0501@60,1
+C13   TOP    bank1 R00C60B   CTRL-MUXED     Q4@23,18,Q5@23,18 F6@23,8
+D13   TOP    bank1 R00C62A   CTRL-MUXED     Q4@23,18,Q5@23,18 F6@27,14
+E13   TOP    bank1 R00C62B   UNUSED/STATIC           
+A13   TOP    bank1 R00C65A   CTRL-MUXED     Q4@23,18,Q5@23,18 F4@23,7
+A14   TOP    bank1 R00C65B   CTRL-OTHER              V02S0501@66,1
+A15   TOP    bank1 R00C67B   UNUSED/STATIC           
+B14   TOP    bank1 R00C67A   CTRL-OTHER              V02S0501@67,1
+B15   RIGHT  bank2 R02C72B   RGB-DATA                F1@65,3
+B16   RIGHT  bank2 R02C72A   RGB-DATA       Q5@39,18 F5@70,5
+C14   RIGHT  bank2 R02C72C   RGB-DATA                F4@70,2
+D14   RIGHT  bank2 R02C72D   CTRL-OTHER              H02W0501@71,4
+C15   RIGHT  bank2 R05C72B   RGB-DATA                H06W0203@71,12
+C16   RIGHT  bank2 R05C72A   RGB-DATA                H06W0003@72,5
+E14   RIGHT  bank2 R05C72C   RGB-DATA                F5@69,4
+F14   RIGHT  bank2 R05C72D   RGB-DATA                ?-1@-1,-1
+D16   RIGHT  bank2 R08C72A   RGB-DATA       Q4@39,18 F3@70,8
+E15   RIGHT  bank2 R08C72B   RGB-DATA                F3@69,7
+F12   RIGHT  bank2 R08C72D   RGB-DATA                F0@69,3
+F13   RIGHT  bank2 R08C72C   RGB-DATA                F6@70,8
+E16   RIGHT  bank2 R11C72D   RGB-DATA                H02W0501@71,13
+F15   RIGHT  bank2 R11C72C   RGB-DATA                H06W0103@71,4
+G12   RIGHT  bank2 R11C72A   RGB-DATA       Q4@39,18,Q5@39,18 F5@65,5
+G13   RIGHT  bank2 R11C72B   RGB-DATA                H02W0701@71,11
+F16   RIGHT  bank2 R14C72A   RGB-DATA                F1@70,7
+G14   RIGHT  bank2 R14C72C   RGB-DATA                H06W0003@72,16
+G15   RIGHT  bank2 R14C72B   RGB-DATA                H02W0201@71,14
+H14   RIGHT  bank2 R14C72D   RGB-DATA                H02W0601@71,16
+H12   RIGHT  bank2 R17C72A   RGB-DATA                F0@70,11
+H13   RIGHT  bank2 R17C72B   RGB-DATA                F2@70,11
+J12   RIGHT  bank2 R17C72D   RGB-DATA                H06W0203@72,19
+J13   RIGHT  bank2 R17C72C   RGB-DATA                F2@70,12
+G16   RIGHT  bank2 R20C72A   RGB-DATA                ?-1@-1,-1
+H15   RIGHT  bank2 R20C72B   RGB-DATA                H02W0501@71,20
+J14   RIGHT  bank2 R20C72C   RGMII-B TXD             Q4@54,20
+K14   RIGHT  bank2 R20C72D   RGMII-B TXD             Q4@42,23
+J15   RIGHT  bank2 R23C72B   RGMII-B TXD             Q2@56,23
+J16   RIGHT  bank2 R23C72A   RGMII-B TXC             
+K15   RIGHT  bank2 R23C72D   RGMII-B TXD             ?-1@-1,-1
+K16   RIGHT  bank2 R23C72C   RGMII-B TXD             Q6@58,22
+L15   RIGHT  bank3 R26C72B   RGMII-B RXD             
+L16   RIGHT  bank3 R26C72A   RGMII-B RXD             
+M15   RIGHT  bank3 R26C72D   RGMII-B RXD             
+M16   RIGHT  bank3 R26C72C   RGMII-B RXC             
+K12   RIGHT  bank3 R29C72B   UNUSED/STATIC           
+K13   RIGHT  bank3 R29C72A   RGB-DATA                H02W0701@71,29
+L12   RIGHT  bank3 R29C72D   RGB-DATA                H02W0201@71,31
+L13   RIGHT  bank3 R29C72C   RGB-DATA                H02W0301@71,31
+L14   RIGHT  bank3 R32C72C   RGB-DATA                H02W0501@71,34
+M14   RIGHT  bank3 R32C72D   RGB-DATA                F5@69,5
+N16   RIGHT  bank3 R32C72A   UNUSED/STATIC           
+P15   RIGHT  bank3 R32C72B   RGB-DATA                F5@70,9
+M13   RIGHT  bank3 R35C72C   UNUSED/STATIC           
+N14   RIGHT  bank3 R35C72D   RGB-DATA                H06W0003@72,37
+P16   RIGHT  bank3 R35C72A   RGMII-B RXD             
+R16   RIGHT  bank3 R35C72B   RGMII-B RXD             
+N13   RIGHT  bank3 R38C72A   RGB-DATA                H02W0501@71,38
+P14   RIGHT  bank3 R38C72B   RGB-DATA                F1@70,14
+R15   RIGHT  bank3 R38C72C   RGB-DATA                F1@70,8
+T15   RIGHT  bank3 R38C72D   RGB-DATA                H06W0203@69,16
+P13   RIGHT  bank3 R41C72A   RGB-DATA                F1@69,11
+R13   RIGHT  bank3 R41C72C   RGB-DATA       Q5@39,18 F3@70,4
+R14   RIGHT  bank3 R41C72B   RGB-DATA                H02W0401@71,41
+T14   RIGHT  bank3 R41C72D   RGB-DATA                H02W0501@71,43
+M12   RIGHT  bank3 R44C72C   RGB-DATA                F1@70,9
+N12   RIGHT  bank3 R44C72D   RGB-DATA                H02W0201@71,46
+R12   RIGHT  bank3 R44C72A   RGB-DATA                H02W0301@71,44
+T13   RIGHT  bank3 R44C72B   RGB-DATA                H02W0501@71,44
+M11   RIGHT  bank3 R47C72A   RGB-DATA                H02W0501@71,47
+N11   RIGHT  bank3 R47C72B   RGB-DATA                F3@68,8
+P11   RIGHT  bank3 R47C72C   RGB-DATA                V06N0203@71,50
+P12   RIGHT  bank3 R47C72D   RGB-DATA                H02W0701@71,49
+M7    BOTTOM bank8 R50C09B   SPI-FLASH               V06N0103@10,50
+M8    BOTTOM bank8 R50C15B   SPI-FLASH               F2@68,12
+M9    BOTTOM bank8 R50C18A   SPI-FLASH               V06N0003@36,49
+N7    BOTTOM bank8 R50C09A   SPI-FLASH               V02N0701@9,49
+N8    BOTTOM bank8 R50C15A   SPI-FLASH               F4@14,48
+P7    BOTTOM bank8 R50C06B   SPI-FLASH               V02N0501@7,49
+P8    BOTTOM bank8 R50C13B   SPI-FLASH               ?-1@-1,-1
+R6    BOTTOM bank8 R50C04B   SPI-FLASH               Q2@15,24
+R7    BOTTOM bank8 R50C06A   SPI-FLASH               
+R8    BOTTOM bank8 R50C13A   SPI-FLASH               V06S0203@49,2
+T6    BOTTOM bank8 R50C04A   SPI-FLASH               V02N0701@4,49
+T7    BOTTOM bank8 R50C11A   SPI-FLASH               
+T8    BOTTOM bank8 R50C11B   SPI-FLASH               F0@12,46
+B1    LEFT   bank7 R02C00A   RGB-DATA                F5@70,14
+B2    LEFT   bank7 R02C00B   CTRL-OTHER              ?-1@-1,-1
+C3    LEFT   bank7 R02C00C   CTRL-MUXED     Q4@23,18,Q5@23,18 F2@20,8
+D3    LEFT   bank7 R02C00D   RGB-DATA                F1@59,2
+C1    LEFT   bank7 R05C00A   RGB-DATA                ?-1@-1,-1
+C2    LEFT   bank7 R05C00B   RGB-DATA                F1@61,3
+E3    LEFT   bank7 R05C00C   RGB-DATA                H06E0203@0,7
+F3    LEFT   bank7 R05C00D   RGB-DATA                H02E0501@1,7
+D1    LEFT   bank7 R08C00A   RGB-DATA                H06E0203@0,8
+E2    LEFT   bank7 R08C00B   RGB-DATA       Q5@39,18 F5@67,7
+F4    LEFT   bank7 R08C00C   RGB-DATA                F0@58,3
+F5    LEFT   bank7 R08C00D   RGB-DATA                F1@66,3
+E1    LEFT   bank7 R11C00D   RGB-DATA                F6@59,4
+F2    LEFT   bank7 R11C00C   RGB-DATA                H02E0301@1,13
+G4    LEFT   bank7 R11C00B   RGB-DATA                H02E0501@1,11
+G5    LEFT   bank7 R11C00A   RGB-DATA                H06E0203@0,11
+F1    LEFT   bank7 R14C00A   RGB-DATA       Q4@39,18,Q5@39,18 F7@67,6
+G2    LEFT   bank7 R14C00B   RGB-DATA                F0@61,4
+G3    LEFT   bank7 R14C00C   RGB-DATA                H02E0701@1,16
+H3    LEFT   bank7 R14C00D   RGB-DATA                H02E0501@1,16
+H4    LEFT   bank7 R17C00B   RGB-DATA                V06S0003@57,0
+H5    LEFT   bank7 R17C00A   RGB-DATA                H02E0701@1,17
+J4    LEFT   bank7 R17C00C   RGB-DATA                ?-1@-1,-1
+J5    LEFT   bank7 R17C00D   RGB-DATA                H06E0203@0,13
+G1    LEFT   bank7 R20C00A   RGB-DATA                H02E0701@1,20
+H2    LEFT   bank7 R20C00B   RGB-DATA                V06S0303@40,0
+J3    LEFT   bank7 R20C00C   RGMII-A RXD             
+K3    LEFT   bank7 R20C00D   RGMII-A RXD             
+J1    LEFT   bank7 R23C00A   RGMII-A RXC             
+J2    LEFT   bank7 R23C00B   RGMII-A RXD             
+K1    LEFT   bank7 R23C00C   RGMII-A RXD             
+K2    LEFT   bank7 R23C00D   RGMII-A RXD             
+L1    LEFT   bank6 R26C00A   RGMII-A TXC             
+L2    LEFT   bank6 R26C00B   RGMII-A TXD             Q2@23,23
+M1    LEFT   bank6 R26C00C   RGMII-A TXD             Q4@40,26
+M2    LEFT   bank6 R26C00D   RGMII-A TXD             Q6@32,22
+K4    LEFT   bank6 R29C00A   RGB-DATA                F2@52,2
+K5    LEFT   bank6 R29C00B   RGB-DATA                F6@62,5
+L4    LEFT   bank6 R29C00C   RGB-DATA                H02E0501@1,31
+L5    LEFT   bank6 R29C00D   RGB-DATA                H02E0201@1,31
+L3    LEFT   bank6 R32C00C   RGB-DATA                H02E0301@1,34
+M3    LEFT   bank6 R32C00D   RGB-DATA                F0@46,16
+N1    LEFT   bank6 R32C00A   RGB-DATA                F4@51,8
+P2    LEFT   bank6 R32C00B   RGB-DATA       Q5@39,18 F3@66,9
+M4    LEFT   bank6 R35C00C   RGB-DATA                H02E0301@1,37
+N3    LEFT   bank6 R35C00D   RGB-DATA                Q7@51,20
+P1    LEFT   bank6 R35C00A   RGMII-A TXD             H06E0303@0,35
+R1    LEFT   bank6 R35C00B   RGMII-A TXD             Q6@37,29
+N4    LEFT   bank6 R38C00A   RGB-DATA                Q1@51,20
+P3    LEFT   bank6 R38C00B   RGB-DATA                H02E0701@1,38
+R2    LEFT   bank6 R38C00C   RGB-DATA                F2@59,4
+T2    LEFT   bank6 R38C00D   RGB-DATA                H02E0201@1,40
+P4    LEFT   bank6 R41C00A   RGB-DATA                Q0@51,20
+R3    LEFT   bank6 R41C00B   RGB-DATA                H06E0303@1,34
+R4    LEFT   bank6 R41C00C   RGB-DATA                F0@63,5
+T3    LEFT   bank6 R41C00D   RGB-DATA                F6@60,5
+M5    LEFT   bank6 R44C00C   RGB-DATA       Q5@39,18 F5@60,3
+N5    LEFT   bank6 R44C00D   RGB-DATA                H02E0701@1,46
+R5    LEFT   bank6 R44C00A   RGB-DATA                F4@4,45
+T4    LEFT   bank6 R44C00B   RGB-DATA                F6@3,44
+M6    LEFT   bank6 R47C00A   UNUSED/STATIC           
+N6    LEFT   bank6 R47C00B   RGB-DATA                V06N0203@19,49
+P5    LEFT   bank6 R47C00D   RGB-DATA                F2@61,5
+P6    LEFT   bank6 R47C00C   UNUSED/STATIC           
+
+COUNTS: {'CTRL-MUXED': 23, 'CTRL-OTHER': 29, 'UNUSED/STATIC': 9, 'INPUT': 3, 'RGB-DATA': 96, 'RGMII-B TXD': 5, 'RGMII-B TXC': 1, 'RGMII-B RXD': 5, 'RGMII-B RXC': 1, 'SPI-FLASH': 13, 'RGMII-A RXD': 5, 'RGMII-A RXC': 1, 'RGMII-A TXC': 1, 'RGMII-A TXD': 5}

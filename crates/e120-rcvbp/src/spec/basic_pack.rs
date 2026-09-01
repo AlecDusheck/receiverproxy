@@ -1,96 +1,131 @@
 //! The basic-parameter pack body (page 0 of the boot image; the real-time
 //! pack with sub-index 0), built the way `GetBasicParam` @ 0x1dfb50 does
-//! from record 0x01 — every derived field below reproduces the factory
-//! bytes under test. Bytes not yet derived are carried from the reference
-//! pack and reported.
+//! from record 0x01 — all 256 bytes derived, verified byte-exact against the
+//! vendor's own pack. Fields the vendor computes from chip-specific tables
+//! are zero for this chip family and stay zero here.
 
 use super::PanelSpec;
 use crate::record01::{off, View};
-use anyhow::{bail, Result};
 
-// Body offsets (pack offset - 4).
-const HEAD3: usize = 0x01;
-const MODULE_DIMS: usize = 0x04;
-const MODULES_IN_LINE: usize = 0x06;
-const SCAN: usize = 0x07;
-const GRAY: usize = 0x08;
-const SERIAL_CLOCK: usize = 0x09;
-const ONE_SCAN_LEN: usize = 0x0B;
-const CARD_SCAN_LEN: usize = 0x0D;
-const COLOR: usize = 0x10;
-const LUMINANCE: usize = 0x15;
-const LUMINANCE_LEVEL: usize = 0x17;
-const GAINS: usize = 0x30;
-const CHIP_CUSTOM: usize = 0x70;
-const MAX_W: usize = 0x88;
-const MAX_H: usize = 0x8A;
-const CHIP_ID: usize = 0xE7;
+const CRC: usize = 0xFC;
 
-/// # Errors
-/// Rejects a reference pack that is not one page.
-pub fn body(
-    spec: &PanelSpec,
-    rec: &View,
-    reference: &[u8],
-    prov: &mut Vec<String>,
-) -> Result<[u8; 256]> {
-    if reference.len() != 256 {
-        bail!("reference basic pack is {} bytes, need 256", reference.len());
-    }
+pub fn body(spec: &PanelSpec, rec: &View, prov: &mut Vec<String>) -> [u8; 256] {
     let mut b = [0u8; 256];
-    b.copy_from_slice(reference);
-    prov.push("basicpack: bytes not listed below <- reference pack".into());
+    let r = rec.bytes();
     let mut put = |at: usize, bytes: &[u8], what: &str| {
         b[at..at + bytes.len()].copy_from_slice(bytes);
         prov.push(format!("basicpack +{at:#04x} <- {what}"));
     };
-
-    put(HEAD3, &rec.bytes()[off::PACK_HEAD3..off::PACK_HEAD3 + 3], "record01 +0x028 (3 bytes)");
     let (w, h2) = (spec.module.width as u8, (spec.module.height / 2) as u8);
-    if spec.module.line_dir >= 2 {
-        put(MODULE_DIMS, &[w, h2], "module width, height/2 (line_dir horizontal)");
-    } else {
-        put(MODULE_DIMS, &[h2, w], "module height/2, width (line_dir vertical)");
-    }
-    put(
-        MODULES_IN_LINE,
-        &[spec.modules_in_line_dir() as u8],
-        "modules in line dir = screen extent / module extent",
-    );
-    put(SCAN, &[spec.module.scan], "module.scan");
-    put(GRAY, &[spec.module.gray_bits], "module.gray_bits");
-    put(SERIAL_CLOCK, &spec.module.serial_clock.to_be_bytes(), "module.serial_clock (BE)");
-    put(ONE_SCAN_LEN, &spec.one_scan_len().to_be_bytes(), "OneScanLen = W x H/2 / scan (BE)");
-    put(
-        CARD_SCAN_LEN,
-        &spec.card_scan_len().to_be_bytes(),
-        "CardScanLen = OneScanLen x modules in line dir (BE)",
-    );
+    let modules = spec.modules_in_line_dir();
+    let scan_len = spec.card_scan_len();
     let [s0, s1, s2] = spec.color.source;
-    put(
-        COLOR,
-        &[(spec.color.swap << 6) | (s2 << 4) | (s1 << 2) | s0],
-        "color.swap<<6 | source[2]<<4 | source[1]<<2 | source[0]",
-    );
-    put(LUMINANCE, &[rec.u8(off::LUMINANCE)], "record01 +0x024 low byte");
-    put(LUMINANCE_LEVEL, &[rec.u8(off::LUMINANCE_LEVEL)], "record01 +0x026 low byte");
-    put(GAINS, &spec.current.gains, "current.gains");
-    put(CHIP_CUSTOM, rec.chip_custom(), "record01 +0x06A chip-custom block");
-    put(MAX_W, &spec.screen.width.to_be_bytes(), "screen.width (BE)");
-    put(MAX_H, &spec.screen.height.to_be_bytes(), "screen.height (BE)");
-    put(CHIP_ID, &spec.chip.id.to_be_bytes(), "chip.id (BE)");
+    let lum = rec.luminance_level();
+
+    put(0x00, &[0xA8], "marker");
+    put(0x01, &r[off::PACK_HEAD3..off::PACK_HEAD3 + 3], "record +0x028");
+    if spec.module.line_dir >= 2 {
+        put(0x04, &[w, h2], "module width, height/2 (horizontal line dir)");
+    } else {
+        put(0x04, &[h2, w], "module height/2, width (vertical line dir)");
+    }
+    put(0x06, &[modules as u8], "modules in line dir");
+    put(0x07, &[rec.scan()], "scan");
+    put(0x08, &[rec.gray()], "gray bits");
+    put(0x09, &rec.serial_clock().to_be_bytes(), "serial clock (BE)");
+    put(0x0B, &spec.one_scan_len().to_be_bytes(), "OneScanLen (BE)");
+    put(0x0D, &scan_len.to_be_bytes(), "CardScanLen (BE)");
+    put(0x0F, &[head_code(r[0x008], (spec.module.width >> 8) as u8)], "record +0x008 code | module-dim high bits");
+    put(0x10, &[(spec.color.swap << 6) | (s2 << 4) | (s1 << 2) | s0], "colour byte");
+    put(0x14, &rec.u16_le(off::LUMINANCE).to_be_bytes(), "record +0x024 (BE)");
+    put(0x16, &lum.to_be_bytes(), "record +0x026 (BE)");
+    put(0x19, &[r[0x02F]], "record +0x02F");
+    put(0x1A, &[0x80], "constant (image writer)");
+    put(0x1B, &[0xFE], "chip-id escape (id >= 0x100)");
+    put(0x1C, &[r[0x037]], "record +0x037 serial type");
+    put(0x1D, &[rec.line_dir()], "line dir");
+    put(0x1E, &[r[0x0E6]], "record +0x0E6 packed flags");
+    put(0x1F, &rec.u16_le(0x003).to_be_bytes(), "void point count (BE)");
+    put(0x22, &[r[0x03D] & 0x0F], "scan method");
+    put(0x23, &[r[0x03E]], "split");
+    put(0x25, &[modules as u8], "modules in line dir / split segment");
+    put(0x26, &[r[0x043], r[0x044] | (r[0x04E] & 1)], "record +0x043, +0x044 | output-model bit");
+    put(0x28, &r[0x045..0x047], "gray compensation (LE)");
+    put(0x2A, &[((spec.screen.width / spec.module.width) * (spec.screen.height / spec.module.height)) as u8], "module count");
+    put(0x2C, &rec.u16_le(off::SERIAL_CLOCK_HALF).to_be_bytes(), "serial clock / 2 (BE)");
+    put(0x2E, &rec.u16_le(off::SERIAL_CLOCK_DUP).to_be_bytes(), "serial clock (BE)");
+    put(0x30, &r[off::GAINS..off::GAINS + 4], "current gains");
+    put(0x37, &[r[0x050]], "8ns OE enable info");
+    put(0x39, &scan_len.to_be_bytes(), "CardScanLen / split (BE)");
+    put(0x3B, &spec.screen_extent_in_line_dir().to_be_bytes(), "screen extent in line dir (BE)");
+    put(0x42, &[r[0x057], r[0x058]], "grid unit");
+    put(0x46, &[spec.module_input_count()], "module input count");
+    put(0x47, &[r[0x0B3]], "hub type");
+    put(0x48, &current_split(lum, rec), "luminance split R, B, rest, G (BE)");
+    put(0x50, &r[0x07A..0x08A], "swap block 1");
+    put(0x60, &r[0x05A..0x06A], "swap block 0");
+    put(0x70, rec.chip_custom(), "chip-custom block");
+    put(0x80, &r[0x038..0x03C], "record +0x038");
+    put(0x84, &r[0x0DC..0x0E0], "record +0x0DC");
+    put(0x88, &spec.screen.width.to_be_bytes(), "MaxWidth (BE)");
+    put(0x8A, &spec.screen.height.to_be_bytes(), "MaxHeight (BE)");
+    put(0x8C, &[0x01, r[0x0E8]], "constant, record +0x0E8");
+    put(0x8E, &(u16::from(h2) * 32).to_be_bytes(), "module dim x 32 (BE)");
+    put(0x90, &[if r[0x01A] & 0x40 != 0 { r[0x052] } else { 0 }], "special-module setting (gated)");
+    put(0x91, &r[0x0C4..0x0D8], "SChipControl");
+    put(0xA5, &[r[0x009]], "record +0x009");
+    put(0xB0, &r[0x08A..0x0AA], "swap blocks 2-3");
+    put(0xD0, &r[0x0E0..0x0E4], "chip-custom-EX");
+    put(0xD4, &[r[0x0E7], r[0x179]], "record +0x0E7, +0x179");
+    put(0xD7, &[r[0x191]], "record +0x191");
+    put(0xD8, &r[0x0EA..0x0F0], "record +0x0EA");
+    put(0xE3, &scan_len.to_be_bytes(), "MaxPsc full (BE)");
+    put(0xE5, &scan_len.to_be_bytes(), "MaxPsc max (BE)");
+    put(0xE7, &rec.chip_id().to_be_bytes(), "chip id (BE)");
+    put(0xF5, &[r[0x1EE], r[0x1F0], r[0x1F7]], "record +0x1EE, +0x1F0, +0x1F7");
+    put(0xFA, &[r[0x193].wrapping_mul(2)], "2 x record +0x193");
     let crc = body_crc(&b);
     b[CRC..CRC + 4].copy_from_slice(&crc.to_le_bytes());
     prov.push(format!("basicpack +{CRC:#04x} <- CRC-32 of body[..0xFC] (chip-id bytes zeroed), LE"));
-    Ok(b)
+    b
 }
 
-const CRC: usize = 0xFC;
+/// Pack +0x13: a code from record +0x008 through {2,3,0,1} (0 if >= 4), with
+/// the module-height high bits mirrored into bits 4-5 and 6-7.
+fn head_code(rec_008: u8, dim_hi: u8) -> u8 {
+    let code = match rec_008 & 0xF {
+        0 => 2,
+        1 => 3,
+        2 => 0,
+        3 => 1,
+        _ => 0,
+    };
+    code | ((dim_hi & 3) << 4) | ((dim_hi & 3) << 6)
+}
 
-/// The vendor's trailing dword: standard CRC-32 (reflected, 0xEDB88320,
-/// init/final 0xFFFFFFFF) over body[0..0xFC], computed before `ResetChipType`
-/// fills the chip-id escape (0x1B) and chip id (0xE7..0xE8) — so those three
-/// bytes are zero when hashed.
+/// Pack +0x4C..+0x53: the luminance level split by the current percents —
+/// R = floor(V·pR), B = floor((V−R−G)·pB), rest = V−R−G−B, G = floor(V·pG),
+/// emitted as R, B, rest, G. The factory tool floors (this dylib rounds).
+fn current_split(v: u16, rec: &View) -> [u8; 8] {
+    let pr = rec.f32_le(off::CURRENT_PCT);
+    let pg = rec.f32_le(off::CURRENT_PCT + 4);
+    let pb = rec.f32_le(off::CURRENT_PCT + 8);
+    let v_f = f32::from(v);
+    let r = (v_f * pr).floor() as u16;
+    let g = (v_f * pg).floor() as u16;
+    let b = (f32::from(v - r - g) * pb).floor() as u16;
+    let rest = v - r - g - b;
+    let mut out = [0u8; 8];
+    out[0..2].copy_from_slice(&r.to_be_bytes());
+    out[2..4].copy_from_slice(&b.to_be_bytes());
+    out[4..6].copy_from_slice(&rest.to_be_bytes());
+    out[6..8].copy_from_slice(&g.to_be_bytes());
+    out
+}
+
+/// The vendor's trailing dword: standard CRC-32 over body[0..0xFC], computed
+/// before `ResetChipType` fills the chip-id escape (0x1B) and chip id
+/// (0xE7..0xE8) — so those three bytes are zero when hashed.
 fn body_crc(body: &[u8; 256]) -> u32 {
     let mut hashed = *body;
     hashed[0x1B] = 0;
@@ -114,7 +149,7 @@ mod tests {
     fn the_factory_pack_carries_its_own_crc() {
         let body = std::fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/e120-rcvbp/tests/fixtures/factory-basic-pack-body.bin"
+            "/tests/fixtures/factory-basic-pack-body.bin"
         ))
         .unwrap();
         let body: [u8; 256] = body.try_into().unwrap();

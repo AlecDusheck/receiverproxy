@@ -1,13 +1,21 @@
-# Driver-chip library: SM16269 / SM16269S.
+# Driver-chip library: SM16269 / SM16269S — the 0x14C family (named SM16169SH
+# in the vendor's own chip table) with sub-variant id 0x14D.
 #
-# Source: LEDVISION 9.6 ChipSetting.dll, dialog IDD20174 (CChipSettingSM16269Ex),
-# "Default Parameter" builders at file offsets 0x27F8E0 / 0x27F7E0 (identical
-# tables). Record 0x84 is 33 (register, R, G, B) quads in the order below, then
-# zeros. Field bit layouts: docs/chips.md.
+# Sources: libCLTDevice ResetChipCustom (chip 0x14C case, sub-id 0x14D table
+# at __TEXT,__const 0x401130; register 0x02 is patched to scan-1 on load),
+# ResetChipControl (chip_control), ResetIS (serial clock: PWM chip with max
+# scan 16 -> 15); LEDVISION 9.6 ChipSetting.dll dialog IDD20174 for the
+# register field layout (docs/building-a-config.md).
 
 name = "SM16269"
 family_id = 0x014C
 sub_id = 0x014D
+serial_clock = 15
+
+# SChipControl for this chip (record 0x01 +0x0C4..0x0D7), as the vendor's
+# ResetChipControl + SetGclkNumsOfChipControlByChipCustom emit it.
+chip_control = [0x00, 0x0e, 0x01, 0x05, 0x06, 0x01, 0x03, 0x00, 0x00, 0x00,
+                0x00, 0x97, 0x00, 0x97, 0x00, 0x08, 0x02, 0x00, 0x0a, 0x02]
 
 # Register order in the record; 0xF0 is a real register (black-screen standby
 # bits), not just a terminator.
@@ -19,8 +27,8 @@ order = [
 
 # Vendor "Default Parameter" values, R G B per register.
 [registers]
-0x02 = [0x3f, 0x3f, 0x3f]   # preserved across a defaults reload by the vendor; gain-class (NOT RESOLVED)
-0x03 = [0x3f, 0x3f, 0x3f]   # [7:6] low-gray high-refresh level
+0x02 = [0x3f, 0x3f, 0x3f]   # replaced by scan-1 on load
+0x03 = [0x3f, 0x3f, 0x3f]   # [7:6] low-gray high-refresh level; <0x40 selects the x64 gray multiplier
 0x04 = [0x00, 0x00, 0x00]   # [7] energy saving
 0x05 = [0x00, 0x00, 0x00]
 0x06 = [0x00, 0x00, 0x00]

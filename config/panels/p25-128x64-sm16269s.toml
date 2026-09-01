@@ -1,9 +1,10 @@
 # One Eager LED P2.5-O16S-SMD1415-128x64-E module on hub J1 of the E120.
-# Module spec: 128x64, 1/16 duty, 14-bit gray. Driver ICs read off the
-# module: SM16269S (vendor family id 0x014C).
+# Module spec: 128x64, 1/16 duty. Driver ICs read off the module: SM16269S.
 #
-# Generate with:  e120 gen-config --spec config/panels/p25-128x64-sm16269s.toml --out-dir build/
-# Field meanings: docs/record-0x01-fields.md; recipe: docs/building-a-config.md.
+# Generate with:  e120 gen-config --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
+# Push to RAM:    e120 send-params --spec config/panels/p25-128x64-sm16269s.toml
+# Every byte of the output is a vendor default, a field below, a chip-library
+# value, or a documented literal — see build/*-provenance.txt.
 
 name = "p25-128x64-sm16269s"
 
@@ -11,20 +12,17 @@ name = "p25-128x64-sm16269s"
 width = 128
 height = 64
 scan = 16
-gray_bits = 14
-serial_clock = 8
 line_dir = 0
+data_groups = 1
+# The seller's config ran the serial clock at 8; the chip's vendor default is
+# 15 (config/chips/sm16269.toml). Remove this line to use the default.
+serial_clock = 8
 
 [screen]
-# One module: the seller's config had 256x384 (a 2x6 wall) here.
 width = 128
 height = 64
 
 [chip]
-id = 0x014C
-# The seller's file carried the SM16169SH register set with sub-id 0; the
-# silicon is SM16269S, so use its own vendor defaults and sub-variant id.
-sub_id = 0x014D
 library = "config/chips/sm16269.toml"
 
 [color]
@@ -39,19 +37,13 @@ percent = [0.1, 0.1, 0.1]
 gamma = 2.8
 refresh_hz = 60.0
 gclock = 0x14
+min_oe = 0.0001
+luminance_level = 188
+oe_8ns = true
 
 [mapping]
-# Vendor default wiring: data groups reversed in the scan-line buffer,
-# scan lines top-down. Both knobs are corpus-derived; see docs/building-a-config.md.
 reversed_groups = true
 reversed_lines = false
-
-[template]
-# Records the spec does not derive yet (chip registers, gamma/empty tables)
-# and the reference basic pack for its undecoded bytes. Every byte taken
-# from here is listed in the provenance; this section is scheduled to go.
-rcvbp = "crates/e120-rcvbp/tests/fixtures/p25-128x64-fixed.rcvbp"
-basic_pack = "crates/e120-rcvbp/tests/fixtures/factory-basic-pack-body.bin"
 
 [boot]
 # Arming at boot with the current config lights the panel unmodulated at

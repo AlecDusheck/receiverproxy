@@ -1,62 +1,74 @@
 # Building a config for a panel
 
-Configs are generated from a declarative panel spec — nothing is patched by
-hand. Every byte in the outputs comes from a spec field, a decoded formula,
-or a named template record, and the provenance file says which.
+A panel is described once in `config/panels/<panel>.toml`; everything the
+card consumes is generated from it and a chip library entry. Nothing is
+copied from a donor file: every output byte is a vendor default, a spec
+field, a chip-library value, or a documented literal, and the provenance
+file names the source of each placement.
 
 ```sh
 e120 gen-config --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
-#   build/<name>.rcvbp             the config source (records)
-#   build/<name>-basic-pack.bin    page 0 of the boot image
+#   build/<name>.rcvbp             the config (17 records, the vendor's order)
+#   build/<name>-basic-pack.bin    page 0 of the boot image (with its CRC-32)
 #   build/<name>-block7.bin        the complete 64 KB boot image
 #   build/<name>-provenance.txt    the source of every placed byte
 
 e120 restore-flash build/<name>-block7.bin --commit   # page 0xF0 refusing is expected
 e120 screen-size --set 128x64 --commit
 e120 reload-params --full                             # vendor's 0x77 apply; or power-cycle
+e120 send-params --spec config/panels/<panel>.toml    # or push the RAM packs directly
 ```
 
 ## The spec
 
-See `config/panels/p25-128x64-sm16269s.toml`. Sections: `[module]` (width, height,
-scan, gray bits, serial clock, line direction), `[screen]` (the whole screen
-this card drives — MaxWidth/MaxHeight), `[chip]` (vendor id, optional
-register donor), `[color]` (swap index and R/G/B source), `[current]` (gains,
-percents), `[timing]` (gamma, refresh, GCLK), `[template]` (the config whose
-non-derived records are reused, the reference basic pack and block), `[boot]`
-(whether to install the chip page so the card arms at power-on).
+`[module]` width, height, scan, line direction, data groups, optional serial
+clock and gray override · `[screen]` the whole screen this card drives ·
+`[chip] library` · `[color]` swap and R/G/B source · `[current]` gains and
+percents · `[timing]` gamma, refresh, GCLK, minimum OE, luminance level, 8 ns
+OE · `[mapping]` the two wiring knobs · `[boot]` arm at boot.
+
+## The chip library (`config/chips/*.toml`)
+
+Family id and sub-variant id, the vendor's default serial clock, the 20-byte
+chip-control block the config carries, and the default register table with
+the register field layout in comments. Record 0x84 is the table in order
+with register 0x02 patched to `scan − 1`, as the vendor's loader does; the
+gray depth is derived from registers 0x07/0x03 (`GetSupporttedGray`).
+
+`sm16269.toml` — the SM16269 sub-variant (0x14C/0x14D) with the vendor's
+own "Default Parameter" table. `sm16169sh.toml` — the plain 0x14C table the
+seller's file actually carried (with their reg 0x07 edit).
 
 ## What is derived, and from where
 
 | Output | Source | Confidence |
 |---|---|---|
-| record 0x01 geometry, scan, clocks, gray, chip id, colour, gains, gamma, refresh, screen size | spec → offsets in `docs/record-0x01-fields.md` (vendor loader/serializer, instruction level; corpus-validated) | high |
-| record 0x01 remaining bytes | template record; every byte named or classified in the field dictionary; ~49% constants | carried |
-| record 0x03 (pixel mapping) | **generated** from module width, stored height and scan: entry i (pixel in raster order) → scan line `row % scan`, slot `group*width + col` with data groups reversed (vendor default; `[mapping]` knobs cover the two corpus variants). Count formula from `SaveBpToBuffer` @ 0x1cc404; reproduces the 34-config consensus table byte-exact and 1039/1517 corpus tables from geometry alone | high |
-| record 0x84 (chip registers) | template — the only SM16269S register set known (matches a vendor preset 31/32) | carried; colour permutation on install NOT RESOLVED |
-| basic pack: module dims, module count, scan, gray, serial clock, OneScanLen, CardScanLen, colour byte, gains, chip-custom block, screen size, chip id | formulas from `GetBasicParam`, each reproducing the factory bytes (pinned by tests) | high |
-| basic pack remaining ~100 bytes | reference pack (vendor-computed for this chip/clock) | carried |
-| image regions | generated (`docs/compiled-image-format.md`): zeros where the vendor's gates fail, data-swap, module positions, anti-void counters, mapping | high (factory rebuilds byte-exact) |
-| scan table (0x400 bytes) | reference block; solver untranscribed, input is width-dependent | carried, flagged |
+| record 0x01 | vendor write-side defaults (`CHWParamRcvGeneral::Reset/ResetIS/ResetSwapData`), the spec, the chip library (family/sub id, chip control, reset serial clock), and 11 documented literals for bytes whose meaning is unresolved (`spec/record01.rs`) | high — the seller's file regenerates byte-exact |
+| record 0x03 (mapping) | geometry: pixel → (`row % scan`, `group·width + col`) with the vendor's reversed group order; reproduces the 34-config consensus | high |
+| record 0x84 (chip registers) | chip library + `reg 0x02 = scan − 1` | high |
+| other records (0x8a, 0x83/0x89, 0xca, 0xcd, 0x8f, 0x07, 0x86, 0x8e, 0x8d, 0x91/0x95/0xd8/0xda) | decoded loader defaults (`spec/records.rs`); 0x8a mirrors the screen size, 0xca the module geometry | high |
+| basic pack (all 256 bytes) | `GetBasicParam` transcribed field by field from record 0x01, plus the CRC-32 trailer | high — factory pack byte-exact |
+| boot image | every region generated (`image/`): gated zeros, data-swap, module positions, anti-void counters, mapping, scan table (bit-time solver), embedded `.rcvbp` | high — factory image byte-exact |
 
-Tests pin the generator to reality: the spec for our panel reproduces the
-hand-derived pack byte-for-byte; a 2-wide screen reproduces the seller's
-factory pack; the factory image rebuilds from erased flash.
+Pins (`crates/e120-rcvbp/tests/factory.rs`): the seller's config regenerates
+record for record from a spec; that spec reproduces the factory pack and the
+factory image byte for byte; our single-module spec differs from the seller's
+only in the intended bytes.
 
 ## Why the seller's config was wrong
 
-The card shipped configured for a 256x384 wall (2x6 of these modules): screen
-size, module count and CardScanLen in the boot pack, an all-zero module
-position table (the wall exceeds the vendor's 64-tile cap), and a pixel
-mapping that is a lone outlier against the vendor corpus. The panel is one
-128x64 module at 1/16. Earlier notes claiming a 1/8-scan boot pack were a
-field-offset misread; scan was always 16.
+It was compiled for a 256x384 wall (2x6 of these modules) — screen size,
+module count and CardScanLen in the boot pack, an all-zero module-position
+table (the wall exceeds the vendor's 64-tile cap), and a pixel mapping that is
+a lone outlier against the corpus — and it carried the SM16169SH register set
+with the sub-variant id unset, although the silicon is SM16269S.
 
 ## Limits (honest list)
 
-* Mapping and chip-register records are reused, not generated; the spec
-  refuses module geometry the template cannot express.
-* The scan table is carried; if the panel shows scan-timing symptoms with a
-  correct mapping, this is the first suspect.
-* The chip block's colour-swap register permutation is not transcribed.
-* Module-position index bytes: row/column assignment is medium confidence.
+* Eleven record-0x01 bytes and a few small-record bytes are literals whose
+  meaning is unresolved (provenance known); they are the seller's values.
+* The scan-table solver is transcribed for the default style, 16 segments,
+  14-bit gray; other gray depths need their hand-coded vendor blocks.
+* Module-position generation covers the plain grid (split segment 1).
+* The current-exchange page (0xC00) would carry two vendor-computed bytes
+  for a single-module record; we write zeros.

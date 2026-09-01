@@ -4,17 +4,19 @@
 //! `docs/record-0x01-fields.md`; pack formulas from the vendor's `GetBasicParam`,
 //! each pinned against the factory bytes under test.
 //!
-//! Bytes the spec does not yet derive come from the `[template]` section and
-//! are listed in the provenance so nothing reaches flash unexplained.
+//! Nothing is copied from a donor file: every byte is a vendor default, a spec
+//! field, a chip-library value, or a documented literal, and the provenance
+//! lists each placement.
 
 mod basic_pack;
 mod generate;
 mod mapping;
+mod record01;
+mod records;
 
 pub use generate::{generate, Generated};
 
-use crate::record01::{off, View};
-use crate::Rcvbp;
+use crate::chips::ChipLibrary;
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
@@ -34,7 +36,6 @@ pub struct PanelSpec {
     pub timing: Timing,
     #[serde(default)]
     pub mapping: Mapping,
-    pub template: Template,
     #[serde(default)]
     pub boot: Boot,
 }
@@ -48,15 +49,17 @@ pub struct Module {
     pub height: u16,
     /// Scan denominator, e.g. 16 for 1/16.
     pub scan: u8,
-    /// Grayscale depth in bits.
-    #[serde(default = "default_gray")]
-    pub gray_bits: u8,
-    /// Serial (data) clock setting, the vendor's SetSerialClockFrequency unit.
-    #[serde(default = "default_serial_clock")]
-    pub serial_clock: u16,
+    /// Serial (data) clock setting, the vendor's SetSerialClockFrequency unit;
+    /// the chip library's default when absent.
+    pub serial_clock: Option<u16>,
+    /// Grayscale depth override; derived from the chip registers when absent.
+    pub gray_bits: Option<u8>,
     /// Data line direction: 0/1 vertical, 2/3 horizontal (vendor GetLineDir).
     #[serde(default)]
     pub line_dir: u8,
+    /// Data-group / output code (record +0x044 low nibble).
+    #[serde(default = "default_data_groups")]
+    pub data_groups: u8,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -70,15 +73,8 @@ pub struct Screen {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Chip {
-    /// Vendor chip id, e.g. 0x014C for the SM16269 family.
-    pub id: u16,
-    /// Secondary id selecting the sub-variant (0x014D = SM16269 within the
-    /// 0x014C family); left as the template's when absent.
-    pub sub_id: Option<u16>,
-    /// Chip library (`config/chips/*.toml`) whose default table becomes record 0x84.
-    pub library: Option<String>,
-    /// `.rcvbp` whose record 0x84 supplies the chip registers instead.
-    pub registers_from: Option<String>,
+    /// Chip library (`config/chips/*.toml`): ids, register defaults, chip control.
+    pub library: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -124,6 +120,12 @@ pub struct Timing {
     pub refresh_hz: f32,
     /// GCLK setting (record +0x031); vendor default 0x14.
     pub gclock: u8,
+    /// Minimum OE time (record +0x0AE); the PWM bit-time solver's floor.
+    pub min_oe: f32,
+    /// Luminance level (record +0x026), split across the colour percents.
+    pub luminance_level: u16,
+    /// 8 ns OE enable (record +0x050 bit 0).
+    pub oe_8ns: bool,
 }
 
 impl Default for Timing {
@@ -132,6 +134,9 @@ impl Default for Timing {
             gamma: 2.8,
             refresh_hz: 60.0,
             gclock: 0x14,
+            min_oe: 1e-4,
+            luminance_level: 188,
+            oe_8ns: true,
         }
     }
 }
@@ -157,20 +162,6 @@ impl Default for Mapping {
     }
 }
 
-/// Sources for the bytes the spec does not derive yet.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Template {
-    /// Config supplying every record the spec does not derive.
-    pub rcvbp: String,
-    /// 256-byte basic-pack body supplying the bytes `GetBasicParam` derives
-    /// from state not yet decoded.
-    pub basic_pack: String,
-    /// `.rcvbp` whose record 0x03 replaces the generated pixel mapping, for
-    /// wirings the `[mapping]` knobs cannot express.
-    pub mapping_from: Option<String>,
-}
-
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Boot {
@@ -179,11 +170,8 @@ pub struct Boot {
     pub arm_at_boot: bool,
 }
 
-const fn default_gray() -> u8 {
-    14
-}
-const fn default_serial_clock() -> u16 {
-    8
+const fn default_data_groups() -> u8 {
+    1
 }
 
 impl PanelSpec {
@@ -196,44 +184,21 @@ impl PanelSpec {
         toml::from_str(&text).with_context(|| format!("parse {path}"))
     }
 
-    /// Generate the config and basic pack, loading the templates the spec
-    /// names (paths relative to the working directory).
+    /// Generate the config and basic pack (chip library path relative to the
+    /// working directory).
     ///
     /// # Errors
-    /// Fails on an invalid spec or unusable template files.
+    /// Fails on an invalid spec or unusable chip library.
     pub fn generate(&self) -> Result<Generated> {
-        let template = Rcvbp::load(&self.template.rcvbp)?;
-        let pack = std::fs::read(&self.template.basic_pack)
-            .with_context(|| format!("read {}", self.template.basic_pack))?;
-        let chip_regs = match (&self.chip.library, &self.chip.registers_from) {
-            (Some(lib), _) => Some(crate::chips::ChipLibrary::load(lib)?.record_84()?.to_vec()),
-            (None, Some(path)) => {
-                let src = Rcvbp::load(path)?;
-                Some(
-                    src.records
-                        .iter()
-                        .find(|r| r.rtype[1] == 0x84)
-                        .with_context(|| format!("{path} has no record 0x84"))?
-                        .payload
-                        .clone(),
-                )
-            }
-            (None, None) => None,
-        };
-        let mapping = self
-            .template
-            .mapping_from
-            .as_deref()
-            .map(Rcvbp::load)
-            .transpose()?;
-        generate(self, &template, &pack, chip_regs.as_deref(), mapping.as_ref())
+        let chip = ChipLibrary::load(&self.chip.library)?;
+        generate(self, &chip)
     }
 
-    /// Check the spec against what the generator can honour.
+    /// Check the spec against what the record can express.
     ///
     /// # Errors
-    /// Rejects geometry the record cannot express or the template cannot serve.
-    pub fn validate(&self, template: &Rcvbp) -> Result<()> {
+    /// Rejects geometry the record cannot hold.
+    pub fn validate(&self) -> Result<()> {
         if !self.module.height.is_multiple_of(2) {
             bail!("module height must be even (the record stores height/2)");
         }
@@ -251,17 +216,45 @@ impl PanelSpec {
         if !(self.module.height / 2).is_multiple_of(u16::from(self.module.scan)) {
             bail!("stored module height (height/2) must be a whole number of scan groups");
         }
-        // The carried basic-pack bytes include scan-sized row-order tables,
-        // so the reference must have been computed for the same scan.
-        let t = View::new(&template.record_01().context("template has no record 0x01")?.payload)?;
-        if t.u8(off::SCAN) != self.module.scan {
-            bail!(
-                "template config is 1/{} scan; its reference pack cannot serve 1/{}",
-                t.u8(off::SCAN),
-                self.module.scan
-            );
-        }
         Ok(())
+    }
+
+    /// The serial clock (record +0x021): the spec's, else the chip's default.
+    #[must_use]
+    pub fn serial_clock(&self, chip: &ChipLibrary) -> u16 {
+        self.module.serial_clock.unwrap_or(chip.serial_clock)
+    }
+
+    /// Grayscale depth: the spec's override, else the vendor's derivation
+    /// from the chip registers.
+    ///
+    /// # Errors
+    /// Fails if the library lacks the registers the derivation reads.
+    pub fn gray_bits(&self, chip: &ChipLibrary) -> Result<u8> {
+        match self.module.gray_bits {
+            Some(g) => Ok(g),
+            None => chip.gray_bits(),
+        }
+    }
+
+    /// The screen extent along the data-line direction (vendor
+    /// `GetMaxInLineDir`, before void adjustments).
+    #[must_use]
+    pub fn screen_extent_in_line_dir(&self) -> u16 {
+        if self.module.line_dir >= 2 {
+            self.screen.height
+        } else {
+            self.screen.width
+        }
+    }
+
+    /// Vendor `GetModuleInputCount`: the 16-pixel grid unit over the module
+    /// dimension along the line direction, at least 1.
+    #[must_use]
+    pub fn module_input_count(&self) -> u8 {
+        let unit = 16u16;
+        let dim = if self.module.line_dir >= 2 { self.module.width } else { self.module.height / 2 };
+        (unit / dim.max(1)).max(1) as u8
     }
 
     /// Modules chained along the data-line direction (vendor

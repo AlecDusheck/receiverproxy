@@ -195,6 +195,30 @@ pub fn set_layout(
     frame([0x02, 0x00], &p)
 }
 
+/// Put the card into its built-in test-pattern mode.
+///
+/// The card generates the pattern itself, so this exercises the panel without
+/// any pixel data from us. RAM only: it writes nothing to flash.
+pub fn test_mode(rcv_index: u16, pattern: u8) -> Vec<u8> {
+    let mut p = vec![0u8; 0x109];
+    p[0] = 0x00;
+    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
+    p[3] = 0x09;
+    p[4] = pattern;
+    frame([0x33, 0x00], &p)
+}
+
+/// Ask the card to reload its parameters from flash, avoiding a power cycle.
+///
+/// Carries no data and uses an opcode outside the data-carrying set, so it
+/// cannot write anything.
+pub fn reload_params(rcv_index: u16) -> Vec<u8> {
+    let mut p = [0u8; 126];
+    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
+    p[3] = 0x79;
+    frame([0x06, 0x00], &p)
+}
+
 /// Frame type the card answers a flash read with.
 pub const FLASH_REPLY_TYPE: [u8; 2] = [0x09, 0x01];
 

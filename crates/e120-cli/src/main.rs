@@ -128,6 +128,27 @@ enum Cmd {
         #[arg(long, default_value_t = 0)]
         index: u16,
     },
+    /// Run the card's built-in test pattern (needs no pixel data from us)
+    TestMode {
+        /// Pattern selector; 0 is normal/off
+        pattern: u8,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+    },
+    /// Sweep every test pattern, pausing on each
+    TestSweep {
+        #[arg(long, default_value_t = 16)]
+        count: u8,
+        #[arg(long, default_value_t = 2)]
+        secs: u64,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+    },
+    /// Ask the card to reload parameters from flash
+    ReloadParams {
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+    },
     /// Write a single flash page taken from a block image (debugging)
     WritePage {
         /// Page index within the parameter block
@@ -302,6 +323,29 @@ fn run(cli: &Cli) -> Result<()> {
             *index,
             *wait,
         ),
+        Cmd::TestMode { pattern, index } => {
+            let mut dev = open(cli)?;
+            dev.send(&protocol::test_mode(*index, *pattern))?;
+            println!("test pattern {pattern} selected");
+            Ok(())
+        }
+        Cmd::TestSweep { count, secs, index } => {
+            let mut dev = open(cli)?;
+            for pattern in 0..*count {
+                println!("pattern {pattern} (0x{pattern:02x})");
+                dev.send(&protocol::test_mode(*index, pattern))?;
+                std::thread::sleep(Duration::from_secs(*secs));
+            }
+            dev.send(&protocol::test_mode(*index, 0))?;
+            println!("back to normal");
+            Ok(())
+        }
+        Cmd::ReloadParams { index } => {
+            let mut dev = open(cli)?;
+            dev.send(&protocol::reload_params(*index))?;
+            println!("asked the card to reload parameters from flash");
+            Ok(())
+        }
         Cmd::WritePage {
             page,
             from_image,

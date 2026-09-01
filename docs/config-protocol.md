@@ -1815,3 +1815,147 @@ load-bearing evidence.**
 * The full semantic layout of page 0xF0 beyond the width/height fields you
   already identified. You have the 256 original bytes, so this only matters if a
   direct write path turns up.
+
+---
+
+## 16. Self-test, reload, and boot-apply
+
+Static analysis only. Nothing executed.
+
+### 16.1 Built-in screen test — `CReceiverOP::SetRcvCardTestMode` @ `0x3d54e0`
+
+**This is a real-time command. It builds its buffer inline and sends via
+`[deviceIO + 0x38]` — no flash builder, no erase, no `BuildRcvCardFlashOperation`
+anywhere in the function. It cannot touch flash.** Safe to sweep freely.
+
+Frame construction (`0x3d558a`–`0x3d5655`), buffer base = `rbp-0x140` = payload[0]:
+
+```
+byte  [payload+0x00] = 0x33            ; type
+word  [payload+0x01] = 0
+word  [payload+0x03] = rol(rcvIdx,8)   ; receiver index, BIG-endian
+byte  [payload+0x05] = 0x09            ; fixed sub-command
+byte  [payload+0x06] = param[0]        ; <-- TEST PATTERN SELECTOR
+byte  [payload+0x07] = 0
+byte  [payload+0x08..0x0a] = 24-bit BE ; trunc(K1 / f) * K2  from float param[4]  (speed/period)
+byte  [payload+0x0b] = param[8]
+word  [payload+0x0c] = rol(param[0x0a],8)   ; BE
+word  [payload+0x0e] = rol(param[0x0c],8)   ; BE
+word  [payload+0x10] = rol(param[0x0e],8)   ; BE
+       rest zero
+push 0x10b ; push buf ; call [deviceIO+0x38]
+```
+
+* **payload length = 0x10B = 267 bytes → frame = 12 + 267 = 279 bytes**
+* type word on the wire is `33 00`
+* send selector `edx = 0x807d`, `r9d = 2` (same as the reload command below)
+
+Ready-to-send frame (receiver index 0, everything but the selector zero):
+
+```
+ 0x00  11 22 33 44 55 66      dst MAC
+ 0x06  22 22 33 44 55 66      src MAC
+ 0x0c  33 00                  type 0x3300
+ 0x0e  00                     payload[2]
+ 0x0f  00 00                  payload[3..4]  receiver index 0, BE
+ 0x11  09                     payload[5]     fixed
+ 0x12  NN                     payload[6]     <-- PATTERN SELECTOR, sweep this
+ 0x13  00 ... 00              payload[7..0x10a], all zero  (total payload 267 B)
+```
+
+**The selector values are not recoverable statically.** The enum lives in the UI
+layer, and I searched for it without success: `ScrnTest.dll` yields only
+`NORMAL` / `RED`-family fragments with no numeric mapping, and the iSet binary's
+only "Grayscale" hits are Qt print-dialog boilerplate. I will not invent the
+mapping.
+
+**Recommended sweep.** The command is RAM-only, so this is free: send
+`payload[6] = 0x00 .. 0x0F` one at a time, a second or two apart. `0x00` is
+almost certainly normal/off — use it to turn the test off. The strings in
+`ScrnTest.dll` suggest the low values are the solid colours (red/green/blue),
+with line/grayscale patterns above them. If any value lights the panel you have
+your answer immediately; if none do across the whole sweep, the configuration is
+still wrong and the pixel path is not the problem.
+
+Leave the other fields zero on the first pass. `payload[8..0x0a]` is a
+speed/period derived from a float and only matters for moving patterns; zero may
+mean "as fast as possible" or may be ignored for static patterns.
+
+### 16.2 Reload parameters from flash — opcode 0x79 (now pinned down)
+
+`CReceiverOP::ReLoadLocalParam` @ `0x3b4b00`, call site `0x3b4b83`–`0x3b4bae`:
+
+```
+dword [rbp-0x30] = 0          ; 5-byte payload buffer
+byte  [rbp-0x2c] = 0 or 1     ; branch-selected flag
+mov cl, 0x79                  ; <-- OPCODE 0x79
+movzx edx, r12w               ; receiver index
+xor r8d, r8d                  ; addrHi = 0
+xor r9d, r9d                  ; addrLo = 0
+push 5 ; push dataptr ; push 0
+BuildRcvCardFlashOperation(&len,&buf, rcvIdx, 0x79, 0, 0, flag=0, dataptr, 5)
+```
+
+Note `0x79` is **not** in the data-carrying opcode set `{0x85,0x77,0x66,0x52,0x42,0x32}`
+(§13.1), so the builder **skips the memcpy** and the 5 bytes are never attached.
+The frame is header-only, 128-byte payload:
+
+```
+ 0x0c  06 00                  type 0x0600
+ 0x0e  00                     payload[2]
+ 0x0f  00 00                  payload[3..4]  receiver index, BE
+ 0x11  79                     payload[5]     opcode = reload
+ 0x12  00                     payload[6]     flag
+ 0x13  00                     payload[7]     addrHi = 0
+ 0x14  00                     payload[8]     addrLo = 0
+ 0x15  00                     payload[9]
+ 0x16  00 x 118               payload[0x0a..0x7f]
+```
+
+**Risk note:** this carries no data and cannot write anything, but `addrHi = 0`
+is outside the `0x07` allowlist from §13.8-D, and `0x79` is not a read opcode. It
+is not covered by the guard, so it is a deliberate exception — justified by the
+function name and the empty payload, but worth a moment's thought before you send
+it. If it works it saves you a power cycle on every iteration.
+
+### 16.3 Does the card apply flash config at boot? — honest answer
+
+**I cannot determine this from the host-side dylib.** Boot behaviour is firmware
+behaviour, and the only firmware images available are E320 FPGA `.hex` files — a
+different product and architecture.
+
+What the static evidence *does* support:
+
+* The card clearly reads *something* from flash at boot — your 1024x512 fallback
+  after the erase proves a flash-backed record drives the discovery reply.
+* The vendor tool always does **both**: `SendOrSave` sends the real-time packs
+  *and* writes flash (§2, §13.5). It never relies on flash alone within a session.
+  `DoSendSave` in the layout writer has the same two-phase shape (§15.1).
+
+That the vendor never relies on flash alone is suggestive but not proof. **Item
+16.1 settles it empirically and costs nothing:** if the built-in pattern lights
+the panel, the flash config is being applied and your pixel/sync path is at
+fault; if it stays dark with the config verified byte-for-byte, then either the
+config is still wrong or the chip registers are only applied from the real-time
+type-0x05 packs.
+
+Either way, **sending the §10/§11 real-time packs is a cheap next experiment**
+and I would do it regardless — it is RAM-only and it is exactly what the vendor
+tool does before every session.
+
+### 16.4 Discovery reply — what I can and cannot attribute
+
+From `BuildDetectRcvCard` and the reply handling I can only confirm what §1/§12
+already established: `payload[0]` card id (0x64 on your E120), `[1..2]` firmware
+version, `[20..21]` columns, `[22..23]` rows, `[62]` controller number. Your live
+capture is the better source for the rest.
+
+I did **not** find a decoder that maps any reply byte to "configuration valid" or
+"chip type", and I am not going to guess at offsets in a 1056-byte reply. The
+richer diagnostic surface is elsewhere: the symbol table exposes
+`CReceiverOP::DetectOneRcvInfo` @ `0x3aa640`, `ReadDeadPixelInfo` @ `0x3da230`,
+`ReadEepromEMCInfo` @ `0x3b7b50` and `ExecutRcvCrcCheck` @ `0x3b2e00` — the last
+being the most promising for "does the card think its config is intact", since it
+implies a card-side CRC over stored data. None of these are traced yet; say the
+word if item 16.1 does not resolve things and I will take `ExecutRcvCrcCheck`
+apart next.

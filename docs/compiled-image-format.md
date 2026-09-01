@@ -12,7 +12,11 @@ that block byte-exactly from erased flash (unit test).
 Pages no directory entry covers are never written and read back as erased
 flash (0xFF): 0x900 (when no chip block), 0xD00–0xFFF, 0x2800–0x2FFF,
 0x6400–0x67FF (single scan table), and everything after the embedded .rcvbp.
-Page 0xF0 is EEPROM-backed (the screen-size record) and not part of the image.
+Page 0xF0 is the mirror of the card's on-board EEPROM and not part of the
+image. It is *not* just a screen-size record: bytes 0x02..0x2b are the
+control area (startX, startY, endX, endY) that decides which pixels this card
+keeps. See `docs/receiver-identity.md` and `docs/eeprom-map.md`. A block-0x07
+erase clears it, and nothing in this image restores it.
 
 ## Region map
 

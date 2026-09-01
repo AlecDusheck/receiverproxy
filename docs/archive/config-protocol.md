@@ -1651,6 +1651,16 @@ different trailers, and both are reproduced exactly by the algorithm above.
 
 ## 15. The layout / screen-size command (type 0x02) — RAM-only
 
+> **SUPERSEDED in part — see `docs/screen-connection-wire.md`.** The 10-byte
+> entry decoded below as `xOffset, yOffset, width, height` is really
+> `left, top, right, bottom` (an exclusive-edge rectangle). The two readings
+> coincide only for a card at the origin. §15.6's open question — whether the
+> card persists the layout or needs an explicit save — is answered in
+> `docs/receiver-identity.md`: it is persisted as a 42-byte record in the
+> card's EEPROM at address `0x02`, written by
+> `CRcvLayoutSendAndWriter::DoWriteConnectionToEeprom`.
+
+
 Static analysis only. Nothing executed.
 
 ### 15.1 It is a real-time (RAM) command — safe to test immediately

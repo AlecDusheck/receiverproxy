@@ -308,8 +308,16 @@ Both are **purely host-side**. Video is *not* gated on them. Confidence: high.
   **No packet is transmitted.**
 
 Corollary for our fault: a card that latches but never stores pixels is *not*
-explained by a missing size or connection-style command. Those commands do not
-exist on the wire.
+explained by a missing size or connection-style command **from CLTNic**. Those
+sender-side calls do not exist on the wire.
+
+**But the conclusion "so nothing configures the card's window" was wrong.**
+The screen connection is configured from the *device* side, `CLTDevice` /
+`libCLTDevice`, not from `CLTNic`: a volatile type-`0x0200` card-area pack
+(`docs/screen-connection-wire.md`) and a persisted 42-byte record in the card's
+EEPROM at address `0x02` (`docs/receiver-identity.md`). Our card's copy of that
+record currently reads `startX = startY = 0xFFFF`, an empty window — which is
+exactly why pixel content is ignored.
 
 ### 5.1 Bonus: `Nic_SetTestModeIndex` is host-side too
 

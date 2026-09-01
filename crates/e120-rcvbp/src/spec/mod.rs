@@ -72,8 +72,12 @@ pub struct Screen {
 pub struct Chip {
     /// Vendor chip id, e.g. 0x014C for the SM16269 family.
     pub id: u16,
-    /// `.rcvbp` whose record 0x84 supplies the chip registers; default: the
-    /// template config.
+    /// Secondary id selecting the sub-variant (0x014D = SM16269 within the
+    /// 0x014C family); left as the template's when absent.
+    pub sub_id: Option<u16>,
+    /// Chip library (`config/chips/*.toml`) whose default table becomes record 0x84.
+    pub library: Option<String>,
+    /// `.rcvbp` whose record 0x84 supplies the chip registers instead.
     pub registers_from: Option<String>,
 }
 
@@ -201,19 +205,28 @@ impl PanelSpec {
         let template = Rcvbp::load(&self.template.rcvbp)?;
         let pack = std::fs::read(&self.template.basic_pack)
             .with_context(|| format!("read {}", self.template.basic_pack))?;
-        let chip_regs = self
-            .chip
-            .registers_from
-            .as_deref()
-            .map(Rcvbp::load)
-            .transpose()?;
+        let chip_regs = match (&self.chip.library, &self.chip.registers_from) {
+            (Some(lib), _) => Some(crate::chips::ChipLibrary::load(lib)?.record_84()?.to_vec()),
+            (None, Some(path)) => {
+                let src = Rcvbp::load(path)?;
+                Some(
+                    src.records
+                        .iter()
+                        .find(|r| r.rtype[1] == 0x84)
+                        .with_context(|| format!("{path} has no record 0x84"))?
+                        .payload
+                        .clone(),
+                )
+            }
+            (None, None) => None,
+        };
         let mapping = self
             .template
             .mapping_from
             .as_deref()
             .map(Rcvbp::load)
             .transpose()?;
-        generate(self, &template, &pack, chip_regs.as_ref(), mapping.as_ref())
+        generate(self, &template, &pack, chip_regs.as_deref(), mapping.as_ref())
     }
 
     /// Check the spec against what the generator can honour.

@@ -338,7 +338,7 @@ enum Cmd {
     },
     /// Push a panel spec's parameters into the card's RAM (no flash, no reboot)
     SendParams {
-        /// Panel spec, see panels/*.toml
+        /// Panel spec, see config/panels/*.toml
         #[arg(long)]
         spec: String,
         /// Send only the chip-register pack (arms the drivers)
@@ -432,7 +432,7 @@ enum Cmd {
     },
     /// Generate a config (.rcvbp + boot image) from a panel spec (TOML)
     GenConfig {
-        /// Panel spec, see panels/*.toml
+        /// Panel spec, see config/panels/*.toml
         #[arg(long)]
         spec: String,
         /// Directory for the outputs (created if missing)

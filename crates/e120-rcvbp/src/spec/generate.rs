@@ -20,7 +20,7 @@ pub fn generate(
     spec: &PanelSpec,
     template: &Rcvbp,
     reference_pack: &[u8],
-    chip_regs: Option<&Rcvbp>,
+    chip_regs: Option<&[u8]>,
     mapping: Option<&Rcvbp>,
 ) -> Result<Generated> {
     spec.validate(template)?;
@@ -40,14 +40,20 @@ pub fn generate(
     apply_to_record01(spec, &mut r01.payload, &mut prov)?;
     let rec01 = r01.payload.clone();
 
-    if let Some(src) = chip_regs {
-        replace_record(&mut out, 0x84, record_of(src, 0x84, "chip.registers_from")?, &mut prov, "chip.registers_from")?;
+    if let Some(regs) = chip_regs {
+        let what = if spec.chip.library.is_some() { "chip.library defaults" } else { "chip.registers_from" };
+        replace_record(&mut out, 0x84, regs.to_vec(), &mut prov, what)?;
     }
     match mapping {
         Some(src) => replace_record(
             &mut out,
             0x03,
-            record_of(src, 0x03, "template.mapping_from")?,
+            src.records
+                .iter()
+                .find(|r| r.rtype[1] == 0x03)
+                .context("template.mapping_from has no record 0x03")?
+                .payload
+                .clone(),
             &mut prov,
             "template.mapping_from",
         )?,
@@ -96,6 +102,10 @@ fn apply_to_record01(spec: &PanelSpec, p: &mut [u8], prov: &mut Vec<String>) -> 
     put(off::GAINS, &spec.current.gains, "current.gains");
     put(off::CHIP_LO, &[(spec.chip.id & 0xFF) as u8], "chip.id low byte");
     put(off::CHIP_HI, &[(spec.chip.id >> 8) as u8], "chip.id high byte");
+    if let Some(sub) = spec.chip.sub_id {
+        put(off::SUB_CHIP_LO, &[(sub & 0xFF) as u8], "chip.sub_id low byte");
+        put(off::SUB_CHIP_HI, &[(sub >> 8) as u8], "chip.sub_id high byte");
+    }
     put(off::LINE_DIR, &[m.line_dir], "module.line_dir");
     put(off::REFRESH, &spec.timing.refresh_hz.to_le_bytes(), "timing.refresh_hz (f32)");
     for (i, pct) in spec.current.percent.iter().enumerate() {
@@ -104,14 +114,6 @@ fn apply_to_record01(spec: &PanelSpec, p: &mut [u8], prov: &mut Vec<String>) -> 
     put(off::MAX_W, &spec.screen.width.to_le_bytes(), "screen.width (MaxWidth)");
     put(off::MAX_H, &spec.screen.height.to_le_bytes(), "screen.height (MaxHeight)");
     Ok(())
-}
-
-fn record_of(cfg: &Rcvbp, id: u8, what: &str) -> Result<Vec<u8>> {
-    cfg.records
-        .iter()
-        .find(|r| r.rtype[1] == id)
-        .map(|r| r.payload.clone())
-        .with_context(|| format!("{what} has no record 0x{id:02x}"))
 }
 
 fn replace_record(

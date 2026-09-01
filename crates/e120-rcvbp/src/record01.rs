@@ -38,6 +38,9 @@ pub mod off {
     pub const MAX_W: usize = 0x0C0;
     pub const MAX_H: usize = 0x0C2;
     pub const SEGMENTS_MINUS_1: usize = 0x0E5;
+    /// Secondary (sub-variant) chip id, low byte; high byte at +0x205.
+    pub const SUB_CHIP_LO: usize = 0x0E9;
+    pub const SUB_CHIP_HI: usize = 0x205;
     pub const SWAP_RAMP: usize = 0x19A;
     pub const CHIP_HI: usize = 0x204;
     pub const GRID_W_HI: usize = 0x24E;

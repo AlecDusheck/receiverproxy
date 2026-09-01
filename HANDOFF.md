@@ -23,7 +23,7 @@ unplugged the card alone is safe at any time.
 * **Wire protocol** — correct and verified (data starts at frame offset 13;
   latch frame sent twice as FPP does for firmware ≥ 13). The old shifted
   frames caused the 5 Hz strobe.
-* **Config generation** — `e120 gen-config --spec panels/<panel>.toml`
+* **Config generation** — `e120 gen-config --spec config/panels/<panel>.toml`
   produces the `.rcvbp`, the basic pack, and the complete boot image from
   erased flash, with a provenance line per byte. Record 0x01 is decoded
   byte-for-byte (`docs/record-0x01-fields.md`), the boot image region by
@@ -56,8 +56,8 @@ unplugged the card alone is safe at any time.
 
 ## Assets
 
-`firmware/card-dumps/primary-region.bin` (day-one dump, ground truth),
-`firmware/derived/` (template config, reference pack, consensus donor, the
+`card-dumps/primary-region.bin` (day-one dump, ground truth),
+`crates/e120-rcvbp/tests/fixtures/` (template config, reference pack, consensus donor, the
 pinned single-module pack), `analysis/record01-fieldmine/` (corpus
 statistics), the LEDVISION extract and `libCLTDevice.asm` in the old session
 scratchpad `/private/tmp/claude-501/-Users-amd-e120/261c3dad-.../scratchpad/`

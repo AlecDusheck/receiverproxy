@@ -18,7 +18,7 @@ struct Factory {
 }
 
 fn factory() -> Factory {
-    let dump = std::fs::read(repo("firmware/card-dumps/primary-region.bin")).expect("factory dump");
+    let dump = std::fs::read(repo("card-dumps/primary-region.bin")).expect("factory dump");
     let block = dump[0x7_0000..0x8_0000].to_vec();
     let n = u32::from_le_bytes(block[image::RCVBP_OFFSET..image::RCVBP_OFFSET + 4].try_into().unwrap())
         as usize;
@@ -30,7 +30,7 @@ fn factory() -> Factory {
 fn our_panel() -> PanelSpec {
     // Spec template paths are repo-relative, as the CLI is run from the root.
     std::env::set_current_dir(repo(".")).unwrap();
-    PanelSpec::load("panels/p25-128x64-sm16269s.toml").unwrap()
+    PanelSpec::load("config/panels/p25-128x64-sm16269s.toml").unwrap()
 }
 
 fn differing_pages(a: &[u8], b: &[u8]) -> Vec<u8> {
@@ -105,8 +105,9 @@ fn the_chip_page_is_record_84_verbatim() {
 #[test]
 fn our_panel_reproduces_the_hand_derived_pack_from_formulas() {
     let g = our_panel().generate().unwrap();
-    let expected = std::fs::read(repo("firmware/derived/basic-pack-single-module-v2.bin")).unwrap();
-    let diffs: Vec<usize> = (0..256).filter(|&i| g.basic_pack[i] != expected[i]).collect();
+    let expected = std::fs::read(repo("crates/e120-rcvbp/tests/fixtures/basic-pack-single-module-v2.bin")).unwrap();
+    // v2 was patched by hand and kept the factory CRC; the generator recomputes it.
+    let diffs: Vec<usize> = (0..0xFC).filter(|&i| g.basic_pack[i] != expected[i]).collect();
     assert!(diffs.is_empty(), "generated pack differs at {diffs:x?}");
 }
 
@@ -120,28 +121,28 @@ fn a_two_module_screen_reproduces_the_factory_pack() {
 }
 
 #[test]
-fn our_panel_changes_only_the_screen_size_in_the_template_record() {
+fn our_panel_changes_only_the_screen_size_and_sub_id_in_the_template_record() {
     let spec = our_panel();
     let template = Rcvbp::load(&repo(&spec.template.rcvbp)).unwrap();
     let g = spec.generate().unwrap();
     let before = &template.record_01().unwrap().payload;
     let after = &g.rcvbp.record_01().unwrap().payload;
     let diffs: Vec<usize> = (0..before.len()).filter(|&i| before[i] != after[i]).collect();
-    assert_eq!(diffs, vec![0x0C0, 0x0C1, 0x0C2, 0x0C3]);
+    assert_eq!(diffs, vec![0x0C0, 0x0C1, 0x0C2, 0x0C3, 0x0E9, 0x205]);
     let back = Rcvbp::from_bytes(&g.rcvbp.to_file_bytes().unwrap()).unwrap();
     assert_eq!(back.records.len(), g.rcvbp.records.len());
 }
 
 #[test]
 fn the_generated_mapping_is_the_vendor_consensus_table() {
-    let donor = Rcvbp::load(&repo("firmware/derived/donor-P2.5-320x160-2153-consensus.rcvbp")).unwrap();
+    let donor = Rcvbp::load(&repo("third-party/configs/donor-P2.5-320x160-2153-consensus.rcvbp")).unwrap();
     let consensus = &donor.records.iter().find(|r| r.rtype[1] == 0x03).unwrap().payload;
     assert_eq!(our_panel().mapping_record(), *consensus);
 }
 
 #[test]
 fn the_sellers_outlier_is_not_what_the_knobs_produce() {
-    let seller = Rcvbp::load(&repo("firmware/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
+    let seller = Rcvbp::load(&repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
     let outlier = &seller.records.iter().find(|r| r.rtype[1] == 0x03).unwrap().payload;
     assert_ne!(our_panel().mapping_record(), *outlier);
 }

@@ -1,4 +1,10 @@
-# Firmware archive
+# Third-party material
+
+Vendor firmware builds (`firmware/`), the seller's and donor `.rcvbp` configs
+(`configs/`), and datasheets (`datasheets/`). Nothing here is ours; nothing here
+is ever executed. Our own reads of this card's flash live in `../card-dumps/`.
+
+## Firmware archive
 
 Colorlight ships a **different FPGA bitstream per LED driver chip**. There is no
 runtime setting for this — the driver-chip protocol is implemented in gateware,
@@ -23,7 +29,7 @@ Variants seen across the range: `Normal` (plain shift-register drivers), `PWM`
 (driver ICs with internal PWM engines), `LS0allDA` (the LS chip family), and
 per-chip `Custom Series` builds.
 
-## images/
+## firmware/
 
 | File | Notes |
 |---|---|
@@ -36,7 +42,7 @@ per-chip `Custom Series` builds.
 Source: Colorlight's own download pages and their per-driver-IC library at
 `ledincloud.com/resouce/Update Program/Colorlight/receiving card/`.
 
-## card-dumps/
+## ../card-dumps/ (our dumps of this card)
 
 Read out of this card's SPI flash over Ethernet. Keep these — they are the only
 copy of what this specific card shipped with.

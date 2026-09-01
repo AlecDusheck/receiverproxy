@@ -31,7 +31,7 @@ Keep the main loop on hardware: bring-up, measurement, code, A/B tests.
 
 Unpack it, read it, reimplement it. Do not run it, install it, or `dlopen` it —
 not the installer, not the app, not the DLLs. This is a standing rule from the
-user (see `firmware/README.md` and the session memories). The one time an app
+user (see `third-party/README.md` and the session memories). The one time an app
 was launched without asking, it was the worst moment of the project.
 
 ## What is on disk

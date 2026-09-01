@@ -14,7 +14,7 @@
 //! and 0x080000-0x0AFFFF from it. The 320KB in between is reserved for the
 //! card's configuration and is not part of the loadable bitstream, so reading
 //! it back and finding it unchanged means the upgrade worked, not that it
-//! failed. See `firmware/README.md`.
+//! failed. See `third-party/README.md`.
 
 use super::frame;
 

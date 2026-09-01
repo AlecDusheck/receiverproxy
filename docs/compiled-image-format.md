@@ -5,7 +5,7 @@ The card applies this image at boot. It is built by the vendor's
 as a fixed-offset scatter of pack *bodies* — no per-region framing, lengths,
 terminators or checksums — driven by a host-side region directory that is not
 itself written to flash. Everything below was recovered from the disassembly
-and verified against the factory dump (`firmware/card-dumps/primary-region.bin`
+and verified against the factory dump (`card-dumps/primary-region.bin`
 at 0x70000): the Rust builder in `crates/e120-rcvbp/src/compiled.rs` rebuilds
 that block byte-exactly from erased flash (unit test).
 
@@ -38,7 +38,7 @@ Pack header sizes, for converting pack offsets to image offsets: type 0x05
 
 ## What the generator does with this
 
-`e120 gen-config --spec panels/<panel>.toml` builds the image from erased
+`e120 gen-config --spec config/panels/<panel>.toml` builds the image from erased
 flash: zero regions, generated basic pack, data-swap from the generated
 record, module positions from the generated record, anti-void counters,
 mapping from the config, the scan table carried from the reference block

@@ -24,6 +24,7 @@
 //!   0x0a8d / 0x0a91 / 0x0ad8 / 0x0a95 / 0x0ada / 0x0a8e / 0x0acd / 0x008f / 0x0907
 //!           gamma / calibration tables (all zero in an uncalibrated profile)
 
+pub mod chips;
 pub mod image;
 pub mod record01;
 pub mod spec;

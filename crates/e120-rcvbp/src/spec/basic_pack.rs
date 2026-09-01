@@ -79,5 +79,45 @@ pub fn body(
     put(MAX_W, &spec.screen.width.to_be_bytes(), "screen.width (BE)");
     put(MAX_H, &spec.screen.height.to_be_bytes(), "screen.height (BE)");
     put(CHIP_ID, &spec.chip.id.to_be_bytes(), "chip.id (BE)");
+    let crc = body_crc(&b);
+    b[CRC..CRC + 4].copy_from_slice(&crc.to_le_bytes());
+    prov.push(format!("basicpack +{CRC:#04x} <- CRC-32 of body[..0xFC] (chip-id bytes zeroed), LE"));
     Ok(b)
+}
+
+const CRC: usize = 0xFC;
+
+/// The vendor's trailing dword: standard CRC-32 (reflected, 0xEDB88320,
+/// init/final 0xFFFFFFFF) over body[0..0xFC], computed before `ResetChipType`
+/// fills the chip-id escape (0x1B) and chip id (0xE7..0xE8) — so those three
+/// bytes are zero when hashed.
+fn body_crc(body: &[u8; 256]) -> u32 {
+    let mut hashed = *body;
+    hashed[0x1B] = 0;
+    hashed[0xE7] = 0;
+    hashed[0xE8] = 0;
+    let mut crc = 0xFFFF_FFFFu32;
+    for &byte in &hashed[..CRC] {
+        crc ^= u32::from(byte);
+        for _ in 0..8 {
+            crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+        }
+    }
+    !crc
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_factory_pack_carries_its_own_crc() {
+        let body = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../crates/e120-rcvbp/tests/fixtures/factory-basic-pack-body.bin"
+        ))
+        .unwrap();
+        let body: [u8; 256] = body.try_into().unwrap();
+        assert_eq!(body_crc(&body).to_le_bytes(), body[CRC..], "74 a9 51 a3 expected");
+    }
 }

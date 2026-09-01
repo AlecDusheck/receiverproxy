@@ -32,11 +32,11 @@ A panel is described once, declaratively, and everything the card needs is
 generated from it — see [`docs/building-a-config.md`](docs/building-a-config.md).
 
 ```sh
-e120 gen-config --spec panels/p25-128x64-sm16269s.toml --out-dir build
+e120 gen-config --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
 e120 restore-flash build/p25-128x64-sm16269s-block7.bin --commit   # install the boot image
 e120 screen-size --set 128x64 --commit
 e120 reload-params --full                                          # apply without a power cycle
-e120 send-params --spec panels/p25-128x64-sm16269s.toml            # or push the RAM packs directly
+e120 send-params --spec config/panels/p25-128x64-sm16269s.toml            # or push the RAM packs directly
 ```
 
 Inspecting configs: `e120 rcvbp file.rcvbp`, `e120 config-diff a b`,
@@ -75,7 +75,7 @@ e120 upgrade install image.hex --commit
 e120 restore all --dir before --commit
 ```
 
-Layout, images and procedure: [`firmware/README.md`](firmware/README.md).
+Layout, images and procedure: [`third-party/README.md`](third-party/README.md).
 
 ## Documentation
 

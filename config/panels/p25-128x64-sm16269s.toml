@@ -2,7 +2,7 @@
 # Module spec: 128x64, 1/16 duty, 14-bit gray. Driver ICs read off the
 # module: SM16269S (vendor family id 0x014C).
 #
-# Generate with:  e120 gen-config --spec panels/p25-128x64-sm16269s.toml --out-dir build/
+# Generate with:  e120 gen-config --spec config/panels/p25-128x64-sm16269s.toml --out-dir build/
 # Field meanings: docs/record-0x01-fields.md; recipe: docs/building-a-config.md.
 
 name = "p25-128x64-sm16269s"
@@ -22,6 +22,10 @@ height = 64
 
 [chip]
 id = 0x014C
+# The seller's file carried the SM16169SH register set with sub-id 0; the
+# silicon is SM16269S, so use its own vendor defaults and sub-variant id.
+sub_id = 0x014D
+library = "config/chips/sm16269.toml"
 
 [color]
 swap = 3
@@ -46,8 +50,8 @@ reversed_lines = false
 # Records the spec does not derive yet (chip registers, gamma/empty tables)
 # and the reference basic pack for its undecoded bytes. Every byte taken
 # from here is listed in the provenance; this section is scheduled to go.
-rcvbp = "firmware/derived/p25-128x64-fixed.rcvbp"
-basic_pack = "firmware/derived/factory-basic-pack-body.bin"
+rcvbp = "crates/e120-rcvbp/tests/fixtures/p25-128x64-fixed.rcvbp"
+basic_pack = "crates/e120-rcvbp/tests/fixtures/factory-basic-pack-body.bin"
 
 [boot]
 # Arming at boot with the current config lights the panel unmodulated at

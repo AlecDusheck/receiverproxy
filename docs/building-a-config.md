@@ -5,7 +5,7 @@ hand. Every byte in the outputs comes from a spec field, a decoded formula,
 or a named template record, and the provenance file says which.
 
 ```sh
-e120 gen-config --spec panels/p25-128x64-sm16269s.toml --out-dir build
+e120 gen-config --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
 #   build/<name>.rcvbp             the config source (records)
 #   build/<name>-basic-pack.bin    page 0 of the boot image
 #   build/<name>-block7.bin        the complete 64 KB boot image
@@ -18,7 +18,7 @@ e120 reload-params --full                             # vendor's 0x77 apply; or 
 
 ## The spec
 
-See `panels/p25-128x64-sm16269s.toml`. Sections: `[module]` (width, height,
+See `config/panels/p25-128x64-sm16269s.toml`. Sections: `[module]` (width, height,
 scan, gray bits, serial clock, line direction), `[screen]` (the whole screen
 this card drives — MaxWidth/MaxHeight), `[chip]` (vendor id, optional
 register donor), `[color]` (swap index and R/G/B source), `[current]` (gains,

@@ -89,6 +89,64 @@ enum Cmd {
         #[arg(long, default_value_t = 2)]
         wait: u64,
     },
+    /// Dump a whole 64KB flash block from the card (read-only)
+    DumpFlash {
+        #[arg(long, default_value = "block07.bin")]
+        out: String,
+        /// 64KB block selector; 0x07 holds the receiver parameters
+        #[arg(long, default_value_t = 7)]
+        block: u8,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+        #[arg(long, default_value_t = 2)]
+        wait: u64,
+    },
+    /// Write a .rcvbp into the card's parameter flash (read-modify-write)
+    WriteConfig {
+        /// The .rcvbp to install
+        config: String,
+        /// Actually write. Without this it only reports what it would do.
+        #[arg(long)]
+        commit: bool,
+        /// Where to save the pre-write backup of the whole block
+        #[arg(long, default_value = "block07-backup.bin")]
+        backup: String,
+        /// Use this saved 64KB block image instead of reading the card
+        #[arg(long)]
+        base_image: Option<String>,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+        #[arg(long, default_value_t = 2)]
+        wait: u64,
+    },
+    /// Restore a previously dumped 64KB block back to the card
+    RestoreFlash {
+        image: String,
+        #[arg(long)]
+        commit: bool,
+        #[arg(long, default_value_t = 0)]
+        index: u16,
+    },
+    /// Build a .rcvbp by combining and editing existing ones
+    ConfigBuild {
+        /// Starting point: the config to modify
+        #[arg(long)]
+        base: String,
+        /// Copy records out of this config into the base
+        #[arg(long)]
+        copy_from: Option<String>,
+        /// Record types to copy, comma separated hex, e.g. 0a84,0a01
+        #[arg(long, default_value = "")]
+        copy: String,
+        /// Record types to delete, comma separated hex
+        #[arg(long, default_value = "")]
+        remove: String,
+        /// Where to write the result
+        #[arg(long)]
+        out: String,
+    },
+    /// Compare two .rcvbp files record by record
+    ConfigDiff { a: String, b: String },
     /// Inspect a .rcvbp receiver-parameter file
     Rcvbp {
         path: String,
@@ -165,6 +223,41 @@ fn main() -> Result<()> {
             max_chunks,
             wait,
         } => read_config(&cli, *index, *page, *max_chunks, *wait, out),
+        Cmd::DumpFlash {
+            out,
+            block,
+            index,
+            wait,
+        } => dump_flash(&cli, *block, *index, *wait, out),
+        Cmd::WriteConfig {
+            config,
+            commit,
+            backup,
+            base_image,
+            index,
+            wait,
+        } => write_config(
+            &cli,
+            config,
+            *commit,
+            backup,
+            base_image.as_deref(),
+            *index,
+            *wait,
+        ),
+        Cmd::RestoreFlash {
+            image,
+            commit,
+            index,
+        } => restore_flash(&cli, image, *commit, *index),
+        Cmd::ConfigBuild {
+            base,
+            copy_from,
+            copy,
+            remove,
+            out,
+        } => config_build(base, copy_from.as_deref(), copy, remove, out),
+        Cmd::ConfigDiff { a, b } => config_diff(a, b),
         Cmd::Rcvbp { path, dump } => rcvbp_info(path, *dump),
         Cmd::PcapSummary { path, dump } => pcap_summary(path, *dump),
         Cmd::Replay {
@@ -235,14 +328,16 @@ fn read_config(
     }
 
     let total = expected.context("card returned no length prefix")?;
-    if flash.len() < total {
+    if flash.len() < total + 4 {
         anyhow::bail!(
             "only read {} of {total} bytes; raise --max-chunks",
             flash.len()
         );
     }
-    // Drop the length prefix; what follows is a .rcvbp file.
-    let file = &flash[4..total];
+    // The prefix counts the file including its 4-byte CRC trailer.
+    let file = flash
+        .get(4..4 + total)
+        .context("card reported more configuration than it returned")?;
     std::fs::write(out, file).with_context(|| format!("write {out}"))?;
     println!("wrote {} bytes to {out}", file.len());
 
@@ -263,6 +358,413 @@ fn read_config(
             );
         }
         Err(e) => println!("saved, but did not parse as .rcvbp: {e}"),
+    }
+    Ok(())
+}
+
+/// Request one 1024-byte chunk of flash and return it.
+fn read_chunk(dev: &mut bpf::Bpf, index: u16, page: u16, wait: u64) -> Result<Vec<u8>> {
+    dev.send(&protocol::read_flash(index, page))?;
+    let deadline = Instant::now() + Duration::from_secs(wait);
+    while Instant::now() < deadline {
+        for f in dev.recv()? {
+            if !is_card_frame(&f) {
+                continue;
+            }
+            if let Some(data) = protocol::flash_reply_data(&f) {
+                return Ok(data.to_vec());
+            }
+        }
+    }
+    anyhow::bail!("no reply for page 0x{page:04x} within {wait}s")
+}
+
+/// Dump an entire 64KB flash block. Read-only.
+fn dump_flash(cli: &Cli, block: u8, index: u16, wait: u64, out: &str) -> Result<()> {
+    let mut dev = open(cli)?;
+    let mut image = Vec::with_capacity(64 * 1024);
+    // Each request returns 1024 bytes, which is four 256-byte pages.
+    for lo in (0u16..0x100).step_by(protocol::FLASH_PAGES_PER_CHUNK as usize) {
+        let page = (u16::from(block) << 8) | lo;
+        image.extend_from_slice(&read_chunk(&mut dev, index, page, wait)?);
+        if lo % 0x40 == 0 {
+            println!("  read {:5} / 65536 bytes", image.len());
+        }
+    }
+    std::fs::write(out, &image).with_context(|| format!("write {out}"))?;
+    println!("wrote {} bytes to {out}", image.len());
+
+    // Summarise which pages hold anything, so we can see the layout.
+    let mut runs: Vec<(usize, usize)> = Vec::new();
+    let mut start: Option<usize> = None;
+    for (i, page) in image.chunks(256).enumerate() {
+        let blank = page.iter().all(|&b| b == 0 || b == 0xff);
+        match (blank, start) {
+            (false, None) => start = Some(i),
+            (true, Some(s)) => {
+                runs.push((s, i));
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    if let Some(s) = start {
+        runs.push((s, image.len() / 256));
+    }
+    println!("non-blank page ranges (256-byte pages):");
+    for (a, b) in runs {
+        println!(
+            "  pages 0x{a:02x}..0x{b:02x}  = offsets 0x{:05x}..0x{:05x}",
+            a * 256,
+            b * 256
+        );
+    }
+    Ok(())
+}
+
+/// Offset of the parameter blob within the 64KB parameter block.
+const PARAM_OFFSET: usize = 0x8000;
+/// Largest parameter blob the card will accept.
+const PARAM_MAX: usize = 0x6ffc;
+
+/// Read the whole parameter block into memory.
+fn read_block(dev: &mut bpf::Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
+    let mut image = Vec::with_capacity(64 * 1024);
+    for lo in (0u16..0x100).step_by(protocol::FLASH_PAGES_PER_CHUNK as usize) {
+        let page = (u16::from(protocol::PARAM_BLOCK) << 8) | lo;
+        image.extend_from_slice(&read_chunk(dev, index, page, wait)?);
+    }
+    Ok(image)
+}
+
+/// Erase the parameter block and write `image` over it, then verify and repair.
+///
+/// Flash needs time to settle after a block erase; pages written too early are
+/// silently lost. After writing, the block is read back and any page that did
+/// not take is rewritten. A page can only be rewritten in place while it is
+/// still erased, so if a mismatched page holds other data the whole block is
+/// erased and rewritten instead.
+fn rewrite_block(
+    dev: &mut bpf::Bpf,
+    index: u16,
+    image: &[u8],
+    wait: u64,
+    must_verify: std::ops::Range<usize>,
+) -> Result<()> {
+    anyhow::ensure!(image.len() == 64 * 1024, "image must be exactly 64KB");
+    let pages: Vec<&[u8]> = image.chunks(protocol::FLASH_PAGE_BYTES).collect();
+
+    for attempt in 1..=4 {
+        let repair: Vec<usize> = if attempt == 1 {
+            erase_and_settle(dev, index)?;
+            (0..pages.len()).collect()
+        } else {
+            let after = read_block(dev, index, wait)?;
+            let bad: Vec<usize> = (0..pages.len())
+                .filter(|i| {
+                    after[i * protocol::FLASH_PAGE_BYTES..(i + 1) * protocol::FLASH_PAGE_BYTES]
+                        != *pages[*i]
+                })
+                .collect();
+            if bad.is_empty() {
+                println!("verified: flash matches what we wrote");
+                return Ok(());
+            }
+            // Rewriting only works into still-erased pages.
+            let dirty = bad.iter().any(|i| {
+                after[i * protocol::FLASH_PAGE_BYTES..(i + 1) * protocol::FLASH_PAGE_BYTES]
+                    .iter()
+                    .any(|&b| b != 0xff)
+            });
+            println!(
+                "attempt {attempt}: {} pages need rewriting{}",
+                bad.len(),
+                if dirty { " (re-erasing first)" } else { "" }
+            );
+            if dirty {
+                erase_and_settle(dev, index)?;
+                (0..pages.len()).collect()
+            } else {
+                bad
+            }
+        };
+
+        for (n, &i) in repair.iter().enumerate() {
+            dev.send(&protocol::write_page(
+                index,
+                protocol::PARAM_BLOCK,
+                i as u8,
+                pages[i],
+            )?)?;
+            std::thread::sleep(Duration::from_millis(8));
+            if repair.len() > 32 && n % 64 == 0 {
+                println!("  wrote {n} / {} pages", repair.len());
+            }
+        }
+    }
+    // Some pages sit outside the window the card lets us write. Those are not
+    // part of the configuration blob, so report them rather than failing.
+    let after = read_block(dev, index, wait)?;
+    let bad: Vec<usize> = (0..pages.len())
+        .filter(|i| {
+            after[i * protocol::FLASH_PAGE_BYTES..(i + 1) * protocol::FLASH_PAGE_BYTES]
+                != *pages[*i]
+        })
+        .collect();
+    let in_config = bad.iter().any(|i| must_verify.contains(i));
+    anyhow::ensure!(
+        !in_config,
+        "flash did not verify: {} pages differ, including configuration pages",
+        bad.len()
+    );
+    println!(
+        "note: {} page(s) outside the configuration area would not take writes: {}",
+        bad.len(),
+        bad.iter()
+            .map(|i| format!("0x{i:02x}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    println!("configuration pages verified");
+    Ok(())
+}
+
+/// Erase the parameter block and wait for the chip to finish.
+fn erase_and_settle(dev: &mut bpf::Bpf, index: u16) -> Result<()> {
+    println!("erasing block 0x{:02x}...", protocol::PARAM_BLOCK);
+    dev.send(&protocol::erase_block(index, protocol::PARAM_BLOCK)?)?;
+    // A block erase takes far longer than a page write; writing during it is
+    // silently dropped, which is exactly what went wrong the first time.
+    std::thread::sleep(Duration::from_secs(3));
+    Ok(())
+}
+
+/// Install a .rcvbp into the card's parameter flash.
+///
+/// The erase covers the whole 64KB block, so the block is read first, only the
+/// parameter region is replaced, and everything else is written back byte for
+/// byte. A backup of the original block is always saved before any write.
+fn write_config(
+    cli: &Cli,
+    config: &str,
+    commit: bool,
+    backup: &str,
+    base_image: Option<&str>,
+    index: u16,
+    wait: u64,
+) -> Result<()> {
+    // Refuse to install anything that is not a config we can parse.
+    let parsed = rcvbp::Rcvbp::load(config)?;
+    let file = std::fs::read(config).with_context(|| format!("read {config}"))?;
+    println!(
+        "{config}: {} records, {} bytes on disk",
+        parsed.records.len(),
+        file.len()
+    );
+    anyhow::ensure!(
+        file.len() <= PARAM_MAX,
+        "config is {} bytes, over the {PARAM_MAX}-byte limit the card accepts",
+        file.len()
+    );
+    let has_chip = parsed.find(0x0a84).is_some_and(|r| !r.is_empty_table());
+    println!(
+        "  driver-chip register table: {}",
+        if has_chip { "present" } else { "absent" }
+    );
+
+    let mut dev = open(cli)?;
+    let original = match base_image {
+        Some(path) => {
+            let img = std::fs::read(path).with_context(|| format!("read {path}"))?;
+            anyhow::ensure!(img.len() == 64 * 1024, "{path} must be exactly 65536 bytes");
+            println!("using {path} as the block contents");
+            img
+        }
+        None => {
+            println!("reading current block 0x{:02x}...", protocol::PARAM_BLOCK);
+            let img = read_block(&mut dev, index, wait)?;
+            std::fs::write(backup, &img).with_context(|| format!("write {backup}"))?;
+            println!("backed up {} bytes to {backup}", img.len());
+            img
+        }
+    };
+
+    // Splice the new parameter blob in, leaving the rest of the block alone.
+    let mut image = original.clone();
+    let old_len = u32::from_le_bytes([
+        image[PARAM_OFFSET],
+        image[PARAM_OFFSET + 1],
+        image[PARAM_OFFSET + 2],
+        image[PARAM_OFFSET + 3],
+    ]) as usize;
+    let region = PARAM_OFFSET + 4 + old_len.max(file.len());
+    anyhow::ensure!(region <= image.len(), "parameter region overruns the block");
+    // Clear the old blob so no tail of it survives behind the new one.
+    image[PARAM_OFFSET..region].fill(0);
+    image[PARAM_OFFSET..PARAM_OFFSET + 4].copy_from_slice(&(file.len() as u32).to_le_bytes());
+    image[PARAM_OFFSET + 4..PARAM_OFFSET + 4 + file.len()].copy_from_slice(&file);
+
+    let changed = original.iter().zip(&image).filter(|(a, b)| a != b).count();
+    println!(
+        "replacing parameter blob: {old_len} bytes -> {} bytes ({changed} bytes of the block change)",
+        file.len()
+    );
+
+    if !commit {
+        println!(
+            "
+dry run: nothing was written. Re-run with --commit to install."
+        );
+        return Ok(());
+    }
+
+    // Only the pages holding the configuration blob itself have to verify.
+    let first = PARAM_OFFSET / protocol::FLASH_PAGE_BYTES;
+    let last = (PARAM_OFFSET + 4 + file.len()).div_ceil(protocol::FLASH_PAGE_BYTES);
+    rewrite_block(&mut dev, index, &image, wait, first..last)
+        .with_context(|| format!("the original block is saved at {backup}; restore it with: e120 restore-flash {backup} --commit"))?;
+    println!("power-cycle the card for the new configuration to take effect");
+    Ok(())
+}
+
+/// Write a previously dumped block image back to the card, for recovery.
+fn restore_flash(cli: &Cli, image_path: &str, commit: bool, index: u16) -> Result<()> {
+    let image = std::fs::read(image_path).with_context(|| format!("read {image_path}"))?;
+    anyhow::ensure!(
+        image.len() == 64 * 1024,
+        "{image_path} is {} bytes; a block image must be exactly 65536",
+        image.len()
+    );
+    if !commit {
+        println!(
+            "dry run: would restore {image_path} to block 0x{:02x}. Re-run with --commit.",
+            protocol::PARAM_BLOCK
+        );
+        return Ok(());
+    }
+    let mut dev = open(cli)?;
+    rewrite_block(&mut dev, index, &image, 2, 0..256)?;
+    println!("restored {image_path}");
+    Ok(())
+}
+
+/// Parse a comma-separated list of hex record types.
+fn parse_types(s: &str) -> Result<Vec<u16>> {
+    s.split(',')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(|t| {
+            u16::from_str_radix(t.trim_start_matches("0x"), 16)
+                .with_context(|| format!("bad record type {t:?}"))
+        })
+        .collect()
+}
+
+fn config_build(
+    base: &str,
+    copy_from: Option<&str>,
+    copy: &str,
+    remove: &str,
+    out: &str,
+) -> Result<()> {
+    let mut cfg = rcvbp::Rcvbp::load(base)?;
+    println!("base {base}: {} records", cfg.records.len());
+
+    let to_copy = parse_types(copy)?;
+    if !to_copy.is_empty() {
+        let src_path = copy_from.context("--copy needs --copy-from")?;
+        let src = rcvbp::Rcvbp::load(src_path)?;
+        for t in to_copy {
+            let rec = src
+                .find(t)
+                .with_context(|| format!("{src_path} has no record 0x{t:04x}"))?;
+            let existed = cfg.find(t).is_some();
+            cfg.upsert(t, rec.payload.clone());
+            println!(
+                "  {} record 0x{t:04x} ({} bytes) from {src_path}",
+                if existed { "replaced" } else { "added" },
+                rec.payload.len()
+            );
+        }
+    }
+
+    for t in parse_types(remove)? {
+        println!(
+            "  {} record 0x{t:04x}",
+            if cfg.remove(t) { "removed" } else { "no such" }
+        );
+    }
+
+    cfg.save(out)?;
+    let written = std::fs::metadata(out)?.len();
+    println!(
+        "wrote {out}: {} records, {written} bytes on disk",
+        cfg.records.len()
+    );
+
+    // Read it straight back so a broken file never reaches the card.
+    let back = rcvbp::Rcvbp::load(out)?;
+    anyhow::ensure!(
+        back.records.len() == cfg.records.len(),
+        "verification failed: wrote {} records but read back {}",
+        cfg.records.len(),
+        back.records.len()
+    );
+    println!("verified: reparses to {} records", back.records.len());
+    Ok(())
+}
+
+fn config_diff(a: &str, b: &str) -> Result<()> {
+    let fa = rcvbp::Rcvbp::load(a)?;
+    let fb = rcvbp::Rcvbp::load(b)?;
+    println!("{a}: {} records", fa.records.len());
+    println!("{b}: {} records", fb.records.len());
+
+    let types_a: Vec<u16> = fa.records.iter().map(rcvbp::Record::type_u16).collect();
+    let types_b: Vec<u16> = fb.records.iter().map(rcvbp::Record::type_u16).collect();
+    let only_a: Vec<String> = types_a
+        .iter()
+        .filter(|t| !types_b.contains(t))
+        .map(|t| format!("0x{t:04x}"))
+        .collect();
+    let only_b: Vec<String> = types_b
+        .iter()
+        .filter(|t| !types_a.contains(t))
+        .map(|t| format!("0x{t:04x}"))
+        .collect();
+    if !only_a.is_empty() {
+        println!("only in {a}: {}", only_a.join(", "));
+    }
+    if !only_b.is_empty() {
+        println!("only in {b}: {}", only_b.join(", "));
+    }
+
+    for t in &types_a {
+        let (Some(ra), Some(rb)) = (fa.find(*t), fb.find(*t)) else {
+            continue;
+        };
+        if ra.payload == rb.payload {
+            continue;
+        }
+        let n = ra.payload.len().min(rb.payload.len());
+        let diffs: Vec<usize> = (0..n)
+            .filter(|i| ra.payload[*i] != rb.payload[*i])
+            .collect();
+        println!(
+            "record 0x{t:04x}: {} vs {} bytes, {} differ",
+            ra.payload.len(),
+            rb.payload.len(),
+            diffs.len()
+        );
+        for i in diffs.iter().take(16) {
+            println!(
+                "    +0x{i:03x}: {:3} (0x{:02x})  vs  {:3} (0x{:02x})",
+                ra.payload[*i], ra.payload[*i], rb.payload[*i], rb.payload[*i]
+            );
+        }
+        if diffs.len() > 16 {
+            println!("    ... and {} more", diffs.len() - 16);
+        }
     }
     Ok(())
 }

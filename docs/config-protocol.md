@@ -1261,3 +1261,388 @@ registers are programmed. The card is configured for a panel with plain
 shift-register drivers, which need no such initialisation. Geometry matches
 (128x64, 1/32 scan), which is why the card self-reports the correct size while
 the panel stays dark and draws no current.
+
+---
+
+## 13. Writing configuration
+
+Static analysis only. Nothing was executed; no write frame has been sent.
+
+### 13.1 Correction to §12.3 (matters for the safety argument)
+
+The data-attachment guard in `BuildRcvCardFlashOperation` is **opcode-driven**,
+not merely pointer-driven. At `0x30b85c`–`0x30b87c`:
+
+```
+cl = (op != 0x85) && (op != 0x32) && (op != 0x77) && (op != 0x42) && (op != 0x52)
+al = (op != 0x66)
+test al, cl ; jne skip_memcpy          ; skip when op is NOT one of the data ops
+if (dataptr != NULL) memcpy(payload + 0xa, dataptr, datalen)
+```
+
+So a payload is attached **only** for opcodes `{0x85, 0x77, 0x66, 0x52, 0x42, 0x32}`.
+Opcode `0x44` (read) is structurally incapable of carrying data — the read frame
+we already sent is even safer than §12 claimed.
+
+### 13.2 Address encoding: `addrHi` is a 64 KB block selector
+
+Byte address = `((addrHi << 8) | addrLo) * 256` = `addrHi * 65536 + addrLo * 256`.
+So **`addrHi` selects a 64 KB block and `addrLo` a 256-byte page inside it** —
+exactly SPI-flash block/page granularity. Confirmed by the write loop
+(`0x332e81`): `r14 = pageLow << 8`, source `= dataBuf + r14`, so **image offset
+`N*0x100` ↔ flash page `(hi, N)`**.
+
+### 13.3 Region map (each parameter class has its own 64 KB block)
+
+Recovered by resolving every `BuildRcvCardFlashOperation` call site to its
+enclosing function and its literal `r8d` (addrHi):
+
+| addrHi | region | written by |
+|---|---|---|
+| **0x07** | **basic parameters (.rcvbp container)** | `DoWriteToRcvForSeparate` |
+| 0x0a | HDR gamma table, ROE multi-bright | `DoWriteHDRGammaTable` |
+| 0x0b | module mapping table | `DoWriteModuleMappingTable` |
+| 0x1c | basic-param overflow chunk **Two** | `DoWriteBasicParamExTwo` |
+| 0x1e | factory bright/current param | `SaveFactoryBrightCurrentParam` |
+| 0x1f | driver-chip params (SC6660/SC6618/XM11202G/ICND2260/ICND3065) | `DoWriteSC*Param` |
+| 0x39 | route table Ex | `DoWriteRouteTableEx` |
+| 0x3a | gamma calibration table | `DoWriteGammaCaliTable` |
+| 0x3b | data remapping | `DoWriteDataRemappingParam` |
+| 0x3c | gamma cali new-delta | `DoWriteGammaCaliNewDeltaTable` |
+| 0xd6 | basic-param overflow chunk **One** | `DoWriteBasicParamExOne` |
+| 0xd7 | HLG interpolation | `DoWriteHLGInterpolationTable` |
+| 0xe0 | HLG 12-bit gamma | `DoWriteHLG12BitGammaTable` |
+| 0xe2 / 0xe3 | multi-bright basic / gamma | `SaveMultiBright*Param` |
+| 0xe5 | XYZ 12-bit gamma | `DoWriteXYZ12BitGammaTable` |
+| 0xe7 | anti-pixel sequence | `DoWriteAntiPixelSequenceParam` |
+| 0xe8 | shutter sync | `DoWriteShutterSyncParam` |
+| 0xe9 | multi-module param | `DoWriteMultiModuleParam` |
+
+**Firmware / FPGA is NOT in this table.** `DoSlowUpgradeRcv` /
+`DoQuickUpgradeRcv` use a *different builder* — `BuildRcvCardFlashOperationEx`
+@ `0x30b8e0` — with register-loaded (non-constant) opcode and address. That is a
+useful structural separation: **the firmware path never goes through
+`BuildRcvCardFlashOperation`**, so a guard that permits only that builder, only
+opcodes {0x23, 0x44, 0x85}, and only `addrHi == 0x07` cannot reach the firmware
+path at all.
+
+### 13.4 Opcodes
+
+| opcode | meaning | payload | flag (`payload[6]`) |
+|---|---|---|---|
+| **0x44** | read | none (structurally) | 1 |
+| **0x23** | **erase** | none | 0 |
+| **0x85** | write | 256 bytes | 0 |
+
+### 13.5 The save sequence (`DoWriteToRcvForSeparate` @ `0x330220`)
+
+Receiver indices come from a `std::vector<unsigned short>` at
+`CBasicParamSendAndWriter+0x30/+0x38`, terminated in the caller by `0xFFFF`.
+
+**Step 1 — erase**, once per receiver, via `CReceiverOP::ClearFlashSector` @ `0x3c3020`:
+
+```
+BuildRcvCardFlashOperation(&len,&buf, rcvIdx, opcode=0x23, hi=0x07, lo=0x00,
+                           flag=0, dataptr=NULL, datalen=0)
+usleep(5000)                     ; 0x1388 µs
+```
+
+Frame — 12 MAC bytes + 128 payload bytes = **140 bytes**:
+
+```
+11 22 33 44 55 66  22 22 33 44 55 66  06 00
+00                       payload[2]
+<idxMSB> <idxLSB>        payload[3..4]
+23                       payload[5]  opcode = ERASE
+00                       payload[6]  flag
+07                       payload[7]  block 0x07
+00                       payload[8]  page 0x00
+00                       payload[9]
+00 x 118                 payload[0x0a..0x7f]
+```
+
+**Step 2 — write**, one frame per 256-byte page (`0x332ede`–`0x332f13`):
+
+```
+BuildRcvCardFlashOperation(&len,&buf, rcvIdx, opcode=0x85, hi=0x07, lo=page,
+                           flag=0, dataptr = image + page*0x100, datalen=0x100)
+usleep(5000)
+```
+
+Frame — 12 + 266 = **278 bytes**:
+
+```
+11 22 33 44 55 66  22 22 33 44 55 66  06 00
+00  <idxMSB> <idxLSB>  85  00  07  <page>  00
+<256 bytes of image data at offset page*0x100>
+```
+
+**Step 3 — commit:** none. No commit/verify frame appears in this path; the
+progress bookkeeping around it is UI only. Verification is done by reading back
+(§12) and comparing.
+
+Note the type byte is **0x06** for all three opcodes at `addrHi=0x07`, because
+`0x23`, `0x44` and `0x85` all fail the `cl <= 0x22` test and take the computed
+branch, which yields `6` whenever `addrHi < 8`.
+
+### 13.6 Point 2 — VERDICT: yes, it is the length-prefixed .rcvbp, verbatim
+
+**Confirmed** in `CSendAndSaveRcvParam::GetRcvParamBufForSPIFlash` (`0x1ec3a8`–`0x1ec459`):
+
+```
+len = GetBpFileLength(/*compressed=*/1)        ; 0x1ec3bb, esi = 1
+word [image+0x10034] = 0x8000                  ; destination offset within the image
+buf = new[len]; bzero
+SaveBpToBuffer(fileMgr, buf, &len, /*compressed=*/1)   ; 0x1ec3fc, ecx = 1
+if (len >= 0x6ffd) len = 0x6ffc                ; HARD CLAMP
+memcpy(image + 0x8000 + 4, buf, len)           ; file body
+word [image+0x10036] = len + 4                 ; total incl. prefix
+dword [image + 0x8000] = len                   ; <-- u32 LE LENGTH PREFIX
+```
+
+Answering the specific questions:
+
+* **The prefix counts the file only, not file+4.** `dword[image+0x8000] = len`
+  where `len` is the value returned by `GetBpFileLength`/`SaveBpToBuffer`. The
+  `+4` appears only in the separate *total size* field at `image+0x10036`.
+* **It is the compressed variant** (both calls pass `1`), i.e. the 0x20-byte
+  header form: 16-byte signature, `u32 version = 4`, `u32 compressed size`,
+  `u32 decompressed size`, `u32 0`, then the zlib stream. This matches the
+  container you read back byte-for-byte.
+* **Image offset 0x8000 ↔ flash page `(0x07, 0x80)` = page 0x0780** — exactly
+  where you found it. The mapping is self-consistent.
+* **Maximum size 0x6FFC (28 668 bytes.)** Anything larger overflows into blocks
+  0xd6 (`ExOne`) and 0x1c (`ExTwo`). Your file (~9.4 KB) and the card's copy
+  (0x2398 = 9 112 B) are far below the clamp, so **only block 0x07 is involved**.
+* **No page padding is applied to the blob itself** — but writes happen in whole
+  256-byte pages, so the final partial page is written from whatever the image
+  buffer holds there (zero, from the `bzero` of the image). Pad with zeros.
+
+So you can write your own `.rcvbp` essentially verbatim: `u32 LE length` followed
+by the compressed file, at image offset 0x8000. **No pack synthesis is needed.**
+
+### 13.7 Point 3 — how it takes effect
+
+`CReceiverOP::ReLoadLocalParam` @ `0x3b4b00` does exist and does build a
+`BuildRcvCardFlashOperation` frame with a **5-byte payload** (`push 5`, dataptr =
+a 5-byte local at `rbp-0x30`, flag = 0), sent with reply selector `edx = 0x807d`,
+`r9d = 2`. **I could not resolve its opcode or address bytes** — they are
+register-loaded from earlier branches I did not trace, so I will not guess them.
+
+**Recommended: power-cycle the card.** It is guaranteed by the architecture
+(config is read from flash at boot), costs nothing, and carries no risk of
+sending a mis-decoded command. Treat "reload without reboot" as a later
+convenience, not part of the first write.
+
+### 13.8 Point 4 — safety
+
+**A. The single most important finding: erase is whole-block, and you must
+read-modify-write.**
+
+`ClearFlashSector(..., hi=0x07)` issues opcode `0x23` at `(0x07, 0x00)` —
+**page 0, i.e. the start of the block**, with no length parameter. Combined with
+the 64 KB block addressing (§13.2) this is a standard SPI **64 KB block erase**:
+it clears the *entire* block 0x07 (bytes 0x070000–0x07FFFF), not just the
+parameter area at 0x8000.
+
+The vendor tool gets away with this because it rebuilds the **whole 64 KB image**
+and rewrites every page. **If you erase block 0x07 and write only the pages
+around 0x8000, everything else in that block is left as 0xFF.**
+
+> **Required procedure:** read all 256 pages of block 0x07 first (§12, opcode
+> 0x44, safe), modify only the region at image offset 0x8000, erase, then write
+> back **all** 256 pages. Never erase-then-partially-write.
+
+I have **not** determined what occupies block 0x07 pages 0x00–0x7F. Reading them
+is free and safe — do that before the first write and keep the dump.
+
+**B. There is no redundant copy to fall back on.**
+
+`GetRcvParamBackupExOne/TwoBufForSPIFlash` are misleadingly named: at `0x1ec9cb`
+they are entered **only when `len >= 0x6ffd`**, and they store
+`buf + 0x6ffc` onward — they are **overflow continuation chunks, not backups**.
+For a config under 28 668 bytes they are never written. So block 0x07 holds the
+only copy of the parameters.
+
+**C. Failure mode if a write is interrupted: recoverable, not a brick —
+provided the guard holds.**
+
+After the erase, block 0x07 reads 0xFF until rewritten. An interrupted write
+leaves an invalid/partial config, and the panel would not light. It is **not** a
+brick, because:
+
+* Discovery, the flash read/write command handler, and the Ethernet stack live in
+  **firmware, in a different block**, reached only through
+  `BuildRcvCardFlashOperationEx`. Nothing in the parameter write path touches it.
+* Therefore the card still answers discovery (type 0x0700) and still accepts
+  flash reads and writes after a failed attempt — you simply repeat the write.
+
+The recovery path is only preserved if the firmware blocks are never written.
+That is precisely what the guard below enforces.
+
+**D. Recommended hard guard**
+
+Refuse to transmit any frame unless **all** hold:
+
+1. builder is `BuildRcvCardFlashOperation` layout (never the `Ex` firmware form);
+2. `payload[5]` (opcode) ∈ {`0x44` read, `0x23` erase, `0x85` write};
+3. `payload[7]` (addrHi) **== 0x07** — an allowlist of exactly one block;
+4. for `0x85`: `datalen == 0x100` and the frame is 278 bytes;
+5. for `0x23`: `payload[8] == 0x00` and no payload;
+6. a dry-run mode that prints frames without sending, plus a full block-0x07 dump
+   taken and saved *before* the first erase.
+
+An allowlist on `addrHi` is strictly safer than a denylist: every other
+parameter class, the calibration blocks, and the firmware all live at different
+`addrHi` values and are unreachable by construction.
+
+**E. Residual unknowns — state them before writing**
+
+* Contents of block 0x07 pages 0x00–0x7F (read first).
+* Whether the card validates the config (e.g. a checksum) before applying it; no
+  such check was found, so a malformed blob may simply yield a dark panel.
+* `ReLoadLocalParam`'s exact bytes (§13.7) — avoid, power-cycle instead.
+* The erase is assumed to be a 64 KB block erase from the addressing granularity
+  and the `lo = 0` argument. It could conceivably be a 4 KB sector erase; the
+  read-modify-write procedure in **A** is correct and safe under *either*
+  interpretation, which is why I recommend it unconditionally.
+
+---
+
+## 14. The 4-byte trailer — solved
+
+**It is a CRC-32 with a non-standard initial value.** Found in the writer, then
+verified against 18 independent files.
+
+### 14.1 The algorithm
+
+```
+CRC-32, reflected, polynomial 0xEDB88320   (the ordinary CRC-32 polynomial)
+initial register value : 0x00000000        <-- NOT 0xFFFFFFFF
+final XOR              : none              <-- NOT ^0xFFFFFFFF
+range                  : the whole file, offset 0 up to (not including) the trailer
+storage                : little-endian, appended as the last 4 bytes
+```
+
+That single deviation — init 0 and no final XOR, instead of the usual
+init 0xFFFFFFFF / xorout 0xFFFFFFFF — is why every standard `crc32` brute force
+missed it.
+
+Reference implementation:
+
+```rust
+fn trailer_crc(data: &[u8]) -> u32 {
+    let mut t = [0u32; 256];
+    for i in 0..256u32 {
+        let mut c = i;
+        for _ in 0..8 { c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 }; }
+        t[i as usize] = c;
+    }
+    let mut c: u32 = 0;                       // init 0
+    for &b in data { c = (c >> 8) ^ t[((c ^ b as u32) & 0xff) as usize]; }
+    c                                          // no final xor
+}
+// append trailer_crc(file).to_le_bytes() to the end of the file
+```
+
+Equivalent one-liner against any stock zlib:
+`crc = zlib_crc32(data, 0xFFFFFFFF) ^ 0xFFFFFFFF` (verified identical).
+
+### 14.2 Where it comes from (`SaveBpToBuffer` @ `0x1ca810`, tail at `0x1cdd96`–`0x1cde05`)
+
+The compressed header is written first (`0x1cdd5e`–`0x1cdd87`):
+
+```
+movdqu xmm0, [rcvBasicParamFileTagEx]   ; 16-byte signature
+movdqu [rbx], xmm0
+mov dword [rbx+0x10], 4                 ; version
+mov dword [rbx+0x14], r15d              ; compressed size
+mov dword [rbx+0x18], r13d              ; decompressed size
+mov dword [rbx+0x1c], 0
+add rbx, 0x20
+```
+
+then the CRC is computed over the buffer and appended:
+
+```
+xor esi, esi                            ; <-- CRC register starts at 0
+loop:                                   ; unrolled 2 bytes/iteration
+  movzx ecx, sil
+  shr   esi, 8
+  movzx eax, byte [rbx + rdx - 1]
+  xor   ecx, eax
+  xor   esi, dword [rbp + rcx*4 - 0x17580]    ; 256-entry u32 table
+  ...
+mov dword [rbx], esi                    ; <-- stored directly, NO final XOR
+add r13d, 4                             ; length includes the trailer
+```
+
+`rbx` is set to `end - count`, so the range is the `count` bytes immediately
+preceding the trailer position, and `r13d` (the returned file length) is
+incremented by 4 — which is why the flash length prefix equals *file + 4* in the
+sense that the trailer counts as part of the file. Your reading of the prefix was
+right.
+
+### 14.3 Verification: 18 / 18 files, zero failures
+
+Applied to every `.rcvbp` in the vendor corpus plus the user's file, covering
+**both container variants and two different signature families**:
+
+| file | variant | signature | trailer |
+|---|---|---|---|
+| user's `P2.5-32S-128X64-SM16269S-256X384I` | compressed | 0xbe192020 | **0x128bebee** ✓ |
+| `P2.5-320x160-2153-138-3840-256X384` | compressed | 0xbe192020 | 0xaba8f77e ✓ |
+| `P2.5-2153-128512-2020.6.29` | uncompressed | 0x213f3acb | **0xd8b3a9d4** ✓ |
+| `P2.5-2153-128512-2020.7.1` | uncompressed | 0x213f3acb | **0xcf92f78c** ✓ |
+| `P2.5-64x32-32s-2053` | uncompressed | 0x213f3acb | **0x7bbae2eb** ✓ |
+| + 13 more | uncompressed | 0x213f3acb | all ✓ |
+
+Three of these are values from the coordinator's list of "high-entropy"
+unknowns, now reproduced exactly. The rule is identical for the compressed
+(0x20-header) and uncompressed (0x14-header) forms: always the whole file up to
+the trailer.
+
+**Self-check available:** the card's stored blob should satisfy
+`trailer_crc(blob[0..9108]) == 0x5ac1e060` (from your trailer bytes `60 e0 c1 5a`).
+
+### 14.4 Does anything validate it? — iSet does NOT
+
+Scanned every function in the load path — `CHWParamReceiver::LoadFromBuffer`
+@ `0x170e50`, `LoadBpFromBuffer` @ `0x1c48d0`, `LoadBpHeadFromBuffer` @ `0x1c49f0`,
+`LoadBpBufFromBuffer` @ `0x1c5020`, `LoadFromBpFile` @ `0x1c45a0` — for CRC-style
+table lookups (`xor r32, dword [table + idx*4]`), byte-shift accumulation, and
+calls to `crc32`/`adler32`:
+
+| function | CRC table lookups | `shr r,8` | crc32/adler calls |
+|---|---|---|---|
+| `LoadFromBuffer` | 0 | 0 | 0 |
+| `LoadBpFromBuffer` | 0 | 0 | 0 |
+| `LoadBpHeadFromBuffer` | 0 | 0 | 0 |
+| `LoadBpBufFromBuffer` | 0 | 0 | 0 |
+| `LoadFromBpFile` | 0 | 0 | 0 |
+
+**Zero occurrences anywhere in the load path.** Two further structural
+confirmations that the trailer is never even read:
+
+1. `LoadBpFromBuffer` passes `srcLen = dword[buf+0x14]` (the *compressed size*) to
+   `uncompress` — the trailer lies beyond that and is never handed to zlib.
+2. The TLV walk in `LoadBpBufFromBuffer` exits at `0x1c5b84` on
+   `cmp r15d, 4 ; jbe` — with 4 or fewer bytes remaining it stops **silently and
+   successfully**. So in the uncompressed variant the trailing 4 bytes are simply
+   left unconsumed, with no error path.
+
+So iSet writes the trailer and never checks it.
+
+**Caveat, stated plainly:** the parser that matters is the *card firmware*, which
+is not available for static analysis (the only firmware images on hand are E320
+FPGA `.hex` files, a different product and architecture). iSet's behaviour is
+indirect evidence only.
+
+**But the question is now moot:** since §14.1 reproduces the value exactly on
+18/18 files, we should simply always compute the correct CRC. That removes the
+dependency on whether anyone validates it — which is a far better position than
+relying on a "nobody checks" argument.
+
+**It is not a nonce or timestamp.** It is fully deterministic from content: the
+two 18 766-byte corpus files that differ in exactly two content bytes produce
+different trailers, and both are reproduced exactly by the algorithm above.

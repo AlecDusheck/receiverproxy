@@ -90,7 +90,7 @@ impl Rcvbp {
             (d[0x14..].to_vec(), false)
         };
 
-        // The uncompressed variant carries a 4-byte trailer after the records.
+        // Both variants end with a 4-byte CRC trailer.
         let slack = if compressed { 0 } else { 4 };
         let records = parse_records(&blob, slack)?;
         Ok(Self {
@@ -195,6 +195,8 @@ impl Rcvbp {
         out.extend_from_slice(&(blob.len() as u32).to_le_bytes());
         out.extend_from_slice(&0u32.to_le_bytes());
         out.extend_from_slice(&compressed);
+        let crc = trailer_crc(&out);
+        out.extend_from_slice(&crc.to_le_bytes());
         Ok(out)
     }
 
@@ -207,6 +209,28 @@ impl Rcvbp {
         std::fs::write(path, &bytes).with_context(|| format!("write {path}"))?;
         Ok(())
     }
+}
+
+/// The 4-byte trailer every `.rcvbp` ends with: a CRC-32 over the whole file
+/// up to the trailer itself.
+///
+/// It uses the ordinary reflected polynomial but an initial value of 0 and no
+/// final inversion, which is why it does not match a stock CRC-32.
+#[must_use]
+pub fn trailer_crc(data: &[u8]) -> u32 {
+    let mut crc: u32 = 0;
+    for &byte in data {
+        let mut c = (crc ^ u32::from(byte)) & 0xff;
+        for _ in 0..8 {
+            c = if c & 1 == 1 {
+                (c >> 1) ^ 0xedb8_8320
+            } else {
+                c >> 1
+            };
+        }
+        crc = (crc >> 8) ^ c;
+    }
+    crc
 }
 
 /// Full 16-byte signature of the compressed variant, as written by the vendor
@@ -334,5 +358,42 @@ mod tests {
             assert_eq!(a.payload, b.payload);
         }
         std::fs::remove_file(path).ok();
+    }
+}
+
+#[cfg(test)]
+mod crc_tests {
+    use super::*;
+
+    /// Trailer values recovered from real vendor files and from the card.
+    #[test]
+    fn trailer_matches_known_files() {
+        for (path, expected) in [(
+            "/Users/amd/Downloads/P2.5-32S-128X64-SM16269S-256X384I.rcvbp",
+            0x128b_ebeeu32,
+        )] {
+            let Ok(d) = std::fs::read(path) else {
+                continue; // not present in this checkout
+            };
+            let body = &d[..d.len() - 4];
+            assert_eq!(trailer_crc(body), expected, "trailer mismatch for {path}");
+            assert_eq!(&d[d.len() - 4..], &expected.to_le_bytes());
+        }
+    }
+
+    #[test]
+    fn a_written_file_carries_a_valid_trailer() {
+        let f = Rcvbp {
+            version: 4,
+            blob: Vec::new(),
+            records: vec![Record::new(0x0a01, vec![0x80, 0x20, 1, 0])],
+        };
+        let bytes = f.to_file_bytes().unwrap();
+        let (body, tail) = bytes.split_at(bytes.len() - 4);
+        assert_eq!(
+            trailer_crc(body).to_le_bytes(),
+            tail,
+            "written trailer must be the CRC of the body"
+        );
     }
 }

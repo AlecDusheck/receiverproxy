@@ -13,6 +13,7 @@ pub fn send_params(
     cli: &Cli,
     config: &str,
     chip_only: bool,
+    with_scan_pack: bool,
     all_records: bool,
     gap_ms: u64,
     _index: u16,
@@ -41,6 +42,14 @@ pub fn send_params(
     )))?;
     println!("basic-parameter pack (partially decoded)");
     std::thread::sleep(gap);
+
+    if with_scan_pack {
+        dev.send(&protocol::params::frame_for(&protocol::params::scan_pack(
+            &basic.payload,
+        )))?;
+        println!("scan-engine pack (sub-index 2, table layout)");
+        std::thread::sleep(gap);
+    }
 
     if all_records {
         // Send everything else we hold, on the hypothesis that packs are

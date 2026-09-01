@@ -195,13 +195,15 @@ pub fn discover(cli: &Cli, wait: u64) -> Result<()> {
     Ok(())
 }
 
-pub fn listen(cli: &Cli, wait: u64) -> Result<()> {
+pub fn listen(cli: &Cli, wait: u64, include_ours: bool) -> Result<()> {
     let mut dev = open(cli)?;
     println!("listening on {} for {wait}s ...", cli.iface);
     let deadline = Instant::now() + Duration::from_secs(wait);
     while Instant::now() < deadline {
         for f in dev.recv()? {
-            if f.len() < 14 || f[6..12] == protocol::SENDER_MAC {
+            // Our own transmissions are normally noise, but they are the only
+            // way to confirm a display frame actually reached the wire.
+            if f.len() < 14 || (!include_ours && f[6..12] == protocol::SENDER_MAC) {
                 continue;
             }
             println!(

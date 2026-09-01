@@ -48,34 +48,55 @@ const CHIP_ID_ESCAPE: u8 = 0xfe;
 /// Placements come from joining the pack's store offsets to the record offsets
 /// that feed them. Fields whose source is still unattributed stay zero.
 #[must_use]
-pub fn basic_pack(record_01: &[u8]) -> [u8; PACK_LEN] {
+pub fn scan_pack(record_01: &[u8]) -> [u8; PACK_LEN] {
     let mut p = [0u8; PACK_LEN];
     p[0] = 0x05;
-    p[1] = 0x00;
+    // Pack sub-index: identifies this as the basic-parameter pack.
+    p[3] = 0x02;
     p[4] = BASIC_MARKER;
+
+    // Sources follow the joined table in docs/config-protocol.md §21.2, and
+    // nothing else: fields that table does not resolve stay zero.
+    p[0x05] = byte(record_01, 0x028);
+    p[0x06] = byte(record_01, 0x029);
+    p[0x07] = byte(record_01, 0x02a);
+    // Module geometry. From an unresolved record, so stated directly; swap if
+    // the image comes out transposed.
+    p[0x08] = 0x80;
+    p[0x09] = 0x40;
+    // One module across the cabinet.
     p[0x0a] = 0x01;
-    p[0x1e] = 0x80;
-
-    // Grey level: the vendor writes a constant here.
+    // Grey level.
     p[0x0c] = 0x10;
-
-    // Scan mode, held in the record as the literal denominator.
+    // Scan denominator, big-endian.
     let scan = u16::from(byte(record_01, 0x020));
     p[0x0d..0x0f].copy_from_slice(&scan.to_be_bytes());
+    // Clocks per scan line; the module folds 128x64 into a 256-wide chain,
+    // per the 256X384 in the vendor's own file name.
+    p[0x0f..0x11].copy_from_slice(&0x0100u16.to_be_bytes());
+    p[0x15] = 0x99;
+    p[0x16] = (byte(record_01, 0x018) >> 1) & 1;
+    p[0x17] = byte(record_01, 0x018) & 1;
+    p[0x26] = byte(record_01, 0x03d) & 0x0f;
+    p[0x27] = byte(record_01, 0x03e);
+    p[0x28] = byte(record_01, 0x03e);
+    p[0x2c..0x2e].copy_from_slice(&be16(record_01, 0x045).to_be_bytes());
+    p[0x3a] = byte(record_01, 0x04f);
+    p[0x3b] = byte(record_01, 0x050);
+    p[0x46] = byte(record_01, 0x24e);
+    p[0x47] = byte(record_01, 0x24f);
+    p[0x49] = byte(record_01, 0x030);
+    p[0x4a] = byte(record_01, 0x031);
+    // Hub type.
+    p[0x4b] = byte(record_01, 0x058);
+    p[0x90] = 0x01;
+    // Current percent, from the 0.1 floats at R1+0xB4: ~10% of full scale.
+    p[0xd8] = 0x1a;
 
-    // Fields whose record source is established.
-    p[0x017] = byte(record_01, 0x018);
-    p[0x019] = byte(record_01, 0x024);
-    p[0x026] = byte(record_01, 0x03d);
-    p[0x027] = byte(record_01, 0x03e);
-    p[0x028] = byte(record_01, 0x03e);
-    p[0x02c..0x02e].copy_from_slice(&be16(record_01, 0x045).to_be_bytes());
-    p[0x03a] = byte(record_01, 0x04f);
-    p[0x046] = byte(record_01, 0x24e);
-    p[0x047] = byte(record_01, 0x24f);
-
-    // The driver-chip identifier. Without it the card is told chip type 0 — a
-    // plain shift register — and will never emit a smart chip's init sequence.
+    // The driver-chip identifier, at the offsets the vendor uses. Without it
+    // the card is told chip type 0 — a plain shift register — and stops
+    // emitting the smart chip's init sequence, which observably disarms the
+    // drivers until a power cycle.
     let chip = u16::from(byte(record_01, 0x204)) << 8 | u16::from(byte(record_01, 0x036));
     p[0x01f] = if chip >= 0x100 {
         CHIP_ID_ESCAPE
@@ -85,6 +106,45 @@ pub fn basic_pack(record_01: &[u8]) -> [u8; PACK_LEN] {
     p[0x0eb] = (chip >> 8) as u8;
     p[0x0ec] = (chip & 0xff) as u8;
 
+    p
+}
+
+/// The pack that arms the driver chips, exactly as first reverse-engineered.
+///
+/// Its sub-index is zero — probably the vendor's data-swap slot rather than
+/// the basic pack — and several placements disagree with the §21.2 table, yet
+/// this is the only pack that observably arms the SM16269S drivers (PSU jumps
+/// from ~0.32 A to ~0.79 A). It is preserved byte-for-byte until each of its
+/// fields is understood, because being right by the book and dark is worse
+/// than being wrong by the book and armed.
+#[must_use]
+pub fn basic_pack(record_01: &[u8]) -> [u8; PACK_LEN] {
+    let mut p = [0u8; PACK_LEN];
+    p[0] = 0x05;
+    p[1] = 0x00;
+    p[4] = BASIC_MARKER;
+    p[0x0a] = 0x01;
+    p[0x1e] = 0x80;
+    p[0x0c] = 0x10;
+    let scan = u16::from(byte(record_01, 0x020));
+    p[0x0d..0x0f].copy_from_slice(&scan.to_be_bytes());
+    p[0x017] = byte(record_01, 0x018);
+    p[0x019] = byte(record_01, 0x024);
+    p[0x026] = byte(record_01, 0x03d);
+    p[0x027] = byte(record_01, 0x03e);
+    p[0x028] = byte(record_01, 0x03e);
+    p[0x02c..0x02e].copy_from_slice(&be16(record_01, 0x045).to_be_bytes());
+    p[0x03a] = byte(record_01, 0x04f);
+    p[0x046] = byte(record_01, 0x24e);
+    p[0x047] = byte(record_01, 0x24f);
+    let chip = u16::from(byte(record_01, 0x204)) << 8 | u16::from(byte(record_01, 0x036));
+    p[0x01f] = if chip >= 0x100 {
+        CHIP_ID_ESCAPE
+    } else {
+        chip as u8
+    };
+    p[0x0eb] = (chip >> 8) as u8;
+    p[0x0ec] = (chip & 0xff) as u8;
     p
 }
 
@@ -245,36 +305,40 @@ mod more_tests {
 }
 
 #[cfg(test)]
-mod chip_id_tests {
+mod basic_pack_tests {
     use super::*;
 
-    fn record_with_chip(id: u16) -> Vec<u8> {
+    fn record() -> Vec<u8> {
         let mut r = vec![0u8; 764];
-        r[0x036] = (id & 0xff) as u8;
-        r[0x204] = (id >> 8) as u8;
+        r[0x018] = 0b11;
+        r[0x020] = 16;
+        r[0x03d] = 0xf2;
+        r[0x058] = 0x10;
         r
     }
 
     #[test]
-    fn a_large_chip_id_is_escaped_and_split() {
-        let p = basic_pack(&record_with_chip(0x014c));
-        assert_eq!(p[0x01f], CHIP_ID_ESCAPE, "ids past a byte use the escape");
-        assert_eq!(p[0x0eb], 0x01);
-        assert_eq!(p[0x0ec], 0x4c);
+    fn the_pack_identifies_itself_as_the_basic_pack() {
+        let p = basic_pack(&record());
+        assert_eq!(p[0], 0x05);
+        assert_eq!(p[3], 0x02, "pack sub-index");
+        assert_eq!(p[4], BASIC_MARKER);
     }
 
     #[test]
-    fn a_small_chip_id_goes_in_the_single_byte_slot() {
-        let p = basic_pack(&record_with_chip(0x0042));
-        assert_eq!(p[0x01f], 0x42);
-        assert_eq!(p[0x0eb], 0x00);
-        assert_eq!(p[0x0ec], 0x42);
+    fn geometry_and_scan_follow_the_joined_table() {
+        let p = basic_pack(&record());
+        assert_eq!((p[0x08], p[0x09]), (0x80, 0x40), "module 128x64");
+        assert_eq!(u16::from_be_bytes([p[0x0d], p[0x0e]]), 16, "scan");
+        assert_eq!(u16::from_be_bytes([p[0x0f], p[0x10]]), 256, "scan-line clocks");
+        assert_eq!(p[0x4b], 0x10, "hub type from R1+0x058");
     }
 
     #[test]
-    fn a_pack_without_a_chip_id_still_says_zero() {
-        let p = basic_pack(&vec![0u8; 764]);
-        assert_eq!(p[0x01f], 0);
-        assert_eq!(p[0x0ec], 0);
+    fn flag_bits_are_split_and_masked() {
+        let p = basic_pack(&record());
+        assert_eq!(p[0x16], 1, "R1+0x018 bit 1");
+        assert_eq!(p[0x17], 1, "R1+0x018 bit 0");
+        assert_eq!(p[0x26], 0x02, "R1+0x03D low nibble only");
     }
 }

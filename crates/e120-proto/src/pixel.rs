@@ -30,12 +30,18 @@ pub enum ColorOrder {
     Bgr,
     Grb,
 }
-/// Pixel row frame: type 0x55<row MSB>, payload:
-/// [row LSB, offs MSB, offs LSB, count MSB, count LSB, 0x08, 0x88, pixels...]
+/// Pixel row frame: type `0x55`, then the row number as the second type byte.
+///
+/// Payload: [offs MSB, offs LSB, count MSB, count LSB, 0x08, 0x88, pixels...]
+///
+/// The row goes in the second type byte, not the payload. Putting `row >> 8`
+/// there instead — always zero for a panel under 256 rows — and prepending the
+/// low byte to the payload shifts every following field along by one, so the
+/// card reads the offset as `(row << 8) | offs MSB` and writes every row into
+/// row 0 at a different horizontal offset.
 pub fn pixel_row(row: u16, pixel_offset: u16, rgb: &[[u8; 3]], order: ColorOrder) -> Vec<u8> {
     let count = rgb.len() as u16;
-    let mut p = Vec::with_capacity(7 + rgb.len() * 3);
-    p.push((row & 0xff) as u8);
+    let mut p = Vec::with_capacity(6 + rgb.len() * 3);
     p.extend_from_slice(&pixel_offset.to_be_bytes());
     p.extend_from_slice(&count.to_be_bytes());
     p.push(0x08);
@@ -48,7 +54,7 @@ pub fn pixel_row(row: u16, pixel_offset: u16, rgb: &[[u8; 3]], order: ColorOrder
             ColorOrder::Grb => p.extend_from_slice(&[g, r, b]),
         }
     }
-    frame([0x55, (row >> 8) as u8], &p)
+    frame([0x55, (row & 0xff) as u8], &p)
 }
 
 #[cfg(test)]
@@ -56,23 +62,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pixel_rows_carry_the_row_in_the_type_and_payload() {
+    fn pixel_rows_carry_the_row_in_the_second_type_byte() {
         let px = [[1u8, 2, 3], [4, 5, 6]];
-        let f = pixel_row(0x0102, 5, &px, ColorOrder::Rgb);
-        assert_eq!(&f[12..14], &[0x55, 0x01]); // type carries the row high byte
-        assert_eq!(f[14], 0x02); // row low byte
-        assert_eq!(&f[15..17], &5u16.to_be_bytes());
-        assert_eq!(&f[17..19], &2u16.to_be_bytes());
-        assert_eq!(&f[21..27], &[1, 2, 3, 4, 5, 6]);
+        let f = pixel_row(9, 5, &px, ColorOrder::Rgb);
+        assert_eq!(&f[12..14], &[0x55, 9], "row is the second type byte");
+        assert_eq!(&f[14..16], &5u16.to_be_bytes(), "offset follows immediately");
+        assert_eq!(&f[16..18], &2u16.to_be_bytes(), "then the pixel count");
+        assert_eq!(&f[18..20], &[0x08, 0x88], "then the marker");
+        assert_eq!(&f[20..26], &[1, 2, 3, 4, 5, 6], "then the pixels");
+    }
+
+    /// The layout bug that kept the panel dark: every row landed in row 0 at a
+    /// different offset, so the image marched sideways instead of appearing.
+    #[test]
+    fn every_row_addresses_its_own_row_and_the_same_offset() {
+        let px = [[7u8, 7, 7]];
+        for row in 0u16..64 {
+            let f = pixel_row(row, 0, &px, ColorOrder::Rgb);
+            assert_eq!(f[13], row as u8, "row {row} must address itself");
+            assert_eq!(&f[14..16], &0u16.to_be_bytes(), "row {row} offset stays 0");
+        }
     }
 
     #[test]
     fn colour_order_reorders_the_channels() {
         let px = [[1u8, 2, 3]];
         let bgr = pixel_row(0, 0, &px, ColorOrder::Bgr);
-        assert_eq!(&bgr[21..24], &[3, 2, 1]);
+        assert_eq!(&bgr[20..23], &[3, 2, 1]);
         let grb = pixel_row(0, 0, &px, ColorOrder::Grb);
-        assert_eq!(&grb[21..24], &[2, 1, 3]);
+        assert_eq!(&grb[20..23], &[2, 1, 3]);
     }
 
     #[test]

@@ -10,7 +10,7 @@ mod util;
 
 use capture::{discover, listen, pcap_summary, raw_send, replay};
 use config::{config_build, config_diff, rcvbp_info};
-use display::{play, show, show_pattern, solid, test_pattern};
+use display::{play, probe, show, show_pattern, solid, test_pattern};
 use flash::{
     dump_flash, dump_range, flash_firmware, read_config, restore_flash, restore_screen_record,
     scan_flash, upgrade_info, write_config, write_single_page,
@@ -140,11 +140,37 @@ enum Cmd {
     Listen {
         #[arg(long, default_value_t = 10)]
         wait: u64,
+        /// Also show frames we transmit, to confirm they reach the wire
+        #[arg(long)]
+        include_ours: bool,
     },
     /// Set panel brightness (0-255)
     Brightness { value: u8 },
     /// Fill the panel with a solid color, e.g. `fill ff0000` or `fill 255 0 0`
-    Fill { color: Vec<String> },
+    Fill {
+        color: Vec<String>,
+        /// Keep refreshing until Ctrl-C, so a meter can settle on the draw
+        #[arg(long)]
+        hold: bool,
+    },
+    /// Send pieces of a refresh with explicit pacing (diagnosis)
+    Probe {
+        /// Rows to send, starting at 0
+        #[arg(long, default_value_t = 64)]
+        rows: u16,
+        /// Microseconds between row frames; 0 = back to back
+        #[arg(long, default_value_t = 0)]
+        row_gap_us: u64,
+        /// Send a sync/vsync frame after the rows
+        #[arg(long)]
+        sync: bool,
+        /// Repeat the whole pass this many times, 33ms apart
+        #[arg(long, default_value_t = 1)]
+        repeat: u32,
+        /// Solid colour as RRGGBB
+        #[arg(long, default_value = "ffffff")]
+        color: String,
+    },
     /// Show a test pattern
     Test {
         /// gradient | rows | border | rgb
@@ -327,6 +353,9 @@ enum Cmd {
         /// Send only the chip-register pack, which is the fully decoded one
         #[arg(long)]
         chip_only: bool,
+        /// Also send the table-derived scan-engine pack (experimental)
+        #[arg(long)]
+        scan_pack: bool,
         /// Send a pack for every record we hold, not just the decoded ones
         #[arg(long)]
         all_records: bool,
@@ -492,10 +521,21 @@ fn main() -> Result<()> {
 /// Commands that put an image on the panel.
 fn run_display(cli: &Cli) -> Result<Option<()>> {
     match &cli.cmd {
-        Cmd::Fill { color } => {
+        Cmd::Probe {
+            rows,
+            row_gap_us,
+            sync,
+            repeat,
+            color,
+        } => {
+            let c = u32::from_str_radix(color, 16)?;
+            let rgb = [(c >> 16) as u8, (c >> 8) as u8, c as u8];
+            probe(cli, *rows, *row_gap_us, *sync, *repeat, rgb).map(Some)
+        }
+        Cmd::Fill { color, hold } => {
             let (r, g, b) = parse_color(color)?;
             let fb = solid(cli, r, g, b);
-            show(cli, &fb, false).map(Some)
+            show(cli, &fb, *hold).map(Some)
         }
         Cmd::Test { pattern, hold } => {
             let fb = test_pattern(cli, pattern)?;
@@ -717,10 +757,11 @@ fn run_params(cli: &Cli) -> Result<Option<()>> {
         Cmd::SendParams {
             config,
             chip_only,
+            scan_pack,
             all_records,
             gap_ms,
             index,
-        } => send_params(cli, config, *chip_only, *all_records, *gap_ms, *index).map(Some),
+        } => send_params(cli, config, *chip_only, *scan_pack, *all_records, *gap_ms, *index).map(Some),
         Cmd::SweepPacks {
             config,
             record,
@@ -762,7 +803,7 @@ fn run(cli: &Cli) -> Result<()> {
     }
     match &cli.cmd {
         Cmd::Discover { wait } => discover(cli, *wait),
-        Cmd::Listen { wait } => listen(cli, *wait),
+        Cmd::Listen { wait, include_ours } => listen(cli, *wait, *include_ours),
         Cmd::RawSend {
             r#type,
             payload,

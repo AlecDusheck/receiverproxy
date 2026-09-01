@@ -99,6 +99,40 @@ pub fn show_pattern(cli: &Cli, name: &str, hold: bool, layout: Option<&str>) -> 
 }
 
 /// Send one full frame of pixels: row packets, then the sync/display frame.
+/// Send chosen pieces of a display refresh with explicit pacing, so a current
+/// meter can attribute a change to one component instead of to `fill`'s whole
+/// burst. The pixel content is a solid colour.
+pub fn probe(
+    cli: &Cli,
+    rows: u16,
+    row_gap_us: u64,
+    sync_after: bool,
+    repeat: u32,
+    rgb: [u8; 3],
+) -> Result<()> {
+    let mut dev = open(cli)?;
+    let line = vec![[rgb[0], rgb[1], rgb[2]]; cli.width as usize];
+    for pass in 0..repeat {
+        for row in 0..rows {
+            dev.send(&protocol::pixel_row(row, 0, &line, cli.order))?;
+            if row_gap_us > 0 {
+                std::thread::sleep(Duration::from_micros(row_gap_us));
+            }
+        }
+        if sync_after {
+            dev.send(&protocol::sync(cli.brightness))?;
+        }
+        if repeat > 1 && pass + 1 < repeat {
+            std::thread::sleep(Duration::from_millis(33));
+        }
+    }
+    println!(
+        "probe: {repeat}x {rows} rows, {row_gap_us}us apart, sync {}",
+        if sync_after { "after each pass" } else { "never" }
+    );
+    Ok(())
+}
+
 pub fn send_frame(dev: &mut bpf::Bpf, cli: &Cli, fb: &[[u8; 3]]) -> Result<()> {
     let w = cli.width as usize;
     for row in 0..cli.height {

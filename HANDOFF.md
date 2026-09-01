@@ -28,7 +28,18 @@ came from measuring badly rather than reasoning badly.
   misrenders, **the seller's configuration is itself wrong for this module.**
   Their file is labelled `P2.5-32S`; the panel is `P2.5-O16S`.
 
-Two things were fixed today and both were real:
+**Check the EEPROM before anything else.** The card discards every pixel that
+falls outside its control area, and ours had been erased to an empty window by
+our own tooling — with `discover` still reporting a healthy 128x64 throughout.
+After any flash operation:
+
+```
+e120 dump-flash --block 7 --out now.bin
+python3 scripts/flash-review.py now.bin          # names every damaged record
+python3 scripts/eeprom-restore.py --live now.bin # dry run; --commit to write
+```
+
+Three things were fixed today and all were real:
 
 * **Firmware.** The card was running the factory `10.81`, not the `16.53` the
   notes claimed. On 10.81 the panel changed *with no network traffic at all*
@@ -38,6 +49,10 @@ Two things were fixed today and both were real:
 * **Pixel mapping and driver registers.** The module's row-halves interleave
   every 64 columns; we had flashed the contiguous wiring, scrambling every
   column. See [`docs/panel-wiring.md`](docs/panel-wiring.md).
+* **The control area.** Restored from the day-one dump and verified across a
+  power cycle. See [`docs/receiver-identity.md`](docs/receiver-identity.md),
+  [`docs/eeprom-map.md`](docs/eeprom-map.md) — the vendor device library names
+  essentially every EEPROM field, so that layout is known, not guesswork.
 
 ## The rig
 
@@ -103,6 +118,14 @@ vendor SDK file inspection to an Opus subagent.
   boot, so a mapping change needs `restore-flash` plus a power-cycle.
 * `e120 set-layout` is needed after a firmware change: `discover` reported a
   nonsense "detected size 1544x128" until it was re-sent.
+* **EEPROM records must be written one at a time**, at the record's own address
+  and length from [`docs/eeprom-map.md`](docs/eeprom-map.md). The card silently
+  ignores a write spanning record boundaries. A few records (`0x041`, `0x042`,
+  `0x092`) did not take via opcode `0x85` and the vendor library reaches them
+  by other paths; they are still `0xFF`.
+* **Photos:** `scripts/snap-avg.sh` silently took single frames until
+  2026-09-01. The panel multiplexes 1/16, so one exposure is scan phase, not
+  content. It now primes the average; keep it that way.
 
 ## Assets
 

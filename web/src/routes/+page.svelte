@@ -4,7 +4,7 @@
   import { REPO } from "$lib/site";
 </script>
 
-<Head title="receiverproxy" description="Receiving card configs (rcvbp) for LED panels, supported cards with firmware, wall layout, and a desktop daemon that drives the cards over Ethernet without a sender card." path="/" />
+<Head title="receiverproxy" description="Receiving card config files (Colorlight rcvbp) for LED panels, supported cards with firmware, wall layout, and a desktop daemon that drives the cards over Ethernet without a sender card." path="/" />
 
 <TitleRow title="receiverproxy" />
 
@@ -12,7 +12,7 @@
 
 <dl class="kv">
   <dt><a href="/panels">Panel configs</a></dt>
-  <dd>ready-made receiving card configs (rcvbp) for the listed panels, downloadable or customizable in the browser, and an importer for your own vendor file</dd>
+  <dd>ready-made receiving card config files for the listed panels, in the formats the cards read (Colorlight rcvbp today), to download or customize in the browser; drop in your own vendor file to read it back</dd>
   <dt><a href="/cards">Receiver cards</a></dt>
   <dd>the supported cards with their limits, firmware downloads and tested panels</dd>
   <dt><a href="/wall">Wall</a></dt>

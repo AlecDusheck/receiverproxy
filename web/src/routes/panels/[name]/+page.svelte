@@ -11,7 +11,7 @@
   import { ops, type Generated } from "$api/ops";
   import { app, handSpec } from "$lib/state.svelte";
   import { Action } from "$lib/action.svelte";
-  import { chipLabel, panelTitle } from "$lib/panel";
+  import { chipLabel, formatLabel, panelTitle } from "$lib/panel";
   import { parseToml, type Tables } from "$lib/spec";
   import { save } from "$lib/download";
 
@@ -21,6 +21,7 @@
   const title = $derived(panelTitle(entry));
   const formats = $derived(data.formats.filter((f) => f.generate));
   const formatNames = $derived(formats.map((f) => f.name).join(", "));
+  const formatLabels = $derived(formats.map(formatLabel).join(", "));
 
   const HEX = new Set(["gclock", "family_id", "sub_id"]);
   const show = (v: unknown, k = ""): string =>
@@ -80,7 +81,7 @@
   const description = $derived.by(() => {
     const module = `${entry.meta.pitch_mm !== undefined ? `P${entry.meta.pitch_mm} ` : ""}${entry.module.width}x${entry.module.height} 1/${entry.module.scan} scan ${chipLabel(entry.chip.name)} module`;
     const tail = entry.meta.status === "tested" ? "Tested on the bench." : `Generated from ${entry.meta.sources} vendor file${entry.meta.sources === 1 ? "" : "s"}.`;
-    return `Download the ${formatNames} receiving card config for a ${module}, or customize it. ${tail}`;
+    return `Download the ${formatLabels} receiving card config file for a ${module}, or customize it. ${tail}`;
   });
 
   const gen = new Action<Generated & { format: string }>("generate");
@@ -97,7 +98,7 @@
   }
 </script>
 
-<Head title="{title} {formatNames} config" {description} path="/panels/{encodeURIComponent(entry.name)}" />
+<Head title="{title} {formatLabels} config" {description} path="/panels/{encodeURIComponent(entry.name)}" />
 
 <TitleRow {title}>
   {#snippet action()}

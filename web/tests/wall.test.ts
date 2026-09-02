@@ -110,6 +110,6 @@ test("optional fields default as the JSON does", () => {
   assert.deepEqual(gridOf(bare), grid({ cards: { columns: 2, rows: 1 } }));
 });
 
-test("the provision line names the spec and the position", () => {
-  assert.equal(provisionLine("config/panels/p25-128x64-sm16269s.toml", 256, 64), "rxp provision --spec config/panels/p25-128x64-sm16269s.toml --position 256,64 --commit");
+test("the provision line names the spec, the position and the chain index", () => {
+  assert.equal(provisionLine("config/panels/p25-128x64-sm16269s.toml", 256, 64, 3), "rxp provision --spec config/panels/p25-128x64-sm16269s.toml --position 256,64 --index 3 --commit");
 });

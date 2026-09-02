@@ -508,6 +508,7 @@ async fn provision_route(
                 spec_path: &spec_path,
                 firmware: r.firmware_path.as_deref(),
                 position: r.position,
+                index: r.index,
                 snapshot_dir: Some(&dir),
                 commit,
                 wait: r.wait.unwrap_or(WAIT),

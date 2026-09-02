@@ -175,6 +175,11 @@ export type ProvisionReq = {
   firmware_path?: string;
   position: [number, number];
   /**
+   * The card's position in the Ethernet chain; absent, the EEPROM frames
+   * broadcast and a chain of more than one card is refused.
+   */
+  index?: number;
+  /**
    * `<data dir>/snapshots/<unix seconds>` by default.
    */
   snapshot_dir?: string;

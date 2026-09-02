@@ -16,6 +16,7 @@ rxp provision --spec config/panels/p25-128x64-sm16269s.toml \
 | `--spec` | panel spec TOML (`config/panels/*.toml`) | required |
 | `--firmware` | the image to install: a name from `config/firmware.toml` (found under `third-party/firmware/` or the config directory's `firmware/` cache, sha256 checked before the write) or a path (checked when its file name is in the manifest, otherwise used as is with a warning); the firmware step is skipped when absent | none |
 | `--position x,y` | this card's origin in the whole screen, in pixels | `0,0` |
+| `--index N` | this card's position in the Ethernet chain, the receiver index the EEPROM frames carry; without it they broadcast, and more than one card answering discovery is refused | broadcast |
 | `--snapshot-dir` | where the pre-provisioning snapshot goes | `build/snapshot-<time>` |
 | `--commit` | write; without it only the plan is printed | off |
 | `--wait` | seconds to wait for each reply | 3 |
@@ -32,7 +33,7 @@ the only stdout output.
 | 2 firmware | compare the bank to the image; if it differs, SDRAM self-program (`firmware install`), then host page writes of any block still differing (`firmware write`), then whole-bank verify; wait for the card to come back reporting the image's version | 16.53 write-protects blocks 0–2 and 8 from the host path, and its self-program path writes only those, so a complete install needs both ([rendering.md](rendering.md)) |
 | 3 EEPROM read | the 256-byte record set via the linear read at 0x7F000 | writing block 7 wipes the EEPROM mirror; the records are rewritten afterwards from this copy |
 | 4 config | `config gen` from the spec, then `flash restore-block` of the block-7 image | the whole configuration comes from the TOML, no donor file ([building-a-config.md](building-a-config.md)); `arm_at_boot = true` makes the card configure itself from flash |
-| 5 EEPROM write | every record back at its own address and length, broadcast index, 500 ms apart; control area `(x, y, x+w, y+h)`; save (opcode 0x87); reload (opcode 0x77); verify by reading back | a write spanning record boundaries is ignored; an index-0 write is ignored while the cabinet record is corrupt; back-to-back writes are dropped ([eeprom-map.md](eeprom-map.md), [receiver-identity.md](receiver-identity.md)) |
+| 5 EEPROM write | every record back at its own address and length, to `--index` or broadcast, 500 ms apart; control area `(x, y, x+w, y+h)`; save (opcode 0x87); reload (opcode 0x77); verify by reading back | a write spanning record boundaries is ignored; an index-0 write is ignored while the cabinet record is corrupt, which is why the single-card default broadcasts; back-to-back writes are dropped ([eeprom-map.md](eeprom-map.md), [receiver-identity.md](receiver-identity.md)) |
 
 Power-cycle after the command completes. The card arms from flash and renders
 what `rxp show image` / `rxp show video` send.
@@ -68,8 +69,21 @@ coordinates, not sizes.
   (the numbers given to `--position`) and its size; each panel is placed
   inside its receiver by `receiver_x`,`receiver_y`. `rxp card
   layout-example` prints a two-card example.
-* Cards are addressed by MAC. Provision one card at a time on the link, or
-  provision on a bench link.
+* Every card on the link shares the vendor MAC pair; the type-0x1900 frame
+  addresses one card by its receiver index, big-endian at payload bytes
+  1..3, `0xFFFF` for every card ([eeprom-map.md](eeprom-map.md)). The
+  index is the card's position in the Ethernet chain, counted from the
+  sender: the order the Wall's chain settings (start corner, direction,
+  serpentine) define, and the `index` of the layout's `receivers` entry.
+* On a chain pass `--index N` per card; the EEPROM writes, the save and the
+  reload then carry `N` and the other cards keep their windows. Without
+  `--index` the frames broadcast: every card on the chain gets the same
+  window, so the command refuses to write when more than one card answers
+  discovery (`N cards answered discovery; pass --index`).
+* One card on the link needs no `--index`. The broadcast default stays
+  because an index-0 write is ignored while the cabinet record is corrupt
+  ([receiver-identity.md](receiver-identity.md) section 2); `--index 0` is
+  accepted for a card whose record is intact.
 
 ## Invariants
 

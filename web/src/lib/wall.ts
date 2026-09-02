@@ -124,4 +124,5 @@ export function gridOf(c: Canvas): Grid | null {
 export const cardPanels = (c: Canvas, index: number): Panel[] => c.panels.filter((p) => p.receiver === index);
 
 /** The command that gives a card its window: what the drawing shows for a selected card. */
-export const provisionLine = (spec: string, x: number, y: number) => `rxp provision --spec ${spec} --position ${x},${y} --commit`;
+/** The card's provision command; `index` is its place in the chain, which the EEPROM writes address. */
+export const provisionLine = (spec: string, x: number, y: number, index: number) => `rxp provision --spec ${spec} --position ${x},${y} --index ${index} --commit`;

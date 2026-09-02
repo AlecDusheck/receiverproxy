@@ -155,7 +155,9 @@ shows constant-current.
 5. **Provision.** `rxp provision --card NAME --spec ... --position 0,0`
    prints the plan; with `--commit` it snapshots, installs firmware when
    given, writes the boot image, rewrites the EEPROM records and verifies
-   the control area. Power-cycle; the card configures itself from flash.
+   the control area. On a chain add `--index N`, the card's position in the
+   chain ([provisioning.md](provisioning.md)). Power-cycle; the card
+   configures itself from flash.
    `rxp card probe` afterwards should read all `ok`, and
    `scripts/flash-review.py` names every run of block 7 that differs from
    the reference dump.

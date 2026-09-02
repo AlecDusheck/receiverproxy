@@ -4,7 +4,7 @@
   import Head from "$parts/Head.svelte";
   import TitleRow from "$parts/TitleRow.svelte";
   import Module from "$parts/Module.svelte";
-  import { chipLabel, panelTitle } from "$lib/panel";
+  import { chipLabel, formatLabel, panelTitle } from "$lib/panel";
 
   let { data } = $props();
   type Row = (typeof data.entries)[number];
@@ -70,7 +70,7 @@
   const href = (e: Row) => `/panels/${encodeURIComponent(e.name)}`;
   const cols: [Col, string, boolean][] = [["title", "panel", false], ["pitch", "pitch", true], ["module", "module", false], ["scan", "scan", true], ["chip", "chip", false], ["status", "status", false], ["formats", "formats", false], ["cards", "tested with", false]];
   // The description: the formats, the chips and the pitches the table covers.
-  const formats = $derived([...new Set(entries.flatMap((e) => e.formats))].join(", "));
+  const formats = $derived([...new Set(data.formats.map(formatLabel))].join(", "));
   const chipNames = $derived([...new Set(entries.map((e) => chipLabel(e.chip.name)))].sort().join(", "));
   const pitches = $derived([...new Set(entries.map((e) => e.meta.pitch_mm).filter((p): p is number => p !== undefined))].sort((a, b) => a - b).map((p) => `P${p}`).join(", "));
   const description = $derived(`${entries.length} receiving card config files (${formats}) by module, scan and chip: ${chipNames}${pitches ? `; ${pitches}` : ""}. Download or customize.`);

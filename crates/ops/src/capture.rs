@@ -190,6 +190,16 @@ pub fn discover(
     wait: u64,
     p: &mut dyn Progress,
 ) -> Result<Vec<protocol::DiscoveryInfo>> {
+    discover_all(ctx, wait, |info| p.out(&describe(info)))
+}
+
+/// Send one discovery frame and collect every reply until `wait` runs out,
+/// handing each to `each` as it arrives.
+pub fn discover_all(
+    ctx: &Ctx,
+    wait: u64,
+    mut each: impl FnMut(&protocol::DiscoveryInfo),
+) -> Result<Vec<protocol::DiscoveryInfo>> {
     let mut dev = open(ctx)?;
     dev.send(&protocol::discovery())?;
     let deadline = Instant::now() + Duration::from_secs(wait);
@@ -201,7 +211,7 @@ pub fn discover(
                 continue;
             }
             if let Some(info) = protocol::parse_discovery_response(f) {
-                p.out(&describe(&info));
+                each(&info);
                 found.push(info);
             }
         }

@@ -115,6 +115,9 @@ enum Cmd {
         /// Cabinet position in the whole screen, "x,y" in pixels
         #[arg(long, default_value = "0,0", value_parser = parse_position)]
         position: (u16, u16),
+        /// The card's position in the Ethernet chain; the EEPROM writes address it alone. Absent: broadcast, one card on the link
+        #[arg(long)]
+        index: Option<u16>,
         /// Directory for the pre-provisioning snapshot [default: build/snapshot-<time>]
         #[arg(long)]
         snapshot_dir: Option<String>,
@@ -232,6 +235,7 @@ fn run(cli: &Cli, iface_given: bool) -> Result<()> {
             spec,
             firmware,
             position,
+            index,
             snapshot_dir,
             commit,
             wait,
@@ -241,6 +245,7 @@ fn run(cli: &Cli, iface_given: bool) -> Result<()> {
                 spec_path: spec,
                 firmware: firmware.as_deref(),
                 position: *position,
+                index: *index,
                 snapshot_dir: snapshot_dir.as_deref(),
                 commit: *commit,
                 wait: *wait,

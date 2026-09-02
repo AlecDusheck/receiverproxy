@@ -9,3 +9,8 @@ export function panelTitle(e: Pick<Entry, "meta" | "module" | "chip">): string {
   const pitch = e.meta.pitch_mm !== undefined ? `P${e.meta.pitch_mm} ` : "";
   return `${pitch}${e.module.width}x${e.module.height} 1/${e.module.scan} ${chipLabel(e.chip.name)}`;
 }
+
+/** A format as people search for it: the vendor and the file kind ("Colorlight rcvbp"). */
+export function formatLabel(f: { vendor: string; name: string }): string {
+  return `${f.vendor} ${f.name}`;
+}

@@ -235,11 +235,14 @@ the card model's parameter page, 64 chunks, 2 s. Read-only.
 ```ts
 { spec_toml: string; firmware_path?: string;  // a config/firmware.toml name or a path
   position: [number, number];
+  index?: number;                             // chain position; absent broadcasts (one card on the link)
   snapshot_dir?: string; commit?: boolean; wait?: number }
 ```
 
 → `{ id }` (job `provision`). The dry run is a job too because it discovers
 the card. `snapshot_dir` defaults to `<data dir>/snapshots/<unix seconds>`.
+Without `index`, more than one card answering discovery fails the job
+(`docs/provisioning.md`).
 The spec text is written to `<snapshot_dir>/spec.toml` first and the CLI
 function runs on that file, so the sources report names a real path.
 
@@ -514,8 +517,8 @@ through `parts/Head.svelte`; a panel page's title is `<panelTitle> panel`.
 `prerender = false` in a `+layout.ts`, render on the client, where the WASM
 module and the daemon are, and carry `<meta name="robots" content="noindex">`.
 `/builder?panel=<path>` opens a library spec; `/control/provision?provision=<index>`
-selects a receiver and sets `position` from its `x,y` (the Wall's
-"provision" link). A panel page's "customize" and "provision", and
+selects a receiver, sets `position` from its `x,y` and prefills the chain
+index (the Wall's "provision" link). A panel page's "customize" and "provision", and
 `/builder/import`, hand the spec over through `handSpec` and `goto`.
 
 ### Shared state (`state.svelte.ts`)

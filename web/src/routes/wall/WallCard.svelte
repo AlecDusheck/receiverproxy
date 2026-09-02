@@ -51,8 +51,8 @@
       </table>
     </div>
     {#if spec}
-      <pre>{provisionLine(spec, card.x ?? 0, card.y ?? 0)}</pre>
-      <p class="caption">provision one card at a time: the write reaches every card on the chain</p>
+      <pre>{provisionLine(spec, card.x ?? 0, card.y ?? 0, card.index)}</pre>
+      <p class="caption">the index is the card's place in the chain; without --index the write broadcasts, one card at a time</p>
       {#if ops.card}
         <div class="row">
           <button onclick={provision} disabled={prov.busy}>provision</button>

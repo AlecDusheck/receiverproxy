@@ -7,13 +7,13 @@
 //! mirror and the card then reports a healthy size while dropping every pixel
 //! (docs/provisioning.md, docs/receiver-identity.md).
 
-use crate::capture::discover_one;
+use crate::capture::{describe, discover_all, discover_one};
 use crate::flash::{flash_firmware, read_primary_bank, restore_flash};
 use crate::model::{bank_bytes, for_card};
 use crate::util::{hex, open};
 use crate::{check, config, protocol, restore, screen, upgrade, Ctx, Loader, Progress};
 use anyhow::{bail, Context, Result};
-use colorlight::eeprom;
+use colorlight::{eeprom, BROADCAST};
 use receivers::Version;
 use std::time::{Duration, Instant};
 
@@ -110,6 +110,10 @@ pub struct Args<'a> {
     pub firmware: Option<&'a str>,
     /// Cabinet position in the whole screen, in pixels.
     pub position: (u16, u16),
+    /// The card's position in the Ethernet chain, the receiver index the
+    /// EEPROM frames carry; absent, they broadcast, and a chain of more than
+    /// one card is refused.
+    pub index: Option<u16>,
     /// Directory for the pre-provisioning snapshot; `build/snapshot-<time>`
     /// when absent.
     pub snapshot_dir: Option<&'a str>,
@@ -130,15 +134,22 @@ pub fn provision(ctx: &Ctx, a: &Args, load: Loader, p: &mut dyn Progress) -> Res
         spec_path,
         firmware,
         position,
+        index,
         snapshot_dir,
         commit,
         wait,
     } = *a;
     let spec = panelspec::PanelSpec::load(spec_path)?;
     let (w, h) = (spec.module.width, spec.module.height);
-    let Some(info) = discover_one(ctx, wait)? else {
+    let cards = discover_all(ctx, wait, |i| p.err(&describe(i)))?;
+    let Some(info) = cards.first() else {
         bail!("no response on {} within {wait}s", ctx.iface);
     };
+    // A broadcast EEPROM write gives every card on the chain the same window.
+    if cards.len() > 1 && index.is_none() {
+        bail!("{} cards answered discovery; pass --index", cards.len());
+    }
+    let rcv = index.unwrap_or(BROADCAST);
     // The discovered id byte picks the model; `--card` stands in for an id
     // no file carries, but a known id that disagrees with it is refused.
     let m = match ctx.model {
@@ -154,10 +165,10 @@ pub fn provision(ctx: &Ctx, a: &Args, load: Loader, p: &mut dyn Progress) -> Res
             }
             named
         }
-        None => for_card(&info)?,
+        None => for_card(info)?,
     };
     let ctx = &Ctx { model: Some(m), ..ctx.clone() };
-    let running = version_of(&info);
+    let running = version_of(info);
     p.err(&format!(
         "card: {} (id 0x{:02x}), firmware {running}, reports {}x{}",
         m.name, info.card_id, info.cols, info.rows
@@ -166,6 +177,7 @@ pub fn provision(ctx: &Ctx, a: &Args, load: Loader, p: &mut dyn Progress) -> Res
         "plan: spec {spec_path} ({w}x{h}), cabinet at {},{}",
         position.0, position.1
     ));
+    p.err(&format!("plan: {}", eeprom_target(index)));
     let want_version = match firmware {
         Some(fw) => {
             let r = crate::firmware::resolve(fw)?;
@@ -246,23 +258,16 @@ pub fn provision(ctx: &Ctx, a: &Args, load: Loader, p: &mut dyn Progress) -> Res
     p.err("[5/5] eeprom: writing records");
     let mut dev = open(ctx)?;
     let ca = eeprom::control_area(position.0, position.1, w, h);
-    for r in eeprom::RECORDS {
-        let (a, n) = (usize::from(r.addr), usize::from(r.len));
-        let data: &[u8] = if r.addr == 0x002 {
-            &ca
-        } else if erased || a + n > before.len() {
-            continue;
-        } else {
-            &before[a..a + n]
-        };
-        dev.send(&eeprom::write(r.addr, data))?;
+    let kept = if erased { &[][..] } else { &before[..] };
+    for f in eeprom_writes(rcv, &ca, kept) {
+        dev.send(&f)?;
         // An EEPROM write takes the card milliseconds; back-to-back records
         // are dropped.
         std::thread::sleep(Duration::from_millis(500));
     }
-    dev.send(&eeprom::save())?;
+    dev.send(&eeprom::save_to(rcv))?;
     std::thread::sleep(Duration::from_millis(500));
-    dev.send(&eeprom::reload())?;
+    dev.send(&eeprom::reload_to(rcv))?;
     std::thread::sleep(Duration::from_secs(1));
 
     // Verify.
@@ -296,8 +301,80 @@ pub fn provision(ctx: &Ctx, a: &Args, load: Loader, p: &mut dyn Progress) -> Res
     Ok(())
 }
 
+/// The plan line for the EEPROM step's addressing.
+fn eeprom_target(index: Option<u16>) -> String {
+    index.map_or_else(
+        || "eeprom: broadcast (every card on the chain)".to_string(),
+        |i| format!("eeprom: card index {i}"),
+    )
+}
+
+/// The record writes of step 5 to receiver `rcv`, in `RECORDS` order: the
+/// control area `ca` at 0x002, every other record from `kept` (the read-back
+/// set; empty when it read as erased, then only the control area goes).
+fn eeprom_writes(rcv: u16, ca: &[u8; 42], kept: &[u8]) -> Vec<Vec<u8>> {
+    eeprom::RECORDS
+        .iter()
+        .filter_map(|r| {
+            let (a, n) = (usize::from(r.addr), usize::from(r.len));
+            let data: &[u8] = if r.addr == 0x002 { ca } else { kept.get(a..a + n)? };
+            Some(eeprom::write_to(rcv, r.addr, data))
+        })
+        .collect()
+}
+
 fn unix_seconds() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn read_back() -> Vec<u8> {
+        (0..=255u8).collect()
+    }
+
+    #[test]
+    fn single_card_default_broadcasts_byte_for_byte() {
+        let ca = eeprom::control_area(0, 0, 128, 64);
+        let before = read_back();
+        let frames = eeprom_writes(BROADCAST, &ca, &before);
+        assert_eq!(frames.len(), eeprom::RECORDS.len());
+        for (f, r) in frames.iter().zip(eeprom::RECORDS) {
+            let (a, n) = (usize::from(r.addr), usize::from(r.len));
+            let data: &[u8] = if r.addr == 0x002 { &ca } else { &before[a..a + n] };
+            assert_eq!(*f, eeprom::write(r.addr, data), "{}", r.name);
+            assert_eq!(&f[15..17], &[0xff, 0xff], "{}", r.name);
+        }
+        assert_eq!(eeprom::save_to(BROADCAST), eeprom::save());
+        assert_eq!(eeprom::reload_to(BROADCAST), eeprom::reload());
+    }
+
+    #[test]
+    fn an_index_addresses_every_frame() {
+        let ca = eeprom::control_area(128, 0, 128, 64);
+        for f in eeprom_writes(2, &ca, &read_back()) {
+            assert_eq!(&f[15..18], &[0x00, 0x02, 0x85]);
+        }
+        assert_eq!(&eeprom::save_to(2)[15..18], &[0x00, 0x02, 0x87]);
+        assert_eq!(&eeprom::reload_to(2)[15..18], &[0x00, 0x02, 0x77]);
+    }
+
+    #[test]
+    fn an_erased_record_set_writes_only_the_control_area() {
+        let ca = eeprom::control_area(0, 0, 128, 64);
+        let frames = eeprom_writes(BROADCAST, &ca, &[]);
+        assert_eq!(frames.len(), 1);
+        assert_eq!(&frames[0][18..22], &[0, 0, 0, 2]);
+        assert_eq!(&frames[0][26..34], &ca[..8]);
+    }
+
+    #[test]
+    fn plan_line_names_the_target() {
+        assert_eq!(eeprom_target(None), "eeprom: broadcast (every card on the chain)");
+        assert_eq!(eeprom_target(Some(3)), "eeprom: card index 3");
+    }
 }

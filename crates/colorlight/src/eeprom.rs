@@ -108,36 +108,57 @@ pub fn parse_control_area(r: &[u8]) -> Option<(u16, u16, u16, u16)> {
     ControlArea::parse(r).map(|a| (a.start_x, a.start_y, a.end_x, a.end_y))
 }
 
-/// A type-0x1900 record frame: `[4..8]` address, `[8..12]` length, data at 12.
-fn record_frame(opcode: u8, addr: u32, data: &[u8]) -> Vec<u8> {
+/// A type-0x1900 record frame to receiver `index`: `[4..8]` address,
+/// `[8..12]` length, data at 12.
+fn record_frame(index: u16, opcode: u8, addr: u32, data: &[u8]) -> Vec<u8> {
     // Payload length max(0x80, len + 0x12), as the vendor builds it
     // (`write_frame_matches_the_vendor_layout`).
     let n = (data.len() + 0x12).max(0x80);
     frame_with([0x19, 0x00], n, |p| {
-        indexed(p, BROADCAST, opcode);
+        indexed(p, index, opcode);
         p[4..8].copy_from_slice(&addr.to_be_bytes());
         p[8..12].copy_from_slice(&(data.len() as u32).to_be_bytes());
         p[12..12 + data.len()].copy_from_slice(data);
     })
 }
 
-/// Write one record. `data.len()` must be the record's own length.
+/// Write one record to the card at chain position `index` (`BROADCAST` for
+/// every card). `data.len()` must be the record's own length.
+#[must_use]
+pub fn write_to(index: u16, addr: u16, data: &[u8]) -> Vec<u8> {
+    record_frame(index, 0x85, u32::from(addr), data)
+}
+
+/// [`write_to`] every card on the link.
 #[must_use]
 pub fn write(addr: u16, data: &[u8]) -> Vec<u8> {
-    record_frame(0x85, u32::from(addr), data)
+    write_to(BROADCAST, addr, data)
 }
 
-/// Commit the EEPROM to its flash mirror (`SaveEepromFlash`).
+/// Commit the EEPROM of card `index` to its flash mirror (`SaveEepromFlash`).
+#[must_use]
+pub fn save_to(index: u16) -> Vec<u8> {
+    record_frame(index, 0x87, 0, &[])
+}
+
+/// [`save_to`] every card on the link.
 #[must_use]
 pub fn save() -> Vec<u8> {
-    record_frame(0x87, 0, &[])
+    save_to(BROADCAST)
 }
 
-/// `ReLoadLocalParam` as the vendor sends it after an EEPROM save: opcode
-/// 0x77, flags `01 01 00`. The flash-save reloads are `discovery::reload_params*`.
+/// `ReLoadLocalParam` to card `index`, as the vendor sends it after an EEPROM
+/// save: opcode 0x77, flags `01 01 00`. The flash-save reloads are
+/// `discovery::reload_params*`.
+#[must_use]
+pub fn reload_to(index: u16) -> Vec<u8> {
+    command(index, 0x77, &[0x01, 0x01, 0x00])
+}
+
+/// [`reload_to`] every card on the link.
 #[must_use]
 pub fn reload() -> Vec<u8> {
-    command(BROADCAST, 0x77, &[0x01, 0x01, 0x00])
+    reload_to(BROADCAST)
 }
 
 #[cfg(test)]
@@ -170,6 +191,29 @@ mod tests {
         assert_eq!(&f[18..22], &[0, 0, 0, 2]);
         assert_eq!(&f[22..26], &[0, 0, 0, 42]);
         assert_eq!(f.len(), 14 + 0x80, "payload padded to 0x80");
+    }
+
+    #[test]
+    fn indexed_frames_carry_the_chain_position_big_endian() {
+        // `BulidEepromFlashOperation`: payload[3..4] = rcvIdx BE (docs/eeprom-map.md).
+        let f = write_to(0x0102, 0x02, &[0u8; 42]);
+        assert_eq!(&f[15..17], &[0x01, 0x02]);
+        assert_eq!(f[17], 0x85);
+        let f = save_to(3);
+        assert_eq!(&f[15..18], &[0x00, 0x03, 0x87]);
+        assert_eq!(&f[18..26], &[0; 8], "save carries no address or length");
+        let f = reload_to(3);
+        assert_eq!(&f[12..14], &[0x06, 0x00]);
+        assert_eq!(&f[15..18], &[0x00, 0x03, 0x77]);
+        assert_eq!(&f[22..25], &[0x01, 0x01, 0x00]);
+    }
+
+    #[test]
+    fn broadcast_forms_are_the_indexed_forms_at_0xffff() {
+        assert_eq!(write(0x02, &[7u8; 42]), write_to(BROADCAST, 0x02, &[7u8; 42]));
+        assert_eq!(save(), save_to(BROADCAST));
+        assert_eq!(reload(), reload_to(BROADCAST));
+        assert_ne!(write(0x02, &[0u8; 42]), write_to(0, 0x02, &[0u8; 42]));
     }
 
     #[test]

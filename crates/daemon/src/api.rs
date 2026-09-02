@@ -234,6 +234,9 @@ pub struct ProvisionReq {
     pub spec_toml: String,
     pub firmware_path: Option<String>,
     pub position: (u16, u16),
+    /// The card's position in the Ethernet chain; absent, the EEPROM frames
+    /// broadcast and a chain of more than one card is refused.
+    pub index: Option<u16>,
     /// `<data dir>/snapshots/<unix seconds>` by default.
     pub snapshot_dir: Option<String>,
     pub commit: Option<bool>,

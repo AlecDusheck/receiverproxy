@@ -1,19 +1,20 @@
 <script lang="ts">
-  import Field from "../parts/Field.svelte";
+  import TitleRow from "../parts/TitleRow.svelte";
+  import Drop from "../parts/Drop.svelte";
+  import Lines from "../parts/Lines.svelte";
+  import WallCanvas, { type Sel } from "./WallCanvas.svelte";
+  import WallTables from "./WallTables.svelte";
   import { app } from "../lib/state.svelte";
   import { ops } from "../api/ops";
+  import { Action } from "../lib/action.svelte";
   import { save } from "../lib/download";
-  import { ROTATIONS, addPanel, addReceiver, clamp, normalize, place, rotated, snap, snapSize } from "../lib/layout";
+  import { addPanel, addReceiver, normalize, snapSize } from "../lib/layout";
   import { errText } from "../lib/error";
-  import type { Canvas } from "../api/types";
+  import type { Canvas, Outcome, Pattern } from "../api/types";
 
-  type Sel = { kind: "receiver" | "panel"; i: number } | null;
   let sel = $state<Sel>(null);
-  let canvasEl = $state<HTMLCanvasElement | null>(null);
-  let importError = $state("");
-  let saveError = $state("");
-  let saved = $state("");
   let ex = $state({ cols: 2, rows: 1, w: 128, h: 64 });
+  let pattern = $state<Pattern>("rgb");
 
   const wall = $derived(app.wall);
   const grid = $derived(snapSize(wall));
@@ -24,7 +25,6 @@
       return errText(e);
     }
   });
-  const scale = $derived(Math.max(0.5, Math.min(4, 800 / Math.max(1, wall.width), 400 / Math.max(1, wall.height))));
 
   $effect(() => {
     try {
@@ -34,129 +34,10 @@
     }
   });
 
-  // Draw
-  $effect(() => {
-    const el = canvasEl;
-    if (!el) return;
-    const dpr = devicePixelRatio || 1;
-    el.width = Math.ceil(wall.width * scale * dpr) + dpr;
-    el.height = Math.ceil(wall.height * scale * dpr) + dpr;
-    el.style.width = `${wall.width * scale + 1}px`;
-    el.style.height = `${wall.height * scale + 1}px`;
-    const g = el.getContext("2d")!;
-    g.setTransform(dpr, 0, 0, dpr, 0.5, 0.5);
-    const css = getComputedStyle(el);
-    const line = css.getPropertyValue("--line").trim() || "#ccc";
-    const muted = css.getPropertyValue("--muted").trim() || "#eee";
-    const text = css.color;
-    g.clearRect(-1, -1, el.width, el.height);
-    g.font = "11px system-ui, sans-serif";
-    // grid
-    g.strokeStyle = line;
-    g.globalAlpha = 0.5;
-    g.beginPath();
-    for (let x = 0; x <= wall.width; x += grid) {
-      g.moveTo(x * scale, 0);
-      g.lineTo(x * scale, wall.height * scale);
-    }
-    for (let y = 0; y <= wall.height; y += grid) {
-      g.moveTo(0, y * scale);
-      g.lineTo(wall.width * scale, y * scale);
-    }
-    g.stroke();
-    g.globalAlpha = 1;
-    // panels
-    wall.panels.forEach((p, i) => {
-      const [w, h] = rotated(p);
-      const x = p.x * scale, y = p.y * scale, W = w * scale, H = h * scale;
-      const on = sel?.kind === "panel" && sel.i === i;
-      g.fillStyle = on ? "AccentColor" : muted;
-      g.fillRect(x, y, W, H);
-      g.strokeStyle = on ? "AccentColor" : text;
-      g.strokeRect(x, y, W, H);
-      // arrow: up for none, rotated with the panel, mirrored for flips
-      g.save();
-      g.translate(x + W / 2, y + H / 2);
-      const rot = { none: 0, cw90: Math.PI / 2, rot180: Math.PI, ccw90: -Math.PI / 2 }[p.rotation ?? "none"];
-      g.rotate(rot);
-      g.scale(p.flip_x ? -1 : 1, p.flip_y ? -1 : 1);
-      const a = Math.min(W, H) / 4;
-      g.strokeStyle = on ? "AccentColorText" : text;
-      g.beginPath();
-      g.moveTo(0, a);
-      g.lineTo(0, -a);
-      g.moveTo(-a / 2, -a / 2);
-      g.lineTo(0, -a);
-      g.lineTo(a / 2, -a / 2);
-      g.stroke();
-      g.restore();
-      g.fillStyle = on ? "AccentColorText" : text;
-      g.fillText(`${i}`, x + 3, y + H - 3);
-    });
-    // receivers
-    wall.receivers.forEach((r, i) => {
-      const on = sel?.kind === "receiver" && sel.i === i;
-      g.strokeStyle = on ? "AccentColor" : line;
-      g.lineWidth = on ? 2 : 1;
-      g.strokeRect((r.x ?? 0) * scale, (r.y ?? 0) * scale, r.width * scale, r.height * scale);
-      g.lineWidth = 1;
-      g.fillStyle = on ? "AccentColor" : text;
-      g.fillText(`card ${r.index}`, (r.x ?? 0) * scale + 3, (r.y ?? 0) * scale + 12);
-    });
-  });
-
-  // Drag
-  let drag: { sel: Sel; dx: number; dy: number } | null = null;
-  const pt = (e: PointerEvent) => {
-    const r = canvasEl!.getBoundingClientRect();
-    return { x: (e.clientX - r.left) / scale, y: (e.clientY - r.top) / scale };
-  };
-  function down(e: PointerEvent) {
-    const { x, y } = pt(e);
-    let hit: Sel = null;
-    for (let i = wall.panels.length - 1; i >= 0; i--) {
-      const p = wall.panels[i]!;
-      const [w, h] = rotated(p);
-      if (x >= p.x && x < p.x + w && y >= p.y && y < p.y + h) {
-        hit = { kind: "panel", i };
-        break;
-      }
-    }
-    if (!hit)
-      for (let i = wall.receivers.length - 1; i >= 0; i--) {
-        const r = wall.receivers[i]!;
-        if (x >= (r.x ?? 0) && x < (r.x ?? 0) + r.width && y >= (r.y ?? 0) && y < (r.y ?? 0) + r.height) {
-          hit = { kind: "receiver", i };
-          break;
-        }
-      }
-    sel = hit;
-    if (!hit) return;
-    const o = hit.kind === "panel" ? wall.panels[hit.i]! : wall.receivers[hit.i]!;
-    drag = { sel: hit, dx: x - (o.x ?? 0), dy: y - (o.y ?? 0) };
-    canvasEl!.setPointerCapture(e.pointerId);
+  function setWall(c: Canvas) {
+    app.wall = normalize(c);
+    sel = null;
   }
-  function move(e: PointerEvent) {
-    if (!drag?.sel) return;
-    const { x, y } = pt(e);
-    const nx = snap(x - drag.dx, grid), ny = snap(y - drag.dy, grid);
-    if (drag.sel.kind === "panel") {
-      const p = wall.panels[drag.sel.i]!;
-      const [w, h] = rotated(p);
-      place(wall, p, clamp(nx, 0, wall.width - w), clamp(ny, 0, wall.height - h));
-    } else {
-      const r = wall.receivers[drag.sel.i]!;
-      const ox = r.x ?? 0, oy = r.y ?? 0;
-      r.x = clamp(nx, 0, wall.width - r.width);
-      r.y = clamp(ny, 0, wall.height - r.height);
-      for (const p of wall.panels) if (p.receiver === r.index) place(wall, p, p.x + r.x - ox, p.y + r.y - oy);
-    }
-  }
-  function up(e: PointerEvent) {
-    drag = null;
-    canvasEl?.releasePointerCapture(e.pointerId);
-  }
-
   function remove() {
     if (!sel) return;
     if (sel.kind === "panel") wall.panels.splice(sel.i, 1);
@@ -167,135 +48,116 @@
     }
     sel = null;
   }
-  function setWall(c: Canvas) {
-    app.wall = normalize(c);
-    sel = null;
-  }
-  async function importFile(files: FileList | null) {
-    const f = files?.[0];
-    if (!f) return;
-    importError = "";
-    try {
-      setWall(JSON.parse(await f.text()) as Canvas);
-    } catch (e) {
-      importError = errText(e);
-    }
-  }
-  async function saveDaemon() {
-    saveError = "";
-    saved = "";
-    if (!ops.card) return;
-    try {
-      app.wall = await ops.card.saveWall(normalize(wall));
-      saved = "saved as the daemon's wall";
-    } catch (e) {
-      saveError = errText(e);
-    }
-  }
-  const busy = $derived(app.status.kind === "busy");
+  const imp = new Action<string>("import layout");
+  const importFile = (files: File[]) =>
+    imp.run(async () => {
+      setWall(JSON.parse(await files[0]!.text()) as Canvas);
+      return files[0]!.name;
+    });
+  const saved = new Action<Canvas>("save wall");
+  const saveDaemon = () =>
+    saved.run(async () => {
+      app.wall = await ops.card!.saveWall(normalize(wall));
+      return app.wall;
+    });
+  const shown = new Action<Outcome | { id: string }>("show pattern");
+  const showOnWall = () =>
+    shown.run(async () => {
+      await ops.card!.saveWall(normalize(wall));
+      return ops.card!.showPattern({ name: pattern, hold: false });
+    });
 </script>
 
-<h1>Wall</h1>
+<svelte:window onkeydown={(k) => k.key === "Escape" && (sel = null)} />
+
+<TitleRow title="Wall">
+  {#snippet action()}
+    <button class="primary" onclick={() => save("wall.json", JSON.stringify(normalize(wall), null, 2) + "\n")}>export wall.json</button>
+  {/snippet}
+</TitleRow>
+
 <p class="muted">The layout <code>e120 show --layout</code> reads: receivers are cards, each keeping its window of the screen; panels hang off a receiver. Drag to move; positions snap to {grid} px.</p>
 
-<div class="row" style="margin-bottom: var(--s3)">
-  <label>screen <input type="number" bind:value={app.wall.width} min="1" /> x <input type="number" bind:value={app.wall.height} min="1" /></label>
+<div class="row tools">
+  <label>screen <input type="number" bind:value={app.wall.width} min="1" aria-label="screen width" /> x <input type="number" bind:value={app.wall.height} min="1" aria-label="screen height" /></label>
   <button onclick={() => { addReceiver(wall); sel = { kind: "receiver", i: wall.receivers.length - 1 }; }}>add card</button>
   <button onclick={() => { const r = sel?.kind === "receiver" ? wall.receivers[sel.i]!.index : (wall.receivers[0]?.index ?? 0); addPanel(wall, r); sel = { kind: "panel", i: wall.panels.length - 1 }; }} disabled={!wall.receivers.length}>add panel</button>
   <button onclick={remove} disabled={!sel}>remove selected</button>
-  <span class="sep"></span>
-  <label>example <input type="number" bind:value={ex.cols} min="1" style="width: 56px" /> x <input type="number" bind:value={ex.rows} min="1" style="width: 56px" /> cards of <input type="number" bind:value={ex.w} min="1" /> x <input type="number" bind:value={ex.h} min="1" /></label>
-  <button onclick={() => setWall(ops.pure.layoutExample(ex.cols, ex.rows, ex.w, ex.h))}>generate</button>
+</div>
+<div class="row tools">
+  <label>example <input type="number" bind:value={ex.cols} min="1" class="short" aria-label="columns" /> x <input type="number" bind:value={ex.rows} min="1" class="short" aria-label="rows" /> cards of <input type="number" bind:value={ex.w} min="1" aria-label="card width" /> x <input type="number" bind:value={ex.h} min="1" aria-label="card height" /></label>
+  <button onclick={() => setWall(ops.pure.layoutExample(ex.cols, ex.rows, ex.w, ex.h))}>layout example</button>
 </div>
 
-<canvas bind:this={canvasEl} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up}></canvas>
-<p class={verdict === "ok" ? "ok" : "error"}>{verdict}</p>
+<div class="split">
+  <div class="drawing">
+    <WallCanvas bind:sel />
+    <p class={verdict === "ok" ? "ok" : "error"}>{verdict}</p>
+  </div>
+  <div class="tables">
+    <WallTables bind:sel />
+  </div>
+</div>
 
 <section>
-  <h2>Receivers</h2>
-  <div class="scroll">
-    <table>
-      <thead><tr><th>index</th><th>x</th><th>y</th><th>width</th><th>height</th><th></th></tr></thead>
-      <tbody>
-        {#each wall.receivers as r, i (i)}
-          <tr class={{ selected: sel?.kind === "receiver" && sel.i === i }} onclick={() => (sel = { kind: "receiver", i })}>
-            <td><input type="number" bind:value={r.index} min="0" /></td>
-            <td><input type="number" bind:value={r.x} min="0" step={grid} /></td>
-            <td><input type="number" bind:value={r.y} min="0" step={grid} /></td>
-            <td><input type="number" bind:value={r.width} min="1" /></td>
-            <td><input type="number" bind:value={r.height} min="1" /></td>
-            <td>
-              {#if ops.card}
-                <a href="#/cards?provision={r.index}">provision this card</a>
-              {/if}
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
+  <h2>Import</h2>
+  <Drop label="A wall.json" accept=".json,application/json" onfiles={importFile} />
+  {#if imp.error}<p class="error">{imp.error}</p>{/if}
+  {#if imp.result}<p class="ok">imported {imp.result}</p>{/if}
 </section>
 
-<section>
-  <h2>Panels</h2>
-  <div class="scroll">
-    <table>
-      <thead><tr><th>#</th><th>receiver</th><th>receiver_x</th><th>receiver_y</th><th>x</th><th>y</th><th>width</th><th>height</th><th>rotation</th><th>flip_x</th><th>flip_y</th></tr></thead>
-      <tbody>
-        {#each wall.panels as p, i (i)}
-          <tr class={{ selected: sel?.kind === "panel" && sel.i === i }} onclick={() => (sel = { kind: "panel", i })}>
-            <td>{i}</td>
-            <td>
-              <select bind:value={p.receiver}>
-                {#each wall.receivers as r (r.index)}<option value={r.index}>{r.index}</option>{/each}
-              </select>
-            </td>
-            <td><input type="number" bind:value={p.receiver_x} min="0" step={grid} /></td>
-            <td><input type="number" bind:value={p.receiver_y} min="0" step={grid} /></td>
-            <td><input type="number" bind:value={p.x} min="0" step={grid} /></td>
-            <td><input type="number" bind:value={p.y} min="0" step={grid} /></td>
-            <td><input type="number" bind:value={p.width} min="1" /></td>
-            <td><input type="number" bind:value={p.height} min="1" /></td>
-            <td>
-              <select bind:value={p.rotation}>
-                {#each ROTATIONS as r (r)}<option value={r}>{r}</option>{/each}
-              </select>
-            </td>
-            <td><input type="checkbox" bind:checked={p.flip_x} /></td>
-            <td><input type="checkbox" bind:checked={p.flip_y} /></td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<section>
-  <h2>File</h2>
-  <div class="form">
-    <Field label="import JSON" error={importError}><input type="file" accept=".json,application/json" onchange={(e) => importFile(e.currentTarget.files)} /></Field>
-    <Field label="export">
-      <button onclick={() => save("wall.json", JSON.stringify(normalize(wall), null, 2) + "\n")}>download wall.json</button>
-      {#if ops.card}
-        <button class="primary" onclick={saveDaemon} disabled={busy || verdict !== "ok"}>save as the daemon's wall</button>
-        {#if saved}<span class="ok">{saved}</span>{/if}
-      {/if}
-    </Field>
-    {#if saveError}<div class="wide error">{saveError}</div>{/if}
-  </div>
-</section>
+{#if ops.card}
+  <section>
+    <h2>Daemon</h2>
+    <div class="row">
+      <button onclick={saveDaemon} disabled={saved.busy || verdict !== "ok"}>save as the daemon's wall</button>
+      <label>pattern <select bind:value={pattern}>{#each ["rgb", "border", "rows", "gradient", "white"] as n (n)}<option value={n}>{n}</option>{/each}</select></label>
+      <button onclick={showOnWall} disabled={shown.busy || verdict !== "ok"}>show on the wall</button>
+    </div>
+    {#if verdict !== "ok"}<p class="caption">disabled: the layout does not validate</p>{/if}
+    {#if saved.error}<p class="error">{saved.error}</p>{/if}
+    {#if saved.result}<p class="ok">saved as the daemon's wall</p>{/if}
+    {#if shown.error}<p class="error">{shown.error}</p>{/if}
+    {#if shown.result && "lines" in shown.result}<Lines lines={shown.result.lines} files={shown.result.files} />{/if}
+  </section>
+{/if}
 
 <style>
-  canvas {
-    display: block;
-    touch-action: none;
-    max-width: 100%;
+  .tools {
     margin-bottom: var(--s2);
   }
-  .sep {
-    width: var(--s4);
+  .tools label {
+    display: flex;
+    gap: var(--s1);
+    align-items: center;
   }
-  tr.selected td {
-    background: var(--muted);
+  .short {
+    width: 56px;
+  }
+  .split {
+    display: flex;
+    gap: var(--s5);
+    align-items: flex-start;
+    margin: var(--s3) 0 var(--s5);
+  }
+  .drawing {
+    flex: 0 0 auto;
+    max-width: 100%;
+    overflow: auto;
+  }
+  .tables {
+    flex: 1;
+    min-width: 320px;
+    max-width: 960px;
+  }
+  @media (max-width: 1100px) {
+    .split {
+      flex-direction: column;
+    }
+  }
+  section label {
+    display: flex;
+    gap: var(--s1);
+    align-items: center;
   }
 </style>

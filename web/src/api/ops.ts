@@ -9,9 +9,18 @@ import { call, hasToken, request, sse, useToken } from "./daemon";
 import { current, ready } from "../lib/wasm";
 import { example, validateJs } from "../lib/layout";
 
+export type { Entry, Format, GenFile, Generated, Imported, Meta } from "./types";
+
 /** Operations that need no daemon: `rcvbp` and `wall` in the browser. */
 export type PureOps = {
-  generate(specToml: string): Promise<T.Generated>;
+  /** The panel specs the module embeds, with their metadata, for the Gallery. */
+  gallery(): Promise<T.Entry[]>;
+  /** The output and input formats the module knows. */
+  formats(): Promise<T.Format[]>;
+  /** The files for one spec in one output format; `rcvbp` by default. */
+  generate(specToml: string, format?: string): Promise<T.Generated>;
+  /** A vendor file as a spec; the format is detected from the bytes when not given. */
+  importSpec(bytes: Uint8Array, format?: string): Promise<T.Imported>;
   inspect(rcvbp: Uint8Array): Promise<T.Inspection>;
   diff(a: Uint8Array, b: Uint8Array): Promise<T.Diff>;
   libraries(): Promise<T.Libraries>;
@@ -61,12 +70,15 @@ export type Ops = {
   readonly card: CardOps | null;
   /** Ask the daemon whether it is there; sets `app.daemon`. */
   probe(): Promise<void>;
-  /** Use a token typed into the banner, then probe again. */
+  /** Use a token typed under the title row, then probe again. */
   connect(token: string): Promise<void>;
 };
 
 const pure: PureOps = {
-  generate: async (toml) => (await ready).generate(toml),
+  gallery: async () => (await ready).gallery(),
+  formats: async () => (await ready).formats(),
+  generate: async (toml, format = "rcvbp") => (await ready).generate(toml, format),
+  importSpec: async (bytes, format) => (await ready).import(bytes, format),
   inspect: async (bytes) => (await ready).inspect(bytes),
   diff: async (a, b) => (await ready).diff(a, b),
   libraries: async () => (await ready).libraries(),
@@ -146,7 +158,7 @@ const card: CardOps = {
   follow,
 };
 
-// Probe the daemon once at load; the banner's "retry" and "connect" call this again.
+// Probe the daemon once at load; the install line's "retry" and the token field's "connect" call this again.
 // "locked": the daemon answered but the app has no token, or a wrong one.
 async function probe() {
   app.daemon = "probing";
@@ -161,7 +173,7 @@ async function probe() {
     } else {
       app.health = { version: h.version, iface: h.iface, cards: h.cards };
       app.daemon = "present";
-      app.banner = false;
+      app.install = false;
       try {
         const [settings, wall] = await Promise.all([card.settings(), card.wall()]);
         app.settings = settings;
@@ -174,17 +186,14 @@ async function probe() {
     app.daemon = "absent";
     app.health = null;
   }
-  if (app.daemon !== "present") {
+  if (app.daemon === "absent") {
     let dismissed = false;
     try {
-      dismissed = sessionStorage.getItem("e120.banner") === "off";
+      dismissed = localStorage.getItem("e120.install") === "off";
     } catch {
       /* no storage */
     }
-    app.banner = !dismissed;
-  }
-  if (!location.hash || location.hash === "#/" || location.hash === "#") {
-    location.hash = app.daemon === "present" ? "#/cards" : "#/builder";
+    app.install = !dismissed;
   }
 }
 

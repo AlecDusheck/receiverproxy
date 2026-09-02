@@ -12,6 +12,8 @@ export type PanelSpec = {
   mapping: { reversed_groups: boolean; reversed_lines: boolean; block: number | null; gate_phantom_positions: boolean };
   boot: { arm_at_boot: boolean };
   overrides: { offset: string; value: number }[];
+  /** Tables the form does not edit ([meta] and any other), kept as parsed and re-emitted. */
+  extra: Record<string, Record<string, Value>>;
 };
 
 export const defaultSpec = (): PanelSpec => ({
@@ -25,10 +27,12 @@ export const defaultSpec = (): PanelSpec => ({
   mapping: { reversed_groups: true, reversed_lines: false, block: null, gate_phantom_positions: true },
   boot: { arm_at_boot: false },
   overrides: [],
+  extra: {},
 });
 
-type Value = number | boolean | string | Value[];
-type Tables = Record<string, Record<string, Value>>;
+export type Value = number | boolean | string | Value[];
+export type Tables = Record<string, Record<string, Value>>;
+const KNOWN = new Set(["", "module", "screen", "chip", "color", "current", "timing", "mapping", "boot", "record01_overrides"]);
 
 function scalar(s: string): Value {
   s = s.trim();
@@ -126,11 +130,13 @@ export function fromToml(toml: string): PanelSpec {
     },
     boot: { arm_at_boot: bool(boot.arm_at_boot, false) },
     overrides: Object.entries(g("record01_overrides")).map(([offset, value]) => ({ offset, value: typeof value === "number" ? value : 0 })),
+    extra: Object.fromEntries(Object.entries(t).filter(([k, v]) => !KNOWN.has(k) && Object.keys(v).length)),
   };
 }
 
 const hex2 = (n: number) => "0x" + (n & 0xff).toString(16).padStart(2, "0");
 const f = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
+const emit = (v: Value): string => (Array.isArray(v) ? `[${v.map(emit).join(", ")}]` : typeof v === "string" ? JSON.stringify(v) : String(v));
 
 export function toToml(s: PanelSpec): string {
   const o: string[] = [`name = ${JSON.stringify(s.name)}`, "", "[module]"];
@@ -158,6 +164,10 @@ export function toToml(s: PanelSpec): string {
   if (s.overrides.length) {
     o.push("", "[record01_overrides]");
     for (const ov of s.overrides) o.push(`"${ov.offset}" = ${hex2(ov.value)}`);
+  }
+  for (const [name, table] of Object.entries(s.extra)) {
+    o.push("", `[${name}]`);
+    for (const [k, v] of Object.entries(table)) o.push(`${/^[A-Za-z0-9_-]+$/.test(k) ? k : JSON.stringify(k)} = ${emit(v)}`);
   }
   return o.join("\n") + "\n";
 }

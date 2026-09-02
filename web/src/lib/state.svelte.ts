@@ -31,9 +31,19 @@ export const app = $state({
   status: { kind: "idle", text: "" } as Status,
   wasm: "loading" as "loading" | "ready" | "failed",
   wasmError: "",
-  banner: false,
+  // The first-visit install line under the title row; dismissed once, kept in localStorage.
+  install: false,
 });
 
 export function setStatus(kind: Status["kind"], text = "") {
   app.status = { kind, text };
+}
+
+// Hand a spec to the Builder or the Cards provision form: both read this key at load.
+export function handSpec(toml: string) {
+  try {
+    localStorage.setItem("e120.builder.toml", toml);
+  } catch {
+    /* no storage */
+  }
 }

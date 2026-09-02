@@ -9,7 +9,7 @@ import { loadToken, setToken } from "../lib/token";
 const MOCK = import.meta.env.VITE_E120_MOCK === "1";
 export const base: string = MOCK ? "mock" : ((import.meta.env.VITE_E120_API as string | undefined) ?? "/api/v1");
 
-// The daemon's token: from the fragment or the tab's storage at load, or typed into the banner.
+// The daemon's token: from the fragment or the tab's storage at load, or typed into the field under the title row.
 let token: string | null = loadToken();
 
 export const hasToken = () => token !== null;

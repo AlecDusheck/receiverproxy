@@ -1,20 +1,19 @@
 <script lang="ts">
   import Sidebar from "./parts/Sidebar.svelte";
   import StatusBar from "./parts/StatusBar.svelte";
-  import Banner from "./parts/Banner.svelte";
-  import Cards from "./screens/Cards.svelte";
-  import Wall from "./screens/Wall.svelte";
+  import Gallery from "./screens/Gallery.svelte";
   import Builder from "./screens/Builder.svelte";
-  import Library from "./screens/Library.svelte";
+  import Wall from "./screens/Wall.svelte";
+  import Cards from "./screens/Cards.svelte";
   import { app } from "./lib/state.svelte";
 
-  // Hash router: #/screen?query
+  // Hash routes: #/gallery, #/gallery/<name>, #/builder, #/wall, #/cards, each with an optional ?query.
   let hash = $state(location.hash);
   const route = $derived.by(() => {
-    const m = /^#\/([a-z]*)\??(.*)$/.exec(hash);
-    return { screen: m?.[1] || "builder", query: new URLSearchParams(m?.[2] ?? "") };
+    const m = /^#\/([a-z]*)(?:\/([^?]*))?\??(.*)$/.exec(hash);
+    return { screen: m?.[1] || "gallery", arg: decodeURIComponent(m?.[2] ?? ""), query: new URLSearchParams(m?.[3] ?? "") };
   });
-  const screen = $derived(route.screen === "cards" && app.daemon !== "present" ? "builder" : route.screen);
+  const screen = $derived(["gallery", "builder", "wall", "cards"].includes(route.screen) ? route.screen : "gallery");
 
   $effect(() => {
     document.body.classList.toggle("busy", app.status.kind === "busy");
@@ -24,21 +23,20 @@
 <svelte:window onhashchange={() => (hash = location.hash)} />
 
 <div class="shell">
-  {#if app.banner}
-    <Banner />
-  {/if}
   <div class="body">
     <Sidebar current={screen} />
     <main>
-      {#if screen === "cards"}
-        <Cards query={route.query} />
-      {:else if screen === "wall"}
-        <Wall />
-      {:else if screen === "library"}
-        <Library />
-      {:else}
-        <Builder query={route.query} />
-      {/if}
+      <div class={["content", { wide: screen === "wall" }]}>
+        {#if screen === "cards"}
+          <Cards query={route.query} />
+        {:else if screen === "wall"}
+          <Wall />
+        {:else if screen === "builder"}
+          <Builder query={route.query} />
+        {:else}
+          <Gallery selected={route.arg} />
+        {/if}
+      </div>
     </main>
   </div>
   <StatusBar />
@@ -58,7 +56,13 @@
   main {
     flex: 1;
     overflow: auto;
-    padding: var(--s5);
+    padding: var(--s4) var(--s5) var(--s5);
     min-width: 0;
+  }
+  .content {
+    max-width: 960px;
+  }
+  .content.wide {
+    max-width: none;
   }
 </style>

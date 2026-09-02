@@ -1,25 +1,13 @@
+/* Reset, type, controls, tables, forms, key-value blocks (docs/ui-design.md).
+   Colours come from tokens.css; sizes from the scale below. */
 :root {
   --s1: 4px;
   --s2: 8px;
   --s3: 12px;
   --s4: 16px;
   --s5: 24px;
-  --s6: 32px;
-  --line: #d0d0d0;
-  --muted: #f3f3f3;
-  --error: #b3261e;
-  --ok: #1b7f3b;
-  --busy: AccentColor;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color-scheme: light dark;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --line: #3a3a3a;
-    --muted: #1e1e1e;
-    --error: #f2857a;
-    --ok: #6cc57c;
-  }
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 * {
@@ -31,9 +19,9 @@ body {
   height: 100%;
 }
 body {
-  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: Canvas;
-  color: CanvasText;
+  font: 400 13px/1.45 var(--font);
+  background: var(--bg);
+  color: var(--text);
 }
 body.busy {
   cursor: progress;
@@ -41,18 +29,19 @@ body.busy {
 h1 {
   font-size: 15px;
   font-weight: 600;
-  margin: 0 0 var(--s4);
+  margin: 0;
 }
 h2 {
   font-size: 13px;
   font-weight: 600;
-  margin: 0 0 var(--s3);
+  margin: 0 0 var(--s2);
 }
 p {
   margin: 0 0 var(--s3);
+  max-width: 72ch;
 }
 a {
-  color: AccentColor;
+  color: var(--accent);
 }
 code,
 pre,
@@ -65,23 +54,43 @@ pre {
   margin: 0;
   padding: var(--s2);
   border: 1px solid var(--line);
-  background: var(--muted);
+  background: var(--bg-2);
   overflow: auto;
   white-space: pre;
   max-height: 24em;
 }
+section {
+  margin-bottom: var(--s5);
+}
+.caption {
+  font-size: 11px;
+  color: var(--text-2);
+}
+.muted {
+  color: var(--text-2);
+}
+.error {
+  color: var(--err);
+  white-space: pre-wrap;
+}
+.ok {
+  color: var(--ok);
+}
+.warn {
+  color: var(--warn);
+}
 
-/* controls */
+/* controls: 32 px tall, bg-2 fill, 1 px line */
 input,
 select,
 button,
 textarea {
   font: inherit;
-  color: FieldText;
-  background: Field;
+  color: var(--text);
+  background: var(--bg-2);
   border: 1px solid var(--line);
   border-radius: 3px;
-  height: 28px;
+  height: 32px;
   padding: 0 var(--s2);
   margin: 0;
 }
@@ -91,20 +100,21 @@ input[type="radio"] {
   width: auto;
   margin: 0 var(--s1) 0 0;
   vertical-align: middle;
+  accent-color: var(--accent);
 }
 input[type="range"] {
   padding: 0;
   border: 0;
   background: none;
+  accent-color: var(--accent);
 }
 input[type="file"] {
   padding: var(--s1) 0;
   border: 0;
   background: none;
 }
-input[type="color"] {
-  width: 44px;
-  padding: 2px;
+input[type="number"] {
+  width: 88px;
 }
 textarea {
   height: auto;
@@ -113,49 +123,50 @@ textarea {
   resize: vertical;
 }
 button {
-  color: ButtonText;
-  background: ButtonFace;
   cursor: pointer;
   white-space: nowrap;
 }
 button:hover:not(:disabled) {
-  border-color: GrayText;
+  border-color: var(--text-2);
 }
 button.primary {
-  background: AccentColor;
-  color: AccentColorText;
-  border-color: AccentColor;
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
 button:disabled,
 input:disabled,
-select:disabled {
+select:disabled,
+textarea:disabled {
   opacity: 0.5;
   cursor: default;
 }
 input:focus-visible,
 select:focus-visible,
 button:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid AccentColor;
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
-input.invalid {
-  border-color: var(--error);
+input.invalid,
+textarea.invalid {
+  border-color: var(--err);
 }
 
-/* forms */
+/* forms: label above control, 4 px gap, caption under (parts/Field.svelte) */
 .form {
   display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: var(--s2);
-  align-items: center;
-  max-width: 640px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--s3) var(--s2);
+  align-items: start;
 }
-.form .label {
-  color: GrayText;
-}
-.form .wide {
+.form .wide,
+.form h2 {
   grid-column: 1 / -1;
+}
+.form h2 {
+  margin: var(--s2) 0 0;
 }
 .row {
   display: flex;
@@ -163,38 +174,49 @@ input.invalid {
   align-items: center;
   flex-wrap: wrap;
 }
-.row input[type="number"] {
-  width: 80px;
+.actions {
+  display: flex;
+  gap: var(--s2);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: var(--s3);
 }
-section {
-  margin-bottom: var(--s5);
-}
-.error {
-  color: var(--error);
-  white-space: pre-wrap;
-}
-.ok {
-  color: var(--ok);
-}
-.muted {
-  color: GrayText;
+.confirm {
+  margin: var(--s3) 0 var(--s1);
 }
 
-/* tables */
+/* tables: header in bg-2, 1 px rules, 28 px rows, no stripes */
 table {
   border-collapse: collapse;
   width: 100%;
+  font-size: 12px;
 }
 th,
 td {
   text-align: left;
-  padding: var(--s1) var(--s2);
+  height: 28px;
+  padding: 0 var(--s2);
   border-bottom: 1px solid var(--line);
-  vertical-align: top;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 th {
-  background: var(--muted);
+  background: var(--bg-2);
   font-weight: 600;
+}
+th.sort {
+  cursor: pointer;
+  user-select: none;
+}
+td.num,
+th.num {
+  text-align: right;
+}
+tr.selectable {
+  cursor: pointer;
+}
+tr.selected td {
+  background: var(--bg-2);
 }
 td input,
 td select {
@@ -210,5 +232,19 @@ td input[type="number"] {
   max-height: 16em;
 }
 .lines .err {
-  color: GrayText;
+  color: var(--text-2);
+}
+
+/* drop target (parts/Drop.svelte) */
+.drop {
+  border: 1px dashed var(--line);
+  padding: var(--s3) var(--s4);
+  display: flex;
+  gap: var(--s3);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--s4);
+}
+.drop.over {
+  border-color: var(--accent);
 }

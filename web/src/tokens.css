@@ -1,0 +1,29 @@
+/* Colour tokens: the only file that writes a colour (docs/ui-design.md, "Colour").
+   Components use var(--token) and nothing else. */
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --bg-2: #f4f4f5;
+  --line: #d9d9de;
+  --text: #1c1c1e;
+  --text-2: #6b6b73;
+  --accent: #2f6fdd;
+  --accent-text: #ffffff;
+  --ok: #1f8a4c;
+  --warn: #b7791f;
+  --err: #c0392b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1b1d;
+    --bg-2: #242427;
+    --line: #36363b;
+    --text: #e8e8ea;
+    --text-2: #9a9aa2;
+    --accent: #5b8def;
+    --accent-text: #ffffff;
+    --ok: #3fbf73;
+    --warn: #e0a33a;
+    --err: #e5605a;
+  }
+}

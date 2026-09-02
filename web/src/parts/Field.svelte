@@ -1,11 +1,29 @@
 <script lang="ts">
-  // One form row: label in the left column, the control(s) in the right.
+  // One form field: label above the control, the unit or range in the
+  // caption, an invalid value's message under the control in err.
   import type { Snippet } from "svelte";
-  let { label, error = "", children }: { label: string; error?: string; children: Snippet } = $props();
+  let { label, caption = "", error = "", wide = false, children }: { label: string; caption?: string; error?: string; wide?: boolean; children: Snippet } = $props();
 </script>
 
-<span class="label">{label}</span>
-<div>
-  <div class="row">{@render children()}</div>
-  {#if error}<div class="error">{error}</div>{/if}
+<div class={["field", { wide }]}>
+  <span class="name">{label}</span>
+  <span class="row">{@render children()}</span>
+  {#if caption}<span class="caption">{caption}</span>{/if}
+  {#if error}<span class="error">{error}</span>{/if}
 </div>
+
+<style>
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+    min-width: 0;
+  }
+  .name {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .error {
+    font-size: 12px;
+  }
+</style>

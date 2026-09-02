@@ -1,5 +1,16 @@
 # The driver-chip id
 
+> **Read [chip-protocol-microcode.md](chip-protocol-microcode.md) alongside
+> this.** It shows that the chip-specific serial protocol reaches the card as
+> *parameter data* — the 20-byte `SChipControl` block at record 0x01 `+0x0C4`,
+> which carries the LE/LAT command tail lengths and the GCLK/RCLK-per-row
+> counts, and which the host tool selects **by chip id**. That is a complete
+> mechanism-level explanation for the negative below: the search found no id
+> comparator because the id-dependent behaviour is carried in as data. It does
+> **not** dispose of §8's bench result, which reports the id alone changing the
+> outcome — if that is literally true, both mechanisms are live and which one
+> produced the `0x14C` vs `0x0214` difference is still open.
+
 **Status: NOT RESOLVED.** The gateware's handling of the 16-bit driver-chip id
 could not be located. This file records exactly what was searched, what came
 back empty, why the negative is credible but not absolute, and the one

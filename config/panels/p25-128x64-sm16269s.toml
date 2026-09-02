@@ -52,4 +52,4 @@ block = 64
 [boot]
 # Arming at boot with the current config lights the panel unmodulated at
 # full brightness and rails the 5.1 A supply. Leave off until it boots dark.
-arm_at_boot = false
+arm_at_boot = true

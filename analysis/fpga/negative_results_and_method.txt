@@ -157,3 +157,69 @@ That is arithmetically exact and MEANS NOTHING: the same bank in 10.81
 has 13 members (212992 bits), and the mixed aspect ratios mean the bank
 is not a plain 8192x24 array.  Recorded because it is exactly the kind
 of coincidence a later reader will find and over-trust.
+
+--------------------------------------------------------------------
+N10. The .bram_init 3 microcode ROM is NOT the driver-chip
+      serial protocol.  Do not decode it again for that.  [HIGH]
+--------------------------------------------------------------------
+rom_*_decoded.txt md5:
+   6.69 LS0allDA, 9.53 PWM, 13.39 Normal, 16.53 PWM -> identical
+        (e4720fe550815b35836dcbcdb905d4ee)
+   10.81 PWM -> f876517ca06de39d1d942dbafe5fcbac, differing ONLY in a
+        5-entry-longer prologue; same 55 addresses written.
+A block that is bit-identical across the Normal / LS / PWM split cannot
+encode a chip-specific serial protocol -- those families emit
+incompatible waveforms.  And 16.53, whose FILENAME announces SM16269SH
+support, did not change it by one bit.
+Also searched every 16-bit immediate and every full 21-bit word of all
+five ROMs for the discriminating protocol constants:
+   SH guard/unlock words 0x00AA 0x01AA 0xF003 0x0055 0x0155   -> 0 hits
+   SM16269S config words  0x2408 0x3CE0 0x003F                -> 0 hits
+   SH register stream     0x021F 0x0750 0x1630 0x1F0C 0x2200  -> 0 hits
+Searching for the TAIL LENGTHS themselves (3,5,7,11,14,16) in a 351-word
+block is statistically meaningless and was not treated as evidence.
+
+--------------------------------------------------------------------
+N11. The ROM byte stream looks like 8051 code.  UNSETTLED --
+      the earlier "no ASCII strings" refutation is weak.  [MEDIUM]
+--------------------------------------------------------------------
+Entries 95..242 of 16.53 are a pure opcode-0x1C run; concatenating the
+296 payload bytes gives repeating 3-byte groups with sequential 16-bit
+operands (AF 847D / AF 84A6 / AF 84BB ...; EE 87F7 F5 / EE 87F8 1E /
+EE 87F9 06 ...), ten occurrences of 02 51 BC (8051 LJMP 0x51BC), and
+BF <k> <rel> / 02 <addr16> pairs that read as CJNE R7,#k,rel ; LJMP --
+a byte dispatch on one register.  The whole 296 bytes consume cleanly
+under the 8051 instruction-length table.
+NOT PURSUED, and it should not be pursued for the chip-protocol
+question: N10 already settles that whatever it is, it is common to
+Normal, LS and PWM, i.e. control plane, not LED serial protocol.
+Against it: the jump targets (0x51BC, 0x5200) are far outside a
+351-entry ROM, so if this is code it is not code for THIS memory.
+
+--------------------------------------------------------------------
+N12. 16.53 adds NO new output-stage structure over 9.53 / 10.81.
+                                                            [HIGH]
+--------------------------------------------------------------------
+Pad-driver decode (padlogic.py extended with CCU2-chain bit tagging) on
+all four builds:
+ * 9.53, 10.81, 16.53 share ONE architecture -- every classifiable
+   top-edge control pad is  pad = G1 ? NOT(G2 ? legA : legB) : 0,
+   from the same small LUT-INIT vocabulary (0011000000100010,
+   0010001000110000, 0000110100001000, 0000110000001010,
+   0000101000001100, 0001000001010101, 0100010101000000,
+   0000000011100100 ...).  Only placement moved:
+      16.53 masters Q4/Q5@23,18 ; 10.81 Q6/Q7@39,36 ; 9.53 Q6/Q7@17,6.
+ * 13.39 (Normal) does NOT -- one-hot-ish INITs (0000000000000001,
+   0000000000000010, 0000000000000100, 0001000100000001 ...) fed from
+   combinational F# cells, no blank/select master pair.
+So the PWM/Normal split IS visible in the netlist, but the
+"SM16386S_SM16269SH" build added no visible protocol logic.  Consistent
+with the protocol being parameter DATA (SChipControl), not gateware.
+
+--------------------------------------------------------------------
+M2.  METHOD TRAP: node names contain commas.                [HIGH]
+--------------------------------------------------------------------
+A flop list passed to a script as "Q4@23,18;Q0@25,11" must be split on
+';'.  Splitting on ',' silently yields ['Q4@23','18',...], none of which
+matches ^([FQ])(\d)@(\d+),(\d+)$, and the script prints NOTHING and
+exits 0.  Cost: one wasted 4-minute pytrellis run.

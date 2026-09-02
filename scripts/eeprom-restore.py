@@ -34,8 +34,12 @@ from flash_review_map import EEPROM as RECORDS  # noqa: E402  (see below)
 
 def frame_payload(addr, data):
     """Type 0x1900 EEPROM write: index, opcode 0x85, address, length, data."""
+    # Receiver index FFFF = broadcast, as the vendor library always sends it.
+    # A write addressed to index 0 is ignored whenever the card's own index is
+    # not 0 — which is the case while its cabinet record is corrupt, i.e.
+    # exactly when this tool is needed.
     return (bytes([0x00])                       # frame offset 14
-            + b'\x00\x00'                       # receiver index, BE
+            + b'\xff\xff'                       # receiver index, BE (broadcast)
             + bytes([0x85])                     # write
             + addr.to_bytes(4, 'big')
             + len(data).to_bytes(4, 'big')
@@ -72,6 +76,11 @@ def main():
         print(f'0x{addr:03x} +{length:3d}  {data[:8].hex(" "):24} {note}')
         if a.commit:
             subprocess.run(cmd, capture_output=True)
+            # An EEPROM write takes the card milliseconds; records fired
+            # back-to-back are dropped. The one restore that took on the
+            # bench had seconds between writes.
+            import time
+            time.sleep(0.5)
         else:
             print('   ' + ' '.join(cmd[1:]))
 
@@ -80,11 +89,11 @@ def main():
         # (CReceiverOP::SaveEepromFlash). Without it some records read back
         # unchanged: the write lands in the working copy and is then lost.
         subprocess.run([a.exe, 'raw-send', '--type', '1900', '--pad', '128',
-                        '--payload', '00000087' + '00000000' * 2, '--wait', '0'],
+                        '--payload', '00ffff87' + '00000000' * 2, '--wait', '0'],
                        capture_output=True)
         # ReLoadLocalParam: opcode 0x77, data 01 01 00 00 00.
         subprocess.run([a.exe, 'raw-send', '--type', '0600', '--pad', '126',
-                        '--payload', '00000077000000000101000000', '--wait', '0'],
+                        '--payload', '00ffff77000000000101000000', '--wait', '0'],
                        capture_output=True)
         print('\nwrote and asked the card to reload; power-cycle and verify with:')
         print('  e120 dump-flash --block 7 --out now.bin && '

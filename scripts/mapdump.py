@@ -14,7 +14,20 @@ def records(path):
     """Walk the record list: 32-byte file header, then a zlib stream of
     [u16 size_le][u16 type_be][payload], where size counts its own header."""
     blob = open(path, 'rb').read()
-    data = zlib.decompress(blob[32:])
+    # The header is 32 bytes in every file we made, but some vendor corpus
+    # files carry a different header length, so find the zlib stream itself.
+    data = None
+    for start in range(0, min(len(blob), 256)):
+        if blob[start] == 0x78 and blob[start + 1] in (0x01, 0x5E, 0x9C, 0xDA):
+            try:
+                data = zlib.decompress(blob[start:])
+                break
+            except zlib.error:
+                continue
+    if data is None:
+        # The older container stores the record stream inline after the
+        # 16-byte signature and u32 version, ending in a 4-byte CRC trailer.
+        data = blob[0x14:-4]
     pos = 0
     while pos + 4 <= len(data):
         size = int.from_bytes(data[pos:pos + 2], 'little')

@@ -84,6 +84,18 @@ The arithmetic is HIGH (it is in `chips.rs`); the "64 interleaved sub-periods"
 
 ### What could NOT be determined — NOT RESOLVED
 
+> **Largely superseded — see
+> [chip-protocol-microcode.md](chip-protocol-microcode.md).** There *is* now an
+> SM16269 datasheet in `third-party/datasheets/`, and the 20-byte
+> `SChipControl` block below is decoded: it is the driver-chip **serial-protocol
+> descriptor** (pre-activation tail 14, register tail, second-command tail,
+> data-latch tail 1, VSYNC tail 3, and two GCLK/RCLK-per-row counts).
+> Specifically: the LAT/LE **tail length** is what selects register-write mode
+> (14 pre-activation, then 5 per addressed write for our `0x14C` profile); a
+> register write is **16 bits, MSB first**, on the RGB lanes; the chip has
+> **no GCLK and no OE pin at all** — pin 21 is `RCLK`, which is both the grey
+> clock and the row advance, so the HUB75 OE wire must carry a pulse train.
+
 **There is no SM16269S / SM16169SH datasheet in this repo.**
 `third-party/datasheets/` holds only the E120 spec and the Eager module spec,
 neither of which documents the IC. So the following are **not** stated here,

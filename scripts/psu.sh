@@ -1,20 +1,14 @@
 #!/usr/bin/env bash
-# Power the panel with a dead-man's switch.
-#
-# The panel can pull over 4 A and has railed the supply's 5.1 A limit more than
-# once, so it must never be left energised unattended — a forgotten `power on`
-# is the failure mode this guards. Turning it on always arms an automatic
-# shut-off (default and maximum 10 minutes); turn it on again to extend.
-#
-# Only reads the supply and toggles its output. Never changes voltage or
-# current limits.
+# Power the panel from the ka3005p supply behind a dead-man timer.
 #
 # Usage:
-#   scripts/psu.sh on [minutes]   power on, auto-off after N minutes (max 10)
-#   scripts/psu.sh off            power off now, cancel the timer
-#   scripts/psu.sh status         supply reading, and time left on the timer
+#   scripts/psu.sh on [minutes]   power on, auto-off after N minutes (default and max 10)
 #   scripts/psu.sh extend [min]   restart the timer without power cycling
-
+#   scripts/psu.sh off            power off now, cancel the timer
+#   scripts/psu.sh status         supply reading and time left on the timer
+#
+# The panel has railed the supply's 5.1 A limit more than once, so every power-on
+# arms the shut-off. Only toggles the output; never writes voltage or current limits.
 set -uo pipefail
 MAX_MINUTES=10
 state=/tmp/e120-psu

@@ -1,14 +1,15 @@
-"""The card's EEPROM record map, (address, length, description), from docs/eeprom-map.md.
+"""The card's EEPROM record map as (address, length, description), from docs/eeprom-map.md.
 
-Shared by flash-review.py and eeprom-restore.py. Lengths are load-bearing: the card
-ignores a write that spans record boundaries. Must agree with
-e120_proto::eeprom::RECORDS for addresses <= 0x0fd; 0x118 and 0x127 (opcodes
-0x45/0x88) are listed for labelling only.
+Usage:
+  imported by flash-review.py and eeprom-restore.py; not run directly.
 """
 
+# Lengths matter: the card ignores a write that spans record boundaries. Addresses
+# <= 0x0fd must agree with e120_proto::eeprom::RECORDS; 0x118 and 0x127 use opcodes
+# 0x45/0x88 and are listed for labelling only.
 EEPROM = [
     (0x000, 2, 'debug bytes'),
-    (0x002, 42, 'CONTROL AREA (startX, startY, endX, endY) — an erased one drops every pixel'),
+    (0x002, 42, 'CONTROL AREA (startX, startY, endX, endY); an erased one drops every pixel'),
     (0x02c, 18, 'colour-gamut coefficients'),
     (0x03e, 1, 'gamut-adjust enable'),
     (0x040, 1, 'calibration status'),
@@ -17,7 +18,7 @@ EEPROM = [
     (0x043, 3, 'white-balance adjust'),
     (0x04b, 1, 'calibration-coefficient source'),
     (0x04c, 1, 'seam enable'),
-    (0x04d, 9, "NOT RESOLVED — factory content holds the seller's wall dims 384x256"),
+    (0x04d, 9, 'NOT RESOLVED; factory content holds wall dims 384x256'),
     (0x056, 3, 'void-line info'),
     (0x059, 1, 'receiver-card light'),
     (0x05a, 20, 'receiver card name (ASCII)'),
@@ -32,7 +33,7 @@ EEPROM = [
     (0x07d, 1, 'plus low-bright cali enable'),
     (0x07e, 1, 'double-cali enable'),
     (0x07f, 2, 'double-cali threshold'),
-    (0x092, 32, 'control-area blob, high half — companion to 0x02'),
+    (0x092, 32, 'control-area blob, high half; companion to 0x02'),
     (0x0b2, 1, 'parameter switch'),
     (0x0b3, 1, 'plus-chip low-bright cali enable'),
     (0x0b4, 3, 'plus-chip low-bright uniformity'),

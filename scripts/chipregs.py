@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
-"""Decode the driver-chip register record (0x0a84) of a .rcvbp.
+"""Decode the driver-chip register record (0x0a84) of a .rcvbp; compare two.
 
-The record is a flat stream of 4-byte groups — register address, then one
-value per colour — terminated by the 0xF0 register. These registers decide
-whether the drivers run S-PWM greyscale from shifted-in data or sit at a
-constant output, so a disagreement here shows up as a panel that lights
-uniformly no matter what pixels are sent.
-
-Usage: chipregs.py <a.rcvbp> [b.rcvbp]   (two files: print a comparison)
+Usage:
+  chipregs.py a.rcvbp             print the register table
+  chipregs.py a.rcvbp b.rcvbp     print both side by side and mark differences
 """
 import sys
+
 from mapdump import records
 
 
 def regs(path):
+    # 4-byte groups: register address, then one value per colour; ends at an all-zero group.
     for rtype, body in records(path):
         if rtype != 0x0a84:
             continue

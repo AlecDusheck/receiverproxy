@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Summarise a .rcvbp pixel map as structure rather than bytes.
+"""Collapse a .rcvbp pixel map (record 0x0a03) into monotonic (line, slot) runs.
 
-Each 3-byte entry is (scan_line, slot, 0). What matters is not the individual
-values but the shape: where the slot counter wraps, when the scan line
-advances, and in which direction each runs. Two configs can differ in every
-byte and still describe the same geometry, or agree closely and describe
-incompatible ones, so the runs are the thing to compare.
+Usage:
+  mapstruct.py FILE.rcvbp...      one run listing per file; compare the runs, not the bytes
 """
 import sys
+
 from mapdump import records
 
 
@@ -20,7 +18,6 @@ def table(path):
 
 
 def runs(entries):
-    """Collapse the index->(line, slot) map into monotonic runs."""
     out, start = [], 0
     for i in range(1, len(entries) + 1):
         cont = (i < len(entries)

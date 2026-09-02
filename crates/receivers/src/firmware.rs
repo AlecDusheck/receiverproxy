@@ -176,7 +176,7 @@ mod tests {
     fn a_malformed_manifest_is_refused() {
         let bad = "base_url = \"\"\n[[image]]\nname = \"x.hex\"\npath = \"firmware/x/x.hex\"\nversion = \"1.0\"\nkind = \"PWM\"\nchips = []\nsize = 1\nsha256 = \"abc\"\n";
         assert!(parse(bad).unwrap_err().contains("64 lowercase hex"));
-        let twice = TEXT.to_string() + "\n[[image]]\nname = \"E320_PCB6.0_PWM_FPGA9.53_20221031.hex\"\nversion = \"9.53\"\nkind = \"PWM\"\nchips = []\nsize = 1\nsha256 = \"cb7c264231d7123bbf3fba4a9ec964a410b20e284db5715e46f50da0eeaffa19\"\n";
+        let twice = TEXT.to_string() + "\n[[image]]\nname = \"E320_PCB6.0_PWM_FPGA9.53_20221031.hex\"\npath = \"firmware/x/y.hex\"\nversion = \"9.53\"\nkind = \"PWM\"\nchips = []\nsize = 1\nsha256 = \"cb7c264231d7123bbf3fba4a9ec964a410b20e284db5715e46f50da0eeaffa19\"\n";
         assert!(parse(&twice).unwrap_err().contains("listed twice"));
     }
 }

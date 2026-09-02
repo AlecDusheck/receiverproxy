@@ -1,0 +1,15 @@
+[package]
+name = "panelspec"
+description = "Vendor-neutral LED panel description: the TOML panel spec and the driver-chip library"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+toml.workspace = true
+
+[lints]
+workspace = true

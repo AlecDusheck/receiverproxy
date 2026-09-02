@@ -3,7 +3,7 @@
 //! Layout (verified against P2.5-32S-128X64-SM16269S-256X384I.rcvbp):
 //!
 //! ```text
-//! file:   [32-byte header][zlib stream]
+//! file:   [32-byte header][zlib stream][u32 CRC trailer]
 //! header: 0x00 16 bytes  signature/uuid
 //!         0x10 u32       version (4)
 //!         0x14 u32       compressed size
@@ -14,15 +14,7 @@
 //!         `size` counts the 4-byte header.
 //! ```
 //!
-//! Record types seen in the wild (type = the two header bytes as stored):
-//!   0x0a01  main receiver parameter block (geometry, scan, timing)
-//!   0x0a03  large pixel/row mapping table
-//!   0x0a84  driver-chip register table (e.g. SM16269S)
-//!   0x0a8a  secondary parameter block
-//!   0x0aca  cabinet geometry (width, height, scan)
-//!   0x0a83 / 0x0a89  small RGB coefficient records
-//!   0x0a8d / 0x0a91 / 0x0ad8 / 0x0a95 / 0x0ada / 0x0a8e / 0x0acd / 0x008f / 0x0907
-//!           gamma / calibration tables (all zero in an uncalibrated profile)
+//! Record types and their meaning: `docs/rcvbp-format.md`.
 
 pub mod chips;
 pub mod image;
@@ -62,7 +54,6 @@ impl Record {
 
 pub struct Rcvbp {
     pub version: u32,
-    pub blob: Vec<u8>,
     pub records: Vec<Record>,
 }
 
@@ -96,14 +87,12 @@ impl Rcvbp {
             (d[0x14..].to_vec(), false)
         };
 
-        // Both variants end with a 4-byte CRC trailer.
+        // Both variants end with a 4-byte CRC trailer; only the legacy one
+        // carries it inside the record stream (the compressed trailer sits
+        // outside the inflated blob).
         let slack = if compressed { 0 } else { 4 };
         let records = parse_records(&blob, slack)?;
-        Ok(Self {
-            version,
-            blob,
-            records,
-        })
+        Ok(Self { version, records })
     }
 
     pub fn find(&self, rtype: u16) -> Option<&Record> {
@@ -138,16 +127,6 @@ impl Rcvbp {
     /// takes only the id byte and ignores it — so match on the id alone.
     pub fn record_01(&self) -> Option<&Record> {
         self.records.iter().find(|r| r.rtype[1] == 0x01)
-    }
-
-    /// The driver-chip identifier, split across two bytes of record 0x01.
-    ///
-    /// The low byte sits at +0x036 and the high byte a long way off at +0x204;
-    /// reading only the low byte silently mistakes an SM16269S (0x014c) for
-    /// whatever dumb chip shares its low byte.
-    pub fn chip_type(&self) -> Option<u16> {
-        let p = &self.record_01()?.payload;
-        Some(u16::from(*p.get(0x204)?) << 8 | u16::from(*p.get(0x036)?))
     }
 
     /// Scan denominator, held literally (16, 32 or 64) at record 0x01 +0x020.
@@ -320,7 +299,6 @@ mod tests {
     fn sample() -> Rcvbp {
         Rcvbp {
             version: 4,
-            blob: Vec::new(),
             records: vec![
                 Record::new(0x0a01, vec![0x80, 0x20, 1, 0]),
                 Record::new(0x0a03, vec![7; 32]),
@@ -397,27 +375,24 @@ mod tests {
 mod crc_tests {
     use super::*;
 
-    /// Trailer values recovered from real vendor files and from the card.
+    /// The trailer of the file that shipped with the panel.
     #[test]
-    fn trailer_matches_known_files() {
-        for (path, expected) in [(
-            "/Users/amd/Downloads/P2.5-32S-128X64-SM16269S-256X384I.rcvbp",
-            0x128b_ebeeu32,
-        )] {
-            let Ok(d) = std::fs::read(path) else {
-                continue; // not present in this checkout
-            };
-            let body = &d[..d.len() - 4];
-            assert_eq!(trailer_crc(body), expected, "trailer mismatch for {path}");
-            assert_eq!(&d[d.len() - 4..], &expected.to_le_bytes());
-        }
+    fn trailer_matches_the_sellers_file() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp"
+        );
+        let d = std::fs::read(path).expect("seller's config");
+        let expected = 0x128b_ebeeu32;
+        let (body, tail) = d.split_at(d.len() - 4);
+        assert_eq!(trailer_crc(body), expected);
+        assert_eq!(tail, &expected.to_le_bytes());
     }
 
     #[test]
     fn a_written_file_carries_a_valid_trailer() {
         let f = Rcvbp {
             version: 4,
-            blob: Vec::new(),
             records: vec![Record::new(0x0a01, vec![0x80, 0x20, 1, 0])],
         };
         let bytes = f.to_file_bytes().unwrap();

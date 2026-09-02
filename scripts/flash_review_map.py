@@ -1,10 +1,9 @@
-"""The card's EEPROM record map, from docs/eeprom-map.md.
+"""The card's EEPROM record map, (address, length, description), from docs/eeprom-map.md.
 
-Recovered from the vendor device library, which writes every one of these
-fields. Shared by flash-review.py and eeprom-restore.py so the two cannot
-drift apart. Each entry is (address, length, description); the lengths are
-load-bearing, because the card ignores a write that spans record
-boundaries.
+Shared by flash-review.py and eeprom-restore.py. Lengths are load-bearing: the card
+ignores a write that spans record boundaries. Must agree with
+e120_proto::eeprom::RECORDS for addresses <= 0x0fd; 0x118 and 0x127 (opcodes
+0x45/0x88) are listed for labelling only.
 """
 
 EEPROM = [

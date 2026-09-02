@@ -90,7 +90,7 @@ impl ChipLibrary {
         }
         let mut out = [0u8; 256];
         for (i, &reg) in self.order.iter().enumerate() {
-            let rgb = if reg == 0x02 { [(scan - 1) & 0x3F; 3] } else { self.reg(reg)? };
+            let rgb = if reg == 0x02 { [scan.wrapping_sub(1) & 0x3F; 3] } else { self.reg(reg)? };
             out[i * 4] = reg;
             out[i * 4 + 1..i * 4 + 4].copy_from_slice(&rgb);
         }

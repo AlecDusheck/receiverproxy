@@ -223,9 +223,9 @@ inputs) — was not re-examined and is still MEDIUM.
 Ranked by cost:
 
 1. **Bench sweep — do this first.** Sweep the whole vendor id table and
-   measure the card's response (current draw + camera). `scripts/chipsweep.sh`
-   already does this, with `scripts/bench.py compare` locating the panel in
-   frame so a bumped camera fails loudly. This answers the question that
+   measure the card's response (current draw + camera): one
+   `scripts/bench.py run --boot --spec …` per candidate id, with `bench.py
+   locate` fixing the panel crop so a bumped camera fails loudly. This answers the question that
    actually matters ("which id should we send") without resolving the
    gateware at all.
 2. **Find the parameter store.** The output-stage trace narrowed where to
@@ -271,7 +271,7 @@ Ranked by cost:
    `config/chips/sm16269.toml` (family `0x14C`, sub `0x14D`), which is
    correct.
 3. **We still do not know the full set of ids the gateware recognises.**
-   Anyone quoting a list derived from this bitstream is guessing. The sweep in
-   `scripts/chipsweep.sh` is the way to find out.
+   Anyone quoting a list derived from this bitstream is guessing. A bench sweep
+   (`scripts/bench.py run --boot` per id) is the way to find out.
 4. The id is **excluded from the pack CRC-32**, so sweeping it needs no
    checksum recomputation — one more reason the sweep is the cheap path.

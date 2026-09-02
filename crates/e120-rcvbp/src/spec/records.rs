@@ -82,9 +82,5 @@ pub fn assemble(spec: &PanelSpec, rec01: Vec<u8>, mapping: Vec<u8>, chip_regs: O
         let at = records.iter().position(|r| r.type_u16() == 0x0acd).unwrap_or(records.len());
         records.insert(at, rec(0x0a84, regs));
     }
-    Rcvbp {
-        version: 4,
-        blob: Vec::new(),
-        records,
-    }
+    Rcvbp { version: 4, records }
 }

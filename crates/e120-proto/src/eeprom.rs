@@ -1,23 +1,13 @@
-//! The receiver's on-board EEPROM: the records in it and the frames that
-//! write them.
+//! The receiver's on-board EEPROM (cabinet identity) and the frames that
+//! write it.
 //!
-//! The card keeps its cabinet identity here — most importantly the control
-//! area, the rectangle of the whole screen it will keep pixels for — plus
-//! calibration and cosmetic flags. Erasing flash block 0x07 clears the
-//! mirror of it, and a 256-byte rewrite of the mirror spans every record, so
-//! writes go record by record, at each record's own address and length: the
+//! Writes go one record at a time at the record's own address and length: the
 //! card silently ignores a write that crosses a record boundary
-//! (`docs/eeprom-map.md`, `docs/receiver-identity.md`).
-//!
-//! Frames are type `0x1900`; opcode `0x85` writes, `0x87` commits the EEPROM
-//! to its flash mirror. The vendor always addresses them to the broadcast
-//! index, which is also the only address that works while a card's cabinet
-//! record is corrupt.
+//! (`docs/eeprom-map.md`). Frames are type `0x1900`, addressed to
+//! [`BROADCAST`]; opcode `0x85` writes, `0x87` commits the EEPROM to its flash
+//! mirror.
 
-use super::frame;
-
-/// Broadcast receiver index.
-pub const BROADCAST: u16 = 0xffff;
+use super::{frame, BROADCAST};
 
 /// One EEPROM record: address, length, name.
 pub struct Record {
@@ -26,8 +16,8 @@ pub struct Record {
     pub name: &'static str,
 }
 
-/// Every record the vendor device library reads or writes, from
-/// `docs/eeprom-map.md`. Lengths are load-bearing.
+/// Every record the vendor device library reads or writes
+/// (`docs/eeprom-map.md`). Lengths are load-bearing.
 pub const RECORDS: &[Record] = &[
     Record { addr: 0x000, len: 2, name: "debug bytes" },
     Record { addr: 0x002, len: 42, name: "control area" },
@@ -117,14 +107,11 @@ pub fn save() -> Vec<u8> {
     frame([0x19, 0x00], &payload(0x87, 0, &[]))
 }
 
-/// `ReLoadLocalParam`: ask the card to reload its parameters.
+/// `ReLoadLocalParam` as the vendor sends it after an EEPROM save: opcode
+/// 0x77, flags `01 01 00` (the flash-save reloads live in `discovery`).
 #[must_use]
 pub fn reload() -> Vec<u8> {
-    let mut p = vec![0u8; 126];
-    p[1..3].copy_from_slice(&BROADCAST.to_be_bytes());
-    p[3] = 0x77;
-    p[8..13].copy_from_slice(&[0x01, 0x01, 0x00, 0x00, 0x00]);
-    frame([0x06, 0x00], &p)
+    crate::discovery::command(BROADCAST, 0x77, &[0x01, 0x01, 0x00])
 }
 
 #[cfg(test)]
@@ -152,10 +139,18 @@ mod tests {
     }
 
     #[test]
+    fn reload_matches_the_vendor_bytes() {
+        let f = reload();
+        assert_eq!(f.len(), 140);
+        assert_eq!(&f[12..14], &[0x06, 0x00]);
+        assert_eq!(&f[15..18], &[0xff, 0xff, 0x77]);
+        assert_eq!(&f[22..25], &[0x01, 0x01, 0x00]);
+        assert!(f[25..].iter().all(|&b| b == 0));
+    }
+
+    #[test]
     fn records_are_in_address_order() {
-        // The vendor's own map has one overlap (0x0C1 x12 spans 0x0C8), so
-        // only ordering is asserted; each record is still written with its
-        // own length.
+        // Only ordering: the vendor's map overlaps once (0x0C1 x12 spans 0x0C8).
         for w in RECORDS.windows(2) {
             assert!(w[1].addr > w[0].addr, "{} out of order", w[1].name);
         }

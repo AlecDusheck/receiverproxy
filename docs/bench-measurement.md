@@ -20,28 +20,19 @@ means nothing.** That single mistake produced two "breakthroughs", both wrong.
 
 ## The rule
 
-Interleave, repeat, and report the spread. `scripts/compare.py` does this:
+Put the conditions in one run so drift is common to all of them, and judge any
+gap against a same-content control. `scripts/bench.py run` does this: the
+conditions become segments of one looping stream, each is metered and
+photographed mid-segment, and the first condition is repeated at the end as the
+control:
 
 ```
-python3 scripts/compare.py --reps 4 \
-  "black=./target/debug/e120 --brightness 20 image build/black.png --hold" \
-  "white=./target/debug/e120 --brightness 20 image build/white.png --hold"
+scripts/bench.py run --brightness 20 black white
 ```
 
-It runs the conditions round-robin so drift is common to all of them, takes a
-median of several samples per visit, and prints each condition's mean and
-within-condition standard deviation, then judges the largest gap against the
-pooled spread:
-
-```
-black                 1.790 A   0.049   3
-white                 1.791 A   0.017   3
-pooled within-condition stdev: 0.033 A
-largest gap: black -> white = +0.001 A (+0.0x the noise)
-VERDICT: indistinguishable from drift
-```
-
-A gap under ~3x the spread is not a finding. Add reps before believing one.
+A gap between conditions is not a finding unless it clearly exceeds what the
+control shows against itself. Repeat the run before believing one; the measured
+within-condition spread on this rig is ~0.033 A.
 
 ## Always run the idle test first
 
@@ -60,10 +51,10 @@ you run is measuring drift. That was the state on firmware 10.81.
 ## Include a positive control
 
 When testing whether the panel resolves position along an axis, include an axis
-you already know works. `scripts/axis-test.sh` pairs a left/right split with a
-top/bottom split for exactly this reason: if the control does not register, the
-measurement is too insensitive to trust the result you care about, and you have
-learned that instead of a false negative.
+you already know works — `bench.py run left right top bottom` pairs a left/right
+split with a top/bottom one. If the control does not register, the measurement
+is too insensitive to trust the result you care about, and you have learned that
+instead of a false negative.
 
 ## Prefer discriminators that cannot be faked by exposure
 
@@ -106,11 +97,15 @@ off without a reason:
 * **one continuous stream** — the conditions become segments of a looping
   video played by `e120 play`, captured mid-segment. Nothing restarts between
   conditions, so the card's per-restart state toggle cannot masquerade as a
-  result. `--restart` exists only for conditions that need different `image`
-  flags (raster layout, row base).
+  result. `--restart` and `--stream-flags` are experiment-only, for conditions
+  that need different `image` flags.
 
 Built-in patterns: `black white red green blue top bottom left right rgbrows
-gray-N row-N col-N`, or any PNG path.
+hbands vbands gray-N row-N col-N`, or any PNG path.
+
+`bench.py flicker|bands|glitch` are experiment-only flicker probes (per-frame
+brightness series, rolling-shutter band period, band events); the 30 fps camera
+cannot resolve the panel's flicker ([rendering-recipe.md](rendering-recipe.md)).
 
 ```
 scripts/bench.py run --boot --spec config/panels/p25-128x64-sm16269s.toml \

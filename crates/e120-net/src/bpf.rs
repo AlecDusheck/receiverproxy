@@ -40,6 +40,9 @@ pub struct Bpf {
 impl Bpf {
     /// Open the first free `/dev/bpf*` device and bind it to `iface`.
     ///
+    /// `promisc` must be on to see the card's replies: they are addressed to
+    /// the spoofed sender MAC, not to the host's.
+    ///
     /// # Errors
     /// Fails if every BPF device is busy, if permissions deny access, or if
     /// the interface does not exist.
@@ -174,4 +177,61 @@ unsafe fn ioctl(fd: libc::c_int, req: libc::c_ulong, arg: *mut libc::c_void) -> 
         return Err(std::io::Error::last_os_error().into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One bpf_hdr record with the given header length, padded to alignment.
+    fn record(hdrlen: u16, data: &[u8]) -> Vec<u8> {
+        let mut r = vec![0u8; hdrlen as usize];
+        r[HDR_CAPLEN..HDR_CAPLEN + 4].copy_from_slice(&(data.len() as u32).to_ne_bytes());
+        r[HDR_HDRLEN..HDR_HDRLEN + 2].copy_from_slice(&hdrlen.to_ne_bytes());
+        r.extend_from_slice(data);
+        while !r.len().is_multiple_of(BPF_ALIGNMENT) {
+            r.push(0xEE);
+        }
+        r
+    }
+
+    #[test]
+    fn one_record() {
+        let buf = record(18, &[1, 2, 3, 4, 5]);
+        assert_eq!(split_records(&buf), vec![vec![1, 2, 3, 4, 5]]);
+    }
+
+    #[test]
+    fn two_records_with_padding_between_them() {
+        let mut buf = record(18, &[0xaa; 7]);
+        assert_eq!(buf.len(), 28);
+        buf.extend(record(18, &[0xbb; 60]));
+        assert_eq!(split_records(&buf), vec![vec![0xaa; 7], vec![0xbb; 60]]);
+    }
+
+    #[test]
+    fn hdrlen_is_taken_from_the_record() {
+        let buf = record(24, &[9, 8, 7]);
+        assert_eq!(split_records(&buf), vec![vec![9, 8, 7]]);
+    }
+
+    #[test]
+    fn truncated_tail_is_dropped() {
+        let mut buf = record(18, &[1, 2, 3]);
+        buf.extend(&record(18, &[4, 5, 6, 7, 8])[..20]);
+        assert_eq!(split_records(&buf), vec![vec![1, 2, 3]]);
+        assert!(split_records(&buf[..10]).is_empty());
+    }
+
+    #[test]
+    fn zero_caplen_yields_an_empty_frame_and_keeps_walking() {
+        let mut buf = record(18, &[]);
+        buf.extend(record(18, &[42]));
+        assert_eq!(split_records(&buf), vec![Vec::new(), vec![42]]);
+    }
+
+    #[test]
+    fn empty_buffer_yields_no_frames() {
+        assert!(split_records(&[]).is_empty());
+    }
 }

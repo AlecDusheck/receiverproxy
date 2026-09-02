@@ -1,6 +1,6 @@
 //! Reading and writing the card's flash: configuration, dumps, and firmware.
 
-use crate::util::{hexdump, is_card_frame, open};
+use crate::util::{is_card_frame, open};
 use crate::{protocol, rcvbp, Cli};
 use anyhow::{Context, Result};
 use e120_net::bpf;
@@ -23,25 +23,7 @@ pub fn read_config(
 
     for chunk in 0..max_chunks {
         let page = page + chunk * protocol::FLASH_PAGES_PER_CHUNK;
-        dev.send(&protocol::read_flash(index, page))?;
-
-        let deadline = Instant::now() + Duration::from_secs(wait);
-        let mut got = false;
-        while Instant::now() < deadline && !got {
-            for f in dev.recv()? {
-                if !is_card_frame(&f) {
-                    continue;
-                }
-                if let Some(data) = protocol::flash_reply_data(&f) {
-                    flash.extend_from_slice(data);
-                    got = true;
-                    break;
-                }
-            }
-        }
-        if !got {
-            anyhow::bail!("no reply for page 0x{page:04x} after {wait}s");
-        }
+        flash.extend_from_slice(&read_chunk(&mut dev, index, page, wait)?);
 
         // The blob opens with its own total length, so we know when to stop.
         if expected.is_none() && flash.len() >= 4 {
@@ -107,49 +89,6 @@ pub fn read_chunk(dev: &mut bpf::Bpf, index: u16, page: u16, wait: u64) -> Resul
         }
     }
     anyhow::bail!("no reply for page 0x{page:04x} within {wait}s")
-}
-
-/// Ask the card what firmware image its bootloader expects. Read-only.
-pub fn upgrade_info(cli: &Cli, wait: u64) -> Result<()> {
-    let mut dev = open(cli)?;
-    dev.send(&protocol::upgrade_info())?;
-
-    let deadline = Instant::now() + Duration::from_secs(wait);
-    while Instant::now() < deadline {
-        for f in dev.recv()? {
-            if !is_card_frame(&f) || f.len() < 40 {
-                continue;
-            }
-            println!("reply: type {:02x}{:02x}, {} bytes", f[12], f[13], f.len());
-            let Some(info) = protocol::parse_upgrade_info(&f[14..]) else {
-                println!("  no recognisable image length in this reply");
-                hexdump(&f[14..f.len().min(14 + 128)]);
-                continue;
-            };
-            println!("  declared image length: 0x{:06x}", info.declared_len);
-            println!(
-                "    matches: {}",
-                match info.declared_len {
-                    0x000b_0000 => "the PWM / LS0allDA image format",
-                    0x000b_0080 => "the Normal image format",
-                    _ => "neither known format",
-                }
-            );
-            println!("  capabilities: 0b{:04b}", info.capabilities);
-            println!("    golden image present:     {}", info.has_golden());
-            println!(
-                "    golden upgrade accepted:  {}",
-                info.supports_golden_upgrade()
-            );
-            println!(
-                "    SDRAM staging supported:  {}",
-                info.supports_sdram_staging()
-            );
-            return Ok(());
-        }
-    }
-    println!("no reply within {wait}s");
-    Ok(())
 }
 
 /// Read the firmware region back and count bytes that differ from `img`.
@@ -430,16 +369,7 @@ pub fn dump_flash(
     out: &str,
 ) -> Result<()> {
     let mut dev = open(cli)?;
-    let mut image = Vec::with_capacity(64 * 1024 * blocks as usize);
-    for b in 0..blocks {
-        let blk = block.wrapping_add(b as u8);
-        // Each request returns 1024 bytes, which is four 256-byte pages.
-        for lo in (0u16..0x100).step_by(protocol::FLASH_PAGES_PER_CHUNK as usize) {
-            let page = (u16::from(blk) << 8) | lo;
-            image.extend_from_slice(&read_chunk(&mut dev, index, page, wait)?);
-        }
-        println!("  block 0x{blk:02x} done, {} KB total", image.len() / 1024);
-    }
+    let image = read_blocks(&mut dev, index, block, blocks, wait)?;
     std::fs::write(out, &image).with_context(|| format!("write {out}"))?;
     println!("wrote {} bytes to {out}", image.len());
 
@@ -500,6 +430,7 @@ pub fn read_blocks(
             let page = (u16::from(block) << 8) | lo;
             image.extend_from_slice(&read_chunk(dev, index, page, wait)?);
         }
+        println!("  block 0x{block:02x} read, {} KB total", image.len() / 1024);
     }
     Ok(image)
 }
@@ -600,8 +531,7 @@ pub fn rewrite_block(
 pub fn erase_and_settle(dev: &mut bpf::Bpf, index: u16) -> Result<()> {
     println!("erasing block 0x{:02x}...", protocol::PARAM_BLOCK);
     dev.send(&protocol::erase_block(index, protocol::PARAM_BLOCK)?)?;
-    // A block erase takes far longer than a page write; writing during it is
-    // silently dropped, which is exactly what went wrong the first time.
+    // Pages written while the erase is still running are silently dropped.
     std::thread::sleep(Duration::from_secs(3));
     Ok(())
 }
@@ -695,20 +625,13 @@ dry run: nothing was written. Re-run with --commit to install."
     rewrite_block(&mut dev, index, &image, wait, first..last)
         .with_context(|| format!("the original block is saved at {backup}; restore it with: e120 restore-flash {backup} --commit"))?;
 
-    // The block erase also clears the screen-size record, which lives outside
-    // the window these frames can rewrite. Put it back through the
-    // linear-address path, or the card boots with a bogus screen size.
-    // Only when the block was read off the card. A block taken from a firmware
-    // image holds bitstream data at this address, not a record, and writing
-    // that would set a nonsense screen size.
+    // The erase also clears the screen-size record, which only the linear
+    // path can rewrite. A firmware image holds bitstream bytes at that
+    // offset, not a record, so only a block read off the card is put back.
     let off = protocol::SCREEN_RECORD_ADDR as usize & 0xffff;
     let record = &original[off..off + protocol::SCREEN_RECORD_LEN];
-    if base_image.is_some() {
-        println!(
-            "note: leaving the screen-size record alone; \
-             {} is a firmware image, so it holds no record to restore",
-            base_image.unwrap_or_default()
-        );
+    if let Some(path) = base_image {
+        println!("note: leaving the screen-size record alone; {path} is a firmware image");
     } else if record.iter().any(|&b| b != 0xff) {
         dev.send(&protocol::write_screen_record(
             index,

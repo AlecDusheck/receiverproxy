@@ -1,37 +1,53 @@
-//! Putting images on the wall: patterns, stills, and video.
+//! Putting images on the wall: patterns, stills, and video. Every content
+//! command sends through `e120_driver::Wall`, so the frame recipe lives once.
 
 use crate::util::open;
 use crate::{protocol, Cli};
 use anyhow::{Context, Result};
-use e120_net::bpf;
+use e120_canvas::{Canvas, Frame};
 use e120_video::FrameSource;
 use std::io::Write;
 use std::time::Duration;
 
 /// Load a wall layout, or build a single-panel one from the size flags.
-pub fn load_canvas(cli: &Cli, layout: Option<&str>) -> Result<e120_canvas::Canvas> {
+pub fn load_canvas(cli: &Cli, layout: Option<&str>) -> Result<Canvas> {
     match layout {
         Some(path) => {
             let text = std::fs::read_to_string(path).with_context(|| format!("read {path}"))?;
             serde_json::from_str(&text).with_context(|| format!("parse {path}"))
         }
-        None => Ok(e120_canvas::Canvas::single(
-            u32::from(cli.width),
-            u32::from(cli.height),
-        )),
+        None => Ok(Canvas::single(u32::from(cli.width), u32::from(cli.height))),
     }
 }
 
+/// An environment override for bench experiments, or the measured default.
+fn env_or<T: std::str::FromStr>(name: &str, default: T) -> T {
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
+/// Driver settings from the CLI flags. `E120_LATCHES`, `E120_LATCH_GAP_US`
+/// and `E120_ROW_GAP_US` override the measured timing for experiments.
 pub fn wall_settings(cli: &Cli) -> e120_driver::Settings {
     e120_driver::Settings {
         brightness: cli.brightness,
         color_order: cli.order,
-        raster: e120_driver::Raster::Rows,
-        // The card's control area comes from its EEPROM (provisioning); the
-        // layout frame we could send is an FPP-derived guess and blanks a
-        // correctly provisioned card.
         announce_layout: false,
+        timing: e120_driver::Timing {
+            latches: env_or("E120_LATCHES", 3),
+            latch_gap: Duration::from_micros(env_or("E120_LATCH_GAP_US", 500)),
+            // The card's receive FIFO is 1 KB; a gap here is the experiment
+            // for a line-rate burst dropping its tail. None was needed.
+            row_gap: Duration::from_micros(env_or("E120_ROW_GAP_US", 0)),
+        },
     }
+}
+
+/// Refresh period for held stills; `E120_FRAME_MS` overrides it.
+fn frame_period() -> Duration {
+    Duration::from_millis(env_or("E120_FRAME_MS", 33))
 }
 
 /// Play a video source onto the wall.
@@ -41,11 +57,9 @@ pub fn play(
     fps: u32,
     fit: &str,
     looping: bool,
-    raster: &str,
     layout: Option<&str>,
 ) -> Result<()> {
     let canvas = load_canvas(cli, layout)?;
-    let raster: e120_driver::Raster = raster.parse().map_err(|e: String| anyhow::anyhow!(e))?;
     let fit = match fit {
         "stretch" => e120_video::Fit::Stretch,
         "contain" => e120_video::Fit::Contain,
@@ -59,9 +73,7 @@ pub fn play(
 
     let mut source =
         e120_video::VideoSource::open(input, canvas.width, canvas.height, fps, fit, looping)?;
-    let mut settings = wall_settings(cli);
-    settings.raster = raster;
-    let mut wall = e120_driver::Wall::open(&cli.iface, canvas, settings)?;
+    let mut wall = e120_driver::Wall::open(&cli.iface, canvas, wall_settings(cli))?;
     let mut pacer = e120_driver::Pacer::new(fps);
 
     while let Some(frame) = source.next_frame()? {
@@ -84,32 +96,70 @@ pub fn play(
     Ok(())
 }
 
-/// Draw a built-in pattern through the full wall pipeline.
+/// Show one still: three refreshes, or refresh until Ctrl-C when `hold`.
+pub fn show_frame(cli: &Cli, canvas: Canvas, frame: &Frame, hold: bool, what: &str) -> Result<()> {
+    let mut wall = e120_driver::Wall::open(&cli.iface, canvas, wall_settings(cli))?;
+    let period = frame_period();
+    if hold {
+        println!(
+            "holding {what}, refreshing every {} ms, Ctrl-C to stop",
+            period.as_millis()
+        );
+        loop {
+            wall.show(frame)?;
+            std::thread::sleep(period);
+        }
+    }
+    // Three, so at least one lands after the card settles.
+    for _ in 0..3 {
+        wall.show(frame)?;
+        std::thread::sleep(period);
+    }
+    println!(
+        "sent {what} ({}x{}, order {:?})",
+        frame.width, frame.height, cli.order
+    );
+    Ok(())
+}
+
+/// Draw a built-in pattern.
 pub fn show_pattern(cli: &Cli, name: &str, hold: bool, layout: Option<&str>) -> Result<()> {
     let canvas = load_canvas(cli, layout)?;
     let pattern: e120_video::Pattern = name.parse().map_err(|e: String| anyhow::anyhow!(e))?;
     let frame = e120_video::pattern(pattern, canvas.width, canvas.height);
-    let mut wall = e120_driver::Wall::open(&cli.iface, canvas, wall_settings(cli))?;
-    if hold {
-        println!("holding {name}, Ctrl-C to stop");
-        let mut pacer = e120_driver::Pacer::new(30);
-        loop {
-            wall.show(&frame)?;
-            pacer.wait();
-        }
-    } else {
-        for _ in 0..3 {
-            wall.show(&frame)?;
-        }
-        println!("sent {name}");
-        Ok(())
-    }
+    show_frame(cli, canvas, &frame, hold, name)
 }
 
-/// Send one full frame of pixels: row packets, then the sync/display frame.
-/// Send chosen pieces of a display refresh with explicit pacing, so a current
-/// meter can attribute a change to one component instead of to `fill`'s whole
-/// burst. The pixel content is a solid colour.
+/// Fill the panel with one colour.
+pub fn show_solid(cli: &Cli, rgb: [u8; 3], hold: bool) -> Result<()> {
+    let canvas = load_canvas(cli, None)?;
+    let frame = Frame::from_rgb(
+        canvas.width,
+        canvas.height,
+        rgb.repeat((canvas.width * canvas.height) as usize),
+    )?;
+    let what = format!("{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]);
+    show_frame(cli, canvas, &frame, hold, &what)
+}
+
+/// Display an image file, scaled to the panel.
+pub fn show_image(cli: &Cli, path: &str, hold: bool) -> Result<()> {
+    let canvas = load_canvas(cli, None)?;
+    let img = image::open(path)
+        .with_context(|| format!("open image {path}"))?
+        .resize_exact(
+            canvas.width,
+            canvas.height,
+            image::imageops::FilterType::Lanczos3,
+        )
+        .to_rgb8();
+    let frame = Frame::from_rgb(canvas.width, canvas.height, img.into_raw())?;
+    show_frame(cli, canvas, &frame, hold, path)
+}
+
+/// Send chosen pieces of a refresh with explicit pacing, so a current meter
+/// can attribute a change to one component instead of to a whole burst.
+/// The pixel content is a solid colour. Diagnosis only.
 pub fn probe(
     cli: &Cli,
     rows: u16,
@@ -119,7 +169,7 @@ pub fn probe(
     rgb: [u8; 3],
 ) -> Result<()> {
     let mut dev = open(cli)?;
-    let line = vec![[rgb[0], rgb[1], rgb[2]]; cli.width as usize];
+    let line = vec![rgb; cli.width as usize];
     for pass in 0..repeat {
         for row in 0..rows {
             dev.send(&protocol::pixel_row(row, 0, &line, cli.order))?;
@@ -139,244 +189,4 @@ pub fn probe(
         if sync_after { "after each pass" } else { "never" }
     );
     Ok(())
-}
-
-/// How a framebuffer is cut into row packets.
-///
-/// The card's own pixel map (record 0x03) is indexed by `row * width + col`
-/// over the *stored* height — half the panel — because the two halves of the
-/// module hang off separate hub data groups. That leaves open whether the wire
-/// wants one packet per panel row or one double-width packet per stored row,
-/// and if the latter, which panel row supplies the second half. The vendor
-/// sender is no help here: it packetises whatever framebuffer it is handed
-/// without knowing the panel geometry at all (docs/pixel-protocol.md §3).
-/// So the layout is a measurement, not a derivation.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Raster {
-    /// One packet per panel row, `width` pixels: the FPP layout.
-    Rows,
-    /// `height/2` packets of `2*width`: row r carries panel rows r and r+h/2.
-    SplitHalves,
-    /// `height/2` packets of `2*width`: the halves the other way round.
-    SplitHalvesSwapped,
-    /// `height/2` packets of `2*width`: row r carries panel rows 2r and 2r+1.
-    SplitInterleaved,
-}
-
-impl std::str::FromStr for Raster {
-    type Err = String;
-    fn from_str(s: &str) -> std::result::Result<Self, String> {
-        match s {
-            "rows" => Ok(Self::Rows),
-            "halves" => Ok(Self::SplitHalves),
-            "halves-swapped" => Ok(Self::SplitHalvesSwapped),
-            "interleaved" => Ok(Self::SplitInterleaved),
-            other => Err(format!(
-                "unknown raster {other:?} (rows|halves|halves-swapped|interleaved)"
-            )),
-        }
-    }
-}
-
-/// Send one frame using the chosen raster layout.
-pub fn send_frame_as(
-    dev: &mut bpf::Bpf,
-    cli: &Cli,
-    fb: &[[u8; 3]],
-    raster: Raster,
-    row_base: u16,
-) -> Result<()> {
-    // Brightness, rows, then the latch twice — the order the Wall driver
-    // uses. A card fresh from arming never starts displaying when the latch
-    // leads the rows (docs/bench-measurement.md); once it has been woken by
-    // this order either works, which hid the difference for a long time.
-    dev.send(&protocol::brightness(cli.brightness))?;
-    let w = cli.width as usize;
-    let h = cli.height as usize;
-    // Latches after the rows. One never starts the display; two renders but
-    // the picture decays into noise and back on a ~10 s period; three or four
-    // hold it steady for as long as measured (docs/bench-measurement.md).
-    let latches = std::env::var("E120_LATCHES").ok().and_then(|v| v.parse().ok()).unwrap_or(3u32);
-    // Rows may be resent before each of the first `writes` latches, so both
-    // of a double-buffered driver's pages carry the current frame.
-    let writes = std::env::var("E120_WRITES").ok().and_then(|v| v.parse().ok()).unwrap_or(1u32);
-    // Gap between the last row and the latch: without it the last row
-    // flickers, the card latching before it has stored the final packet.
-    let gap = std::env::var("E120_LATCH_GAP_US").ok().and_then(|v| v.parse().ok()).unwrap_or(500u64);
-    if raster == Raster::Rows {
-        for i in 0..latches {
-            if i < writes {
-                send_rows(dev, cli, fb, w, h, row_base)?;
-                if gap > 0 {
-                    std::thread::sleep(Duration::from_micros(gap));
-                }
-            }
-            dev.send(&protocol::sync(cli.brightness))?;
-        }
-        return Ok(());
-    }
-    let half = h / 2;
-    let mut line = vec![[0u8; 3]; w * 2];
-    for r in 0..half {
-        let (a, b) = match raster {
-            Raster::SplitHalves => (r, r + half),
-            Raster::SplitHalvesSwapped => (r + half, r),
-            _ => (2 * r, 2 * r + 1),
-        };
-        line[..w].copy_from_slice(&fb[a * w..(a + 1) * w]);
-        line[w..].copy_from_slice(&fb[b * w..(b + 1) * w]);
-        let mut offset = 0usize;
-        for chunk in line.chunks(protocol::MAX_PIXELS_PER_PACKET) {
-            dev.send(&protocol::pixel_row(
-                row_base + r as u16,
-                offset as u16,
-                chunk,
-                cli.order,
-            ))?;
-            offset += chunk.len();
-        }
-    }
-    for _ in 0..latches {
-        dev.send(&protocol::sync(cli.brightness))?;
-    }
-    Ok(())
-}
-
-fn send_rows(
-    dev: &mut bpf::Bpf,
-    cli: &Cli,
-    fb: &[[u8; 3]],
-    w: usize,
-    h: usize,
-    row_base: u16,
-) -> Result<()> {
-    // Pause between row packets; the card's receive FIFO is 1 KB, so a
-    // line-rate burst can drop its tail. E120_ROW_GAP_US overrides.
-    let row_gap = std::env::var("E120_ROW_GAP_US").ok().and_then(|v| v.parse().ok()).unwrap_or(0u64);
-    for row in 0..h {
-        if row_gap > 0 && row > 0 {
-            std::thread::sleep(Duration::from_micros(row_gap));
-        }
-        let line = &fb[row * w..(row + 1) * w];
-        let mut offset = 0usize;
-        for chunk in line.chunks(protocol::MAX_PIXELS_PER_PACKET) {
-            dev.send(&protocol::pixel_row(
-                row_base + row as u16,
-                offset as u16,
-                chunk,
-                cli.order,
-            ))?;
-            offset += chunk.len();
-        }
-    }
-    Ok(())
-}
-
-pub fn send_frame(dev: &mut bpf::Bpf, cli: &Cli, fb: &[[u8; 3]]) -> Result<()> {
-    send_frame_as(dev, cli, fb, Raster::Rows, 0)
-}
-
-pub fn show(cli: &Cli, fb: &[[u8; 3]], hold: bool) -> Result<()> {
-    let mut dev = open(cli)?;
-    dev.send(&protocol::brightness(cli.brightness))?;
-    if hold {
-        println!("refreshing at ~30fps, Ctrl-C to stop");
-        loop {
-            send_frame(&mut dev, cli, fb)?;
-            std::thread::sleep(Duration::from_millis(33));
-        }
-    } else {
-        // Send a few frames so at least one lands after the card settles
-        for _ in 0..3 {
-            send_frame(&mut dev, cli, fb)?;
-            std::thread::sleep(Duration::from_millis(33));
-        }
-        println!(
-            "frame sent ({}x{}, order {:?})",
-            cli.width, cli.height, cli.order
-        );
-        Ok(())
-    }
-}
-
-pub fn solid(cli: &Cli, r: u8, g: u8, b: u8) -> Vec<[u8; 3]> {
-    vec![[r, g, b]; cli.width as usize * cli.height as usize]
-}
-
-pub fn test_pattern(cli: &Cli, pattern: &str) -> Result<Vec<[u8; 3]>> {
-    let (w, h) = (cli.width as usize, cli.height as usize);
-    let mut fb = vec![[0u8; 3]; w * h];
-    match pattern {
-        "gradient" => {
-            for y in 0..h {
-                for x in 0..w {
-                    fb[y * w + x] = [(x * 255 / w.max(1)) as u8, (y * 255 / h.max(1)) as u8, 128];
-                }
-            }
-        }
-        "rows" => {
-            // Each row: red if row%3==0, green if 1, blue if 2 — for mapping checks
-            for y in 0..h {
-                let c = match y % 3 {
-                    0 => [255, 0, 0],
-                    1 => [0, 255, 0],
-                    _ => [0, 0, 255],
-                };
-                for x in 0..w {
-                    fb[y * w + x] = c;
-                }
-            }
-        }
-        "border" => {
-            for y in 0..h {
-                for x in 0..w {
-                    if x == 0 || y == 0 || x == w - 1 || y == h - 1 {
-                        fb[y * w + x] = [255, 255, 255];
-                    }
-                }
-            }
-            // Corner markers: top-left red, top-right green, bottom-left blue
-            fb[0] = [255, 0, 0];
-            fb[w - 1] = [0, 255, 0];
-            fb[(h - 1) * w] = [0, 0, 255];
-        }
-        "rgb" => {
-            // Thirds: red / green / blue vertical bands — color order check
-            for y in 0..h {
-                for x in 0..w {
-                    fb[y * w + x] = if x < w / 3 {
-                        [255, 0, 0]
-                    } else if x < 2 * w / 3 {
-                        [0, 255, 0]
-                    } else {
-                        [0, 0, 255]
-                    };
-                }
-            }
-        }
-        other => anyhow::bail!("unknown pattern {other:?} (gradient|rows|border|rgb)"),
-    }
-    Ok(fb)
-}
-
-/// `show`, but with an explicit raster layout.
-pub fn show_as(cli: &Cli, fb: &[[u8; 3]], hold: bool, raster: Raster, row_base: u16) -> Result<()> {
-    let mut dev = open(cli)?;
-    dev.send(&protocol::brightness(cli.brightness))?;
-    // Frame period; E120_FRAME_MS overrides it for flicker experiments.
-    let period = std::env::var("E120_FRAME_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(33u64);
-    if hold {
-        println!("refreshing every {period} ms ({raster:?}), Ctrl-C to stop");
-        loop {
-            send_frame_as(&mut dev, cli, fb, raster, row_base)?;
-            std::thread::sleep(Duration::from_millis(period));
-        }
-    } else {
-        for _ in 0..3 {
-            send_frame_as(&mut dev, cli, fb, raster, row_base)?;
-            std::thread::sleep(Duration::from_millis(33));
-        }
-        println!("frame sent ({raster:?})");
-        Ok(())
-    }
 }

@@ -47,7 +47,7 @@ Inspecting configs: `e120 rcvbp file.rcvbp`, `e120 config-diff a b`,
 ```sh
 e120 discover                  # firmware version and detected size
 e120 set-layout                # tell the card its size (RAM; needed each boot)
-e120 test rgb --hold           # rgb | border | rows | gradient
+e120 test rgb --hold           # rgb | border | rows | gradient | white
 e120 fill ff8000 --hold
 e120 image picture.png --hold
 e120 play clip.mp4
@@ -58,10 +58,11 @@ e120 blank
 
 ## Bench
 
-`scripts/bench.py boot` powers the panel on without railing the supply,
-`scripts/bench.py capture` turns flicker into a measured waveform, `scripts/bench.py capture`
-takes strobe-proof stills, `scripts/bench.py run --boot` / `ab.sh` run one experiment with
-current readings and photos.
+`scripts/bench.py boot` powers the panel on behind `psu.sh`'s dead-man timer and
+arms it, `scripts/bench.py capture` takes strobe-proof averaged stills, and
+`scripts/bench.py run --boot` runs one experiment as a single continuous stream
+with current readings, photos and a same-content control
+([docs/bench-measurement.md](docs/bench-measurement.md)).
 
 ## Flash and firmware
 
@@ -70,15 +71,17 @@ Reads are always safe; writes need `--commit` and are confined by guards in
 through the card's own SDRAM staging path). Snapshot before flashing:
 
 ```sh
-e120 snapshot --dir before
+e120 snapshot --dir before                      # primary bank + golden bank
+e120 read-config --out before/config.rcvbp      # the live configuration
 e120 upgrade install image.hex --commit
-e120 restore all --dir before --commit
+e120 restore all --dir before --commit          # puts the configuration back (not firmware)
 ```
 
 Layout, images and procedure: [`third-party/README.md`](third-party/README.md).
 
 ## Documentation
 
+* [`docs/architecture.md`](docs/architecture.md) — the pipeline end to end, crate responsibilities, where each measured default lives.
 * [`docs/building-a-config.md`](docs/building-a-config.md) — the generator, what is derived from where, honest limits.
 * [`docs/record-0x01-fields.md`](docs/record-0x01-fields.md) — every byte of the main parameter record.
 * [`docs/compiled-image-format.md`](docs/compiled-image-format.md) — the boot image, region by region.

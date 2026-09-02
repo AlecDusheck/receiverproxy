@@ -38,8 +38,10 @@ pub struct PanelSpec {
     pub mapping: Mapping,
     #[serde(default)]
     pub boot: Boot,
-    /// Raw record 0x01 byte overrides for experiments: `"0x043" = 0x20`.
-    /// Applied last; every use is reported in the provenance.
+    /// Raw record 0x01 byte overrides, `"0x043" = 0x20`, applied last and
+    /// reported in the provenance. Carries experiments and also measured
+    /// single-byte settings the field dictionary has not named — the bench
+    /// spec's `+0x02F = 1` lives here and nothing displays without it.
     #[serde(default)]
     pub record01_overrides: std::collections::BTreeMap<String, u8>,
 }
@@ -79,10 +81,6 @@ pub struct Screen {
 pub struct Chip {
     /// Chip library (`config/chips/*.toml`): ids, register defaults, chip control.
     pub library: String,
-    /// Override the library's family id (experiments).
-    pub family_id: Option<u16>,
-    /// Override the library's sub-variant id (experiments); 0 clears it.
-    pub sub_id: Option<u16>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -168,10 +166,9 @@ pub struct Mapping {
     #[serde(default)]
     pub block: Option<u16>,
     /// Displace line positions `width..2*width` off the chain through the
-    /// void-line column table. The card emits two positions per column for
-    /// this interleaved wiring and drives the second set with a fixed
-    /// pattern that shows as a floor at black; gating them leaves the
-    /// picture intact. On by default; off reproduces the factory image.
+    /// void-line column table; the card otherwise drives them with a fixed
+    /// pattern that shows as a floor at black (docs/black-floor.md). Off
+    /// reproduces the factory image.
     #[serde(default = "default_true")]
     pub gate_phantom_positions: bool,
 }

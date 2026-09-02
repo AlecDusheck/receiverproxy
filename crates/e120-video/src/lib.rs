@@ -4,7 +4,7 @@
 //! already scaled to the wall's size, so nothing here has to understand
 //! container or codec formats.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use e120_canvas::Frame;
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
@@ -51,7 +51,6 @@ pub struct VideoSource {
     child: Child,
     width: u32,
     height: u32,
-    buf: Vec<u8>,
 }
 
 impl VideoSource {
@@ -88,7 +87,6 @@ impl VideoSource {
             child,
             width,
             height,
-            buf: vec![0; (width as usize) * (height as usize) * 3],
         })
     }
 }
@@ -98,10 +96,10 @@ impl FrameSource for VideoSource {
         let Some(stdout) = self.child.stdout.as_mut() else {
             return Ok(None);
         };
-        match stdout.read_exact(&mut self.buf) {
+        let mut buf = vec![0; (self.width as usize) * (self.height as usize) * 3];
+        match stdout.read_exact(&mut buf) {
             Ok(()) => Ok(Some(
-                Frame::from_rgb(self.width, self.height, self.buf.clone())
-                    .map_err(|e| anyhow::anyhow!(e))?,
+                Frame::from_rgb(self.width, self.height, buf).map_err(|e| anyhow::anyhow!(e))?,
             )),
             // A short read means the stream ended.
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(None),
@@ -115,31 +113,6 @@ impl Drop for VideoSource {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
-}
-
-/// Decode a single still image to a wall-sized frame.
-///
-/// # Errors
-/// Fails if ffmpeg cannot decode the file.
-pub fn still(path: &str, width: u32, height: u32, fit: Fit) -> Result<Frame> {
-    let out = Command::new("ffmpeg")
-        .arg("-hide_banner")
-        .args(["-loglevel", "error"])
-        .args(["-i", path])
-        .args(["-vf", &fit.filter(width, height)])
-        .args(["-frames:v", "1"])
-        .args(["-f", "rawvideo"])
-        .args(["-pix_fmt", "rgb24"])
-        .arg("-")
-        .output()
-        .context("could not start ffmpeg (is it installed?)")?;
-    if !out.status.success() {
-        bail!(
-            "ffmpeg failed to decode {path}: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        );
-    }
-    Frame::from_rgb(width, height, out.stdout).map_err(|e| anyhow::anyhow!(e))
 }
 
 /// Built-in patterns, for checking wiring and colour order without any media.
@@ -181,10 +154,11 @@ pub fn pattern(p: Pattern, width: u32, height: u32) -> Frame {
         Pattern::Rgb => {
             for y in 0..height {
                 for x in 0..width {
-                    let third = width / 3;
-                    let c = if x < third {
+                    // Bands at w/3 and 2w/3 (not 2*(w/3)): what `e120 test rgb`
+                    // has always drawn, so the boundary column does not move.
+                    let c = if x < width / 3 {
                         [255, 0, 0]
-                    } else if x < third * 2 {
+                    } else if x < 2 * width / 3 {
                         [0, 255, 0]
                     } else {
                         [0, 0, 255]
@@ -267,6 +241,11 @@ mod tests {
         let f = pattern(Pattern::Rgb, 30, 2);
         assert_eq!(f.pixel(0, 0), [255, 0, 0]);
         assert_eq!(f.pixel(29, 0), [0, 0, 255]);
+        // The second boundary is at 2w/3, not 2*(w/3): on the 128-wide panel
+        // column 84 is green and 85 is blue.
+        let f = pattern(Pattern::Rgb, 128, 1);
+        assert_eq!(f.pixel(84, 0), [0, 255, 0]);
+        assert_eq!(f.pixel(85, 0), [0, 0, 255]);
     }
 
     #[test]

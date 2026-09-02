@@ -1,20 +1,16 @@
 //! Bring a receiver card from whatever it holds to a working state, in one
 //! command: firmware, configuration, cabinet identity, verification.
 //!
-//! Every step here was learned the hard way on the first card
-//! (`docs/rendering-recipe.md`, `docs/black-floor.md`, `docs/receiver-identity.md`):
+//! Why two firmware paths and a record-by-record EEPROM rewrite
+//! (`docs/provisioning.md`, `docs/receiver-identity.md`):
 //!
-//! * firmware 16.53 write-protects its header and trailer sectors (blocks
-//!   0-2 and 8) from the host path, and its SDRAM self-program writes only
-//!   those, so a complete install needs both paths and a whole-bank verify;
-//! * writing block 7 wipes the EEPROM mirror, and the card then reports a
-//!   healthy size while dropping every pixel, so the EEPROM records are read
-//!   first and written back one by one afterwards, with the control area set
-//!   for the card's place in the wall;
-//! * the card answers discovery before it has finished loading its own
-//!   parameters, so anything sent right after power-on is unreliable — the
-//!   configuration lives in flash and the card arms itself at boot.
+//! * firmware 16.53 guards blocks 0-2 and 8 from the host path and its SDRAM
+//!   self-program writes only those, so a full install needs both paths;
+//! * writing block 7 wipes the EEPROM mirror, after which the card reports a
+//!   healthy size while dropping every pixel, so the records are read first
+//!   and written back one by one with the control area set for this cabinet.
 
+use crate::capture::discover_one;
 use crate::flash::{flash_firmware, read_blocks, restore_flash};
 use crate::util::open;
 use crate::{config, protocol, restore, screen, upgrade, Cli};
@@ -33,24 +29,10 @@ fn version_in_name(path: &str) -> Option<(u8, u8)> {
     Some((it.next()?.parse().ok()?, it.next()?.parse().ok()?))
 }
 
-fn discover(cli: &Cli, wait: u64) -> Result<Option<protocol::DiscoveryInfo>> {
-    let mut dev = open(cli)?;
-    dev.send(&protocol::discovery())?;
-    let deadline = Instant::now() + Duration::from_secs(wait);
-    while Instant::now() < deadline {
-        for f in dev.recv()? {
-            if let Some(info) = protocol::parse_discovery_response(&f) {
-                return Ok(Some(info));
-            }
-        }
-    }
-    Ok(None)
-}
-
 fn wait_for_version(cli: &Cli, want: (u8, u8), timeout: Duration) -> Result<protocol::DiscoveryInfo> {
     let deadline = Instant::now() + timeout;
     loop {
-        if let Some(info) = discover(cli, 2)? {
+        if let Some(info) = discover_one(cli, 2)? {
             if (info.ver_major, info.ver_minor) == want {
                 return Ok(info);
             }
@@ -131,7 +113,7 @@ pub fn provision(
 ) -> Result<()> {
     let spec = e120_rcvbp::spec::PanelSpec::load(spec_path)?;
     let (w, h) = (spec.module.width, spec.module.height);
-    let Some(info) = discover(cli, wait)? else {
+    let Some(info) = discover_one(cli, wait)? else {
         bail!("no receiver card answered discovery on {}", cli.iface);
     };
     println!(
@@ -165,9 +147,10 @@ pub fn provision(
         if install_firmware(cli, fw, &backup, wait)? {
             let want = version_in_name(fw).unwrap();
             println!("firmware: power-cycle the card now; waiting for it to report {}.{} ...", want.0, want.1);
-            let info = wait_for_version(cli, want, Duration::from_secs(600))?;
+            let info = wait_for_version(cli, want, Duration::from_mins(10))?;
             println!("firmware: card is back on {}.{}", info.ver_major, info.ver_minor);
-            // Give it its full boot before touching flash again.
+            // The card answers discovery before it has finished loading its
+            // parameters; flash writes sent before then are unreliable.
             std::thread::sleep(Duration::from_secs(12));
         }
     } else {
@@ -224,7 +207,7 @@ pub fn provision(
         other => bail!("eeprom: control area reads back as {other:?}"),
     }
     drop(dev);
-    match discover(cli, wait)? {
+    match discover_one(cli, wait)? {
         Some(i) if (i.cols, i.rows) == (w, h) => println!("discovery: {}x{} on firmware {}.{}", i.cols, i.rows, i.ver_major, i.ver_minor),
         Some(i) => println!("discovery: reports {}x{} (expected {w}x{h}); it usually corrects after the power-cycle", i.cols, i.rows),
         None => bail!("the card stopped answering discovery"),
@@ -238,7 +221,6 @@ pub fn provision(
 fn chrono_like_stamp() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_secs());
     format!("{secs}")
 }

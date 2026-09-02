@@ -9,10 +9,8 @@
 name = "p25-128x64-sm16269s"
 
 [module]
-# 12-bit grey is what makes the SM16269S accept the SH data stream. The
-# configuration the card arrived with said 14; at 14 (and 16) pixel data never
-# reaches the chips' SRAM at all, at 12 the panel renders sent patterns.
-# Measured 2026-09-01 (docs/bench-measurement.md for the method).
+# The card arrived saying 14. Kept at 12 because it is what was measured most;
+# 12-16 render alike from flash (docs/rendering-recipe.md).
 gray_bits = 12
 width = 128
 height = 64

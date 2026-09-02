@@ -110,8 +110,8 @@ pub fn build(spec: &PanelSpec, chip: &ChipLibrary, prov: &mut Vec<String>) -> Re
     put(off::COLOR_SOURCE, &spec.color.source, "color.source");
     put(off::GCLOCK, &[spec.timing.gclock], "timing.gclock");
     put(off::GAINS, &spec.current.gains, "current.gains");
-    let family = spec.chip.family_id.unwrap_or(chip.family_id);
-    let sub = spec.chip.sub_id.or(chip.sub_id).unwrap_or(0);
+    let family = chip.family_id;
+    let sub = chip.sub_id.unwrap_or(0);
     put(off::CHIP_LO, &[(family & 0xFF) as u8], "chip family id low byte");
     put(off::CHIP_HI, &[(family >> 8) as u8], "chip family id high byte");
     put(off::SUB_CHIP_LO, &[(sub & 0xFF) as u8], "chip sub-id low byte");

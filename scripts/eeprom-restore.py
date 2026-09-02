@@ -1,43 +1,30 @@
 #!/usr/bin/env python3
-"""Restore the card's EEPROM from the day-one flash dump.
+"""Restore the card's EEPROM records from the day-one flash dump.
 
-Erasing flash block 0x07 clears the EEPROM mirror at `0x07F000`, and writing
-back only the compiled boot image leaves everything else at 0xFF. That is how
-the receiver's control area became an empty rectangle
-(startX = startY = 0xFFFF), after which the card drops every pixel sent to it.
-Several other runs of real factory data were lost the same way and are still
-unidentified — so restore them from the dump rather than from what we think we
-understand.
-
-Emits `e120 raw-send` commands built from the factory bytes; run with --commit
-to execute them. Read-only without it.
+Restores from the dump rather than from what we understand: several factory
+records are still unidentified (docs/eeprom-map.md, docs/retracted-findings.md).
+`e120 provision` does the same job natively; this is the standalone repair path
+named by `e120 screen-size`. Dry run unless --commit.
 
 Usage:
-  eeprom-restore.py [--dump card-dumps/primary-region.bin] [--commit]
+  eeprom-restore.py [--dump card-dumps/primary-region.bin] [--live now.bin] [--commit]
 """
 import argparse
-import os
 import subprocess
 import sys
+import time
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from flash_review_map import EEPROM
 
 MIRROR = 0x7F000          # EEPROM mirror inside the primary-region dump
 
-# Every record must be written at its own address and its own length. Writing
-# a span that crosses record boundaries is silently ignored by the card — that
-# is why a 16-byte write at 0x040 (which is a one-byte record followed by four
-# more) changed nothing, while the 42-byte write at 0x002 took immediately.
-# Addresses and lengths from docs/eeprom-map.md.
-from flash_review_map import EEPROM as RECORDS  # noqa: E402  (see below)
+# Records above 0x0fd use opcodes 0x45/0x88, not 0x85; kept in the map for labelling only.
+RECORDS = [r for r in EEPROM if r[0] <= 0x0fd]
 
 
 def frame_payload(addr, data):
     """Type 0x1900 EEPROM write: index, opcode 0x85, address, length, data."""
-    # Receiver index FFFF = broadcast, as the vendor library always sends it.
-    # A write addressed to index 0 is ignored whenever the card's own index is
-    # not 0 — which is the case while its cabinet record is corrupt, i.e.
-    # exactly when this tool is needed.
+    # Broadcast index: a write to index 0 is ignored while the cabinet record is corrupt.
     return (bytes([0x00])                       # frame offset 14
             + b'\xff\xff'                       # receiver index, BE (broadcast)
             + bytes([0x85])                     # write
@@ -59,9 +46,6 @@ def main():
         sys.exit(f'{a.dump} is too short to contain the EEPROM mirror')
     eeprom = blob[MIRROR:MIRROR + 0x1000]
 
-    # Only records that actually differ from the factory state are rewritten;
-    # the card's live EEPROM is read back through the flash mirror by
-    # scripts/flash-review.py, so this stays idempotent.
     live = open(a.live, 'rb').read() if a.live else None
     for addr, length, note in RECORDS:
         data = eeprom[addr:addr + length]
@@ -76,22 +60,16 @@ def main():
         print(f'0x{addr:03x} +{length:3d}  {data[:8].hex(" "):24} {note}')
         if a.commit:
             subprocess.run(cmd, capture_output=True)
-            # An EEPROM write takes the card milliseconds; records fired
-            # back-to-back are dropped. The one restore that took on the
-            # bench had seconds between writes.
-            import time
-            time.sleep(0.5)
+            time.sleep(0.5)     # back-to-back writes are dropped by the card
         else:
             print('   ' + ' '.join(cmd[1:]))
 
     if a.commit:
-        # Opcode 0x87 commits the EEPROM to flash, with no data and addr 0
-        # (CReceiverOP::SaveEepromFlash). Without it some records read back
-        # unchanged: the write lands in the working copy and is then lost.
+        # 0x87 save-to-flash (addr 0, no data); without it the writes stay in the working copy.
         subprocess.run([a.exe, 'raw-send', '--type', '1900', '--pad', '128',
                         '--payload', '00ffff87' + '00000000' * 2, '--wait', '0'],
                        capture_output=True)
-        # ReLoadLocalParam: opcode 0x77, data 01 01 00 00 00.
+        # 0x77 reload local params.
         subprocess.run([a.exe, 'raw-send', '--type', '0600', '--pad', '126',
                         '--payload', '00ffff77000000000101000000', '--wait', '0'],
                        capture_output=True)

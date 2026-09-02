@@ -8,10 +8,16 @@
 
 use crate::util::open;
 use crate::{protocol, rcvbp, Cli};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use e120_net::Bpf;
 use rcvbp::image;
 use std::time::Duration;
+
+/// Image offsets of the second halves of the void-line and anti-void tables,
+/// and of the void-line table itself, which `e120_rcvbp::image` does not name.
+const VOID_LINE_OFFSET: usize = 0x1000;
+const VOID_LINE_HIGH_OFFSET: usize = 0x6800;
+const ANTI_VOID_HIGH_OFFSET: usize = 0x7000;
 
 /// One real-time pack: wire type, sub-index, header length, body.
 struct Pack<'a> {
@@ -61,19 +67,7 @@ pub fn send_params(cli: &Cli, spec_path: &str, chip_only: bool, gap_ms: u64) -> 
 
     // The rest of the raster state comes from the same regions the boot image
     // carries, so the card gets in RAM exactly what it would boot with.
-    let rec01 = g.rcvbp.record_01().context("config has no record 0x01")?.payload.clone();
-    let mut b = image::Block7Builder::erased();
-    b.zero_regions();
-    b.basic_pack(&g.basic_pack)?;
-    b.data_swap_from(&rec01)?;
-    b.module_positions_from(&rec01)?;
-    b.anti_void_lines();
-    if spec.mapping.gate_phantom_positions {
-        b.void_line_columns(spec.module.width, spec.module.width * 2);
-    }
-    b.mapping_from(&g.rcvbp)?;
-    b.scan_table_from(&rec01, spec.card_scan_len())?;
-    let (img, _, _) = b.finish();
+    let (img, _, _) = image::Block7Builder::from_generated(&spec, &g)?.finish();
 
     let mut packs: Vec<Pack> = vec![
         Pack { kind: 0x05, sub: protocol::params::SUB_DATA_SWAP, header: 4,
@@ -89,15 +83,15 @@ pub fn send_params(cli: &Cli, spec_path: &str, chip_only: bool, gap_ms: u64) -> 
         packs.push(Pack { kind: 0x03, sub: k as u8, header: 4,
                           body: &img[at..at + 0x300], what: "pixel sequence" });
     }
-    // Void-line packs 0-1 live at 0x1000, packs 2-3 at 0x6800.
+    // Void-line and anti-void tables each split across two image regions
+    // (docs/compiled-image-format.md); the packs follow that split.
     for k in 0..4usize {
-        let at = if k < 2 { 0x1000 + k * 0x400 } else { 0x6800 + (k - 2) * 0x400 };
+        let at = if k < 2 { VOID_LINE_OFFSET + k * 0x400 } else { VOID_LINE_HIGH_OFFSET + (k - 2) * 0x400 };
         packs.push(Pack { kind: 0x1F, sub: k as u8, header: 8,
                           body: &img[at..at + 0x400], what: "void line" });
     }
-    // Anti-void packs 0-3 at 0x1800, packs 4-7 at 0x7000.
     for k in 0..8usize {
-        let at = if k < 4 { 0x1800 + k * 0x400 } else { 0x7000 + (k - 4) * 0x400 };
+        let at = if k < 4 { image::ANTI_VOID_OFFSET + k * 0x400 } else { ANTI_VOID_HIGH_OFFSET + (k - 4) * 0x400 };
         packs.push(Pack { kind: 0x32, sub: k as u8, header: 8,
                           body: &img[at..at + 0x400], what: "anti-void line" });
     }

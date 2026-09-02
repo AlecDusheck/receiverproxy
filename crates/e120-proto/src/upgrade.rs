@@ -1,20 +1,11 @@
-//! Firmware upgrade over Ethernet.
+//! SDRAM-staged firmware upgrade.
 //!
-//! The card stages a whole firmware image into its own SDRAM, then programs its
-//! flash from there under its own control. The host never writes the firmware
-//! region directly — attempts to do so are silently ignored, because the
-//! program area is write-protected and only the card's own agent unlocks it.
-//!
-//! The sequence is: ask the card what it expects, upload the image in 1 KiB
-//! chunks, tell it to erase, tell it to program, then poll until it reports
-//! done. None of the upload frames are acknowledged; the pacing delays are the
-//! protocol.
-//!
-//! The whole image is uploaded, but the card programs only 0x000000-0x02FFFF
-//! and 0x080000-0x0AFFFF from it. The 320KB in between is reserved for the
-//! card's configuration and is not part of the loadable bitstream, so reading
-//! it back and finding it unchanged means the upgrade worked, not that it
-//! failed. See `third-party/README.md`.
+//! Query the descriptor, upload the image in 1 KiB chunks, erase, program,
+//! poll until done. Upload frames are not acknowledged; the caller's pacing is
+//! the protocol. The card programs only 0x000000-0x02FFFF and
+//! 0x080000-0x0AFFFF from the staged image; the 320KB between is
+//! configuration and reads back unchanged after a successful upgrade
+//! (`third-party/README.md`, `docs/firmware-16.53-bench-result.md`).
 
 use super::frame;
 
@@ -30,9 +21,6 @@ const OP_ERASE: u8 = 0x05;
 
 /// Bytes per staging chunk.
 pub const CHUNK: usize = 1024;
-
-/// Address every receiver on the link. What the vendor uses for a single card.
-pub const BROADCAST: u16 = 0xffff;
 
 /// Which stored image an erase or program operation targets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,11 +40,8 @@ impl Partition {
     }
 }
 
-/// Build any SDRAM operation frame.
-///
-/// Layout, relative to the two type bytes: a zero, the receiver selector big
-/// endian, the opcode, a partition or flag byte, a 24-bit big-endian byte
-/// offset, a 32-bit big-endian length, then the data.
+/// Any SDRAM operation frame: [1..3] receiver selector BE, [3] opcode,
+/// [4] partition/flag, [5..8] 24-bit BE offset, [8..12] u32 BE length, data.
 fn sdram_frame(sel: u16, op: u8, flag: u8, offset: u32, len: u32, data: &[u8]) -> Vec<u8> {
     // The vendor always allocates room for a full chunk, even when sending none.
     let body = data.len().max(CHUNK);
@@ -92,18 +77,6 @@ pub fn sdram_program(sel: u16, partition: Partition, len: u32) -> Vec<u8> {
     sdram_frame(sel, OP_PROGRAM, partition.selector(), 0, len, &[])
 }
 
-/// Ask the card to reconfigure from flash.
-///
-/// The only reconfiguration command in the vendor library. It carries no bank,
-/// address or partition, so it reloads whatever the card boots by default.
-#[must_use]
-pub fn reload_firmware(sel: u16) -> Vec<u8> {
-    let mut p = vec![0u8; 0x106];
-    p[1..3].copy_from_slice(&sel.to_be_bytes());
-    p[3] = 0x34;
-    frame([0x26, 0x00], &p)
-}
-
 /// What the card says about the image it expects and how it can be upgraded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Descriptor {
@@ -119,8 +92,7 @@ pub struct Descriptor {
 }
 
 impl Descriptor {
-    /// The card can stage an image in SDRAM and program itself. When true this
-    /// is the path the vendor takes, and the direct-write path is unused.
+    /// The card can stage an image in SDRAM and program itself.
     #[must_use]
     pub const fn supports_sdram(self) -> bool {
         self.capabilities & 0b0001 != 0
@@ -172,11 +144,8 @@ impl Descriptor {
     }
 }
 
-/// Decode the descriptor from a reply frame.
-///
-/// Offsets are relative to the start of the Ethernet payload, which begins at
-/// the type bytes — so the first field sits two bytes further in than a naive
-/// reading of the frame body would suggest.
+/// Decode the descriptor from a reply frame. Offsets are relative to the type
+/// bytes (frame offset 12).
 #[must_use]
 pub fn parse_descriptor(eth_frame: &[u8]) -> Option<Descriptor> {
     let p = eth_frame.get(12..)?;
@@ -197,10 +166,8 @@ pub fn parse_descriptor(eth_frame: &[u8]) -> Option<Descriptor> {
     })
 }
 
-/// Whether a completion poll reply says programming has finished.
-///
-/// The card reports done by setting a bit in each receiver's record; there is
-/// no dedicated completion frame.
+/// Whether a completion poll reply (an `upgrade_info` reply) says programming
+/// has finished; there is no dedicated completion frame.
 #[must_use]
 pub fn programming_finished(eth_frame: &[u8]) -> bool {
     eth_frame
@@ -211,6 +178,7 @@ pub fn programming_finished(eth_frame: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BROADCAST;
 
     /// The reply this card actually sent, captured from the wire.
     fn real_reply() -> Vec<u8> {
@@ -291,14 +259,6 @@ mod tests {
     fn the_golden_partition_uses_its_own_selector() {
         let g = sdram_erase(BROADCAST, Partition::Golden, 0x1000);
         assert_eq!(g[18], 0x0d);
-    }
-
-    #[test]
-    fn reload_is_a_bare_command() {
-        let f = reload_firmware(BROADCAST);
-        assert_eq!(&f[12..14], &[0x26, 0x00]);
-        assert_eq!(f[17], 0x34);
-        assert!(f[18..].iter().all(|&b| b == 0), "carries no payload");
     }
 
     #[test]

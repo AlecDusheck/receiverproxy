@@ -130,7 +130,7 @@ pub fn install(
     }
 
     let mut dev = open(cli)?;
-    let sel = upgrade::BROADCAST;
+    let sel = protocol::BROADCAST;
 
     println!("uploading into SDRAM...");
     for (n, chunk) in staged.chunks(upgrade::CHUNK).enumerate() {

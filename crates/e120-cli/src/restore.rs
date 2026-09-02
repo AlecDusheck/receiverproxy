@@ -1,20 +1,12 @@
-//! Putting the card back the way it was.
+//! Snapshots of the card's flash, and restoring the configuration from one.
 //!
-//! Every write in this project is paired with a way to undo it, and this is
-//! that half. The card keeps three separate pieces of state and each needs a
-//! different route back:
-//!
-//! * the **firmware image** in flash blocks 0x00-0x0A, of which only 0x03
-//!   onwards can be written at all;
-//! * the **`.rcvbp` configuration** at 0x070000, which lives inside the
-//!   firmware image's address range and is erased whenever firmware is written;
-//! * the **screen-size record** in a small EEPROM, which the block erase also
-//!   clears and which the ordinary page frames cannot reach.
-//!
-//! Restoring firmware therefore destroys the configuration, so `all` sequences
-//! them in the order that leaves the card whole.
+//! `snapshot` saves the primary bank and the golden bank; `all` puts the
+//! `.rcvbp` configuration (and with it the screen-size record) back. Firmware
+//! is not restored here: 16.53 guards blocks 0-2 and 8 from the host path, so
+//! a firmware image goes in through `upgrade install` plus `flash-firmware`
+//! (`provision --firmware` does both).
 
-use crate::flash::{read_blocks, rewrite_block, write_config};
+use crate::flash::{read_blocks, write_config};
 use crate::util::open;
 use crate::{protocol, Cli};
 use anyhow::{Context, Result};
@@ -58,86 +50,32 @@ pub fn load_snapshot(dir: &str) -> Result<Snapshot> {
     Ok(Snapshot { firmware, config })
 }
 
-/// Write a saved firmware image back into the primary bank.
-///
-/// This also wipes the configuration, because the configuration is stored
-/// inside the region being written. Restore the configuration afterwards.
+/// Put the configuration and screen record back from a snapshot.
 ///
 /// # Errors
-/// Fails if the image is the wrong size or the card stops responding.
-pub fn firmware(cli: &Cli, image_path: &str, commit: bool, index: u16, wait: u64) -> Result<()> {
-    let img = std::fs::read(image_path).with_context(|| format!("read {image_path}"))?;
-    let span = protocol::FIRMWARE_BLOCKS.len() * 64 * 1024;
-    anyhow::ensure!(
-        img.len() >= span,
-        "{image_path} is {} bytes; the primary bank is {span}",
-        img.len()
-    );
-    let img = &img[..span];
-
-    println!("restoring the primary bank from {image_path}");
-    println!(
-        "  blocks 0x{:02x}..0x{:02x}; the golden bank at 0x{:02x} is not touched",
-        protocol::FIRMWARE_BLOCKS.start,
-        protocol::FIRMWARE_BLOCKS.end - 1,
-        protocol::GOLDEN_BLOCK
-    );
-    println!("  note: this erases the configuration at 0x070000; restore it afterwards");
-    if !commit {
-        println!("\ndry run: nothing written. Re-run with --commit.");
-        return Ok(());
-    }
-
-    let mut dev = open(cli)?;
-    rewrite_block(&mut dev, index, img, wait, 0..0)?;
-    println!("done; blocks 0x00-0x02 are write-protected and will not have changed");
-    Ok(())
-}
-
-/// Put firmware, configuration and screen record back, in an order that leaves
-/// the card whole.
-///
-/// # Errors
-/// Fails if any stage fails; earlier stages are not rolled back, so read the
-/// output to see how far it got.
+/// Fails if the snapshot holds no `config.rcvbp` or the write does not verify.
 pub fn all(cli: &Cli, dir: &str, commit: bool, index: u16, wait: u64) -> Result<()> {
     let snap = load_snapshot(dir)?;
     println!("restoring from {dir}");
-    println!(
-        "  firmware: {}",
-        if snap.firmware.is_some() {
-            "present"
-        } else {
-            "absent, skipping"
-        }
-    );
-    println!(
-        "  config:   {}",
-        snap.config.as_deref().unwrap_or("absent, skipping")
-    );
+    if snap.firmware.is_some() {
+        println!(
+            "  firmware: primary-region.bin present but NOT restored by this command; \
+             host-writable blocks go back with\n    e120 flash-firmware {dir}/primary-region.bin \
+             --backup <fresh dump> --from-block 3 --to-block 7 --commit"
+        );
+    }
+    let Some(config) = &snap.config else {
+        anyhow::bail!("{dir} holds no config.rcvbp; nothing this command can restore");
+    };
+    println!("  config:   {config}");
     if !commit {
         println!("\ndry run: nothing written. Re-run with --commit.");
         return Ok(());
     }
 
-    // Firmware first: writing it erases the configuration region.
-    if snap.firmware.is_some() {
-        firmware(cli, &format!("{dir}/primary-region.bin"), true, index, wait)?;
-    }
-    // Then the configuration, which also restores the screen record.
-    if let Some(config) = &snap.config {
-        write_config(
-            cli,
-            config,
-            true,
-            &format!("{dir}/primary-region.bin"),
-            snap.firmware
-                .is_some()
-                .then_some(&format!("{dir}/primary-region.bin")[..]),
-            index,
-            wait,
-        )?;
-    }
+    // write_config reads the block off the card and restores the screen record.
+    let backup = format!("{dir}/block07-before-restore.bin");
+    write_config(cli, config, true, &backup, None, index, wait)?;
     println!("\nrestore complete; power-cycle the card");
     Ok(())
 }

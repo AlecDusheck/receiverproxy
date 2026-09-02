@@ -41,9 +41,9 @@ fn our_panel() -> PanelSpec {
 /// they actually shipped, and the 256x384 wall they compiled for.
 fn sellers_panel() -> PanelSpec {
     let mut spec = our_panel();
-    // The file the card arrived with says 14-bit grey and +0x02F = 0; our
-    // spec deliberately departs from both (docs/bench-measurement.md: at 14
-    // no pixel data reaches the drivers, at 12 the panel renders).
+    // The file the card arrived with says 14-bit grey and +0x02F = 0. Ours
+    // keeps 12 (measured most; 12-16 render alike, docs/rendering-recipe.md)
+    // and sets +0x02F = 1, without which nothing displays.
     spec.module.gray_bits = None;
     spec.record01_overrides.remove("0x02F");
     spec.chip.library = "config/chips/sm16169sh.toml".into();
@@ -99,9 +99,8 @@ fn our_panel_differs_from_the_sellers_only_where_intended() {
     // writes none, and claiming one (0x14D) would declare max scan 64 on a
     // 1/16 module, so config/chips/sm16269s-factory.toml leaves it clear.
     let d = differing_bytes(record(&ours.rcvbp, 0x01), record(&seller, 0x01));
-    // +0x023 grey depth 12 (theirs 14) and +0x02F = 1 (theirs 0) are the two
-    // deliberate departures that make the panel display; the rest is the
-    // single-module screen size.
+    // +0x023 grey depth 12 (theirs 14; 12-16 render alike) and +0x02F = 1
+    // (theirs 0; required to display); the rest is the single-module screen size.
     assert_eq!(d, vec![0x023, 0x02F, 0x0C0, 0x0C1, 0x0C2, 0x0C3]);
     // The mapping and the chip registers now agree with theirs exactly.
     assert!(differing_bytes(record(&ours.rcvbp, 0x03), record(&seller, 0x03)).is_empty());
@@ -114,8 +113,8 @@ fn our_panel_differs_from_the_sellers_only_where_intended() {
     // fields and left the rest at the wall's values), plus the layout-derived
     // fields the hand patch missed, plus a real CRC.
     let v2 = std::fs::read(fixture("basic-pack-single-module-v2.bin")).unwrap();
-    // +0x08 (grey depth 12) and +0x19 (record +0x02F = 1) are the deliberate
-    // departures from the wall's values — see our_panel above.
+    // +0x08 (grey depth 12) and +0x19 (record +0x02F = 1) mirror the record
+    // 0x01 departures above.
     let layout_derived = [0x08, 0x19, 0x25, 0x2A, 0x39, 0x3A, 0x3B, 0x3C, 0xE3, 0xE4, 0xE5, 0xE6];
     let d: Vec<usize> = (0..0xFC)
         .filter(|i| !layout_derived.contains(i))
@@ -131,6 +130,9 @@ fn our_panel_differs_from_the_sellers_only_where_intended() {
 
 #[test]
 fn the_factory_image_rebuilds_from_erased_flash_and_its_own_parts() {
+    // The factory pack and config are not a `Generated`, so the region
+    // sequence is spelled out; it must match `Block7Builder::from_generated`
+    // minus the phantom-position gate (the factory left that table zero).
     let f = factory();
     let rec01 = &f.cfg.record_01().unwrap().payload;
     let mut b = Block7Builder::erased();
@@ -145,6 +147,22 @@ fn the_factory_image_rebuilds_from_erased_flash_and_its_own_parts() {
     let (img, _, _) = b.finish();
     let bad: Vec<u8> = differing_pages(&img, &f.block).into_iter().filter(|&p| p != 0xF0).collect();
     assert!(bad.is_empty(), "pages differing from factory: {bad:02x?}");
+}
+
+#[test]
+fn the_bench_spec_displaces_the_phantom_positions() {
+    // With `gate_phantom_positions` on, positions width..2*width of the
+    // void-line column table are 0xFF (pushed off the chain) and the real
+    // columns are left in place; this is what makes black LEDs-off.
+    let spec = our_panel();
+    let g = spec.generate().unwrap();
+    let (img, _, _) = Block7Builder::from_generated(&spec, &g).unwrap().finish();
+    let table = &img[0x1400..0x1400 + 0x400];
+    assert!(table[..128].iter().all(|&b| b == 0), "real columns must stay in place");
+    assert!(table[128..256].iter().all(|&b| b == 0xFF), "phantom positions must be displaced");
+    assert!(table[256..].iter().all(|&b| b == 0));
+    // The chip page is the caller's, so the shared sequence leaves it erased.
+    assert!(img[image::CHIP_PAGE_OFFSET..image::CHIP_PAGE_OFFSET + 0x100].iter().all(|&b| b == 0xFF));
 }
 
 #[test]

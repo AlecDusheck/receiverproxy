@@ -7,4 +7,4 @@ pub mod bpf;
 pub mod pcap;
 
 pub use bpf::Bpf;
-pub use pcap::{read_pcap, PcapPacket};
+pub use pcap::{parse_pcap, read_pcap, PcapPacket};

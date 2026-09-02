@@ -152,6 +152,23 @@ pub fn replay(cli: &Cli, path: &str, types: Option<&str>, gap_us: u64, all: bool
     Ok(())
 }
 
+/// Send one discovery frame and return the first card that answers.
+pub fn discover_one(cli: &Cli, wait: u64) -> Result<Option<protocol::DiscoveryInfo>> {
+    let mut dev = open(cli)?;
+    dev.send(&protocol::discovery())?;
+    let deadline = Instant::now() + Duration::from_secs(wait);
+    while Instant::now() < deadline {
+        for f in dev.recv()? {
+            if let Some(info) = protocol::parse_discovery_response(&f) {
+                return Ok(Some(info));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Send one discovery frame and print every reply, and every other frame
+/// seen, until `wait` runs out.
 pub fn discover(cli: &Cli, wait: u64) -> Result<()> {
     let mut dev = open(cli)?;
     println!("sending discovery on {} ...", cli.iface);

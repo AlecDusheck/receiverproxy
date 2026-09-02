@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """The bench, in one tool: power, arm, stream, capture, compare.
 
-Every experiment on this rig has the same shape — put the card in a known
-state, show something, photograph and meter it, and compare against a control
-— and every false result this project produced came from doing one of those
-steps badly: single-frame photos of a 1/16-multiplexed panel, a current reading
-taken while the supply drifted, or two conditions separated by a stream
-restart, which flips the card's state on its own. This tool does each step the
-right way once, so an experiment is a command line rather than a script.
+Each step is done the one way that does not fool the rig (docs/bench-measurement.md):
+primed averaged photos of the 1/16-multiplexed panel, current read mid-condition,
+one stream for a whole run, and a same-content control.
 
   bench.py power on|off|cycle|status         dead-man timer via psu.sh
   bench.py boot --spec SPEC                  power-cycle, wait for the card, push the spec's packs
@@ -17,17 +13,22 @@ right way once, so an experiment is a command line rather than a script.
   bench.py tile NAME... --out X.png          side-by-side strip of captures
   bench.py run --spec SPEC [--boot] COND...  the experiment: see below
 
+  bench.py flicker|bands|glitch NAME         experiment-only flicker probes (per-frame
+                                             series, rolling-shutter bands, band events);
+                                             the 30 fps camera cannot resolve the panel's
+                                             flicker (docs/rendering-recipe.md)
+
 A condition is `label=pattern[@brightness]`, where pattern is a PNG path or a
-built-in: black white red green blue top bottom left right rgbrows gray-N
-row-N col-N. `run` shows each condition and records supply current, panel mean,
-clip fraction and correlation against the first condition. Two modes:
+built-in: black white red green blue top bottom left right rgbrows hbands vbands
+gray-N row-N col-N. `run` shows each condition and records supply current, panel
+mean, clip fraction and correlation against the first condition. Two modes:
 
   --continuous   ONE stream for the whole run: the conditions become segments
                  of a looping video played by `e120 play`, captured mid-segment.
                  Nothing restarts between conditions, so the card's per-restart
                  state toggle cannot masquerade as a result. Default.
-  --restart      restart the stream per condition (the old way; only when a
-                 condition needs a different raster/row-base flag).
+  --restart      restart the stream per condition; only for experiments that
+                 need per-condition `image` flags (--stream-flags).
 
 The first condition is repeated at the end as the same-content control; a
 difference between conditions only counts if it clears that.
@@ -163,9 +164,7 @@ def boot(spec, minutes=10, settle=12):
     kill_streams()
     if not power('cycle', minutes):
         sys.exit(1)
-    # The card answers discovery well before it has finished loading its own
-    # boot parameters; packs pushed into that window are lost or half-applied
-    # and the panel comes up dark and deaf. Give it the full settle.
+    # Discovery answers before boot parameters have loaded; packs pushed earlier are lost.
     time.sleep(settle)
     r = sh([E120, 'send-params', '--spec', spec])
     print(r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr.strip())
@@ -187,9 +186,7 @@ def capture(name, frames=90, quiet=False):
     sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', jpg, '-vf',
         f'crop={crop()},scale=64:128', '-frames:v', '1', '-f', 'rawvideo',
         '-pix_fmt', 'rgb24', '-y', raw], check=True)
-    # A high-resolution crop (about 5 camera pixels per LED) for looking at
-    # individual pixels, and an outlier count: LEDs whose luminance is far
-    # from the median of their 3x3 neighbourhood at panel resolution.
+    # Per-LED crop (~5 camera pixels per LED) for eyeballing individual pixels.
     sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', jpg, '-vf',
         f'crop={crop()},scale=320:640:flags=neighbor', '-y', f'{DIR}/hi-{name}.png'])
     px = load(name)
@@ -254,9 +251,7 @@ def flicker(name, seconds=3.0):
         '-pixel_format', 'uyvy422', '-framerate', '30', '-video_size', '1920x1080',
         '-i', dev, '-frames:v', str(n), '-vf', f'crop={crop()},scale=64:128',
         '-c:v', 'libx264', '-qp', '0', '-y', mp4], check=True)
-    # Record the whole frame so a static reference region (wood, left of the
-    # panel) can be measured in the same frames: its frame-to-frame variation
-    # is the camera's own noise, which the panel figure must clear.
+    # A static reference region (wood, left of the panel) gives the camera's own noise.
     sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'avfoundation',
         '-pixel_format', 'uyvy422', '-framerate', '30', '-video_size', '1920x1080',
         '-i', dev, '-frames:v', str(n), '-vf', 'crop=300:600:600:300,scale=64:128',
@@ -312,15 +307,13 @@ def bands(name):
         '-pix_fmt', 'gray', '-y', raw], check=True)
     d = open(raw, 'rb').read()
     rows = [sum(d[r * 32:(r + 1) * 32]) / 32 for r in range(h)]
-    # Smooth over the LED pitch (~5 camera rows per LED here) so the grid of
-    # LEDs and gaps does not masquerade as modulation.
+    # Smooth over the LED pitch (~5 camera rows per LED) so the LED grid is not read as modulation.
     k = 21
     rows = [statistics.mean(rows[max(0, i - k // 2):i + k // 2 + 1]) for i in range(h)]
     m = statistics.mean(rows)
     c = [v - m for v in rows]
     import math
-    # Single-frequency DFT over band periods of 40..400 camera rows; report
-    # the strongest, as amplitude relative to the mean.
+    # Strongest single-frequency DFT bin over band periods of 40..400 camera rows.
     best, bestamp = 0, 0.0
     for period in range(40, 400, 2):
         re = sum(c[i] * math.cos(2 * math.pi * i / period) for i in range(h))
@@ -376,9 +369,6 @@ def glitch(name, seconds=4.0):
     # keep the worst frame for viewing
     if dev_:
         worst = max(range(len(dev_)), key=lambda i: dev_[i]) + 6
-        sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'avfoundation',
-            '-pixel_format', 'uyvy422', '-framerate', '30', '-video_size', '1920x1080',
-            '-i', dev, '-frames:v', '1', '-y', '/dev/null'])
         sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', mp4, '-vf',
             f"select='eq(n\,{worst})',scale=64:{h // 2}", '-frames:v', '1', '-y', f'{DIR}/gl-{name}-worst.png'])
 
@@ -440,10 +430,8 @@ def run(args):
         clips = []
         for label, png, _ in conds:
             mp4 = f'{DIR}/seg-{label}.mp4'
+            # -r 30 must match `play --fps 30` or the segments run at the wrong speed.
             sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-loop', '1', '-i', png,
-                # 30 fps, matching `play --fps 30`: a 10 fps source played at
-                # 30 ran the segments three times too fast and the captures
-                # landed in the wrong conditions.
                 '-t', str(seg), '-r', '30', '-pix_fmt', 'yuv420p', '-y', mp4], check=True)
             clips.append(mp4)
         lst = f'{DIR}/segs.txt'
@@ -452,7 +440,7 @@ def run(args):
         sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'concat', '-safe', '0',
             '-i', lst, '-c', 'copy', '-y', video], check=True)
         kill_streams()
-        subprocess.Popen(f'{E120} --brightness {conds[0][2]} play {video} --looping --fps 30 --raster {args.raster} >/dev/null 2>&1', shell=True)
+        subprocess.Popen(f'{E120} --brightness {conds[0][2]} play {video} --looping --fps 30 >/dev/null 2>&1', shell=True)
         t0 = time.time()
         for k, (label, _, _) in enumerate(conds):
             mid = k * seg + seg * 0.3
@@ -504,8 +492,7 @@ def main():
     m = p.add_mutually_exclusive_group()
     m.add_argument('--continuous', dest='continuous', action='store_true', default=True)
     m.add_argument('--restart', dest='continuous', action='store_false')
-    p.add_argument('--stream-flags', default='', help='extra flags for `image` in --restart mode, e.g. "--raster halves"')
-    p.add_argument('--raster', default='rows', help='row packing for the continuous stream: rows|halves|halves-swapped|interleaved')
+    p.add_argument('--stream-flags', default='', help='experiment-only: extra flags for `image` in --restart mode')
     a = ap.parse_args()
 
     if a.cmd == 'power':

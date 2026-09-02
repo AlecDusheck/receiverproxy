@@ -29,10 +29,7 @@ pub fn set_layout(
     p[18..20].copy_from_slice(&total_h.to_be_bytes());
     frame([0x02, 0x00], &p)
 }
-/// Put the card into its built-in test-pattern mode.
-///
-/// The card generates the pattern itself, so this exercises the panel without
-/// any pixel data from us. RAM only: it writes nothing to flash.
+/// Built-in test-pattern mode (card-generated, RAM only).
 pub fn test_mode(rcv_index: u16, pattern: u8) -> Vec<u8> {
     let mut p = vec![0u8; 0x109];
     p[0] = 0x00;
@@ -41,37 +38,27 @@ pub fn test_mode(rcv_index: u16, pattern: u8) -> Vec<u8> {
     p[4] = pattern;
     frame([0x33, 0x00], &p)
 }
-/// Ask the card to reload its parameters from flash, avoiding a power cycle.
-///
-/// Carries no data and uses an opcode outside the data-carrying set, so it
-/// cannot write anything.
+/// A type-0x0600 command frame with no data: `[1..3]` receiver index, `[3]`
+/// opcode, flag bytes (if any) at payload offset 0x0a.
+pub(crate) fn command(rcv_index: u16, opcode: u8, flags: &[u8]) -> Vec<u8> {
+    let mut p = [0u8; 126];
+    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
+    p[3] = opcode;
+    p[8..8 + flags.len()].copy_from_slice(flags);
+    frame([0x06, 0x00], &p)
+}
+/// Ask the card to reload its parameters from flash (opcode 0x79).
 pub fn reload_params(rcv_index: u16) -> Vec<u8> {
-    let mut p = [0u8; 126];
-    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
-    p[3] = 0x79;
-    frame([0x06, 0x00], &p)
+    command(rcv_index, 0x79, &[])
 }
-/// The vendor's post-save reload: opcode 0x77 with three enable flags.
-///
-/// LEDVISION sends this after writing flash so the card picks the new
-/// parameters up without a power cycle. Opcode 0x77 is in the data-carrying
-/// set, so the flag bytes ride at payload offset 0x0a (index 8 here);
-/// `01 01 01` means "reload all three parameter classes".
+/// The vendor's post-save reload: opcode 0x77, flags `01 01 01` ("all three
+/// parameter classes"). Which of the two reloads the card needs is unmeasured.
 pub fn reload_params_full(rcv_index: u16) -> Vec<u8> {
-    let mut p = [0u8; 126];
-    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
-    p[3] = 0x77;
-    p[8] = 0x01;
-    p[9] = 0x01;
-    p[10] = 0x01;
-    frame([0x06, 0x00], &p)
+    command(rcv_index, 0x77, &[0x01, 0x01, 0x01])
 }
-/// Ask the card to describe its firmware-upgrade capabilities.
-///
-/// A discovery-family frame distinguished by the `ff ff ff` marker and a magic
-/// number. Read-only: it carries no data and no write opcode. The reply states
-/// how long the card expects its firmware image to be, which tells us which
-/// image format its bootloader wants.
+/// Ask the card to describe its firmware-upgrade capabilities: a discovery
+/// frame marked `ff ff ff` plus a magic number. Decode the reply with
+/// `upgrade::parse_descriptor`.
 #[must_use]
 pub fn upgrade_info() -> Vec<u8> {
     let mut p = vec![0u8; 270];
@@ -107,12 +94,11 @@ impl UpgradeInfo {
         self.capabilities & 0b0001 != 0
     }
 }
-/// Locate the upgrade descriptor inside a reply.
+/// Heuristic decode of the upgrade reply.
 ///
-/// The absolute offset depends on framing we have not pinned down, but the
-/// spacings between fields come from fixed instruction offsets. So anchor on
-/// the length's high byte — a ~721 KB image starts `0b 00`, which is rare in an
-/// otherwise sparse reply — and read the neighbours relative to it.
+/// Anchors on the `0b 00` of the length and reads the capabilities relative
+/// to it. Prefer `upgrade::parse_descriptor`, the fixed-offset decoder pinned
+/// to a captured reply.
 #[must_use]
 pub fn parse_upgrade_info(reply: &[u8]) -> Option<UpgradeInfo> {
     for i in 5..reply.len().saturating_sub(2) {
@@ -132,8 +118,7 @@ pub fn parse_upgrade_info(reply: &[u8]) -> Option<UpgradeInfo> {
     }
     None
 }
-/// Parsed discovery response (best effort — field meanings from community
-/// reverse engineering of 5A-75B; other cards may differ).
+/// Parsed discovery response (field meanings from community 5A-75B work).
 pub struct DiscoveryInfo {
     pub card_id: u8,
     pub ver_major: u8,
@@ -177,8 +162,20 @@ mod upgrade_info_tests {
 
     #[test]
     fn the_query_carries_no_write_opcode() {
-        // Every byte past the fixed header is zero, so this cannot modify.
         assert!(upgrade_info()[25..].iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn reload_frames_keep_their_bytes() {
+        let f = reload_params(0);
+        assert_eq!(f.len(), 140);
+        assert_eq!(&f[12..14], &[0x06, 0x00]);
+        assert_eq!(f[17], 0x79);
+        assert!(f[18..].iter().all(|&b| b == 0));
+        let f = reload_params_full(1);
+        assert_eq!(&f[15..18], &[0x00, 0x01, 0x77]);
+        assert_eq!(&f[22..25], &[0x01, 0x01, 0x01]);
+        assert!(f[25..].iter().all(|&b| b == 0));
     }
 
     #[test]

@@ -11,8 +11,9 @@ pub mod module_pos;
 pub mod scan_table;
 
 use crate::record01::View;
+use crate::spec::{Generated, PanelSpec};
 use crate::Rcvbp;
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 
 pub const IMAGE_LEN: usize = 0x1_0000;
 pub const BASIC_PACK_OFFSET: usize = 0x0000;
@@ -42,7 +43,6 @@ const ZERO_REGIONS: [(usize, usize); 6] = [
 
 pub struct Block7Builder {
     img: Vec<u8>,
-    base: Vec<u8>,
     notes: Vec<String>,
 }
 
@@ -51,27 +51,34 @@ impl Block7Builder {
     /// vendor's erase — so every byte present is one we placed.
     #[must_use]
     pub fn erased() -> Self {
-        let base = vec![0xFF; IMAGE_LEN];
         Self {
-            img: base.clone(),
-            base,
+            img: vec![0xFF; IMAGE_LEN],
             notes: Vec::new(),
         }
     }
 
-    /// Start from an existing 64 KB block (for patching a dump).
+    /// The raster-state regions every caller places, in the one order that
+    /// works: `void_line_columns` must follow `zero_regions`, which clears
+    /// 0x1000..0x1800 (docs/black-floor.md). The chip page and the embedded
+    /// `.rcvbp` are left to the caller — RAM pushes must not send them.
     ///
     /// # Errors
-    /// Rejects a base that is not exactly one block.
-    pub fn from_base(base: &[u8]) -> Result<Self> {
-        if base.len() != IMAGE_LEN {
-            bail!("base image is {} bytes, need 0x10000", base.len());
+    /// Fails if the generated config lacks a record or a region builder
+    /// refuses the spec.
+    pub fn from_generated(spec: &PanelSpec, g: &Generated) -> Result<Self> {
+        let rec01 = &g.rcvbp.record_01().context("generated config has no record 0x01")?.payload;
+        let mut b = Self::erased();
+        b.zero_regions();
+        b.basic_pack(&g.basic_pack)?;
+        b.data_swap_from(rec01)?;
+        b.module_positions_from(rec01)?;
+        b.anti_void_lines();
+        if spec.mapping.gate_phantom_positions {
+            b.void_line_columns(spec.module.width, spec.module.width * 2);
         }
-        Ok(Self {
-            img: base.to_vec(),
-            base: base.to_vec(),
-            notes: Vec::new(),
-        })
+        b.mapping_from(&g.rcvbp)?;
+        b.scan_table_from(rec01, spec.card_scan_len())?;
+        Ok(b)
     }
 
     fn place(&mut self, at: usize, bytes: &[u8], note: impl Into<String>) {
@@ -88,19 +95,11 @@ impl Block7Builder {
             .push("0x100/0xA00/0xC00/0x1000/0x6800/0x7000: zeros (builders gated off)".into());
     }
 
-    /// 0x1400: the void-line column table, displacing line positions that
-    /// carry no real column off the chain.
-    ///
-    /// The table is one byte per position — the number of void positions
-    /// inserted before it, so `physical = a + table[a]` (`GetVoidLineInfoPacks`
-    /// @ 0x1e58c0, `GetAntiVoidLineParam` @ 0x1604d0; docs/black-floor.md).
-    /// For a module whose row-halves interleave down one chain the card
-    /// emits `2 * width` positions per line, and positions `width..2*width`
-    /// carry nothing of ours yet were being driven with a fixed pattern —
-    /// the gain-scaled floor that kept black from being dark. Pushing them
-    /// past the end of the chain removes the floor and leaves the picture
-    /// intact (measured 2026-09-01: black 0.47 A = LEDs off, white and the
-    /// band patterns unchanged).
+    /// 0x1400: the void-line column table, one byte per line position
+    /// (`physical = a + table[a]`, `GetVoidLineInfoPacks` @ 0x1e58c0).
+    /// 0xFF pushes positions `from..to` past the end of the chain; for this
+    /// interleaved wiring `width..2*width` carry nothing of ours and were
+    /// driven with a fixed pattern (docs/black-floor.md).
     pub fn void_line_columns(&mut self, from: u16, to: u16) {
         for a in from..to {
             self.img[0x1400 + usize::from(a)] = 0xFF;
@@ -122,12 +121,9 @@ impl Block7Builder {
         Ok(())
     }
 
-    /// Page 0x09: the chip-register table, record 0x84 verbatim. The
-    /// factory image never wrote this page, which is why the drivers do not
-    /// arm at boot.
-    ///
-    /// A config without record 0x84 (a non-addressed chip, configured
-    /// through the basic pack's chip-custom block) leaves the page erased.
+    /// Page 0x09: the chip-register table, record 0x84 verbatim; the card
+    /// arms the drivers at boot only when this page is written. A config
+    /// without record 0x84 (a non-addressed chip) leaves the page erased.
     ///
     /// # Errors
     /// Fails if record 0x84 is present but not one page.
@@ -225,13 +221,13 @@ impl Block7Builder {
         Ok(())
     }
 
-    /// The image, what was placed, and which pages differ from the base.
+    /// The image, what was placed, and which pages are no longer erased.
     #[must_use]
     pub fn finish(self) -> (Vec<u8>, Vec<String>, Vec<u8>) {
         let changed = (0..=255u8)
             .filter(|&p| {
                 let at = usize::from(p) * 0x100;
-                self.img[at..at + 0x100] != self.base[at..at + 0x100]
+                self.img[at..at + 0x100].iter().any(|&b| b != 0xFF)
             })
             .collect();
         (self.img, self.notes, changed)
@@ -244,12 +240,4 @@ fn record(cfg: &Rcvbp, id: u8) -> Result<&[u8]> {
         .find(|r| r.rtype[1] == id)
         .map(|r| r.payload.as_slice())
         .ok_or_else(|| anyhow::anyhow!("config has no record 0x{id:02x}"))
-}
-
-/// The data-swap body for the real-time pack (same bytes as the image).
-///
-/// # Errors
-/// Fails on a short record.
-pub fn data_swap_body(rec01: &[u8]) -> Result<[u8; 256]> {
-    Ok(data_swap::body(&View::new(rec01)?))
 }

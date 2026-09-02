@@ -1,8 +1,8 @@
 //! Driving a wall of panels: turn frames into Colorlight packets and send them.
 //!
 //! This is the join between the topology in `e120-canvas`, the wire format in
-//! `e120-proto`, and the transport in `e120-net`. Both the CLI and any server
-//! use it, so frame delivery behaves identically wherever it is driven from.
+//! `e120-proto`, and the transport in `e120-net`. Every content command goes
+//! through [`Wall::show`], so there is one frame recipe to measure.
 
 use anyhow::Result;
 use e120_canvas::{Canvas, Frame};
@@ -10,28 +10,27 @@ use e120_net::Bpf;
 use e120_proto as proto;
 use std::time::{Duration, Instant};
 
-/// How a frame is cut into row packets. The card's pixel map covers the
-/// stored height (half the panel) at double width, so the wire may want one
-/// packet per panel row or one double-width packet per stored row; which
-/// panel row supplies the second half is a bench measurement.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum Raster {
-    #[default]
-    Rows,
-    Halves,
-    HalvesSwapped,
-    Interleaved,
+/// Per-refresh timing. The defaults were measured on the bench
+/// (docs/rendering-recipe.md); change them only with a measurement.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Timing {
+    /// Latch frames after the rows. One never starts the display; two decays
+    /// into noise on a ~10 s period; three hold.
+    pub latches: u32,
+    /// Pause between the last row and the first latch. Without it the card
+    /// latches before the last row is stored and that row flickers.
+    pub latch_gap: Duration,
+    /// Pause between row packets. The card's receive FIFO is 1 KB, so a
+    /// line-rate burst can drop its tail; zero has measured fine so far.
+    pub row_gap: Duration,
 }
 
-impl std::str::FromStr for Raster {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, String> {
-        match s {
-            "rows" => Ok(Self::Rows),
-            "halves" => Ok(Self::Halves),
-            "halves-swapped" => Ok(Self::HalvesSwapped),
-            "interleaved" => Ok(Self::Interleaved),
-            o => Err(format!("unknown raster {o:?} (rows|halves|halves-swapped|interleaved)")),
+impl Default for Timing {
+    fn default() -> Self {
+        Self {
+            latches: 3,
+            latch_gap: Duration::from_micros(500),
+            row_gap: Duration::ZERO,
         }
     }
 }
@@ -41,9 +40,11 @@ impl std::str::FromStr for Raster {
 pub struct Settings {
     pub brightness: u8,
     pub color_order: proto::ColorOrder,
-    pub raster: Raster,
-    /// Send a layout frame before the first frame, so the card knows its size.
+    /// Send a layout frame before the first frame. Off by default: a
+    /// provisioned card takes its control area from EEPROM, and the layout
+    /// frame blanks it.
     pub announce_layout: bool,
+    pub timing: Timing,
 }
 
 impl Default for Settings {
@@ -51,8 +52,8 @@ impl Default for Settings {
         Self {
             brightness: 255,
             color_order: proto::ColorOrder::Bgr,
-            raster: Raster::Rows,
-            announce_layout: true,
+            announce_layout: false,
+            timing: Timing::default(),
         }
     }
 }
@@ -116,17 +117,11 @@ impl Wall {
         Ok(())
     }
 
-    /// Set panel brightness.
-    ///
-    /// # Errors
-    /// Fails if a frame cannot be sent.
-    pub fn set_brightness(&mut self, brightness: u8) -> Result<()> {
-        self.settings.brightness = brightness;
-        self.dev.send(&proto::brightness(brightness))?;
-        Ok(())
-    }
-
-    /// Render one canvas frame and push it to every receiver.
+    /// Render one canvas frame and push it to every receiver:
+    /// brightness, one row packet per panel row, the latch gap, the latches.
+    /// The order matters: a card fresh from arming never starts displaying
+    /// when the latch leads the rows; once woken, either order works, which
+    /// hid the difference for a long time.
     ///
     /// # Errors
     /// Fails if a frame cannot be sent.
@@ -134,46 +129,36 @@ impl Wall {
         if self.settings.announce_layout && !self.announced {
             self.announce_layout()?;
         }
-        self.dev
-            .send(&proto::brightness(self.settings.brightness))?;
+        let Settings {
+            brightness,
+            color_order,
+            timing,
+            ..
+        } = self.settings;
+        self.dev.send(&proto::brightness(brightness))?;
 
         for (_, fb) in self.canvas.render(frame) {
             let width = fb.width as usize;
-            let height = fb.height as usize;
-            // (wire row, panel rows it carries): one row, or two side by side.
-            let lines: Vec<(u16, Vec<u32>)> = match self.settings.raster {
-                Raster::Rows => (0..height).map(|y| (y as u16, vec![y as u32])).collect(),
-                Raster::Halves => (0..height / 2).map(|r| (r as u16, vec![r as u32, (r + height / 2) as u32])).collect(),
-                Raster::HalvesSwapped => (0..height / 2).map(|r| (r as u16, vec![(r + height / 2) as u32, r as u32])).collect(),
-                Raster::Interleaved => (0..height / 2).map(|r| (r as u16, vec![2 * r as u32, 2 * r as u32 + 1])).collect(),
-            };
-            let mut row_pixels = vec![[0u8; 3]; width * 2];
-            for (wire_row, panel_rows) in lines {
-                let n = panel_rows.len() * width;
-                for (k, &y) in panel_rows.iter().enumerate() {
-                    for x in 0..width {
-                        row_pixels[k * width + x] = fb.pixel(x as u32, y);
-                    }
+            let mut row = vec![[0u8; 3]; width];
+            for y in 0..fb.height {
+                if y > 0 && !timing.row_gap.is_zero() {
+                    std::thread::sleep(timing.row_gap);
+                }
+                for (x, px) in row.iter_mut().enumerate() {
+                    *px = fb.pixel(x as u32, y);
                 }
                 let mut offset = 0usize;
-                for chunk in row_pixels[..n].chunks(proto::MAX_PIXELS_PER_PACKET) {
-                    self.dev.send(&proto::pixel_row(
-                        wire_row,
-                        offset as u16,
-                        chunk,
-                        self.settings.color_order,
-                    ))?;
+                for chunk in row.chunks(proto::MAX_PIXELS_PER_PACKET) {
+                    self.dev
+                        .send(&proto::pixel_row(y as u16, offset as u16, chunk, color_order))?;
                     offset += chunk.len();
                 }
             }
         }
 
-        // Latch after a short gap (the card otherwise latches before the
-        // last row is stored and that row flickers), three times: two is
-        // borderline on this card, three holds.
-        std::thread::sleep(Duration::from_micros(500));
-        for _ in 0..3 {
-            self.dev.send(&proto::sync(self.settings.brightness))?;
+        std::thread::sleep(timing.latch_gap);
+        for _ in 0..timing.latches {
+            self.dev.send(&proto::sync(brightness))?;
         }
         self.frames_sent += 1;
         Ok(())
@@ -248,9 +233,12 @@ mod tests {
     }
 
     #[test]
-    fn settings_default_to_full_brightness() {
+    fn settings_default_to_the_measured_recipe() {
         let s = Settings::default();
         assert_eq!(s.brightness, 255);
-        assert!(s.announce_layout);
+        assert!(!s.announce_layout);
+        assert_eq!(s.timing.latches, 3);
+        assert_eq!(s.timing.latch_gap, Duration::from_micros(500));
+        assert_eq!(s.timing.row_gap, Duration::ZERO);
     }
 }

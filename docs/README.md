@@ -6,6 +6,7 @@ SM16269S panel, by topic. Start with [`../HANDOFF.md`](../HANDOFF.md).
 ## How to use the card
 | doc | what |
 |---|---|
+| [architecture.md](architecture.md) | the map: spec → boot image → card → frames, which crate owns each step, where every measured default lives |
 | [provisioning.md](provisioning.md) | bring a fresh card to a working state in one command; multi-panel positioning |
 | [rendering-recipe.md](rendering-recipe.md) | every configuration value that matters for this panel, with what each alternative did |
 | [building-a-config.md](building-a-config.md) | the TOML spec → `.rcvbp` + boot image generator |

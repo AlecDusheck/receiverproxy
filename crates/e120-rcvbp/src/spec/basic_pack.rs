@@ -94,7 +94,7 @@ pub fn body(spec: &PanelSpec, rec: &View, prov: &mut Vec<String>) -> [u8; 256] {
     b
 }
 
-/// Pack +0x13: a code from record +0x008 through {2,3,0,1} (0 if >= 4), with
+/// Pack +0x0F: a code from record +0x008 through {2,3,0,1} (0 if >= 4), with
 /// the module-height high bits mirrored into bits 4-5 and 6-7.
 fn head_code(rec_008: u8, dim_hi: u8) -> u8 {
     let code = match rec_008 & 0xF {

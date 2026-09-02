@@ -131,7 +131,7 @@ pub fn rcvbp_info(path: &str, dump: bool) -> Result<()> {
     println!(
         "{path}\n  version {}, {} bytes decompressed, {} records",
         f.version,
-        f.blob.len(),
+        f.to_blob()?.len(),
         f.records.len()
     );
     if let Some((w, _)) = f.geometry() {
@@ -201,20 +201,7 @@ pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
     let pack_path = format!("{stem}-basic-pack.bin");
     std::fs::write(&pack_path, g.basic_pack).with_context(|| format!("write {pack_path}"))?;
 
-    // The boot image, built from erased flash: every region generated from
-    // the spec and the generated config.
-    let rec01 = g.rcvbp.record_01().context("generated config lost record 0x01")?.payload.clone();
-    let mut b = rcvbp::image::Block7Builder::erased();
-    b.zero_regions();
-    b.basic_pack(&g.basic_pack)?;
-    b.data_swap_from(&rec01)?;
-    b.module_positions_from(&rec01)?;
-    b.anti_void_lines();
-    if spec.mapping.gate_phantom_positions {
-        b.void_line_columns(spec.module.width, spec.module.width * 2);
-    }
-    b.mapping_from(&g.rcvbp)?;
-    b.scan_table_from(&rec01, spec.card_scan_len())?;
+    let mut b = rcvbp::image::Block7Builder::from_generated(&spec, &g)?;
     if spec.boot.arm_at_boot {
         b.chip_registers_from(&g.rcvbp)?;
     }
@@ -249,6 +236,6 @@ pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
     println!("  {pack_path}");
     println!("  {img_path}   ({} pages differ from base)", changed.len());
     println!("  {report_path}");
-    println!("install: e120 restore-flash {img_path} --commit && e120 screen-size --set {}x{} --commit", spec.screen.width, spec.screen.height);
+    println!("install: e120 provision --spec {spec_path} --commit   (or: e120 restore-flash {img_path} --commit)");
     Ok(())
 }

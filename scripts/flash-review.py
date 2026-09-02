@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
-"""Compare the card's parameter block against the day-one dump, region by region.
+"""Diff the card's parameter block (0x07) against the day-one dump, run by run.
 
-Block 0x07 is not one thing. It holds the compiled boot image, the EEPROM
-mirror and several regions this project has never identified. Erasing the block
-and writing back only the parts we understand silently discards the rest — that
-is how the receiver's control-area window ended up as an empty rectangle
-(startX = startY = 0xFFFF), which made the card drop every pixel it was sent.
-
-This lists every run that differs from the factory state and flags the ones we
-cannot account for, so damage of that kind is visible instead of latent.
+Block 7 holds the boot image, the EEPROM mirror and regions never identified;
+unidentified differences are flagged so damage is visible rather than latent
+(docs/retracted-findings.md). Repair with eeprom-restore.py or `e120 provision`.
 
 Usage: flash-review.py <now-block7.bin> [day-one-primary-region.bin]
 """
 import sys
 
-MIRROR = 0xF000   # EEPROM mirror within block 0x07
-
 from flash_review_map import EEPROM
+
+MIRROR = 0xF000   # EEPROM mirror within block 0x07
 
 KNOWN = [(0x0000, MIRROR, 'compiled boot image (written by restore-flash)')] + [
     (MIRROR + off, ln, f'EEPROM 0x{off:03x}: {label}') for off, ln, label in EEPROM

@@ -11,15 +11,14 @@ mod util;
 
 use capture::{discover, listen, pcap_summary, raw_send, replay};
 use config::{config_build, config_diff, rcvbp_info};
-use display::{play, probe, show, show_as, show_pattern, solid, test_pattern};
+use display::{play, probe, show_image, show_pattern, show_solid};
 use flash::{
-    dump_flash, dump_range, flash_firmware, read_config, restore_flash, scan_flash,
-    upgrade_info, write_config,
+    dump_flash, dump_range, flash_firmware, read_config, restore_flash, scan_flash, write_config,
 };
 use params::send_params;
 use util::{open, parse_color};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use e120_proto as protocol;
 use e120_rcvbp as rcvbp;
@@ -98,17 +97,7 @@ enum UpgradeWhat {
 
 #[derive(Subcommand)]
 enum RestoreWhat {
-    /// Rewrite the primary firmware bank from a saved image
-    Firmware {
-        image: String,
-        #[arg(long)]
-        commit: bool,
-        #[arg(long, default_value_t = 0)]
-        index: u16,
-        #[arg(long, default_value_t = 3)]
-        wait: u64,
-    },
-    /// Restore firmware, configuration and screen record from a snapshot
+    /// Restore the configuration and screen record from a snapshot
     All {
         #[arg(long, default_value = "snapshot")]
         dir: String,
@@ -166,7 +155,7 @@ enum Cmd {
     },
     /// Show a test pattern
     Test {
-        /// gradient | rows | border | rgb
+        /// gradient | rows | border | rgb | white
         #[arg(default_value = "gradient")]
         pattern: String,
         /// Keep refreshing until Ctrl-C
@@ -179,14 +168,6 @@ enum Cmd {
         /// Keep refreshing until Ctrl-C
         #[arg(long)]
         hold: bool,
-        /// How to cut the framebuffer into row packets
-        #[arg(long, default_value = "rows")]
-        raster: String,
-        /// Added to every transmitted row index. The vendor sender uses
-        /// `(screen - 1) << 12` for screens 1..9, so screen 1 sends plain y;
-        /// a card expecting another screen would ignore every row we send.
-        #[arg(long, default_value_t = 0)]
-        row_base: u16,
     },
     /// Bring a card to a working state: snapshot, firmware, config, EEPROM, verify
     Provision {
@@ -247,11 +228,6 @@ enum Cmd {
         #[arg(long, default_value_t = 0)]
         index: u16,
         #[arg(long, default_value_t = 3)]
-        wait: u64,
-    },
-    /// Ask the card what firmware image it expects (read-only)
-    UpgradeInfo {
-        #[arg(long, default_value_t = 4)]
         wait: u64,
     },
     /// Scan every 64KB flash block for known signatures (read-only)
@@ -340,9 +316,6 @@ enum Cmd {
         /// Loop forever
         #[arg(long = "loop", alias = "looping")]
         looping: bool,
-        /// How to cut frames into row packets: rows|halves|halves-swapped|interleaved
-        #[arg(long, default_value = "rows")]
-        raster: String,
         /// Wall layout JSON; defaults to a single panel of --width x --height
         #[arg(long)]
         layout: Option<String>,
@@ -507,9 +480,10 @@ fn main() -> Result<()> {
     run(&cli)
 }
 
-/// Commands that put an image on the panel.
-fn run_display(cli: &Cli) -> Result<Option<()>> {
+#[allow(clippy::too_many_lines)]
+fn run(cli: &Cli) -> Result<()> {
     match &cli.cmd {
+        // Pixels.
         Cmd::Probe {
             rows,
             row_gap_us,
@@ -517,69 +491,32 @@ fn run_display(cli: &Cli) -> Result<Option<()>> {
             repeat,
             color,
         } => {
-            let c = u32::from_str_radix(color, 16)?;
-            let rgb = [(c >> 16) as u8, (c >> 8) as u8, c as u8];
-            probe(cli, *rows, *row_gap_us, *sync, *repeat, rgb).map(Some)
+            let rgb = parse_color(std::slice::from_ref(color))?;
+            probe(cli, *rows, *row_gap_us, *sync, *repeat, rgb)
         }
-        Cmd::Fill { color, hold } => {
-            let (r, g, b) = parse_color(color)?;
-            let fb = solid(cli, r, g, b);
-            show(cli, &fb, *hold).map(Some)
-        }
-        Cmd::Test { pattern, hold } => {
-            let fb = test_pattern(cli, pattern)?;
-            show(cli, &fb, *hold).map(Some)
-        }
-        Cmd::Image { path, hold, raster, row_base } => {
-            let img = image::open(path).with_context(|| format!("open image {path}"))?;
-            let img = img
-                .resize_exact(
-                    u32::from(cli.width),
-                    u32::from(cli.height),
-                    image::imageops::FilterType::Lanczos3,
-                )
-                .to_rgb8();
-            let mut fb = vec![[0u8; 3]; cli.width as usize * cli.height as usize];
-            for (x, y, px) in img.enumerate_pixels() {
-                fb[y as usize * cli.width as usize + x as usize] = [px[0], px[1], px[2]];
-            }
-            let raster: display::Raster =
-                raster.parse().map_err(|e: String| anyhow::anyhow!(e))?;
-            show_as(cli, &fb, *hold, raster, *row_base).map(Some)
-        }
-        Cmd::Provision { spec, firmware, position, snapshot_dir, commit, wait } => {
-            let (x, y) = position
-                .split_once(',')
-                .and_then(|(a, b)| Some((a.trim().parse().ok()?, b.trim().parse().ok()?)))
-                .ok_or_else(|| anyhow::anyhow!("--position must be x,y"))?;
-            provision::provision(cli, spec, firmware.as_deref(), (x, y), snapshot_dir.as_deref(), *commit, *wait).map(Some)
-        }
-        Cmd::Blank => {
-            let fb = solid(cli, 0, 0, 0);
-            show(cli, &fb, false).map(Some)
-        }
+        Cmd::Fill { color, hold } => show_solid(cli, parse_color(color)?, *hold),
+        Cmd::Test { pattern, hold } => show_pattern(cli, pattern, *hold, None),
+        Cmd::Image { path, hold } => show_image(cli, path, *hold),
+        Cmd::Blank => show_solid(cli, [0, 0, 0], false),
         Cmd::Brightness { value } => {
             let mut dev = open(cli)?;
             dev.send(&protocol::brightness(*value))?;
             dev.send(&protocol::sync(*value))?;
             println!("brightness set to {value}");
-            Ok(Some(()))
+            Ok(())
         }
         Cmd::Play {
             input,
             fps,
             fit,
             looping,
-            raster,
             layout,
-        } => play(cli, input, *fps, fit, *looping, raster, layout.as_deref()).map(Some),
-        Cmd::Pattern { name, hold, layout } => {
-            show_pattern(cli, name, *hold, layout.as_deref()).map(Some)
-        }
+        } => play(cli, input, *fps, fit, *looping, layout.as_deref()),
+        Cmd::Pattern { name, hold, layout } => show_pattern(cli, name, *hold, layout.as_deref()),
         Cmd::LayoutExample => {
             let canvas = e120_canvas::Canvas::grid(128, 64, 2, 1);
             println!("{}", serde_json::to_string_pretty(&canvas)?);
-            Ok(Some(()))
+            Ok(())
         }
         Cmd::SetLayout {
             panel_width,
@@ -597,18 +534,34 @@ fn run_display(cli: &Cli) -> Result<Option<()>> {
                 *panel_height,
             ))?;
             println!("sent layout: {panel_width}x{panel_height}");
-            Ok(Some(()))
+            Ok(())
         }
-        _ => Ok(None),
-    }
-}
 
-/// Commands that read or write the card's flash and EEPROM.
-/// Commands that install or restore firmware.
-fn run_firmware(cli: &Cli) -> Result<Option<()>> {
-    match &cli.cmd {
+        // Provisioning, firmware, snapshots.
+        Cmd::Provision {
+            spec,
+            firmware,
+            position,
+            snapshot_dir,
+            commit,
+            wait,
+        } => {
+            let (x, y) = position
+                .split_once(',')
+                .and_then(|(a, b)| Some((a.trim().parse().ok()?, b.trim().parse().ok()?)))
+                .ok_or_else(|| anyhow::anyhow!("--position must be x,y"))?;
+            provision::provision(
+                cli,
+                spec,
+                firmware.as_deref(),
+                (x, y),
+                snapshot_dir.as_deref(),
+                *commit,
+                *wait,
+            )
+        }
         Cmd::Upgrade { what } => match what {
-            UpgradeWhat::Info { wait } => upgrade::info(cli, *wait).map(Some),
+            UpgradeWhat::Info { wait } => upgrade::info(cli, *wait),
             UpgradeWhat::Install {
                 image,
                 commit,
@@ -622,67 +575,47 @@ fn run_firmware(cli: &Cli) -> Result<Option<()>> {
                 } else {
                     protocol::upgrade::Partition::Primary
                 };
-                upgrade::install(
-                    cli,
-                    image,
-                    *commit,
-                    partition,
-                    *timeout,
-                    *chunk_delay_us,
-                    *wait,
-                )
-                .map(Some)
+                upgrade::install(cli, image, *commit, partition, *timeout, *chunk_delay_us, *wait)
             }
         },
-        Cmd::Snapshot { dir, index, wait } => restore::snapshot(cli, dir, *index, *wait).map(Some),
+        Cmd::Snapshot { dir, index, wait } => restore::snapshot(cli, dir, *index, *wait),
         Cmd::Restore { what } => match what {
-            RestoreWhat::Firmware {
-                image,
-                commit,
-                index,
-                wait,
-            } => restore::firmware(cli, image, *commit, *index, *wait).map(Some),
             RestoreWhat::All {
                 dir,
                 commit,
                 index,
                 wait,
-            } => restore::all(cli, dir, *commit, *index, *wait).map(Some),
+            } => restore::all(cli, dir, *commit, *index, *wait),
         },
-        _ => Ok(None),
-    }
-}
 
-fn run_flash(cli: &Cli) -> Result<Option<()>> {
-    match &cli.cmd {
+        // Flash and EEPROM.
         Cmd::ReadConfig {
             out,
             index,
             page,
             max_chunks,
             wait,
-        } => read_config(cli, *index, *page, *max_chunks, *wait, out).map(Some),
+        } => read_config(cli, *index, *page, *max_chunks, *wait, out),
         Cmd::DumpFlash {
             out,
             block,
             blocks,
             index,
             wait,
-        } => dump_flash(cli, *block, *blocks, *index, *wait, out).map(Some),
+        } => dump_flash(cli, *block, *blocks, *index, *wait, out),
         Cmd::DumpRange {
             out,
             start,
             len,
             index,
             wait,
-        } => dump_range(cli, start, len, *index, *wait, out).map(Some),
+        } => dump_range(cli, start, len, *index, *wait, out),
         Cmd::ScanFlash {
             first,
             last,
             index,
             wait,
-        } => scan_flash(cli, *first, *last, *index, *wait).map(Some),
-        Cmd::UpgradeInfo { wait } => upgrade_info(cli, *wait).map(Some),
+        } => scan_flash(cli, *first, *last, *index, *wait),
         Cmd::FlashFirmware {
             image,
             backup,
@@ -699,43 +632,37 @@ fn run_flash(cli: &Cli) -> Result<Option<()>> {
             *from_block..*to_block,
             *index,
             *wait,
-        )
-        .map(Some),
+        ),
         Cmd::WriteConfig {
             config,
             commit,
             backup,
             index,
             wait,
-        } => write_config(cli, config, *commit, backup, None, *index, *wait).map(Some),
+        } => write_config(cli, config, *commit, backup, None, *index, *wait),
         Cmd::ScreenSize {
             set,
             commit,
             index,
             wait,
-        } => screen::screen_size(cli, *set, *commit, *index, *wait).map(Some),
+        } => screen::screen_size(cli, *set, *commit, *index, *wait),
         Cmd::RestoreFlash {
             image,
             commit,
             index,
-        } => restore_flash(cli, image, *commit, *index).map(Some),
-        _ => Ok(None),
-    }
-}
+        } => restore_flash(cli, image, *commit, *index),
 
-/// Commands that push parameters or run the card's own test modes.
-fn run_params(cli: &Cli) -> Result<Option<()>> {
-    match &cli.cmd {
+        // Parameters and the card's own test modes.
         Cmd::SendParams {
             spec,
             chip_only,
             gap_ms,
-        } => send_params(cli, spec, *chip_only, *gap_ms).map(Some),
+        } => send_params(cli, spec, *chip_only, *gap_ms),
         Cmd::TestMode { pattern, index } => {
             let mut dev = open(cli)?;
             dev.send(&protocol::test_mode(*index, *pattern))?;
             println!("test pattern {pattern} selected");
-            Ok(Some(()))
+            Ok(())
         }
         Cmd::TestSweep { count, secs, index } => {
             let mut dev = open(cli)?;
@@ -746,7 +673,7 @@ fn run_params(cli: &Cli) -> Result<Option<()>> {
             }
             dev.send(&protocol::test_mode(*index, 0))?;
             println!("back to normal");
-            Ok(Some(()))
+            Ok(())
         }
         Cmd::ReloadParams { index, full } => {
             let mut dev = open(cli)?;
@@ -757,19 +684,10 @@ fn run_params(cli: &Cli) -> Result<Option<()>> {
                 dev.send(&protocol::reload_params(*index))?;
                 println!("asked the card to reload parameters from flash");
             }
-            Ok(Some(()))
+            Ok(())
         }
-        _ => Ok(None),
-    }
-}
 
-fn run(cli: &Cli) -> Result<()> {
-    for dispatch in [run_display, run_flash, run_firmware, run_params] {
-        if dispatch(cli)?.is_some() {
-            return Ok(());
-        }
-    }
-    match &cli.cmd {
+        // Wire diagnostics and config files.
         Cmd::Discover { wait } => discover(cli, *wait),
         Cmd::Listen { wait, include_ours } => listen(cli, *wait, *include_ours),
         Cmd::RawSend {
@@ -796,6 +714,5 @@ fn run(cli: &Cli) -> Result<()> {
             gap_us,
             all,
         } => replay(cli, path, types.as_deref(), *gap_us, *all),
-        _ => unreachable!("handled by a dispatcher above"),
     }
 }

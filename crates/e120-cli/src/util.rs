@@ -18,15 +18,16 @@ pub fn open(cli: &Cli) -> Result<bpf::Bpf> {
     bpf::Bpf::open(&cli.iface, true, 500)
 }
 
-pub fn parse_color(parts: &[String]) -> Result<(u8, u8, u8)> {
+/// `RRGGBB` (optionally `#`-prefixed) or three decimal components.
+pub fn parse_color(parts: &[String]) -> Result<[u8; 3]> {
     match parts {
         [hex] => {
             let hex = hex.trim_start_matches('#');
             anyhow::ensure!(hex.len() == 6, "expected RRGGBB hex or three 0-255 values");
             let v = u32::from_str_radix(hex, 16).context("bad hex color")?;
-            Ok(((v >> 16) as u8, (v >> 8) as u8, v as u8))
+            Ok([(v >> 16) as u8, (v >> 8) as u8, v as u8])
         }
-        [r, g, b] => Ok((r.parse()?, g.parse()?, b.parse()?)),
+        [r, g, b] => Ok([r.parse()?, g.parse()?, b.parse()?]),
         _ => anyhow::bail!("expected RRGGBB hex or three 0-255 values"),
     }
 }

@@ -4,8 +4,10 @@
 //! slots) per gray level, bit times snapped to 8-unit quanta, then rendered
 //! bucket by bucket. Reproduces the factory image byte-exact under test.
 //!
-//! Transcribed cases: default style, 16 segments, 14-bit gray. The vendor
-//! hand-codes one field-table block per gray level; only 14 is transcribed.
+//! Transcribed case: default style, 16 segments, the 14-level schedule. The
+//! vendor hand-codes one field-table block per gray level; the card's
+//! schedule depth is independent of the pixel word width (docs/grey-mapping.md
+//! §5.2 records the 12-level block too).
 
 use crate::record01::View;
 use anyhow::{bail, Result};
@@ -14,6 +16,13 @@ pub const LEN: usize = 0x400;
 const LEVELS: usize = 16;
 const SLOTS: u32 = 32;
 const MAX_ENTRIES: usize = 0xE7;
+/// Schedule depth of the transcribed field table. Deliberately not taken
+/// from the spec's `gray_bits`: measured 2026-09-01, the vendor's 12-level
+/// block paired with 12-bit words raised the black floor (0.75 -> 0.90 A)
+/// instead of removing it, so the schedule depth is not the floor's cause
+/// (docs/grey-mapping.md §6; the floor was the phantom positions,
+/// docs/black-floor.md). 14 is what the factory image carries.
+const GRAY: u32 = 14;
 
 /// Field-table block for 16 segments at 14-bit gray, levels 0..=12
 /// (`InitFieldTable16Segment`, jump table 0x1d722C entry 12): (segment id,
@@ -34,23 +43,6 @@ const FIELD_TABLE_16SEG_GRAY14: [(u32, u32); 13] = [
     (8, 0xAAAA),
 ];
 
-/// InitFieldTable16Segment, jump table 0x1d722C entry 10 (top = 11, gray 12):
-/// levels 0..=10; the top level gets all 16 slots with id 16.
-/// Decoded from libCLTDevice 0x1d653f..0x1d66cf (docs/grey-mapping.md §5.2).
-const FIELD_TABLE_16SEG_GRAY12: [(u32, u32); 11] = [
-    (1, 1 << 3),
-    (1, 1 << 5),
-    (1, 1 << 7),
-    (1, 1 << 11),
-    (1, 1 << 13),
-    (1, 1 << 15),
-    (2, (1 << 1) | (1 << 9)),
-    (4, 0x4444),
-    (4, 0x1111),
-    (8, 0xAAAA),
-    (8, 0x5555),
-];
-
 struct FieldTable {
     id: [u32; LEVELS],
     enable: [u32; LEVELS],
@@ -60,39 +52,29 @@ struct FieldTable {
 /// # Errors
 /// Fails for inputs whose vendor tables are not transcribed.
 pub fn body(rec: &View, card_scan_len: u16) -> Result<[u8; LEN]> {
-    // The schedule must have exactly as many levels as the pixel words have
-    // bits: a 14-level schedule fed 12-bit words spends the two phantom
-    // planes (~75 % of the lit time) on bits the word cannot supply, which
-    // shows as a gain-scaled per-pixel floor at black (docs/grey-mapping.md).
-    // Measured 2026-09-01: a 12-level schedule with 12-bit words raises the
-    // black floor (0.75 -> 0.90 A) rather than removing it, so the schedule
-    // depth is not the floor's cause; the 14-level table stays the default
-    // and E120_SCAN_GRAY selects the other for experiments.
-    let gray = std::env::var("E120_SCAN_GRAY").ok().and_then(|v| v.parse().ok()).unwrap_or(14u32);
-    let _ = rec.gray();
     let n_seg = rec.segments();
     let style = rec.hr_style();
-    if style != 0 || n_seg != 16 || !(gray == 12 || gray == 14) {
+    if style != 0 || n_seg != 16 {
         bail!(
-            "scan-table solver: style {style}, {n_seg} segments, {gray}-bit gray is not a \
-             transcribed case (style 0 / 16 segments / 12- or 14-bit)"
+            "scan-table solver: style {style}, {n_seg} segments is not a transcribed case \
+             (style 0 / 16 segments)"
         );
     }
     if rec.hr_scan_style() != 0 {
         bail!("scan-table solver: high-refresh scan style {} not transcribed", rec.hr_scan_style());
     }
     let line_time = (u32::from(card_scan_len) * u32::from(rec.serial_clock()) * 8) as f32;
-    let mut ft = init_field_table(gray, line_time, rec.min_oe())?;
-    fill_bit_times(&mut ft, gray, n_seg, rec.min_oe());
+    let mut ft = init_field_table(line_time, rec.min_oe())?;
+    fill_bit_times(&mut ft, n_seg, rec.min_oe());
     Ok(render(&ft, n_seg, rec.scan()))
 }
 
 /// `InitFieldTable16Segment`, style 0: pick the level that gets the full
 /// 16-slot segment, and take the rest from the hand-coded block.
-fn init_field_table(gray: u32, line_time: f32, min_oe: f32) -> Result<FieldTable> {
+fn init_field_table(line_time: f32, min_oe: f32) -> Result<FieldTable> {
     let mut k = 16u32;
     let (x0, mut x1) = (line_time * 1.2, min_oe);
-    for e in 0..gray {
+    for e in 0..GRAY {
         if x1 > x0 {
             k = e;
             break;
@@ -100,9 +82,9 @@ fn init_field_table(gray: u32, line_time: f32, min_oe: f32) -> Result<FieldTable
         x1 += x1;
     }
     let hi = k + 3;
-    let c = gray - 1; // A[style 0] = -1
+    let c = GRAY - 1; // A[style 0] = -1
     let top = if hi > c { c.max(1) } else { hi };
-    if top != gray - 1 {
+    if top != GRAY - 1 {
         bail!("scan-table solver: two-level fill path not transcribed");
     }
     let mut ft = FieldTable {
@@ -110,8 +92,7 @@ fn init_field_table(gray: u32, line_time: f32, min_oe: f32) -> Result<FieldTable
         enable: [0; LEVELS],
         value: [[0; SLOTS as usize]; LEVELS],
     };
-    let table: &[(u32, u32)] = if gray == 12 { &FIELD_TABLE_16SEG_GRAY12 } else { &FIELD_TABLE_16SEG_GRAY14 };
-    for (level, &(seg, bits)) in table.iter().enumerate() {
+    for (level, &(seg, bits)) in FIELD_TABLE_16SEG_GRAY14.iter().enumerate() {
         ft.id[level] = seg;
         ft.enable[level] = bits;
     }
@@ -129,13 +110,13 @@ fn snap8(x: f32) -> f32 {
 
 /// `FromSegmentToFrameTime`: levels whose segment count equals nSeg move to
 /// the upper slot half; then each enabled slot gets a snapped bit time.
-fn fill_bit_times(ft: &mut FieldTable, gray: u32, n_seg: u32, min_oe: f32) {
+fn fill_bit_times(ft: &mut FieldTable, n_seg: u32, min_oe: f32) {
     for i in 0..LEVELS {
         if ft.id[i] == n_seg {
             ft.enable[i] = 0xFFFF_0000;
         }
     }
-    for level in (1..gray).rev() {
+    for level in (1..GRAY).rev() {
         let l = level as usize;
         let mut seg = ft.id[l];
         let t = ((1u64 << level) as f64 * f64::from(min_oe) / f64::from(seg)) as f32;

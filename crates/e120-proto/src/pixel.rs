@@ -1,35 +1,29 @@
 //! Pixel data, latching, and brightness: the frames sent every refresh.
 //!
-//! Layouts follow FPP's ColorLight-5a-75 output (FalconChristmas/fpp,
-//! `ColorLight-5a-75.cpp`), verified on this card. The framing fact that
-//! matters, straight from FPP's constants (`CL_PACKET_TYPE_OFFSET 12`,
-//! `CL_PACKET_DATA_OFFSET 13`): the type is a single byte at frame offset 12
-//! and **the first data byte rides in offset 13**, inside what would be the
-//! second EtherType byte. Shifting the data by one is not ignored by the card:
-//! it misparses the sync frame and degrades into a 5 Hz strobe.
+//! Layouts follow FPP's ColorLight-5a-75 output, byte-verified against the
+//! vendor DLL (`docs/pixel-protocol.md` §3). The type is one byte at frame
+//! offset 12 and the first data byte rides at offset 13, inside what would be
+//! the second EtherType byte; shifting data by one turns the panel into a 5 Hz
+//! strobe.
 
 use super::frame;
 
-/// Max pixels per row packet (FPP's CL_MAX_PIXL_PER_PACKET).
+/// Max pixels per row packet (FPP's CL_MAX_PIXL_PER_PACKET, hard-coded in the vendor DLL).
 pub const MAX_PIXELS_PER_PACKET: usize = 497;
 
 /// Display/vsync frame: wire type 0x01, data[0] = 0x07 ("PC sender").
 ///
-/// Latches the previously sent row data onto the panel and carries brightness
-/// at data[22] and data[25..28] (frame offsets 35 and 38..41). FPP sends this
-/// frame twice per refresh on firmware v13+.
+/// Latches the previously sent row data onto the panel and carries the master
+/// brightness at frame offset 35 and three channel gains at 38..41. Callers
+/// send three per refresh (`docs/rendering-recipe.md`).
 pub fn sync(brightness: u8) -> Vec<u8> {
-    // The vendor fills the master value (data[21]) and the three channel
-    // gains (data[24..27]) from separate bytes of its brightness block; the
-    // per-channel derivation is unresolved (docs/pixel-protocol.md §2.2).
-    // E120_SYNC_GAIN sets the channel gains independently for experiments.
-    let gain = std::env::var("E120_SYNC_GAIN").ok().and_then(|v| v.parse().ok()).unwrap_or(brightness);
     let mut p = [0u8; 98];
     p[21] = brightness;
     p[22] = 0x05;
-    p[24] = gain;
-    p[25] = gain;
-    p[26] = gain;
+    // The vendor derives the three gains from separate bytes of its brightness
+    // block; that derivation is unresolved (docs/pixel-protocol.md §2.2), so
+    // they follow the master value.
+    p[24..27].fill(brightness);
     frame([0x01, 0x07], &p)
 }
 
@@ -50,17 +44,21 @@ pub enum ColorOrder {
     Grb,
 }
 
+impl std::str::FromStr for ColorOrder {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "rgb" => Ok(Self::Rgb),
+            "bgr" => Ok(Self::Bgr),
+            "grb" => Ok(Self::Grb),
+            _ => Err(format!("unknown color order {s:?} (rgb|bgr|grb)")),
+        }
+    }
+}
+
 /// Pixel row frame: wire type 0x55, then data at offset 13:
 /// [row MSB, row LSB, offs MSB, offs LSB, count MSB, count LSB, 0x08, 0x88,
 /// pixels...]
-///
-/// OPEN QUESTION: the card stores neither this layout nor the variant with a
-/// constant `0x5500` EtherType and the row as a u16 at the payload start —
-/// white and black draw identical current either way on a clean boot. The
-/// alternative briefly looked right, but that reading came from a per-run
-/// state toggle (the same colour sent twice alternates the supply current by
-/// over an amp), not from content. Awaiting the vendor sender decode; until
-/// then this keeps FPP's documented 5a-75 layout.
 pub fn pixel_row(row: u16, pixel_offset: u16, rgb: &[[u8; 3]], order: ColorOrder) -> Vec<u8> {
     let count = rgb.len() as u16;
     let mut p = Vec::with_capacity(7 + rgb.len() * 3);
@@ -104,6 +102,14 @@ mod tests {
         assert_eq!(&bgr[21..24], &[3, 2, 1]);
         let grb = pixel_row(0, 0, &px, ColorOrder::Grb);
         assert_eq!(&grb[21..24], &[2, 1, 3]);
+    }
+
+    #[test]
+    fn colour_order_parses_case_insensitively() {
+        assert_eq!("BGR".parse::<ColorOrder>(), Ok(ColorOrder::Bgr));
+        assert_eq!("rgb".parse::<ColorOrder>(), Ok(ColorOrder::Rgb));
+        assert_eq!("grb".parse::<ColorOrder>(), Ok(ColorOrder::Grb));
+        assert!("rbg".parse::<ColorOrder>().is_err());
     }
 
     #[test]

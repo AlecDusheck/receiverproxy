@@ -1,14 +1,6 @@
-//! The screen-size record.
-//!
-//! The card keeps its panel geometry in a 256-byte record that the ordinary
-//! page-addressed flash frames cannot reach — it answers at a linear address
-//! but is backed by a small EEPROM, so a block erase clears it and a firmware
-//! write never restores it.
-//!
-//! It is read and set here directly, by value. Earlier code recovered it by
-//! slicing the same offset out of a saved flash image, which silently produces
-//! nonsense whenever that image is a firmware bitstream rather than a real
-//! config block.
+//! The screen-size record: a 256-byte EEPROM-backed record at a linear flash
+//! address that the page-addressed frames cannot reach. A block erase clears
+//! it and a firmware write never restores it, so it is read and set by value.
 
 use crate::util::{hexdump, is_card_frame, open};
 use crate::{protocol, Cli};
@@ -54,18 +46,9 @@ pub fn read(dev: &mut bpf::Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
 const START_X: usize = 2;
 const START_Y: usize = 4;
 
-/// True when the record has been erased rather than programmed.
-///
-/// This write path sends all 256 bytes, which spans **every** record in the
-/// card's EEPROM (`docs/eeprom-map.md`) — the control area, the calibration
-/// flags, the card name, the seam settings. So a read that came back erased
-/// must never be written back: doing so persists `0xFF` across all of them.
-///
-/// That is not hypothetical. Erasing flash block 0x07 clears this record, and
-/// setting the geometry afterwards restored the size while leaving
-/// `startX`/`startY` at `0xFFFF` — an empty window, after which the card
-/// silently drops every pixel sent to it while still reporting a healthy
-/// 128x64 to `discover`. It cost this project a long time to find.
+/// True when the record has been erased rather than programmed. The write
+/// path sends all 256 bytes, i.e. every EEPROM record (`docs/eeprom-map.md`),
+/// so an erased read must never be written back (docs/retracted-findings.md).
 #[must_use]
 pub fn looks_erased(record: &[u8]) -> bool {
     let empty_window = |o: usize| {
@@ -73,7 +56,7 @@ pub fn looks_erased(record: &[u8]) -> bool {
     };
     empty_window(START_X)
         || empty_window(START_Y)
-        || record.iter().filter(|&&b| b == 0xFF).count() > record.len() / 2
+        || record.iter().fold(0, |n, &b| n + usize::from(b == 0xFF)) > record.len() / 2
 }
 
 /// Geometry encoded in a record.

@@ -542,6 +542,13 @@ Status: **inferred, second choice.**
 
 ## 6. The experiment
 
+> **Outcome (2026-09-01):** the primary experiment was run — the 12-level
+> schedule with 12-bit words raised the all-black draw from 0.75 A to 0.90 A
+> instead of dropping it toward 0.47 A, so the schedule depth is not the
+> floor's cause. The 14-level table stays in the solver; the floor was the
+> phantom line positions ([black-floor.md](black-floor.md)). Kept below as
+> the record of what was tried.
+
 **Primary — make the scan table's level count match the pack's grey byte.**
 
 1. Add `FIELD_TABLE_16SEG_GRAY12` (§5.2) to
@@ -614,5 +621,5 @@ gain sweep 0/4/12/40/120 → 0.47/0.71/0.75/0.86/1.08 A.
 | `SChipCustomPlus` bit layout for 低灰均匀性 / 低灰补偿 / 消隐等级 | **NOT RESOLVED** — chase `ScreenBeautifyAssistant.dll` |
 | Record 0x01 `+0x1ED` = `OBJ+0xE13C` gamma additive offset | **medium** |
 | EEPROM byte `0x71` = `OBJ+0xC368` | **medium** |
-| `FIELD_TABLE_16SEG_GRAY12` values | **verified** decode; **untested** on hardware |
-| The floor is the two phantom bit-plane levels | **inferred** — §5.1 |
+| `FIELD_TABLE_16SEG_GRAY12` values | **verified** decode; **tested 2026-09-01** — paired with 12-bit words it raised the black floor (0.75 → 0.90 A) rather than removing it; the solver keeps the 14-level table (`scan_table.rs`, `GRAY`) |
+| The floor is the two phantom bit-plane levels | **retracted** — the §6 primary experiment moved the floor the wrong way; the floor was the phantom line positions ([black-floor.md](black-floor.md)) |

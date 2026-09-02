@@ -122,8 +122,8 @@ microcode ROM, and any constant present in 16.53 but not the older images.
 ethertype are equally invisible — so *this design does not build constant
 comparisons out of LUT4s at all*. Searching harder cannot work.
 
-**What would settle it:** the empirical sweep (`scripts/chipsweep.sh` with
-`scripts/bench.py compare`). Cheap, because the id is excluded from the pack
+**What would settle it:** the empirical sweep (`scripts/bench.py run --boot
+--spec …` per candidate id). Cheap, because the id is excluded from the pack
 CRC-32.
 
 ### 1.4 Is the data-swap / lane map identity correct for 1/16 on this module?

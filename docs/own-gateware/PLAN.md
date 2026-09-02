@@ -848,9 +848,10 @@ renders.
 ## 6. Unknowns, and the experiment for each
 
 Every experiment below uses only what is on the bench: the KA3005P supply read
-through `scripts/psu.sh`, a webcam through `scripts/panelcap.py` (90-frame
+through `scripts/psu.sh`, a webcam through `scripts/bench.py capture` (90-frame
 average — the panel multiplexes 1/16, so a single exposure is scan phase, not
-content), and `scripts/compare.py` for interleaved current comparisons. No
+content), and `scripts/bench.py run` for single-stream current comparisons
+with a same-content control. No
 scope, no logic analyser.
 
 Two rig rules that override everything: **read the PSU and power-cycle it,
@@ -897,7 +898,7 @@ inferences into facts — that JTAG is present, that it is not password-locked
 candidate group, but they can be batched.*
 Build the M1 blink target driving **many** candidate pads at *different*
 frequencies simultaneously — 1 Hz, 2 Hz, 4 Hz, 8 Hz — and film D2 (or a LED on
-J19) with `panelcap.py`. One capture identifies the pad by its blink rate, and a
+J19) with `bench.py`. One capture identifies the pad by its blink rate, and a
 handful of builds covers every candidate. Panel unplugged throughout. Yields the
 output oracle everything else leans on.
 
@@ -960,7 +961,7 @@ scan encoding.**
 
 | # | unknown | best guess and source | conf. | experiment |
 |---|---|---|---|---|
-| U1 | **RCLK pulses per row.** Nothing specifies it. | `SChipControl[10..13]` = 151, which the vendor's own `GetScanCycleLevel` formula reproduces exactly for our `reg07 = 0x04` / sub-id `0x0000`. Compare the sibling SM16380's `(1024 >> fmpwm) + 3 = 131`. | **LOW** | **E-RCLK**: sweep `RCLK_PER_ROW` over a decade around 151 (say 64…512, coarse then bisect), capture each with `panelcap.py`, score by correlation against the sent image. Wrong values desynchronise the chip's row pointer from the external decoder, whose signature is *every physical row showing the same content*. |
+| U1 | **RCLK pulses per row.** Nothing specifies it. | `SChipControl[10..13]` = 151, which the vendor's own `GetScanCycleLevel` formula reproduces exactly for our `reg07 = 0x04` / sub-id `0x0000`. Compare the sibling SM16380's `(1024 >> fmpwm) + 3 = 131`. | **LOW** | **E-RCLK**: sweep `RCLK_PER_ROW` over a decade around 151 (say 64…512, coarse then bisect), capture each with `bench.py capture`, score by correlation against the sent image. Wrong values desynchronise the chip's row pointer from the external decoder, whose signature is *every physical row showing the same content*. |
 | U2 | **A–E phase against the chip's internal row rollover.** | nothing anywhere | **NONE** | **E-PHASE**: sweep `ROW_PHASE` across one full row period at the best U1 value. Do U1 and U2 as a coarse 2-D grid before bisecting either. |
 | U3 | **Is pre-activation (tail 14) sent before *every* config write, or once?** | The vendor block carries the 14 and the sibling protocol doc says "each is preceded by 14" — but the only reference that **demonstrably drove a panel** sends `LAT3(+6), LAT14(+8)` once and then all register blocks with no pre-activation between them. | **MEDIUM** | **E-PREACT**: two bitstreams. Try once-first, because that is the one with hardware behind it. |
 | U4 | **Does the 5-clock config tail overlap the last five payload bits, or follow them?** These are different waveforms. | The working reference overlaps (LE rises when 5 clocks remain); the abandoned SM16269S-specific code used a post-data tail. | **MEDIUM-HIGH** for overlap | **E-TAIL**: two bitstreams. Symptom of getting it wrong is that register writes silently do nothing — check by sweeping gain and watching supply current, which is the one register with an unambiguous physical readout. |
@@ -1001,7 +1002,7 @@ a test that can fail. The ordering is a risk ordering, not a feature ordering.
 1. **Press the physical test button (J28).** Kill every background streamer
    first (`pkill -f e120`), confirm the wire is quiet, then press it. It bypasses
    the host, the Ethernet stack and the `0x33` command path entirely.
-   **Acceptance:** `panelcap.py capture testbutton` shows structure. If the
+   **Acceptance:** `bench.py capture testbutton` shows structure. If the
    button lights the panel, the vendor output stage is proven good and the whole
    diagnosis changes — and it means our gateware has a working reference to
    match rather than a mystery to solve.
@@ -1036,7 +1037,7 @@ written: every iteration is a ten-second volatile load, and a power cycle
 restores the vendor image.
 
 **Acceptance:** the D2 signal LED blinks at a rate we chose, filmed with
-`panelcap.py`. That single observation proves the bitstream configured, the
+`bench.py`. That single observation proves the bitstream configured, the
 25 MHz reference is where we think it is, the PLL locked, and the system clock
 is the frequency we think it is. Nothing else in the plan can be trusted until
 this passes.
@@ -1044,7 +1045,7 @@ this passes.
 **Fallback if E-LED finds nothing:** put the blink on *all* 14 fast top-edge
 pads at once with the panel connected and brightness irrelevant — any of them
 toggling should produce *some* visible or current-measurable effect. Use
-`compare.py` with the toggle on and off as two conditions.
+`bench.py run` with the toggle on and off as two conditions.
 
 ### M2 — RGMII receive and lane calibration: echo
 
@@ -1097,14 +1098,14 @@ low, and the U1/U2 sweep parameters exposed.
    addressing from ordering completely — a scrambled raster and a missing
    raster look identical under a fill and totally different under one pixel.
 3. **A single row**, then **a single column**, land where they should.
-4. **A full-white fill** gives a current step that `compare.py` resolves against
+4. **A full-white fill** gives a current step that `bench.py run` resolves against
    black by ≫0.033 A (the measured spread on this rig), interleaved and
    repeated.
 5. **A photograph of a known image** correlates >0.9 with the source under
-   `panelcap.py compare`.
+   `bench.py compare`.
 
 Between stages 1 and 2, run E-RCLK × E-PHASE as a coarse 2-D grid, scoring each
-cell with `panelcap.py` correlation. That grid is the most likely place for
+cell with `bench.py` correlation. That grid is the most likely place for
 first light to actually happen.
 
 ### M6 — make it good

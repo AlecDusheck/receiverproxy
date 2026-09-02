@@ -1,6 +1,6 @@
-//! The daemon behind `e120 ui`: an HTTP server that holds the raw Ethernet
+//! The daemon behind `rxp ui`: an HTTP server that holds the raw Ethernet
 //! link and runs the `ops` functions, as documented in `docs/ui.md`. Static
-//! files come from `web/dist` when it existed at build time; the JSON API
+//! files come from `web/build-static` when it existed at build time; the JSON API
 //! lives under `/api/v1` and every route but `GET /health` needs the token.
 
 pub mod api;
@@ -21,7 +21,7 @@ use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-/// What `e120 ui` passes.
+/// What `rxp ui` passes.
 #[derive(Clone, Debug)]
 pub struct Options {
     pub port: u16,
@@ -36,7 +36,7 @@ pub struct Options {
     /// Interface given on the command line; beats the saved setting.
     pub iface: Option<String>,
     /// Where settings, the wall, backups and snapshots live; the OS config
-    /// directory plus `e120` when absent.
+    /// directory plus `rxp` when absent.
     pub data_dir: Option<PathBuf>,
 }
 
@@ -70,7 +70,7 @@ async fn serve(opts: Options) -> Result<()> {
         Some(d) => d,
         None => dirs::config_dir()
             .context("no configuration directory for this user; pass --data-dir")?
-            .join("e120"),
+            .join("receiverproxy"),
     };
     let token = match opts.token {
         Some(t) => t,
@@ -87,7 +87,7 @@ async fn serve(opts: Options) -> Result<()> {
         opts.listen
     };
     let url = format!("http://{host}:{}/#token={token}", opts.port);
-    println!("e120 ui: {url}");
+    println!("rxp ui: {url}");
 
     state.discover_at_start().await;
     if opts.open {

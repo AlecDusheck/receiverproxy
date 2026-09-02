@@ -11,7 +11,7 @@ export const single = (w: number, h: number): Canvas => ({
 
 function storedWall(): Canvas {
   try {
-    const s = localStorage.getItem("e120.wall");
+    const s = localStorage.getItem("rxp.wall");
     if (s) return JSON.parse(s) as Canvas;
   } catch {
     /* no storage */
@@ -29,7 +29,8 @@ export const app = $state({
   wall: storedWall(),
   job: null as Job | null,
   status: { kind: "idle", text: "" } as Status,
-  wasm: "loading" as "loading" | "ready" | "failed",
+  // Loaded on first use (lib/wasm.ts); "unloaded" until a route asks for it.
+  wasm: "unloaded" as "unloaded" | "loading" | "ready" | "failed",
   wasmError: "",
   // The first-visit install line under the title row; dismissed once, kept in localStorage.
   install: false,
@@ -42,7 +43,7 @@ export function setStatus(kind: Status["kind"], text = "") {
 // Hand a spec to the Builder or the Cards provision form: both read this key at load.
 export function handSpec(toml: string) {
   try {
-    localStorage.setItem("e120.builder.toml", toml);
+    localStorage.setItem("rxp.builder.toml", toml);
   } catch {
     /* no storage */
   }

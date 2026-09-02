@@ -12,7 +12,7 @@
   function dismiss() {
     app.install = false;
     try {
-      localStorage.setItem("e120.install", "off");
+      localStorage.setItem("rxp.install", "off");
     } catch {
       /* no storage */
     }
@@ -29,14 +29,14 @@
 </div>
 {#if app.daemon === "locked"}
   <form class="notice" onsubmit={connect}>
-    <span>The daemon answers but needs its token, the part after <code>#token=</code> in the URL <code>e120 ui</code> printed.</span>
+    <span>The daemon answers but needs its token, the part after <code>#token=</code> in the URL <code>rxp ui</code> printed.</span>
     <input class={["mono", { invalid: !!app.tokenError }]} bind:value={token} placeholder="token" autocomplete="off" aria-label="token" />
     <button type="submit" disabled={!token.trim()}>connect</button>
     {#if app.tokenError}<span class="error">{app.tokenError}</span>{/if}
   </form>
 {:else if app.install && app.daemon === "absent"}
   <div class="notice">
-    <span>Card actions need the daemon: <code>cargo install --path crates/cli</code>, then <code>e120 ui</code>.</span>
+    <span>Card actions need the daemon: <code>cargo install --path crates/cli</code>, then <code>rxp ui</code>.</span>
     <button onclick={() => ops.probe()}>retry</button>
     <button onclick={dismiss}>dismiss</button>
   </div>

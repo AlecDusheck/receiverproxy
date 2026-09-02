@@ -1,18 +1,23 @@
 <script lang="ts">
-  import TitleRow from "../parts/TitleRow.svelte";
-  import Drop from "../parts/Drop.svelte";
-  import Lines from "../parts/Lines.svelte";
+  // Needs the WASM module: client-rendered (+page.ts). `?panel=<path>` opens a
+  // library spec, `?chip=<path>` picks a chip library; both are cleared once read.
+  import { goto } from "$app/navigation";
+  import { page } from "$app/state";
+  import { title } from "$lib/site";
+  import TitleRow from "$parts/TitleRow.svelte";
+  import Drop from "$parts/Drop.svelte";
+  import Lines from "$parts/Lines.svelte";
   import BuilderForm from "./BuilderForm.svelte";
   import BuilderTools from "./BuilderTools.svelte";
-  import { app, handSpec } from "../lib/state.svelte";
-  import { ops, type Format, type Generated, type Imported } from "../api/ops";
-  import { Action } from "../lib/action.svelte";
-  import { errText } from "../lib/error";
-  import { save, toB64 } from "../lib/download";
-  import { defaultSpec, fromToml, toToml, type PanelSpec } from "../lib/spec";
-  import type { GatedOutcome, Libraries, Outcome } from "../api/types";
+  import { app, handSpec } from "$lib/state.svelte";
+  import { ops, type Format, type Generated, type Imported } from "$api/ops";
+  import { Action } from "$lib/action.svelte";
+  import { errText } from "$lib/error";
+  import { save, toB64 } from "$lib/download";
+  import { defaultSpec, fromToml, toToml, type PanelSpec } from "$lib/spec";
+  import type { GatedOutcome, Libraries, Outcome } from "$api/types";
 
-  let { query }: { query: URLSearchParams } = $props();
+  const query = page.url.searchParams;
 
   let libs = $state.raw<Libraries | null>(null);
   let formats = $state.raw<Format[]>([]);
@@ -54,7 +59,7 @@
 
   // The last TOML edited or handed over (Gallery, import) seeds the pane.
   try {
-    const s = localStorage.getItem("e120.builder.toml");
+    const s = localStorage.getItem("rxp.builder.toml");
     if (s) setToml(s);
   } catch {
     /* no storage */
@@ -71,7 +76,7 @@
       toml = toToml(spec);
       handSpec(toml);
     }
-    if (p || c) location.hash = "#/builder";
+    if (p || c) void goto("/builder", { replaceState: true });
   });
 
   const imp = new Action<Imported & { file: string }>("import");
@@ -102,6 +107,8 @@
 
   const wasmOff = $derived(app.wasm !== "ready");
 </script>
+
+<svelte:head><title>{title("Builder")}</title></svelte:head>
 
 <TitleRow title="Builder">
   {#snippet action()}

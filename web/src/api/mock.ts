@@ -1,4 +1,4 @@
-// Canned daemon for `VITE_E120_MOCK=1 pnpm dev`: one card, in-memory settings and wall, simulated jobs.
+// Canned daemon for `VITE_RXP_MOCK=1 pnpm dev`: one card, in-memory settings and wall, simulated jobs.
 import type { Canvas, Job, JobKind, Line } from "./types";
 import { single } from "../lib/state.svelte";
 
@@ -75,7 +75,7 @@ const strip = (j: Job & { listeners?: unknown; enders?: unknown; timer?: unknown
 };
 
 const provisionScript = (commit: boolean) => [
-  "[1/5] snapshot: ~/Library/Application Support/e120/snapshots/1756771200",
+  "[1/5] snapshot: ~/Library/Application Support/receiverproxy/snapshots/1756771200",
   "[2/5] firmware: skipped (no image given)",
   "[3/5] eeprom: read 256 bytes",
   "[4/5] config: 21 records, 2 pages",

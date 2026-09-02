@@ -91,7 +91,7 @@ export function example(cols: number, rows: number, w: number, h: number): Canva
 
 export const ROTATIONS: Rotation[] = ["none", "cw90", "ccw90", "rot180"];
 
-// Every field present, as `e120 card layout-example` prints it.
+// Every field present, as `rxp card layout-example` prints it.
 export function normalize(c: Canvas): Canvas {
   return {
     width: c.width,

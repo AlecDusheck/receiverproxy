@@ -75,7 +75,7 @@ export type Brightness = {
 export type ShowImageReq = {
   path: string;
   /**
-   * `stretch` by default, as `e120 show image`.
+   * `stretch` by default, as `rxp show image`.
    */
   fit?: Fit;
   hold?: boolean;
@@ -413,7 +413,7 @@ export type Receiver = {
   index: number;
   /**
    * The card's top-left on the screen: the same numbers given to
-   * `e120 provision --position x,y`, which is what the card's EEPROM
+   * `rxp provision --position x,y`, which is what the card's EEPROM
    * control area keeps of the stream.
    */
   x: number;

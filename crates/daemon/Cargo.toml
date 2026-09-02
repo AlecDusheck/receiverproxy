@@ -1,6 +1,6 @@
 [package]
 name = "daemon"
-description = "The e120 daemon behind `e120 ui`: the token-gated JSON API and the web UI"
+description = "The receiverproxy daemon behind `rxp ui`: the token-gated JSON API and the web UI"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

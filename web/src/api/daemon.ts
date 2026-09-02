@@ -1,18 +1,24 @@
 // The transport to the daemon's JSON API (docs/ui.md section 2): the base
 // URL, the token, one request helper and one SSE helper. Only ops.ts calls
-// this.
+// this. Nothing runs at import time: the layout calls `ops.probe()` once on
+// the client, which reads the token first.
 import { app, setStatus } from "../lib/state.svelte";
 import type { Job, Line } from "./types";
 import * as mock from "./mock";
 import { loadToken, setToken } from "../lib/token";
 
-const MOCK = import.meta.env.VITE_E120_MOCK === "1";
-export const base: string = MOCK ? "mock" : ((import.meta.env.VITE_E120_API as string | undefined) ?? "/api/v1");
+const MOCK = import.meta.env.VITE_RXP_MOCK === "1";
+export const base: string = MOCK ? "mock" : ((import.meta.env.VITE_RXP_API as string | undefined) ?? "/api/v1");
 
 // The daemon's token: from the fragment or the tab's storage at load, or typed into the field under the title row.
-let token: string | null = loadToken();
+let token: string | null = null;
 
 export const hasToken = () => token !== null;
+
+/** Read the token from `#token=` or the tab's storage; `replace` rewrites the address bar. */
+export function readToken(replace: (url: string) => void) {
+  token = loadToken(replace);
+}
 
 export function useToken(t: string) {
   token = t || null;

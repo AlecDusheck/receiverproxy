@@ -5,8 +5,8 @@
 <script lang="ts">
   // The layout as a scaled drawing: receivers as outlined boxes with their
   // index and position, panels inside; drag moves, snapped to the panel size.
-  import { app } from "../lib/state.svelte";
-  import { clamp, place, rotated, snap, snapSize } from "../lib/layout";
+  import { app } from "$lib/state.svelte";
+  import { clamp, place, rotated, snap, snapSize } from "$lib/layout";
 
   let { sel = $bindable() }: { sel: Sel } = $props();
   let el = $state<HTMLCanvasElement | null>(null);

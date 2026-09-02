@@ -1,21 +1,47 @@
-/* Reset, type, controls, tables, forms, key-value blocks (docs/ui-design.md).
-   Colours come from tokens.css; sizes from the scale below. */
+/* One stylesheet (docs/ui-design.md, "Styling"): the tokens as the Tailwind
+   theme, utilities for layout and spacing, and the component classes that
+   repeat. Colours come from tokens.css; nothing here writes one. */
+@import "./tokens.css";
+@import "tailwindcss";
+
+@theme inline {
+  --color-*: initial;
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* 4, 8, 12, 16, 24: gap-1 .. gap-4 and gap-6 */
+  --spacing: 4px;
+  --text-*: initial;
+  --text-caption: 11px;
+  --text-table: 12px;
+  --text-body: 13px;
+  --text-title: 15px;
+  --radius-*: initial;
+  --radius-control: 3px;
+  --shadow-*: initial;
+}
+
 :root {
   --s1: 4px;
   --s2: 8px;
   --s3: 12px;
   --s4: 16px;
   --s5: 24px;
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font: var(--font-sans);
+  --mono: var(--font-mono);
 }
 
-* {
-  box-sizing: border-box;
-}
 html,
 body {
-  margin: 0;
   height: 100%;
 }
 body {
@@ -233,6 +259,32 @@ td input[type="number"] {
 }
 .lines .err {
   color: var(--text-2);
+}
+
+/* key-value block (parts/KeyValue.svelte and the static pages) */
+.kv {
+  min-width: 0;
+}
+.kv dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s1) var(--s3);
+  margin: 0;
+}
+.kv dt {
+  color: var(--text-2);
+}
+.kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.blocks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--s4) var(--s5);
 }
 
 /* drop target (parts/Drop.svelte) */

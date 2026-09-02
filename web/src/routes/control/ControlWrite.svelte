@@ -3,12 +3,12 @@
   // each a form with one button; gated ones run the dry run first and show
   // the confirm line with "commit" after it.
   import { untrack } from "svelte";
-  import Field from "../parts/Field.svelte";
-  import Lines from "../parts/Lines.svelte";
-  import { app } from "../lib/state.svelte";
-  import { ops } from "../api/ops";
-  import { Action } from "../lib/action.svelte";
-  import type { GatedOutcome, Job, Outcome, SizeOutcome } from "../api/types";
+  import Field from "$parts/Field.svelte";
+  import Lines from "$parts/Lines.svelte";
+  import { app } from "$lib/state.svelte";
+  import { ops } from "$api/ops";
+  import { Action } from "$lib/action.svelte";
+  import type { GatedOutcome, Job, Outcome, SizeOutcome } from "$api/types";
 
   let { index, query }: { index: number; query: URLSearchParams } = $props();
 
@@ -20,7 +20,7 @@
   // "provision this card" names the receiver whose x,y is the position.
   let prov = $state({ spec_toml: "", firmware_path: "", x: 0, y: 0 });
   try {
-    prov.spec_toml = localStorage.getItem("e120.builder.toml") ?? "";
+    prov.spec_toml = localStorage.getItem("rxp.builder.toml") ?? "";
   } catch {
     /* no storage */
   }
@@ -82,7 +82,7 @@
   <p class="muted">Snapshot, firmware, EEPROM read, config, EEPROM write. The dry run discovers the card and prints the plan. Power-cycle the card afterwards.</p>
   <div class="form">
     <Field label="spec TOML" caption="from the Gallery or the Builder" wide><textarea rows="8" bind:value={prov.spec_toml} spellcheck="false"></textarea></Field>
-    <Field label="firmware path" caption="optional .hex, as the daemon's process sees it" wide><input bind:value={prov.firmware_path} class="mono" /></Field>
+    <Field label="firmware" caption="optional: a name from config/firmware.toml or a .hex path the daemon's process can read" wide><input bind:value={prov.firmware_path} class="mono" /></Field>
     <Field label="position x" caption="the card's window on the screen"><input type="number" bind:value={prov.x} min="0" /></Field>
     <Field label="position y"><input type="number" bind:value={prov.y} min="0" /></Field>
   </div>
@@ -101,7 +101,7 @@
 <section>
   <h2>Firmware</h2>
   <div class="form">
-    <Field label="image path" caption=".hex, as the daemon's process sees it" wide><input bind:value={fw} class="mono" /></Field>
+    <Field label="image" caption="a name from config/firmware.toml or a .hex path the daemon's process can read" wide><input bind:value={fw} class="mono" /></Field>
   </div>
   <div class="actions"><button onclick={() => runFirmware(false)} disabled={firmware.busy || !fw}>dry run</button></div>
   {#if firmware.error}<p class="error">{firmware.error}</p>{/if}

@@ -1,26 +1,17 @@
 <script lang="ts">
-  import TitleRow from "../parts/TitleRow.svelte";
-  import Drop from "../parts/Drop.svelte";
-  import GalleryEntry from "./GalleryEntry.svelte";
-  import { ops, type Entry, type Format, type Imported } from "../api/ops";
-  import { app, handSpec } from "../lib/state.svelte";
-  import { Action } from "../lib/action.svelte";
-  import type { Libraries } from "../api/types";
+  // The gallery table, prerendered from config/panels at build time; the
+  // filters and the sort run in the browser. A vendor file dropped here is
+  // read back into a spec through the WASM module.
+  import { goto } from "$app/navigation";
+  import Head from "$parts/Head.svelte";
+  import TitleRow from "$parts/TitleRow.svelte";
+  import Drop from "$parts/Drop.svelte";
+  import { ops, type Entry, type Imported } from "$api/ops";
+  import { app, handSpec } from "$lib/state.svelte";
+  import { Action } from "$lib/action.svelte";
 
-  // The route's `#/gallery/<name>`; the selected row.
-  let { selected = "" }: { selected?: string } = $props();
-
-  let entries = $state.raw<Entry[]>([]);
-  let formats = $state.raw<Format[]>([]);
-  let libs = $state.raw<Libraries | null>(null);
-  let loadError = $state("");
-  void Promise.all([ops.pure.gallery(), ops.pure.formats(), ops.pure.libraries()])
-    .then(([e, f, l]) => {
-      entries = e;
-      formats = f;
-      libs = l;
-    })
-    .catch((e: unknown) => (loadError = e instanceof Error ? e.message : String(e)));
+  let { data } = $props();
+  const entries = $derived(data.entries);
 
   // Filters
   let q = $state("");
@@ -74,9 +65,7 @@
       asc = true;
     }
   }
-  const open = (e: Entry) => (location.hash = `#/gallery/${encodeURIComponent(e.name)}`);
-  const current = $derived(entries.find((e) => e.name === selected) ?? null);
-  const toml = $derived(current ? (libs?.panels.find((p) => p.path === current.path)?.toml ?? "") : "");
+  const href = (e: Entry) => `/gallery/${encodeURIComponent(e.name)}`;
 
   // Import: a vendor file becomes a spec; the format is detected from the bytes.
   const imp = new Action<Imported & { file: string }>("import");
@@ -86,17 +75,18 @@
   }
   function toBuilder(text: string) {
     handSpec(text);
-    location.hash = "#/builder";
+    void goto("/builder");
   }
   const cols: [Col, string, boolean][] = [["pitch", "pitch", true], ["module", "module", false], ["scan", "scan", true], ["chip", "chip", false], ["formats", "formats", false], ["sources", "sources", true], ["status", "status", false]];
 </script>
 
+<Head title="Gallery" description="Every panel spec under config/panels: pitch, module, scan, driver chip, the formats it generates, how many vendor files it came from, and whether it was driven on a bench." path="/gallery" />
+
 <TitleRow title="Gallery" />
 
 {#if app.wasm === "failed"}<p class="error">{app.wasmError}</p>{/if}
-{#if loadError}<p class="error">{loadError}</p>{/if}
 
-<Drop label="Import a vendor file" disabled={app.wasm !== "ready"} onfiles={importFile} />
+<Drop label="Import a vendor file" disabled={app.wasm === "failed"} onfiles={importFile} />
 {#if imp.error}<p class="error">{imp.error}</p>{/if}
 {#if imp.result}
   <section>
@@ -113,8 +103,8 @@
   </section>
 {/if}
 
-<div class="row filters">
-  <input type="search" placeholder="filter name, path, chip, vendor" bind:value={q} aria-label="filter" />
+<div class="row mb-3">
+  <input type="search" placeholder="filter name, path, chip, vendor" bind:value={q} aria-label="filter" class="w-70" />
   <select bind:value={chip} aria-label="chip">
     <option value="">any chip</option>
     {#each chips as c (c)}<option value={c}>{c}</option>{/each}
@@ -135,6 +125,7 @@
   <table>
     <thead>
       <tr>
+        <th>name</th>
         {#each cols as [c, label, num] (c)}
           <th class={["sort", { num }]} tabindex="0" onclick={() => sort(c)} onkeydown={(k) => k.key === "Enter" && sort(c)} aria-sort={sortBy === c ? (asc ? "ascending" : "descending") : undefined}>{label}{sortBy === c ? (asc ? " +" : " -") : ""}</th>
         {/each}
@@ -142,7 +133,8 @@
     </thead>
     <tbody>
       {#each rows as e (e.path)}
-        <tr class={["selectable", { selected: e.name === selected }]} tabindex="0" onclick={() => open(e)} onkeydown={(k) => k.key === "Enter" && open(e)}>
+        <tr>
+          <td class="mono"><a href={href(e)}>{e.name}</a></td>
           <td class="num">{e.meta.pitch_mm ?? ""}</td>
           <td class="mono">{e.module.width}x{e.module.height}</td>
           <td class="num">1/{e.module.scan}</td>
@@ -152,21 +144,8 @@
           <td>{e.meta.status}</td>
         </tr>
       {:else}
-        <tr><td colspan="7" class="muted">{entries.length ? "no entry matches the filter" : app.wasm === "ready" ? "no entries" : "loading"}</td></tr>
+        <tr><td colspan="8" class="muted">{entries.length ? "no entry matches the filter" : "no entries"}</td></tr>
       {/each}
     </tbody>
   </table>
 </div>
-
-{#if current}
-  <GalleryEntry entry={current} {toml} {formats} />
-{/if}
-
-<style>
-  .filters {
-    margin-bottom: var(--s3);
-  }
-  .filters input {
-    width: 280px;
-  }
-</style>

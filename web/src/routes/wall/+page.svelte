@@ -1,18 +1,21 @@
 <script lang="ts">
-  import TitleRow from "../parts/TitleRow.svelte";
-  import Drop from "../parts/Drop.svelte";
-  import Lines from "../parts/Lines.svelte";
+  // Needs the WASM module for validation: client-rendered (+page.ts).
+  import { title } from "$lib/site";
+  import TitleRow from "$parts/TitleRow.svelte";
+  import Drop from "$parts/Drop.svelte";
+  import Lines from "$parts/Lines.svelte";
   import WallCanvas, { type Sel } from "./WallCanvas.svelte";
   import WallTables from "./WallTables.svelte";
-  import { app } from "../lib/state.svelte";
-  import { ops } from "../api/ops";
-  import { Action } from "../lib/action.svelte";
-  import { save } from "../lib/download";
-  import { addPanel, addReceiver, normalize, snapSize } from "../lib/layout";
-  import { errText } from "../lib/error";
-  import type { Canvas, Outcome, Pattern } from "../api/types";
+  import { app } from "$lib/state.svelte";
+  import { ops } from "$api/ops";
+  import { Action } from "$lib/action.svelte";
+  import { save } from "$lib/download";
+  import { addPanel, addReceiver, normalize, snapSize } from "$lib/layout";
+  import { errText } from "$lib/error";
+  import type { Canvas, Outcome, Pattern } from "$api/types";
 
   let sel = $state<Sel>(null);
+  void ops.pure.load();
   let ex = $state({ cols: 2, rows: 1, w: 128, h: 64 });
   let pattern = $state<Pattern>("rgb");
 
@@ -20,7 +23,7 @@
   const grid = $derived(snapSize(wall));
   const verdict = $derived.by(() => {
     try {
-      return app.wasm === "loading" ? "ok" : ops.pure.validateLayout(wall);
+      return app.wasm === "ready" || app.wasm === "failed" ? ops.pure.validateLayout(wall) : "ok";
     } catch (e) {
       return errText(e);
     }
@@ -28,7 +31,7 @@
 
   $effect(() => {
     try {
-      localStorage.setItem("e120.wall", JSON.stringify(wall));
+      localStorage.setItem("rxp.wall", JSON.stringify(wall));
     } catch {
       /* no storage */
     }
@@ -70,13 +73,15 @@
 
 <svelte:window onkeydown={(k) => k.key === "Escape" && (sel = null)} />
 
+<svelte:head><title>{title("Wall")}</title></svelte:head>
+
 <TitleRow title="Wall">
   {#snippet action()}
     <button class="primary" onclick={() => save("wall.json", JSON.stringify(normalize(wall), null, 2) + "\n")}>export wall.json</button>
   {/snippet}
 </TitleRow>
 
-<p class="muted">The layout <code>e120 show --layout</code> reads: receivers are cards, each keeping its window of the screen; panels hang off a receiver. Drag to move; positions snap to {grid} px.</p>
+<p class="muted">The layout <code>rxp show --layout</code> reads: receivers are cards, each keeping its window of the screen; panels hang off a receiver. Drag to move; positions snap to {grid} px.</p>
 
 <div class="row tools">
   <label>screen <input type="number" bind:value={app.wall.width} min="1" aria-label="screen width" /> x <input type="number" bind:value={app.wall.height} min="1" aria-label="screen height" /></label>

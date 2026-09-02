@@ -5,7 +5,7 @@
 // api/ or lib/wasm.ts.
 import type * as T from "./types";
 import { app, setStatus } from "../lib/state.svelte";
-import { call, hasToken, request, sse, useToken } from "./daemon";
+import { call, hasToken, readToken, request, sse, useToken } from "./daemon";
 import { current, ready } from "../lib/wasm";
 import { example, validateJs } from "../lib/layout";
 
@@ -13,6 +13,8 @@ export type { Entry, Format, GenFile, Generated, Imported, Meta } from "./types"
 
 /** Operations that need no daemon: `rcvbp` and `wall` in the browser. */
 export type PureOps = {
+  /** Load the module now; every other function does so on first use. */
+  load(): Promise<void>;
   /** The panel specs the module embeds, with their metadata, for the Gallery. */
   gallery(): Promise<T.Entry[]>;
   /** The output and input formats the module knows. */
@@ -68,6 +70,8 @@ export type Ops = {
   pure: PureOps;
   /** The card operations while the daemon is present, else null. */
   readonly card: CardOps | null;
+  /** Once, on the client: read the token from the address bar, then probe. `replace` rewrites the address bar without it. */
+  start(replace: (url: string) => void): Promise<void>;
   /** Ask the daemon whether it is there; sets `app.daemon`. */
   probe(): Promise<void>;
   /** Use a token typed under the title row, then probe again. */
@@ -75,13 +79,16 @@ export type Ops = {
 };
 
 const pure: PureOps = {
-  gallery: async () => (await ready).gallery(),
-  formats: async () => (await ready).formats(),
-  generate: async (toml, format = "rcvbp") => (await ready).generate(toml, format),
-  importSpec: async (bytes, format) => (await ready).import(bytes, format),
-  inspect: async (bytes) => (await ready).inspect(bytes),
-  diff: async (a, b) => (await ready).diff(a, b),
-  libraries: async () => (await ready).libraries(),
+  load: async () => {
+    await ready();
+  },
+  gallery: async () => (await ready()).gallery(),
+  formats: async () => (await ready()).formats(),
+  generate: async (toml, format = "rcvbp") => (await ready()).generate(toml, format),
+  importSpec: async (bytes, format) => (await ready()).import(bytes, format),
+  inspect: async (bytes) => (await ready()).inspect(bytes),
+  diff: async (a, b) => (await ready()).diff(a, b),
+  libraries: async () => (await ready()).libraries(),
   validateLayout: (c) => {
     const m = current();
     return m ? m.validate_layout(JSON.stringify(c)) : validateJs(c);
@@ -189,7 +196,7 @@ async function probe() {
   if (app.daemon === "absent") {
     let dismissed = false;
     try {
-      dismissed = localStorage.getItem("e120.install") === "off";
+      dismissed = localStorage.getItem("rxp.install") === "off";
     } catch {
       /* no storage */
     }
@@ -201,6 +208,10 @@ export const ops: Ops = {
   pure,
   get card() {
     return app.daemon === "present" ? card : null;
+  },
+  start(replace) {
+    readToken(replace);
+    return probe();
   },
   probe,
   connect(token) {

@@ -1,11 +1,11 @@
 <script lang="ts">
   // Inspect one .rcvbp; diff two. Results appear where the action was.
-  import Drop from "../parts/Drop.svelte";
-  import Hex from "../parts/Hex.svelte";
-  import { app } from "../lib/state.svelte";
-  import { ops } from "../api/ops";
-  import { Action } from "../lib/action.svelte";
-  import type { Diff, Inspection } from "../api/types";
+  import Drop from "$parts/Drop.svelte";
+  import Hex from "$parts/Hex.svelte";
+  import { app } from "$lib/state.svelte";
+  import { ops } from "$api/ops";
+  import { Action } from "$lib/action.svelte";
+  import type { Diff, Inspection } from "$api/types";
 
   const bytes = (f: File) => f.arrayBuffer().then((b) => new Uint8Array(b));
   const hex = (n: number, w = 2) => "0x" + n.toString(16).padStart(w, "0");

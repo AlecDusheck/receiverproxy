@@ -1,9 +1,9 @@
 <script lang="ts">
   // The Builder's form by section; every edit calls `onchange`, which the
   // Builder debounces into the TOML pane.
-  import Field from "../parts/Field.svelte";
-  import type { PanelSpec } from "../lib/spec";
-  import type { Libraries } from "../api/types";
+  import Field from "$parts/Field.svelte";
+  import type { PanelSpec } from "$lib/spec";
+  import type { Libraries } from "$api/types";
 
   let { spec = $bindable(), libs, onchange }: { spec: PanelSpec; libs: Libraries | null; onchange: () => void } = $props();
 

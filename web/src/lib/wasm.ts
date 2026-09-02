@@ -1,6 +1,8 @@
-// The WASM module, loaded lazily. `web/scripts/build-wasm.sh` writes
-// src/wasm/rcvbp_wasm.js; when it is absent the stub below stands in and the
-// functions that need rcvbp throw. Only api/ops.ts calls this.
+// The WASM module, loaded lazily on the first call to `ready()` and only in
+// the browser: the prerendered pages never touch it at build time.
+// `web/scripts/build-wasm.sh` writes src/wasm/rcvbp_wasm.js; when it is
+// absent the stub below stands in and the functions that need rcvbp throw.
+// Only api/ops.ts calls this.
 import { app } from "./state.svelte";
 import type { Diff, Entry, Format, Generated, Imported, Inspection, Libraries } from "../api/types";
 import { validateJs, example } from "./layout";
@@ -56,17 +58,19 @@ function complete(mod: Glue): WasmModule {
 }
 
 let loaded: WasmModule | null = null;
+let loading: Promise<WasmModule> | null = null;
 
-export const ready: Promise<WasmModule> = (async () => {
-  const load = found["../wasm/rcvbp_wasm.js"];
-  if (!load) {
+async function load(): Promise<WasmModule> {
+  app.wasm = "loading";
+  const glue = found["../wasm/rcvbp_wasm.js"];
+  if (!glue) {
     app.wasm = "failed";
     app.wasmError = NOT_BUILT;
     loaded = stub;
     return stub;
   }
   try {
-    const mod = await load();
+    const mod = await glue();
     await mod.default();
     app.wasm = "ready";
     loaded = complete(mod);
@@ -77,7 +81,10 @@ export const ready: Promise<WasmModule> = (async () => {
     loaded = stub;
     return stub;
   }
-})();
+}
+
+/** The module, loading it on the first call. */
+export const ready = (): Promise<WasmModule> => (loading ??= load());
 
 // The module once loaded, for synchronous callers; null before that.
 export const current = (): WasmModule | null => loaded;

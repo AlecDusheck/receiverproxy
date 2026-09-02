@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { splitFragment } from "../src/lib/token.ts";
 
-test("the URL e120 ui prints yields the token and an empty hash", () => {
+test("the URL rxp ui prints yields the token and an empty hash", () => {
   assert.deepEqual(splitFragment("#token=abc-_123"), { token: "abc-_123", rest: "" });
 });
 

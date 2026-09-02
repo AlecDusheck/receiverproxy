@@ -1,3 +1,5 @@
 node_modules
-dist
+build-static
+.svelte-kit
+.wrangler
 src/wasm

@@ -1,14 +1,18 @@
 <script lang="ts">
-  import TitleRow from "../parts/TitleRow.svelte";
-  import Field from "../parts/Field.svelte";
-  import Lines from "../parts/Lines.svelte";
-  import CardsWrite from "./CardsWrite.svelte";
-  import { app } from "../lib/state.svelte";
-  import { ops } from "../api/ops";
-  import { Action } from "../lib/action.svelte";
-  import type { Card, Fit, Outcome, Pattern, Job } from "../api/types";
+  // The daemon's card actions: client-rendered (+page.ts). `?provision=<index>`
+  // opens the provision form for a receiver of the wall.
+  import { page } from "$app/state";
+  import { title } from "$lib/site";
+  import TitleRow from "$parts/TitleRow.svelte";
+  import Field from "$parts/Field.svelte";
+  import Lines from "$parts/Lines.svelte";
+  import ControlWrite from "./ControlWrite.svelte";
+  import { app } from "$lib/state.svelte";
+  import { ops } from "$api/ops";
+  import { Action } from "$lib/action.svelte";
+  import type { Card, Fit, Outcome, Pattern, Job } from "$api/types";
 
-  let { query }: { query: URLSearchParams } = $props();
+  const query = page.url.searchParams;
 
   const cards = $derived(app.health?.cards ?? []);
   const position = (c: Card) => {
@@ -74,7 +78,9 @@
     });
 </script>
 
-<TitleRow title="Cards">
+<svelte:head><title>{title("Control")}</title></svelte:head>
+
+<TitleRow title="Control">
   {#snippet action()}
     <button class="primary" onclick={runDiscover} disabled={discover.busy}>discover</button>
   {/snippet}
@@ -83,7 +89,7 @@
 {#if !ops.card}
   <p>Card actions go through the daemon, which is not running.</p>
   <pre>cargo install --path crates/cli
-e120 ui</pre>
+rxp ui</pre>
 {:else}
   <section>
     <table>
@@ -155,7 +161,7 @@ e120 ui</pre>
     {#if bright.result !== null}<p class="ok">brightness {bright.result}</p>{/if}
   </section>
 
-  <CardsWrite index={selected} {query} />
+  <ControlWrite index={selected} {query} />
 {/if}
 
 <style>

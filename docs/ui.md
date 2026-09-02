@@ -5,14 +5,15 @@ else is built against the shapes here; a shape that changes changes here first.
 
 ## 1. Overview and the two modes
 
-The UI is a static site (Svelte 5, Vite, TypeScript, hand-written CSS) with
-four screens: **Gallery**, **Builder**, **Wall**, **Cards** (the design is
-[ui-design.md](ui-design.md)). It has two sources of function:
+The UI is a SvelteKit site (Svelte 5, TypeScript, Tailwind 4) with the
+prerendered **Gallery** and **Cards** pages and the client-rendered
+**Builder**, **Wall** and **Control** screens (the design is
+[ui-design.md](ui-design.md); section 4 has the routes). It has two sources of function:
 
 - **WASM** (`crates/rcvbp-wasm`): `rcvbp` and `wall` compiled to
   `wasm32-unknown-unknown`. Generates, inspects and diffs configurations and
   validates wall layouts in the browser. No hardware, no network.
-- **The daemon** (`crates/daemon`, started by `e120 ui`): an HTTP server
+- **The daemon** (`crates/daemon`, started by `rxp ui`): an HTTP server
   on `127.0.0.1:7120` that holds the raw Ethernet link and runs the CLI's
   command functions. Everything that touches the card goes through it, and
   every request carries the daemon's token.
@@ -22,9 +23,9 @@ token when it has one (section 2, "The token").
 
 | | daemon absent (standalone) | daemon answers, no token (locked) | daemon present |
 |---|---|---|---|
-| Under the title row | on the first visit one line: "Card actions need the daemon: `cargo install --path crates/cli`, then `e120 ui`." with "retry" and "dismiss"; dismissed once, remembered in localStorage `e120.install` | a token field and "connect"; "bad token" next to it when one was sent | nothing |
+| Under the title row | on the first visit one line: "Card actions need the daemon: `cargo install --path crates/cli`, then `rxp ui`." with "retry" and "dismiss"; dismissed once, remembered in localStorage `rxp.install` | a token field and "connect"; "bad token" next to it when one was sent | nothing |
 | Sidebar foot | "daemon not running: install" | "daemon: token required" | "daemon: HOST:PORT" |
-| Cards screen | absent from the sidebar; `#/cards` shows one sentence and the install command | as absent | enabled |
+| Control screen | absent from the sidebar; `/control` shows one sentence and the install command | as absent | enabled |
 | Wall screen | editor, table, import/export | as standalone | plus "provision this card" per receiver, "save as the daemon's wall", "show on the wall" |
 | Gallery, Builder | full, through WASM | full, through WASM | full, through WASM; Gallery gains "provision this card", Builder "send to card" and "write to card" |
 | Status bar | "standalone" | "standalone" | "iface en24 · 1 card: E120 16.53 128x64" and the running job |
@@ -32,7 +33,7 @@ token when it has one (section 2, "The token").
 The probe runs once at load and again when the user clicks "retry" or
 "connect" under the title row. Health answers `{ version }` alone without the
 token; that answer is what tells the app it is locked. When served by the
-daemon the API base is the page's own origin; a `VITE_E120_API` build
+daemon the API base is the page's own origin; a `VITE_RXP_API` build
 variable overrides it for `pnpm dev`.
 
 ## 2. The JSON API
@@ -41,11 +42,11 @@ Base: `http://127.0.0.1:7120/api/v1` (`--port`, `--listen`). Request and
 response bodies are JSON (`Content-Type: application/json`) unless a route
 says multipart. Numbers are JSON numbers; bytes are base64 strings; paths are
 strings as the daemon's process sees them (absolute, or relative to the
-directory `e120 ui` was started in).
+directory `rxp ui` was started in).
 
 ### The token
 
-Every route except `GET /health` requires the daemon's token. `e120 ui`
+Every route except `GET /health` requires the daemon's token. `rxp ui`
 generates one at start (32 random bytes, base64url) unless `--token TOKEN`
 is given, and prints the URL `http://HOST:PORT/#token=TOKEN`, which it also
 opens in the browser. A request presents the token in an `X-Token` header,
@@ -56,7 +57,7 @@ the token and the full body with it, so the app can tell a daemon it is
 locked out of from no daemon at all.
 
 The built app reads `#token=` from the fragment once, stores it in
-`sessionStorage` (`e120.token`, one browser tab, gone when the tab closes),
+`sessionStorage` (`rxp.token`, one browser tab, gone when the tab closes),
 removes it from the address bar with `history.replaceState`, and sends
 `X-Token` on every request. A token typed into the field under the title
 row is stored the same way.
@@ -82,7 +83,7 @@ Every non-2xx response is
 
 `error` is the CLI's message verbatim: the anyhow chain rendered with `{:#}`
 and the same command prefix `main.rs` adds (`provision`, `config write`,
-`firmware install`...), without the leading `e120: `. Status codes:
+`firmware install`...), without the leading `rxp: `. Status codes:
 
 | code | when |
 |---|---|
@@ -167,7 +168,7 @@ logged and returned by the next `POST /discover`. Never opens the link
 itself, so it is safe to poll.
 
 `POST /discover` body `{ wait?: number }` (seconds, default 3) →
-`{ cards: Card[] }`. Unlike `e120 discover`, no card is `{ "cards": [] }`
+`{ cards: Card[] }`. Unlike `rxp discover`, no card is `{ "cards": [] }`
 with 200, not an error. 409 while a job runs.
 
 `GET /settings` → `{ iface: string, brightness: number, card: string | null }`.
@@ -179,13 +180,13 @@ discovery gave; `null` follows discovery. Persisted in the daemon's settings
 file (section 5).
 
 `POST /brightness` body `{ value: number }` (0-255) → `{ value: number }`.
-Sends the brightness and sync frames now (`e120 brightness`) and updates
+Sends the brightness and sync frames now (`rxp brightness`) and updates
 `settings.brightness`.
 
 `POST /show/image` → `Outcome`. Either JSON `{ path: string, fit?: Fit,
 hold?: boolean }` or `multipart/form-data` with a `file` part and optional
 `fit`, `hold` fields. `Fit` is `"stretch" | "contain" | "cover"`, default
-`"stretch"` (what `e120 show image` does: `resize_exact`). `contain` and
+`"stretch"` (what `rxp show image` does: `resize_exact`). `contain` and
 `cover` are the `image` crate's `resize` and `resize_to_fill` with Lanczos3,
 letterboxed in black; `sources::Fit` only applies to `VideoSource`. The
 image is rendered onto the daemon's wall (`GET /wall`). `hold: false` sends three refreshes and returns;
@@ -224,18 +225,19 @@ the final one.
 No hardware. Chip library resolution is in section 5.
 
 `POST /config/read` body `{ index?: number, page?: number, max_chunks?: number, wait?: number }` → `{ rcvbp: string, lines: Line[] }`. Base64 of the
-file bytes `e120 config read` would save. Defaults as the CLI: index 0, page
+file bytes `rxp config read` would save. Defaults as the CLI: index 0, page
 the card model's parameter page, 64 chunks, 2 s. Read-only.
 
 `POST /config/write` body `{ rcvbp: string, commit?: boolean, index?: number, wait?: number }` → `GatedOutcome`. The block backup goes to
 `<data dir>/backups/block07-<unix seconds>.bin` and is listed in `files`.
 
-`POST /config/send` body `{ spec_toml: string, chip_only?: boolean, gap_ms?: number }` → `Outcome`. RAM only, no gate, as `e120 config send`.
+`POST /config/send` body `{ spec_toml: string, chip_only?: boolean, gap_ms?: number }` → `Outcome`. RAM only, no gate, as `rxp config send`.
 
 `POST /provision` body
 
 ```ts
-{ spec_toml: string; firmware_path?: string; position: [number, number];
+{ spec_toml: string; firmware_path?: string;  // a config/firmware.toml name or a path
+  position: [number, number];
   snapshot_dir?: string; commit?: boolean; wait?: number }
 ```
 
@@ -248,7 +250,7 @@ function runs on that file, so the sources report names a real path.
 
 `POST /flash/restore` body `{ dir: string, commit?: boolean, index?: number, wait?: number }` → `{ id }` (job `flash/restore`).
 
-`POST /firmware/install` body `{ path: string, commit?: boolean, golden?: boolean, timeout?: number, chunk_delay_us?: number, wait?: number }` → `{ id }` (job `firmware/install`). Defaults as `e120 firmware install`.
+`POST /firmware/install` body `{ path: string, commit?: boolean, golden?: boolean, timeout?: number, chunk_delay_us?: number, wait?: number }` → `{ id }` (job `firmware/install`). Defaults as `rxp firmware install`; `path` is a `config/firmware.toml` name or a path, resolved and sha256-checked as the CLI does it.
 
 `GET /card/screen-size?index=0&wait=3` → `{ width: number, height: number }`.
 `PUT /card/screen-size` body `{ width: number, height: number, commit?: boolean, index?: number, wait?: number }` → `GatedOutcome & { width, height }` (the values read back).
@@ -342,7 +344,7 @@ type Meta = {                   // panelspec::Meta
 };
 
 // rcvbp::Format, one per registered Codec (rcvbp::formats()); what
-// `e120 config formats` prints.
+// `rxp config formats` prints.
 type Format = {
   name: string;                 // "rcvbp", the value `generate` and `--format` take
   vendor: string;               // "Colorlight"
@@ -411,13 +413,13 @@ non-mined first, then mined, each alphabetical by path.
 a path not in the set is an error `chip library config/chips/x.toml: not in
 the embedded library`. The Builder's chip picker only offers embedded paths.
 `format` must name a registry entry; otherwise the error is `format x:
-unknown; known formats: rcvbp`. The files are the ones `e120 config gen
+unknown; known formats: rcvbp`. The files are the ones `rxp config gen
 --format` writes, named as it names them, so the two are byte-identical
 (`generate_matches_the_cli_byte_for_byte`). `gallery()` parses every
 embedded spec and its chip library; `formats()` is `rcvbp::formats()`, the
-same table `e120 config formats` prints.
+same table `rxp config formats` prints.
 
-`import` is `e120 config import` in memory: `Codec::import` of the codec
+`import` is `rxp config import` in memory: `Codec::import` of the codec
 named by `format`, or, without it, of the one whose signature the bytes
 start with (`rcvbp::detect`; the error names the known formats). Chip
 libraries are chosen by the file's chip id from the embedded set
@@ -435,56 +437,82 @@ library stem>`; the CLI names it after the file instead.
 
 ## 4. The web app
 
+A SvelteKit app (Svelte 5, TypeScript, Tailwind 4 through `@tailwindcss/vite`)
+built twice from one source: `pnpm build` with `@sveltejs/adapter-cloudflare`
+is the site at receiverproxy.com (`wrangler.jsonc`: worker `receiverproxy`,
+the `ASSETS` binding, custom domains `receiverproxy.com` and
+`www.receiverproxy.com`; `pnpm deploy` runs `wrangler deploy`), and
+`pnpm build:embed` sets `ADAPTER=static` in `svelte.config.js` so
+`@sveltejs/adapter-static` writes `web/build-static`, the copy `daemon`
+embeds (section 6).
+
 ```
 web/
-  package.json  vite.config.ts  tsconfig.json  index.html
+  package.json  svelte.config.js  vite.config.ts  tsconfig.json  wrangler.jsonc
   scripts/build-wasm.sh
   src/
-    main.ts               mounts App, starts the daemon probe and the wasm load in parallel
-    App.svelte            sidebar + content (960 px, the Wall unbounded) + status bar; hash router
+    app.html              the document: charset, viewport, color-scheme
     tokens.css            the colour tokens of ui-design.md, light and dark; the only file that writes a colour
-    app.css               reset, type, spacing scale, controls, forms, tables, drop target
+    app.css               tokens.css, then Tailwind with the tokens as the theme (`@theme inline`: colours, the two font stacks, `--spacing: 4px`, the four type sizes; the default palette, sizes, radii and shadows cleared), then the component classes: controls, forms, tables, key-value blocks, drop target
+    routes/
+      +layout.svelte      sidebar (Gallery, Cards, Builder, Wall, and Control once the daemon answers), content (960 px, the Wall unbounded), footer (repository link, package.json version), status bar; `onMount` reads the token from the address bar and starts the probe (`ops.start`)
+      +page.svelte        `/`, prerendered: what receiverproxy is, the install commands, the pages
+      gallery/            `/gallery`, prerendered: +page.server.ts loads config/panels/**/*.toml through lib/server/config.ts; the table, the filters and the sort, the vendor-file import
+      gallery/[name]/     `/gallery/<name>`, one prerendered page per spec (`entries`): the spec as key-value blocks, the TOML, the download buttons (WASM, on click), open in Builder, provision this card
+      cards/              `/cards`, prerendered from config/cards/*.toml
+      cards/[model]/      `/cards/<name>`: identity, limits, status, memory map, boot-image offsets, panels tested, the firmware manifest as a table with a download link per image
+      builder/            `/builder`, `ssr = false`: +page.svelte (the two panes, generate, the card actions), BuilderForm.svelte, BuilderTools.svelte (inspect, diff)
+      wall/               `/wall`, `ssr = false`: +page.svelte, WallCanvas.svelte, WallTables.svelte
+      control/            `/control`, `ssr = false`: +page.svelte (discovered cards, show, brightness), ControlWrite.svelte (provision, firmware, flash, card state); one sentence and the install command without the daemon
+      sitemap.xml/        +server.ts, prerendered: every static route and the builder and wall
+      robots.txt/         +server.ts, prerendered
     api/
       types.ts            generated from the Rust structs (section 5, "Shared types"); never edited
-      ops.ts              the one interface: `ops.pure` (WASM), `ops.card` (daemon, null when absent), `ops.probe`, `ops.connect`
-      daemon.ts           the transport: base URL, token, request/call ({error} handling, status bar), sse(jobId, onLine, onEnd)
-      mock.ts             the canned daemon behind `VITE_E120_MOCK=1`
+      ops.ts              the one interface: `ops.pure` (WASM), `ops.card` (daemon, null when absent), `ops.start`, `ops.probe`, `ops.connect`
+      daemon.ts           the transport: base URL, token, request/call ({error} handling, status bar), sse(jobId, onLine, onEnd); nothing runs at import
+      mock.ts             the canned daemon behind `VITE_RXP_MOCK=1`
     lib/
-      token.ts            the token: splitFragment (pure), sessionStorage, loadToken at start
-      wasm.ts             `ready: Promise<WasmModule>`; the generated glue typed with api/types.ts, or a stub when it is not built; a build missing a function throws a rebuild message for it
-      state.svelte.ts     the shared store (below); handSpec(toml) hands a spec to the Builder and the Cards provision form (localStorage `e120.builder.toml`)
+      server/config.ts    the build-time loader: panels(), cards(), firmware() from the repository's config/ with smol-toml, the field names of the files; `FORMATS` is the codec registry by hand, pinned by tests/config.test.ts
+      site.ts             the origin (canonical URLs, the sitemap), the repository URL, the title form `<route> · receiverproxy`
+      token.ts            the token: splitFragment (pure), sessionStorage, loadToken(replace)
+      wasm.ts             `ready(): Promise<WasmModule>`, loaded on the first call and only in the browser; the generated glue typed with api/types.ts, or a stub when it is not built; a build missing a function throws a rebuild message for it
+      state.svelte.ts     the shared store (below); handSpec(toml) hands a spec to the Builder and the Control provision form (localStorage `rxp.builder.toml`)
       action.svelte.ts    Action<T>: one action's idle/busy/done/error state, the status bar driven with it
       layout.ts           Canvas helpers: snap, bounds, addReceiver, addPanel, the JS validate and example
       error.ts            errText(e)
       download.ts         save(name, bytes | text) through a Blob URL
       spec.ts             PanelSpec <-> TOML (parse the [table] form the generator accepts; emit the same order as config/panels/*.toml; tables the form does not edit, [meta] among them, pass through)
     parts/
-      Sidebar.svelte  StatusBar.svelte  TitleRow.svelte (title, primary action, the install line or the token field)
+      Head.svelte (title, description, canonical, Open Graph)  Sidebar.svelte  StatusBar.svelte  TitleRow.svelte (title, primary action, the install line or the token field)
       Field.svelte  KeyValue.svelte  Drop.svelte  Hex.svelte  Lines.svelte
-    screens/
-      Gallery.svelte  GalleryEntry.svelte
-      Builder.svelte  BuilderForm.svelte  BuilderTools.svelte (inspect, diff)
-      Wall.svelte  WallCanvas.svelte  WallTables.svelte
-      Cards.svelte  CardsWrite.svelte (provision, firmware, flash, card state)
   src/wasm/               generated, gitignored
   tests/token.test.ts     node --test: the fragment handling of token.ts
-  dist/                   pnpm build output, gitignored, embedded by daemon when present
+  tests/config.test.ts    node --test: the loader against config/ and the crate's format list
+  .svelte-kit/cloudflare/ pnpm build output, gitignored, what wrangler deploys
+  build-static/           pnpm build:embed output, gitignored, embedded by daemon when present
 ```
 
-Screens and parts call `api/ops.ts` and nothing else in `api/` or
-`lib/wasm.ts`. `ops.pure` is always there (its functions wait for the WASM
-module; `validateLayout` and `layoutExample` use the JS forms in
-`lib/layout.ts` until it is loaded). `ops.card` is the daemon's operations
-while `app.daemon` is `"present"` and `null` otherwise, so a screen that
-needs the card tests `ops.card` and hides the control when it is null.
+`$lib` is `src/lib`, `$api` is `src/api`, `$parts` is `src/parts`
+(`kit.alias`). Routes and parts call `api/ops.ts` and nothing else in
+`api/` or `lib/wasm.ts`. `ops.pure` is always there (its functions load the
+WASM module on first use; `validateLayout` and `layoutExample` use the JS
+forms in `lib/layout.ts` until it is loaded). `ops.card` is the daemon's
+operations while `app.daemon` is `"present"` and `null` otherwise, so a
+route that needs the card tests `ops.card` and hides the control when it is
+null.
 
-Routes are hash fragments: `#/gallery`, `#/gallery/<name>` (the entry open
-beneath the table), `#/builder`, `#/wall`, `#/cards`; the default is
-`#/gallery`. `#/builder?panel=<path>` opens a library spec;
-`#/cards?provision=<index>` opens the provision form for a receiver (the
-Wall's "provision this card" sets `position` from the receiver's `x,y`).
-The Gallery's "open in Builder" and "provision this card", and a file
-import, hand the spec over through `handSpec` and navigate.
+The prerendered routes (`/`, `/gallery`, `/gallery/<name>`, `/cards`,
+`/cards/<name>`, `sitemap.xml`, `robots.txt`) set `prerender = true` and
+load their data in `+page.server.ts` from `config/` at build time; no WASM
+runs at build. Each sets its title, description, canonical URL and Open
+Graph title and description through `parts/Head.svelte`; the entry page's
+title is `<name> panel config`. `/builder`, `/wall` and `/control` set
+`ssr = false` and `prerender = false` and render on the client, where the
+WASM module and the daemon are. `/builder?panel=<path>` opens a library
+spec; `/control?provision=<index>` opens the provision form for a receiver
+(the Wall's "provision this card" sets `position` from the receiver's
+`x,y`). The Gallery's "open in Builder" and "provision this card", and a
+file import, hand the spec over through `handSpec` and `goto`.
 
 ### Shared state (`state.svelte.ts`)
 
@@ -495,7 +523,7 @@ daemon:   "probing" | "absent" | "locked" | "present";   // locked: health answe
 tokenError: string;               // "bad token" when a token was sent and health stayed minimal
 health:   Health | null;          // the last full GET /health
 settings: { iface: string; brightness: number; card: string | null } | null;
-wall:     Canvas;                 // the editor's document; loaded from GET /wall when present, else localStorage "e120.wall", else single 128x64
+wall:     Canvas;                 // the editor's document; loaded from GET /wall when present, else localStorage "rxp.wall", else single 128x64
 job:      Job | null;             // the job the status bar follows (last started from this page)
 status:   { kind: "idle" | "busy" | "error"; text: string };  // status bar right side
 wasm:     "loading" | "ready" | "failed";
@@ -510,7 +538,7 @@ status bar shows `kind`, the last line, and a cancel button; `end` sets
 
 ### The layout JSON (`wall`)
 
-The Wall edits exactly the structure `e120 show ... --layout` reads, serde
+The Wall edits exactly the structure `rxp show ... --layout` reads, serde
 names as written:
 
 ```ts
@@ -538,7 +566,7 @@ when there is none. `layout_example(cols, rows, w, h)` is
 `Canvas::cards(w, h, cols, rows)`: one receiver per panel, receivers at the
 panel's `x,y`.
 
-Import/export is the JSON above, pretty-printed as `e120 card layout-example`
+Import/export is the JSON above, pretty-printed as `rxp card layout-example`
 prints it. When the daemon is present "save" is `PUT /wall`; export is always
 a file download.
 
@@ -607,7 +635,7 @@ and per poll, `flash::read_blocks` (hence `restore::snapshot`) per block.
 `panelspec::PanelSpec` has `parse(text: &str)`, `load(path)` and
 `chip_library(&self, load)`; `rcvbp::spec::generate(&spec, &chip)` builds
 the records and `rcvbp::image::compile(&model.memory.boot_image, ..)` the
-block-7 image `e120 config gen` writes, laid out for a `receivers`
+block-7 image `rxp config gen` writes, laid out for a `receivers`
 card model (the daemon's `card` setting, the discovered card, else
 `receivers::default_model()`). `ChipLibrary::parse(text)` likewise. The loader is passed by
 the caller: the CLI passes `read_library`, the WASM crate
@@ -626,7 +654,7 @@ src/ifaces.rs     first_non_loopback_v4 (getifaddrs), the host in the printed UR
 src/state.rs      AppState: settings, wall, cards, jobs, the link holder (a job or a command's subject, for the 409 text), data dir, token; command() and start_job(); load_library
 src/routes.rs     one handler per route in section 2; the token layer (X-Token or ?token=) on every route but health; the commit gate; Body/Qs extractors that turn a bad body into 400 {"error"}
 src/jobs.rs       Job, Handle (lines + broadcast + done watch + cancel flag), Sink (impl Progress), Lines (a command's sink), spawn_blocking runner, SSE
-src/assets.rs     include_dir!("$CARGO_MANIFEST_DIR/../../web/dist") behind build.rs's cfg(web_dist); every non-/api path
+src/assets.rs     include_dir!("$CARGO_MANIFEST_DIR/../../web/build-static") behind build.rs's cfg(web_dist); every non-/api path: `<path>.html` for a prerendered route (`index.html` for `/`), else fallback.html
 src/store.rs      settings.json and wall.json under the data dir
 src/error.rs      ApiError { status, message } -> {"error": message}
 tests/api.rs      the router without a link: health with and without the token, 401 on the other routes, config/gen against gen_config, the commit gate (flash/restore dry run), 409 with a fake job, CORS, wall
@@ -639,22 +667,24 @@ A `show/*` route cancels a running `show/video` or `show/hold` job and
 waits for it before taking the link. Job ids are handed out only once the
 link is free, so a 409 does not consume one.
 
-Data dir: `dirs::config_dir()/e120` (`~/Library/Application Support/e120`
-on macOS, `~/.config/e120` on Linux); `--data-dir` overrides. Holds
-`settings.json`, `wall.json`, `backups/`, `snapshots/`.
+Data dir: `dirs::config_dir()/receiverproxy` (`~/Library/Application Support/receiverproxy`
+on macOS, `~/.config/receiverproxy` on Linux); `--data-dir` overrides. Holds
+`settings.json`, `wall.json`, `backups/`, `snapshots/`. `rxp firmware fetch`
+writes its `firmware/` cache under the same directory, `--data-dir` or not.
 
-Static files: when `web/dist/index.html` exists at compile time the whole
-directory is embedded and served at `/` with the right MIME types and
-`index.html` for unknown non-API paths. Otherwise `/` returns
-`text/plain` `build the web app: cd web && pnpm install && pnpm build, then
-rebuild e120`. A rebuild of `daemon` is needed after `pnpm build`
-(`build.rs` emits `rerun-if-changed=../../web/dist`).
+Static files: when `web/build-static/index.html` exists at compile time the
+whole directory is embedded and served at `/` with the right MIME types: a
+prerendered route from `<path>.html`, any other non-API path from
+`fallback.html`, the client-rendered shell. Otherwise `/` returns `text/plain` `build the web app: cd web
+&& pnpm install && pnpm build:embed, then rebuild rxp`. A rebuild of
+`daemon` is needed after `pnpm build:embed` (`build.rs` emits
+`rerun-if-changed=../../web/build-static`).
 
-`e120 ui [--port 7120] [--listen 127.0.0.1] [--no-open] [--token TOKEN]
+`rxp ui [--port 7120] [--listen 127.0.0.1] [--no-open] [--token TOKEN]
 [--data-dir DIR]` in `cli` builds `Options` and calls `daemon::run`, which
 owns its tokio runtime; `--no-open` skips opening the browser. `--iface`
 typed on the command line replaces the saved `settings.iface`; otherwise
-the saved one (default `en24`) applies. It prints one line: `e120 ui:
+the saved one (default `en24`) applies. It prints one line: `rxp ui:
 http://127.0.0.1:7120/#token=...` (the token given, or the generated one),
 then discovers for 3 s before serving.
 
@@ -673,23 +703,30 @@ web/scripts/build-wasm.sh
 
 # development: the app at http://localhost:5173, API from a running daemon
 cd web && pnpm dev                                      # API base: same origin as the page (proxied to 7120 by vite.config.ts)
-VITE_E120_API=http://127.0.0.1:7121/api/v1 pnpm dev     # or an explicit base
+VITE_RXP_API=http://127.0.0.1:7121/api/v1 pnpm dev     # or an explicit base
 
-# production
-cd web && pnpm build          # -> web/dist
-cargo build --release -p cli   # embeds web/dist
+# the site: adapter-cloudflare into web/.svelte-kit/cloudflare, deployed by wrangler
+cd web && pnpm build
+pnpm deploy                  # wrangler deploy, web/wrangler.jsonc: receiverproxy.com and www.receiverproxy.com
+
+# the embedded copy: adapter-static into web/build-static, then the daemon
+cd web && pnpm build:embed   # ADAPTER=static vite build
+cargo build --release -p cli   # embeds web/build-static
 cargo install --path crates/cli
-e120 ui                       # prints and opens http://127.0.0.1:7120/#token=<random>
-e120 ui --iface en24 --port 7120 --no-open --token secret
-e120 ui --listen 0.0.0.0      # reachable from the network; the token is the credential
+rxp ui                       # prints and opens http://127.0.0.1:7120/#token=<random>
+rxp ui --iface en24 --port 7120 --no-open --token secret
+rxp ui --listen 0.0.0.0      # reachable from the network; the token is the credential
 ```
 
-`pnpm check` runs `svelte-check`; `pnpm test` runs the node tests under
-`web/tests/`; `cargo build --workspace && cargo test
---workspace && cargo clippy --workspace --all-targets -- -D warnings` covers
-the three Rust crates as for the rest of the workspace. `rcvbp-wasm` is a
-workspace member and must also pass
-`cargo clippy -p rcvbp-wasm --target wasm32-unknown-unknown -- -D warnings`.
+The daemon serves the static build's files at `/`: a prerendered route
+from `<path>.html`, everything else that is not `/api` from `fallback.html`,
+the client-rendered fallback. `pnpm check` runs `svelte-kit sync` and
+`svelte-check`; `pnpm test` runs the node tests under `web/tests/`;
+`cargo build --workspace && cargo test --workspace && cargo clippy
+--workspace --all-targets -- -D warnings` covers the three Rust crates as
+for the rest of the workspace. `rcvbp-wasm` is a workspace member and must
+also pass `cargo clippy -p rcvbp-wasm --target wasm32-unknown-unknown -- -D
+warnings`.
 
 ### Shared types
 

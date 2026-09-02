@@ -118,7 +118,15 @@ impl ChipLibrary {
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
-        toml::from_str(&text).with_context(|| format!("parse {}", path.display()))
+        Self::parse(&text).with_context(|| format!("parse {}", path.display()))
+    }
+
+    /// Read a library from TOML text.
+    ///
+    /// # Errors
+    /// Fails on malformed TOML, an unknown field or a bad hex key.
+    pub fn parse(text: &str) -> Result<Self> {
+        Ok(toml::from_str(text)?)
     }
 
     fn reg(&self, id: u8) -> Result<[u8; 3]> {

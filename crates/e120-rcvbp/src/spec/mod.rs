@@ -200,7 +200,15 @@ impl PanelSpec {
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
-        toml::from_str(&text).with_context(|| format!("parse {}", path.display()))
+        Self::parse(&text).with_context(|| format!("parse {}", path.display()))
+    }
+
+    /// Read a spec from TOML text.
+    ///
+    /// # Errors
+    /// Fails on malformed TOML or an unknown field.
+    pub fn parse(text: &str) -> Result<Self> {
+        Ok(toml::from_str(text)?)
     }
 
     /// Generate the config and basic pack; the chip library path is relative
@@ -209,8 +217,29 @@ impl PanelSpec {
     /// # Errors
     /// Fails on an invalid spec or unusable chip library.
     pub fn generate(&self) -> Result<Generated> {
-        let chip = ChipLibrary::load(&self.chip.library)?;
-        generate(self, &chip)
+        let chip = self.chip_library(&|path| {
+            std::fs::read_to_string(path).with_context(|| format!("read {path}"))
+        })?;
+        self.generate_with(&chip)
+    }
+
+    /// Generate with an already loaded chip library.
+    ///
+    /// # Errors
+    /// Fails on an invalid spec or a chip library the record cannot hold.
+    pub fn generate_with(&self, chip: &ChipLibrary) -> Result<Generated> {
+        generate(self, chip)
+    }
+
+    /// The spec's chip library, with `load` mapping `[chip].library` to TOML
+    /// text: the filesystem for the CLI, an embedded set in the browser.
+    ///
+    /// # Errors
+    /// Fails when `load` does, or on a malformed library.
+    pub fn chip_library(&self, load: &dyn Fn(&str) -> Result<String>) -> Result<ChipLibrary> {
+        let path = &self.chip.library;
+        let text = load(path)?;
+        ChipLibrary::parse(&text).with_context(|| format!("parse {path}"))
     }
 
     /// Check the spec against what the record can express.

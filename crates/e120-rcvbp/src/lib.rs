@@ -54,6 +54,21 @@ impl Record {
     pub fn is_empty_table(&self) -> bool {
         self.payload.iter().all(|&b| b == 0)
     }
+
+    /// What the record holds, for listings; empty for a type not yet decoded.
+    #[must_use]
+    pub fn describe(&self) -> &'static str {
+        match (self.type_u16(), self.is_empty_table()) {
+            (_, true) => "(empty table)",
+            (0x0a01, _) => "main receiver parameters (geometry, scan, timing)",
+            (0x0a03, _) => "pixel/row mapping table",
+            (0x0a84, _) => "driver-chip register table",
+            (0x0a8a, _) => "secondary parameters",
+            (0x0aca, _) => "cabinet geometry",
+            (0x0a83 | 0x0a89, _) => "RGB coefficients",
+            _ => "",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

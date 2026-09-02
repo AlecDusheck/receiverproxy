@@ -236,6 +236,21 @@ impl Block7Builder {
     }
 }
 
+/// The whole image for a generated config: the raster regions, the chip page
+/// when the spec arms at boot, and the embedded `.rcvbp`. What `e120 config
+/// gen` writes as `<name>-block7.bin`.
+///
+/// # Errors
+/// Fails where the region builders do, or if the `.rcvbp` cannot be encoded.
+pub fn compile(spec: &PanelSpec, g: &Generated) -> Result<Block7> {
+    let mut b = Block7Builder::from_generated(spec, g)?;
+    if spec.boot.arm_at_boot {
+        b.chip_registers_from(&g.rcvbp)?;
+    }
+    b.rcvbp(&g.rcvbp.to_file_bytes()?)?;
+    Ok(b.finish())
+}
+
 /// A finished block-7 image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block7 {

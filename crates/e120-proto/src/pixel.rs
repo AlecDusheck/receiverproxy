@@ -19,12 +19,17 @@ pub const MAX_PIXELS_PER_PACKET: usize = 497;
 /// at data[22] and data[25..28] (frame offsets 35 and 38..41). FPP sends this
 /// frame twice per refresh on firmware v13+.
 pub fn sync(brightness: u8) -> Vec<u8> {
+    // The vendor fills the master value (data[21]) and the three channel
+    // gains (data[24..27]) from separate bytes of its brightness block; the
+    // per-channel derivation is unresolved (docs/pixel-protocol.md §2.2).
+    // E120_SYNC_GAIN sets the channel gains independently for experiments.
+    let gain = std::env::var("E120_SYNC_GAIN").ok().and_then(|v| v.parse().ok()).unwrap_or(brightness);
     let mut p = [0u8; 98];
     p[21] = brightness;
     p[22] = 0x05;
-    p[24] = brightness;
-    p[25] = brightness;
-    p[26] = brightness;
+    p[24] = gain;
+    p[25] = gain;
+    p[26] = gain;
     frame([0x01, 0x07], &p)
 }
 

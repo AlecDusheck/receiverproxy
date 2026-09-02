@@ -20,13 +20,34 @@ pinned in `config/panels/p25-128x64-sm16269s.toml`; the method is in
 
 ## Open
 
-* **Black and low greys render as noise.** A black frame overwrites a
-  rendered pattern with per-pixel noise, so low values are being written and
-  mis-encoded, not skipped. Threshold is between 64 and 128 of 255 (gray-128
-  renders dim and uniform). Suspects: the 8→12-bit conversion, the word
-  framing on the SH stream, a register governing low-grey handling.
-* Row band order appears reversed on the rotated panel (`line_dir` /
-  `reversed_lines`).
-* The per-boot state that once looked like a "toggle" was the latch count
-  (two per frame) plus pushing packs too early after power-on; with three
-  latches and a settle it has not recurred.
+### Black is not off — a gain-scaled per-pixel floor
+
+An all-black frame leaves ~0.3 A of LED current at gain 12 as per-pixel
+speckle. What is established about it (all on the flash-configured card):
+
+* it scales with the sync frame's three **channel-gain** bytes (0.47 A = off
+  at 0, 0.71 at 4, 0.75 at 12, 0.86 at 40, 1.08 at 120) and those bytes are
+  the only brightness control — the "master" byte at data[21] is inert;
+* the grey response above it is monotonic with no cliff (72 → 136 → white);
+* it is **not** the stale second buffer page: writing both pages per frame
+  (`E120_WRITES=2`) leaves it unchanged, although that experiment did show the
+  two-latch decay was page alternation;
+* no single driver register moves it: 0x03, 0x07, 0x0B, 0x0C, 0x0F, 0x11,
+  0x14, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1E, 0x22, 0xF0 each tried at the
+  vendor-default or LEDSetting-2.2.6 value; the chip's 13-bit mode
+  (0x03 = 0x40) neither;
+* `[current] percent` (the inherited 0.1) at 0 or 0.02: no change;
+* single camera frames of it correlate ~0.6 with each other and ~0.88 with
+  the average, so it has both a static and a flickering component.
+
+What remains: how the card turns input 0 into the word it shifts out at grey
+depth 12 — a gamma/LUT with a non-zero origin, or a word-width mismatch
+between the 12-bit pack setting and the registers' 14-bit derivation — which
+is a question for the vendor library (`GetBasicParam`, the grey-table
+builders) rather than the bench. Knobs left in for it: `E120_LATCHES`,
+`E120_WRITES`, `E120_SYNC_GAIN`.
+
+### Geometry
+
+Row band order reads reversed on the rotated panel (`line_dir` /
+`reversed_lines` in the spec are the knobs).

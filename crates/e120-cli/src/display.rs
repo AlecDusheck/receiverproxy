@@ -194,9 +194,14 @@ pub fn send_frame_as(
     // the picture decays into noise and back on a ~10 s period; three or four
     // hold it steady for as long as measured (docs/bench-measurement.md).
     let latches = std::env::var("E120_LATCHES").ok().and_then(|v| v.parse().ok()).unwrap_or(3u32);
+    // Rows may be resent before each of the first `writes` latches, so both
+    // of a double-buffered driver's pages carry the current frame.
+    let writes = std::env::var("E120_WRITES").ok().and_then(|v| v.parse().ok()).unwrap_or(1u32);
     if raster == Raster::Rows {
-        send_rows(dev, cli, fb, w, h, row_base)?;
-        for _ in 0..latches {
+        for i in 0..latches {
+            if i < writes {
+                send_rows(dev, cli, fb, w, h, row_base)?;
+            }
             dev.send(&protocol::sync(cli.brightness))?;
         }
         return Ok(());

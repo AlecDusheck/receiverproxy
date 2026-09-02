@@ -56,7 +56,7 @@ vendor's loader does. The gray depth is derived from registers 0x07 and 0x03
 
 Non-SH parts such as SM16169S (`0x00DE`) have no register table and no
 record 0x84; their whole configuration is the 16-byte `SChipCustom` block of
-record 0x01. `chips.rs` loads them through `chip_custom`,
+record 0x01. `panelspec/src/chips.rs` loads them through `chip_custom`,
 `chip_custom_scan_patch`, `chip_custom_ex`, `emit_record_84` and `gray_bits`
 ([chip-libraries-non-sh.md](chip-libraries-non-sh.md)).
 
@@ -71,7 +71,7 @@ record 0x01. `chips.rs` loads them through `chip_custom`,
 | basic pack (all 256 bytes) | `GetBasicParam` transcribed field by field from record 0x01, plus the CRC-32 trailer | factory pack byte-exact |
 | boot image | every region generated (`image/`): gated zeros, data-swap, module positions, anti-void counters, mapping, scan table (bit-time solver), embedded `.rcvbp` | factory image byte-exact |
 
-Tests in `crates/e120-rcvbp/tests/factory.rs`:
+Tests in `crates/rcvbp/tests/factory.rs`:
 
 | test | asserts |
 |---|---|

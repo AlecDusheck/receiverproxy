@@ -3,7 +3,7 @@
 Reference for one Eager P2.5-O16S-SMD1415-128x64-E module (1/16 duty,
 SM16269S drivers) on hub J1 of a Colorlight E120 running firmware 16.53.
 Every value is held in `config/panels/p25-128x64-sm16269s.toml`,
-`config/chips/sm16269s-factory.toml` or `e120_driver::Timing::default()`,
+`config/chips/sm16269s-factory.toml` or `driver::Timing::default()`,
 and each is fixed by a bench measurement taken by the method in
 [bench.md](bench.md). Claims that measurement disproved are in
 [retracted-findings.md](retracted-findings.md).
@@ -19,9 +19,9 @@ give the same picture and the same currents.
 | setting | value | where | what pins it | effect of other values |
 |---|---|---|---|---|
 | driver-chip id | `0x14C` (vendor name SM16169SH) | `[chip] library` → `sm16269s-factory.toml` | `factory.rs` record 0x84 equality; measured: the only id 16.53 arms the SM16269S outputs for | `0x0DE` (SM16169S, non-SH) and `0x0214` (the SM16269S's own id, a stub in every vendor build) never arm. Chip-control tails 2/4/8 and 3/5/7 under `0x14C` never arm. The 20-byte chip-control block is the protocol descriptor ([chip-control-block.md](chip-control-block.md)); only the SH pattern `1,5,6` renders |
-| record 0x01 `+0x02F` | `1` | `[record01_overrides]`, applied last in `crates/e120-rcvbp/src/spec/record01.rs` | `factory.rs` delta list `[0x023, 0x02F, 0x0C0..0x0C3]`; measured: cleared to `0`, nothing displays | `0` is the value the card's original config held. `1` is the vendor `Reset()` default and the value in 961 of 1146 corpus files. Meaning not resolved |
+| record 0x01 `+0x02F` | `1` | `[record01_overrides]`, applied last in `crates/rcvbp/src/spec/record01.rs` | `factory.rs` delta list `[0x023, 0x02F, 0x0C0..0x0C3]`; measured: cleared to `0`, nothing displays | `0` is the value the card's original config held. `1` is the vendor `Reset()` default and the value in 961 of 1146 corpus files. Meaning not resolved |
 | grey depth | `12` | `[module] gray_bits` | `factory.rs` (`0x023`). Measured from flash: 12, 13, 14, 15 and 16 give the same picture and the same currents | the card's original config held 14. 12 is kept because it has the most measurements behind it, not because it is required |
-| frame order | brightness (0x0A), 64 row packets (0x55), 500 µs gap, 3 latch frames (0x0107) | `crates/e120-driver/src/lib.rs` `Timing::default()` | `settings_default_to_the_measured_recipe`; latch count and gap judged by eye | one latch never starts the display; two render but decay into noise and recover on a period of about 10 s (the stale second buffer page); three hold. Without the gap the card latches before the last row is stored and the bottom row flickers (visible by eye, not by the 30 fps camera) |
+| frame order | brightness (0x0A), 64 row packets (0x55), 500 µs gap, 3 latch frames (0x0107) | `crates/driver/src/lib.rs` `Timing::default()` | `settings_default_to_the_measured_recipe`; latch count and gap judged by eye | one latch never starts the display; two render but decay into noise and recover on a period of about 10 s (the stale second buffer page); three hold. Without the gap the card latches before the last row is stored and the bottom row flickers (visible by eye, not by the 30 fps camera) |
 | raster | `rows`: one 0x55 packet per panel row, 128 px | the only layout `Wall::show` cuts | `pixel_rows_follow_the_fpp_layout` | double-width layouts put content in the wrong rows and are not supported |
 | pixel mapping | `block = 64` | `[mapping] block` | `the_reference_mapping_is_reproduced_by_the_block_knob`; the reference file's record 0x03 regenerates byte for byte | `block = 128` (one contiguous 128-slot run per row-half, the corpus majority) scrambles every column. The module's row-halves alternate every 64 columns ([panel-wiring.md](panel-wiring.md)) |
 | phantom positions | gated (`gate_phantom_positions = true`) | `[mapping]`, `Block7Builder::void_line_columns` | `the_bench_spec_displaces_the_phantom_positions`; measured: black 0.466 A = LEDs off | ungated, an all-black frame draws about 24 % of white's LED current as a fixed pattern. See "The black floor" |
@@ -33,10 +33,10 @@ give the same picture and the same currents.
 | configure from flash | `arm_at_boot = true`; block-7 image via `flash restore-block`; EEPROM records rewritten; power-cycle | `[boot]`, `e120 provision` | measured: three of three power-cycles render identically (black 0.73–0.77 A, white 1.74–1.76 A before the phantom gate; 0.466 A / 2.64 A after) | the same parameters pushed into RAM with `config send` after boot render on about one boot in three: the 34 unacknowledged packs do not all land. RAM pushes are for experiments only; push twice with `--gap-ms 25` |
 | brightness | ≤ 40 until content is right | operator rule | PSU current | an armed panel showing unmodulated content draws about 4.5 A; at full brightness it rails the 5.1 A limit and browns out |
 | colour order | `bgr` | `--order` default | `colour_order_reorders_the_channels` | |
-| pixels per packet | 497 | `crates/e120-proto/src/pixel.rs` `MAX_PIXELS_PER_PACKET` | `pixel_rows_follow_the_fpp_layout`; CLTNic.dll hard-codes it | |
+| pixels per packet | 497 | `crates/colorlight/src/pixel.rs` `MAX_PIXELS_PER_PACKET` | `pixel_rows_follow_the_fpp_layout`; CLTNic.dll hard-codes it | |
 
-Experiment overrides, read once by `crates/e120-cli/src/display.rs` into
-`e120_driver::Timing`: `E120_LATCHES`, `E120_LATCH_GAP_US`, `E120_ROW_GAP_US`,
+Experiment overrides, read once by `crates/ops/src/display.rs` into
+`driver::Timing`: `E120_LATCHES`, `E120_LATCH_GAP_US`, `E120_ROW_GAP_US`,
 `E120_FRAME_MS`. Nothing in `scripts/` sets them.
 
 ## Frame layout
@@ -123,7 +123,7 @@ Candidates that are not the floor:
 * The scan schedule. The boot image pairs a 12-bit grey byte with a 14-level
   scan table, so levels 12 and 13 (about 75 % of lit time) have no bits to
   read. Measured: the vendor's own 12-level table raises black from 0.75 A
-  to 0.90 A. The 14-level table stays (`crates/e120-rcvbp/src/image/scan_table.rs`,
+  to 0.90 A. The 14-level table stays (`crates/rcvbp/src/image/scan_table.rs`,
   `GRAY`).
 
 ## Limits

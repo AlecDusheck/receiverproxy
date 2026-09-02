@@ -26,7 +26,7 @@ Two framing conventions coexist:
 A pixel frame built with the control-frame convention degrades the card into
 a 5 Hz strobe (measured on this bench).
 
-The real-time push, in the vendor's order (`crates/e120-cli/src/params.rs`,
+The real-time push, in the vendor's order (`crates/cli/src/params.rs`,
 matching `GetParamPacksBasic` @ `0x31f1e0` and `SendRealTimePacks` @
 `0x32cf40`), is 41 packs; `e120 config send` sends it:
 
@@ -80,7 +80,7 @@ The compiled image at flash `0x70000` is a fixed-offset scatter of pack
 bodies: no framing, no lengths, no terminators, no checksums beyond the basic
 pack's own CRC-32. The region map is in
 [flash-layout.md](flash-layout.md#6-the-compiled-boot-image-sits-at-absolute-flash-0x070000-high);
-`crates/e120-rcvbp/src/image/` reproduces it byte-exactly, verified against
+`crates/rcvbp/src/image/` reproduces it byte-exactly, verified against
 `card-dumps/primary-region.bin`.
 
 `CCLK.MODE = USRMCLK` and `OSC.MODE = OSCG` are set in all five images, so

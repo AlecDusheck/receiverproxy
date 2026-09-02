@@ -1,0 +1,11 @@
+[package]
+name = "colorlight"
+description = "Colorlight receiver-card layer-2 wire protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

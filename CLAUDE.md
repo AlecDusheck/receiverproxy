@@ -30,24 +30,29 @@ changing the supply.
 
 ## Layout
 
+`e120` names the project and the command; crates are named for their role.
+
 | crate | owns |
 |---|---|
-| `e120-proto` | frame builders; byte-exact against the vendor sender, pinned by tests |
-| `e120-net` | raw Ethernet transport (BPF on macOS, AF_PACKET on Linux) and pcap |
-| `e120-rcvbp` | the `.rcvbp` format, the boot image, the TOML spec generator |
-| `e120-canvas` | wall layout: panels, receivers, rotation |
-| `e120-video` | frame sources: files via ffmpeg, raw rgb24 from a reader |
-| `e120-driver` | `Wall`: the sink that paces and sends frames |
-| `e120-commands` | the commands as functions (`Ctx` + `Progress` sink), one module per command group; shared by the binary and the daemon |
-| `e120-cli` | the `e120` binary: the clap tree, `Stdio` printing, `e120 ui` |
-| `e120-server` | the daemon behind `e120 ui`: the JSON API, jobs, the embedded web app (`docs/ui.md`) |
-| `e120-wasm` | `e120-rcvbp` and `e120-canvas` for the browser: generate, inspect, diff, layouts, the embedded `config/` libraries; built by `web/scripts/build-wasm.sh` |
-| `e120-demos` | `e120-demo`: effects that use what LEDs physically are; the example of driving a wall from outside the CLI |
+| `colorlight` | frame builders; byte-exact against the vendor sender, pinned by tests |
+| `rawlink` | raw Ethernet transport (BPF on macOS, AF_PACKET on Linux) and pcap |
+| `panelspec` | the vendor-neutral panel description: `PanelSpec`, the chip library, the loader hook, `config/chips` and `config/panels` embedded (`embedded`) |
+| `receivers` | card models as data: `config/cards/*.toml` embedded, `models()`, `by_id`, `by_name` |
+| `rcvbp` | the `.rcvbp` format, the boot image, the record generator over a `PanelSpec` |
+| `wall` | wall layout: panels, receivers, rotation |
+| `sources` | frame sources: files via ffmpeg, raw rgb24 from a reader |
+| `driver` | `Wall`: the sink that paces and sends frames |
+| `ops` | the commands as functions (`Ctx` + `Progress` sink), one module per command group; shared by the binary and the daemon |
+| `cli` | the `e120` binary: the clap tree, `Stdio` printing, `e120 ui` |
+| `daemon` | the daemon behind `e120 ui`: the JSON API, jobs, the embedded web app (`docs/ui.md`) |
+| `rcvbp-wasm` | `rcvbp` and `wall` for the browser: generate, inspect, diff, layouts, the embedded `config/` libraries served as `libraries()`; built by `web/scripts/build-wasm.sh` |
+| `demos` | `e120-demo`: effects that use what LEDs physically are; the example of driving a wall from outside the CLI |
 
-`web/` is the Svelte app (`pnpm build` writes `web/dist`, which `e120-server` embeds when it exists at compile time); its contract is `docs/ui.md`.
+`web/` is the Svelte app (`pnpm build` writes `web/dist`, which `daemon` embeds when it exists at compile time); its contract is `docs/ui.md`.
 
 `docs/architecture.md` follows the path from spec to light and says where each
-measured default lives. Keep it true when moving things.
+measured default lives. Keep it true when moving things. Adding a receiving
+card, a panel or a vendor: `docs/cards.md`.
 
 ## Working here
 
@@ -55,7 +60,7 @@ measured default lives. Keep it true when moving things.
   `cargo build --workspace && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings`.
 - Byte-exact tests pin protocol frames and generated configs. A failing pinned
   value is a bug in the change, not in the pin.
-- Timing defaults in `e120-driver` (frame order, latch count, latch gap, row
+- Timing defaults in `driver` (frame order, latch count, latch gap, row
   gap) are measured; each carries the measurement in a comment. Change them
   only with a new measurement.
 - Never run hardware commands unasked, and never while the card may be off;

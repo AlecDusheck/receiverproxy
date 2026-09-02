@@ -134,7 +134,7 @@ data.
 `SChipControl` is record 0x01 `+0x0C4..0x0D7` (basic-pack body `+0x91`), 20
 bytes, emitted by the vendor's `ResetChipControl` +
 `SetGclkNumsOfChipControlByChipCustom`. The generator writes it verbatim
-from `config/chips/*.toml` (`crates/e120-rcvbp/src/spec/record01.rs:139`).
+from `config/chips/*.toml` (`crates/rcvbp/src/spec/record01.rs:139`).
 
 Survey across the 29 corpus files that carry a record 0x01
 (`vendor/led-config-files/**`, `third-party/configs/`):
@@ -333,7 +333,7 @@ For the reference file (`reg07 = 0x04`, sub-id `0x0000`) that is
 so `0x0097` is correct and self-consistent for what is sent. This field is
 not a fault.
 
-Recompute trap: `crates/e120-rcvbp/src/chips.rs` stores `chip_control` as a
+Recompute trap: `crates/panelspec/src/chips.rs` stores `chip_control` as a
 literal from the TOML. Changing `reg 0x07` or the sub-id without
 recomputing bytes 10-13 desynchronises the card's scan-cycle count from the
 chip's own frequency-division setting: `reg07 = 0x44` with sub `0x14D` gives

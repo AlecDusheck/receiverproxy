@@ -30,7 +30,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 if command -v e120 >/dev/null; then e120=e120
 elif [ -x "$here/target/release/e120" ]; then e120=$here/target/release/e120
 elif [ -x "$here/target/debug/e120" ]; then e120=$here/target/debug/e120
-else echo "mirror.sh: e120 not found; cargo install --path crates/e120-cli" >&2; exit 1
+else echo "mirror.sh: e120 not found; cargo install --path crates/cli" >&2; exit 1
 fi
 while getopts 's:f:c:d:h' o; do
     case $o in

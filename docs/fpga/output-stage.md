@@ -155,7 +155,7 @@ raster corruption. The generated config carries 256.
 ## 3. The scan table
 
 `GetScanTable` @ `0x1eabc0` calls `CalScanTalbeDefault` @ `0x14d710`,
-transcribed in `crates/e120-rcvbp/src/image/scan_table.rs`. It computes:
+transcribed in `crates/rcvbp/src/image/scan_table.rs`. It computes:
 
 1. `InitFieldTable16Segment` picks which grey level gets the full 16-slot
    segment, and takes the other 13 levels from a hand-coded per-grey-depth
@@ -198,7 +198,7 @@ the vendor's own 12-level table raises black from 0.75 A to 0.90 A; the
 ### Record 0x03
 
 4096 entries = `W x (H/2)`, one per pixel of one half. For pixel `i` in
-raster order over the 128x32 half (`crates/e120-rcvbp/src/spec/mapping.rs`):
+raster order over the 128x32 half (`crates/rcvbp/src/spec/mapping.rs`):
 
 ```
 row    = i / 128
@@ -221,7 +221,7 @@ serial slots)".
 | `blk` | slot formula | where it holds |
 |---|---|---|
 | `W` = 128 (generator default) | `group * W + col`; each data group one contiguous 128-slot run | the vendor corpus consensus: byte-exact against the 34-config consensus for 128x64 @ 1/16, and 1039 of 1517 corpus tables from geometry alone. Measured: flashed to the bench module it scrambles every column |
-| 64 (bench spec) | the chain alternates between the two row-halves every 64 columns | the bench module ([../panel-wiring.md](../panel-wiring.md)); the reference file's record 0x03 regenerates byte for byte. Pinned by `the_reference_mapping_is_reproduced_by_the_block_knob` in `crates/e120-rcvbp/tests/factory.rs` |
+| 64 (bench spec) | the chain alternates between the two row-halves every 64 columns | the bench module ([../panel-wiring.md](../panel-wiring.md)); the reference file's record 0x03 regenerates byte for byte. Pinned by `the_reference_mapping_is_reproduced_by_the_block_knob` in `crates/rcvbp/tests/factory.rs` |
 
 `reversed_groups` (234 of 241 two-group vendor configs) means the last
 row-group is shifted out first, the standard consequence of a chain that
@@ -287,7 +287,7 @@ the panel render, each with its measurement: [../rendering.md](../rendering.md).
 
 | measurement | establishes |
 |---|---|
-| The `test_mode()` frame (`crates/e120-proto/src/discovery.rs`) matches `CReceiverOP::SetRcvCardTestMode` @ `0x3d54e0`: type `33 00`, `0x09` at payload+5, selector at payload+6, 279-byte frame | the host's test-mode command is byte-correct |
+| The `test_mode()` frame (`crates/colorlight/src/discovery.rs`) matches `CReceiverOP::SetRcvCardTestMode` @ `0x3d54e0`: type `33 00`, `0x09` at payload+5, selector at payload+6, 279-byte frame | the host's test-mode command is byte-correct |
 | On 10.81 all nine test selectors give flat current and indistinguishable output; on 16.53 the selectors give visibly different displays (`e120 card test-mode <n>`, `e120 card test-sweep`) | the built-in generator is inert on 10.81 only. The generator bypasses the host, so a fault visible in test mode is at or below the card's raster stage |
 | The physical test button (E120 spec item 5: four monochrome fields plus scan patterns) does nothing when pressed | it is not a diagnostic on this card; the generator is reached over the wire |
 | Pixel frames are byte-exact FPP and verifiably on the wire | the host encoder is not a fault source |

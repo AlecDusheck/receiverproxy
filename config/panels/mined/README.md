@@ -14,7 +14,7 @@ that has driven a panel.
 Not emitted: geometries whose wiring the formula never fits, mostly the
 1/2, 1/4, 1/5 and 1/10-scan outdoor modules (80x40 1/10, 40x20 1/5, 32x16 1/2),
 whose chains snake through the line groups. Adding that pattern to
-`crates/e120-rcvbp/src/spec/mapping.rs` and the miner's `generated_map` would
+`crates/rcvbp/src/spec/mapping.rs` and the miner's `generated_map` would
 cover them; the miner log lists each skipped group with how many files fit.
 
 Use one as a starting point for a new module of that class: copy it next to

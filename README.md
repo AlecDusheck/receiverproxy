@@ -21,8 +21,10 @@ Tested only on the hardware listed under [Tested](#tested), one card and one mod
 Rust stable via [rustup](https://rustup.rs) (`rust-toolchain.toml` pins the channel), then:
 
 ```sh
-cargo install --path crates/e120-cli
+cargo install --path crates/cli
 ```
+
+`e120` names the project and the command; crates are named for their role (`crates/cli` builds the `e120` binary).
 
 `e120 show video` and `e120 show stream` pipelines need `ffmpeg` on the PATH (`brew install ffmpeg`).
 
@@ -66,13 +68,18 @@ Options:
       --height <HEIGHT>          Panel height in pixels [default: 64]
       --order <ORDER>            Color order on the wire [default: bgr]
   -b, --brightness <BRIGHTNESS>  Brightness 0-255 (sent in sync frames) [default: 255]
+      --card <NAME>              Card model to work from instead of the one discovery reports (`e120 card models`)
 ```
 
-Find the card; the reply includes its firmware version:
+Find the card; the reply includes its firmware version and the model `config/cards/` gives its id byte:
 
 ```sh
 e120 discover
+e120 card models       # the models in config/cards and how far each is tested
+e120 card probe        # read-only: check the model file's claims against the card, exit 1 on a mismatch
 ```
+
+Flash, firmware and configuration commands take the card's memory map (banks, parameter block, EEPROM mirror, boot-image layout, blocks the firmware guards) from that model; `--card NAME` names one instead of discovering, and `config gen` without `--card` lays the boot image out for the first tested model. `card probe` reads the discovery reply, the head of each firmware bank, the parameter block and the EEPROM mirror and prints one `ok` / `mismatch` / `not checked` line per claim ([docs/cards.md](docs/cards.md)).
 
 Provision a card from a panel spec and a firmware image. Without `--commit` it prints the five steps (snapshot, firmware, EEPROM read, config, EEPROM write) and does nothing. Power-cycle the card afterwards; it configures itself from flash.
 
@@ -107,7 +114,7 @@ ffmpeg -f avfoundation -pixel_format bgr0 -framerate 30 -i "Capture screen 0" \
 
 `scripts/mirror.sh` is the second pipeline as a script: `scripts/mirror.sh -s 128x64 -f 30 -c 0,0,640,320` mirrors a crop of the screen.
 
-Serve a unix socket. One client at a time connects, sends a 12-byte header, then rgb24 frames, and is paced at the header's fps; the panel keeps the last frame between clients. The header is `E120`, version byte `1`, one reserved byte, then width, height and fps as little-endian u16 (`crates/e120-video/src/raw.rs`).
+Serve a unix socket. One client at a time connects, sends a 12-byte header, then rgb24 frames, and is paced at the header's fps; the panel keeps the last frame between clients. The header is `E120`, version byte `1`, one reserved byte, then width, height and fps as little-endian u16 (`crates/sources/src/raw.rs`).
 
 ```sh
 e120 show serve --socket /tmp/e120.sock
@@ -152,7 +159,7 @@ Multi-panel walls: provision each card with its own `--position x,y`, put the sa
 
 ## Demos
 
-`e120-demo` (`cargo install --path crates/e120-demos`) is a second binary on the same driver: effects that use what an LED is rather than what an LCD is. `list` prints the names with a line each; `cycle` runs them all in turn; Ctrl-C leaves the panel showing its last frame.
+`e120-demo` (`cargo install --path crates/demos`) is a second binary on the same driver: effects that use what an LED is rather than what an LCD is. `list` prints the names with a line each; `cycle` runs them all in turn; Ctrl-C leaves the panel showing its last frame.
 
 ```sh
 e120-demo stars
@@ -173,37 +180,43 @@ e120-demo comet --seconds 30 --brightness 40 --iface en24 --layout wall.json
 
 `web/` is a browser front end for the same commands, with four screens: Cards (discovered cards, brightness, show, provision, firmware, flash snapshot and restore), Wall (an editor for the layout JSON), Builder (the panel spec as a form and as TOML; generate, inspect and diff `.rcvbp` files) and Library (the chip and panel files under `config/`). It runs in two modes:
 
-- Standalone: the built site alone. Builder, Wall and Library work in the browser through `e120-rcvbp` and `e120-canvas` compiled to WebAssembly (`crates/e120-wasm`); nothing touches a card. A banner says the daemon is not running and how to get it.
-- With the daemon: `e120 ui` starts `crates/e120-server`, which holds the Ethernet link, serves the built site and a JSON API under `/api/v1`, and runs the long operations as jobs, one at a time. Cards and the card actions of the other screens appear.
+- Standalone: the built site alone. Builder, Wall and Library work in the browser through `rcvbp` and `wall` compiled to WebAssembly (`crates/rcvbp-wasm`); nothing touches a card. A banner says the daemon is not running and how to get it.
+- With the daemon: `e120 ui` starts `crates/daemon`, which holds the Ethernet link, serves the built site and a JSON API under `/api/v1`, and runs the long operations as jobs, one at a time. Cards and the card actions of the other screens appear.
 
-Build and run (needs [pnpm](https://pnpm.io), the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.127, the version `crates/e120-wasm/Cargo.toml` pins):
+Build and run (needs [pnpm](https://pnpm.io), the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.127, the version `crates/rcvbp-wasm/Cargo.toml` pins):
 
 ```sh
-web/scripts/build-wasm.sh                 # cargo build -p e120-wasm for wasm32, then wasm-bindgen into web/src/wasm
+web/scripts/build-wasm.sh                 # cargo build -p rcvbp-wasm for wasm32, then wasm-bindgen into web/src/wasm
 cd web && pnpm install && pnpm build      # svelte-check, then vite build into web/dist
-cargo install --path crates/e120-cli      # embeds web/dist; rerun after every pnpm build
-e120 ui                                   # http://127.0.0.1:7120; --port, --no-open, --token TOKEN, --data-dir DIR, --iface
+cargo install --path crates/cli      # embeds web/dist; rerun after every pnpm build
+e120 ui                                   # http://127.0.0.1:7120/#token=...; --port, --listen ADDR, --no-open, --token TOKEN, --data-dir DIR, --iface
 ```
 
-The daemon binds to 127.0.0.1 only, but a web page open in the same browser can reach loopback too, so while `e120 ui` runs any page can drive the panel and write the card's flash through the API. `e120 ui --token TOKEN` makes the daemon reject every request without an `X-Token: TOKEN` header. Writes keep the CLI's gate: the API returns the plan unless the request carries `commit: true`. The API, the WASM surface and the app are specified in [docs/ui.md](docs/ui.md).
+Every API request needs a token. `e120 ui` generates a random one at start (or takes `--token TOKEN`), prints the URL with it in the fragment and opens that URL; the app keeps the token for the tab and sends it as `X-Token`. A request without it gets 401. The token is what keeps other pages open in the same browser, which can reach loopback too, from driving the panel or writing the card's flash while the daemon runs. The daemon binds 127.0.0.1 unless `--listen ADDR` names another address (`0.0.0.0` for every interface); then the token is what keeps other machines out, and it crosses the network in clear HTTP. Writes keep the CLI's gate: the API returns the plan unless the request carries `commit: true`. The API, the WASM surface and the app are specified in [docs/ui.md](docs/ui.md).
 
 ## Tested
 
+The table is generated by `e120 card models --markdown` from `config/cards/*.toml` and the mined module classes; a test keeps it current.
+
+<!-- tested -->
 ✅ driven on the bench · ⚠️ configuration generates, never driven · ❌ not supported
 
 | panel (driver chip) | Colorlight E120 | other Colorlight E-series | Linsn · Novastar · Huidu |
 |---|:---:|:---:|:---:|
-| P2.5 128x64 1/16, SM16269S | ✅ | ⚠️ | ❌ |
-| ICN2053 · ICN2055 · ICN2065 | ⚠️ | ⚠️ | ❌ |
-| ICN2038S · ICND2163 | ⚠️ | ⚠️ | ❌ |
+| 128x64 1/16, SM16269S (`config/panels/p25-128x64-sm16269s.toml`) | ✅ | ⚠️ | ❌ |
+| DP5525 | ⚠️ | ⚠️ | ❌ |
+| ICN2038S · ICN2053 · ICN2055 · ICN2065 · ICND2163 | ⚠️ | ⚠️ | ❌ |
+| LS9929 · LS9930 · LS9935B · LS9936 | ⚠️ | ⚠️ | ❌ |
 | MBI5124 · MBI5124N · MBI5153 | ⚠️ | ⚠️ | ❌ |
-| SM16380 · SM16389 · SM16259 · SM16237DS · SM16169S | ⚠️ | ⚠️ | ❌ |
-| LS9929 · LS9929C · LS9930 · LS9935B · LS9936 | ⚠️ | ⚠️ | ❌ |
-| MY9862 · MY9868 · DP5525 | ⚠️ | ⚠️ | ❌ |
+| MY9862 · MY9868 | ⚠️ | ⚠️ | ❌ |
+| SM16169S · SM16237DS · SM16259 · SM16380 · SM16389 | ⚠️ | ⚠️ | ❌ |
 | SM16369S · ICND2263 (register record not decoded) | ❌ | ❌ | ❌ |
 | snake-wired outdoor modules (1/2, 1/4, 1/5, 1/10 scan) | ❌ | ❌ | ❌ |
 
-The ⚠️ rows are the 87 module classes in `config/panels/mined/`; other E-series cards are ⚠️ because the 16.53 firmware image is itself named E320 and the protocol is shared, but none has been tried. Host: macOS ✅, Linux ⚠️ (builds and lints for x86_64 and aarch64, not run against a card).
+The ⚠️ chip rows are the 87 module classes in `config/panels/mined/`, grouped by driver-chip family.
+<!-- /tested -->
+
+Other E-series cards are ⚠️ because the 16.53 firmware image is itself named E320 and the protocol is shared, but none has been tried. Host: macOS ✅, Linux ⚠️ (builds and lints for x86_64 and aarch64, not run against a card). Adding a card or a panel is described in [docs/cards.md](docs/cards.md).
 
 ## Configuration
 
@@ -272,7 +285,7 @@ How the generator derives each record, and its limits, is in [docs/building-a-co
 
 ## Notes and evidence
 
-[docs/README.md](docs/README.md) indexes the notes: the `.rcvbp` container and record 0x01 byte by byte, the boot image region by region, the pixel map, the chip-control block, the EEPROM records, the pixel protocol recovered from the vendor sender DLL, the FPGA bitstream and flash layout, and the firmware 16.53 install. `crates/e120-rcvbp/tests/factory.rs` pins the generator to the card: the factory basic pack and boot image regenerate byte for byte from the card's factory flash dump (kept outside the repository; those tests skip without it). Bench results were taken with PSU current readings and averaged camera captures ([docs/bench.md](docs/bench.md)); the values that mattered and what each alternative did are in [docs/rendering.md](docs/rendering.md), and the claims that measurement disproves are in [docs/retracted-findings.md](docs/retracted-findings.md).
+[docs/README.md](docs/README.md) indexes the notes: the `.rcvbp` container and record 0x01 byte by byte, the boot image region by region, the pixel map, the chip-control block, the EEPROM records, the pixel protocol recovered from the vendor sender DLL, the FPGA bitstream and flash layout, and the firmware 16.53 install. `crates/rcvbp/tests/factory.rs` pins the generator to the card: the factory basic pack and boot image regenerate byte for byte from the card's factory flash dump (kept outside the repository; those tests skip without it). Bench results were taken with PSU current readings and averaged camera captures ([docs/bench.md](docs/bench.md)); the values that mattered and what each alternative did are in [docs/rendering.md](docs/rendering.md), and the claims that measurement disproves are in [docs/retracted-findings.md](docs/retracted-findings.md).
 
 ## Hardware
 

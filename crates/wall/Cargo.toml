@@ -1,0 +1,20 @@
+[package]
+name = "wall"
+description = "Panel wall topology: map one image onto any arrangement of panels"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[features]
+# `#[derive(TS)]` on the layout types, for web/src/api/types.ts.
+ts = ["dep:ts-rs"]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

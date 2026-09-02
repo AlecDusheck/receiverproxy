@@ -1,0 +1,21 @@
+[package]
+name = "demos"
+description = "Effects that lean on what an LED is, driven through the driver crate"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "e120-demo"
+path = "src/main.rs"
+
+[dependencies]
+wall.workspace = true
+driver.workspace = true
+
+anyhow.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

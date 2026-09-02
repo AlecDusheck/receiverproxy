@@ -6,7 +6,7 @@ register write at a time. A large part of the vendor's chip list is not
 addressed, including SM16169S (`0x00DE`), the closest relative of this
 panel's silicon for which vendor data exists. This page describes the
 unaddressed shape, what the vendor emits for it, and how
-`crates/e120-rcvbp/src/chips.rs` carries it.
+`crates/panelspec/src/chips.rs` carries it.
 
 Vendor addresses are in `libCLTDevice.1.dylib` (iSet, macOS) unless another
 build is named.
@@ -30,7 +30,7 @@ three lines of `scripts/mapdump.records()`.
 ## 2. `SChipCustom` for `0x00DE`
 
 `SChipCustom` is 16 bytes. It reaches the card unchanged as basic-pack body
-`+0x70..+0x7F` (`crates/e120-rcvbp/src/spec/basic_pack.rs`, `put(0x70, …)`),
+`+0x70..+0x7F` (`crates/rcvbp/src/spec/basic_pack.rs`, `put(0x70, …)`),
 so it is the whole driver-configuration payload for an unaddressed chip.
 
 ```

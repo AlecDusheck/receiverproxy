@@ -312,10 +312,10 @@ FPP's receiver-layout packet:
     Data[19..20]  total display height
 ```
 
-`crates/e120-proto/src/discovery.rs::set_layout` builds this frame with a
+`crates/colorlight/src/discovery.rs::set_layout` builds this frame with a
 98-byte payload: header and one 20-byte record. FPP's sibling packet `0x11`
 carries `3 + 64 x 20 = 1283` data bytes, a 64-receiver table. `e120 card
-set-layout` sends the frame on request. `e120-driver` sends it only when
+set-layout` sends the frame on request. `driver` sends it only when
 `Settings::announce_layout` is set, off by default. Measured: the layout frame
 blanks a provisioned card, which takes its control area from EEPROM
 ([../rendering.md](../rendering.md)).

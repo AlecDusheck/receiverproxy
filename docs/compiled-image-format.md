@@ -9,8 +9,8 @@ drives the scatter is not itself written to flash.
 The map below comes from the disassembly and is pinned against the factory
 flash dump (block 7 at 0x70000; the dump is kept outside the repository and
 the tests skip without it): `Block7Builder` in
-`crates/e120-rcvbp/src/image/` rebuilds that block byte-exactly from erased
-flash (`crates/e120-rcvbp/tests/factory.rs`).
+`crates/rcvbp/src/image/` rebuilds that block byte-exactly from erased
+flash (`crates/rcvbp/tests/factory.rs`).
 
 ## Unwritten pages
 

@@ -153,7 +153,7 @@ def chip_library(chip, files, names, out_dir, min_agree):
 
 
 def generated_map(w, h2, scan, block, rg, rl):
-    """The generator's record-0x03 formula (crates/e120-rcvbp/src/spec/mapping.rs)."""
+    """The generator's record-0x03 formula (crates/rcvbp/src/spec/mapping.rs)."""
     groups = h2 // scan
     out = bytearray((w * h2).to_bytes(2, 'little'))
     blk = max(1, min(block, w))

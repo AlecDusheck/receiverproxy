@@ -5,7 +5,7 @@ Usage:
 """
 
 # Lengths matter: the card ignores a write that spans record boundaries. Addresses
-# <= 0x0fd must agree with e120_proto::eeprom::RECORDS; 0x118 and 0x127 use opcodes
+# <= 0x0fd must agree with colorlight::eeprom::RECORDS; 0x118 and 0x127 use opcodes
 # 0x45/0x88 and are listed for labelling only.
 EEPROM = [
     (0x000, 2, 'debug bytes'),

@@ -41,7 +41,7 @@ memcpy(buf + 0xe, data, dataLen)     payload[14..] = the data
 | data attached when | `opcode + 0x7b` in `[0,5]` and `!= 2`, i.e. opcode in {0x85, 0x86, 0x88, 0x89, 0x8a} | `0x30be85`-`0x30be93` |
 | no data for | 0x44 / 0x45 (read) and 0x87 (save) | same |
 
-`e120_proto::eeprom` builds this frame byte for byte; its `p[n]` is
+`colorlight::eeprom` builds this frame byte for byte; its `p[n]` is
 `payload[n+2]`. The receiver index `0xFFFF` is broadcast.
 
 ### Opcodes
@@ -122,7 +122,7 @@ pushed length arguments. `addr` and `len` are exact from immediates.
 
 The EEPROM is at least 0x128 bytes, not 256. Addresses >= 0x118 use the
 second opcode pair (0x45 / 0x88), which fits a second device or paged access
-above 0x100. `e120_proto::eeprom::RECORDS` carries the records up to `0xfd`.
+above 0x100. `colorlight::eeprom::RECORDS` carries the records up to `0xfd`.
 
 ## Write rules
 

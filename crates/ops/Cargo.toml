@@ -1,0 +1,24 @@
+[package]
+name = "ops"
+description = "The e120 commands as functions, shared by the e120 binary and the daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+colorlight.workspace = true
+panelspec.workspace = true
+receivers.workspace = true
+rcvbp.workspace = true
+rawlink.workspace = true
+wall.workspace = true
+sources.workspace = true
+driver.workspace = true
+
+anyhow.workspace = true
+libc.workspace = true
+image.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

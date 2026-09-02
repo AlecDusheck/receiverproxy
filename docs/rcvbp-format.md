@@ -3,7 +3,7 @@
 `.rcvbp` is the vendor's receiver-parameter container. Sources: the file
 bytes of the vendor corpus, and the disassembly of
 `CHWParamReceiver::LoadFromBuffer` @ `0x170e50` in `libCLTDevice.1.dylib`;
-the two agree. Implemented in `crates/e120-rcvbp`. Record 0x01's fields are
+the two agree. Implemented in `crates/rcvbp`. Record 0x01's fields are
 decoded byte by byte in [`record-0x01-fields.md`](record-0x01-fields.md),
 which is the authority for field names.
 

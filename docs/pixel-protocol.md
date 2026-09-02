@@ -3,7 +3,7 @@
 The frames that carry pixels to the card: the row packet (type `0x55`), the
 latch frame (type `0x0107`) and the brightness frame (type `0x0A`). The byte
 layouts are those of Colorlight's own sender library, `CLTNic.dll`, read
-statically; nothing was executed. `crates/e120-proto/src/pixel.rs` emits the
+statically; nothing was executed. `crates/colorlight/src/pixel.rs` emits the
 same bytes and the proto tests pin them.
 
 ## Sources
@@ -394,7 +394,7 @@ Full vendor burst for one frame at brightness 0xFF:
 
 ---
 
-## 7. `crates/e120-proto/src/pixel.rs` against the vendor
+## 7. `crates/colorlight/src/pixel.rs` against the vendor
 
 | Field | `pixel.rs` (and FPP `ColorLight-5a-75`) | Vendor |
 |---|---|---|
@@ -424,7 +424,7 @@ The sequence differs from the vendor's, not the bytes. The vendor sends
 latch, brightness, rows, back to back, latching the previous burst. Measured
 on this card with firmware 16.53 ([rendering.md](rendering.md)): brightness,
 64 row packets, a 500 µs gap, then three latch frames. One latch never starts
-the display; two render and decay; three hold. `e120_driver::Timing::default()`
+the display; two render and decay; three hold. `driver::Timing::default()`
 carries those values.
 
 ---

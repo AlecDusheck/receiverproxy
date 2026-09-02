@@ -1,0 +1,15 @@
+[package]
+name = "driver"
+description = "Drive a wall of panels: frames in, Colorlight packets out"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+wall.workspace = true
+rawlink.workspace = true
+colorlight.workspace = true
+anyhow.workspace = true
+
+[lints]
+workspace = true

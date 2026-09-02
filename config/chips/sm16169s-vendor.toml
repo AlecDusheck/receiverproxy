@@ -12,7 +12,7 @@
 # vendor .rcvbp files in the corpus that declare chip 0x00DE have no 0x0A84
 # record whatsoever.
 #
-# crates/e120-rcvbp/src/chips.rs loads it through chip_custom,
+# crates/panelspec/src/chips.rs loads it through chip_custom,
 # chip_custom_scan_patch, chip_custom_ex, emit_record_84 and gray_bits
 # (docs/chip-libraries-non-sh.md). Not measured on the bench.
 #

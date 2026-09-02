@@ -1,0 +1,18 @@
+[package]
+name = "sources"
+description = "Frame sources: video files and test patterns"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+wall.workspace = true
+anyhow.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[features]
+# `#[derive(TS)]` on `Fit` and `Pattern`, for web/src/api/types.ts.
+ts = ["dep:ts-rs"]
+
+[lints]
+workspace = true

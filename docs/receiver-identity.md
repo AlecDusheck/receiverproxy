@@ -51,11 +51,11 @@ A companion 32-byte blob goes to EEPROM `0x92`
 ```
 
 For a single card at the origin the end coordinates equal the size, which is
-why `docs/compiled-image-format.md` and `crates/e120-cli/src/screen.rs` call
+why `docs/compiled-image-format.md` and `crates/cli/src/screen.rs` call
 offsets `0x06`/`0x08` "width/height". That reading holds only while
 `startX = startY = 0`.
 
-`e120_proto::eeprom::control_area(x, y, w, h)` builds the record as
+`colorlight::eeprom::control_area(x, y, w, h)` builds the record as
 `(x, y, x+w, y+h)`; `control_area_is_big_endian_corners` pins the bytes.
 
 ## 2. Vendor write paths
@@ -286,7 +286,7 @@ number of bytes to return.
   the block write and rewrites them after. By hand: run
   `scripts/eeprom-restore.py --commit`, then check with
   `scripts/flash-review.py`.
-* `parse_discovery_response` (`crates/e120-proto/src/discovery.rs`) reads
+* `parse_discovery_response` (`crates/colorlight/src/discovery.rs`) reads
   reply payload bytes 20-23 as cols/rows. Those are `endX`/`endY`;
   `startX`/`startY` sit at payload 16-19 and are not read. `e120 discover`
   therefore reports a healthy size while the control area is erased.

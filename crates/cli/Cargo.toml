@@ -1,0 +1,23 @@
+[package]
+name = "cli"
+description = "Command-line tool to configure and drive Colorlight receiver cards"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "e120"
+path = "src/main.rs"
+
+[dependencies]
+ops.workspace = true
+daemon.workspace = true
+wall.workspace = true
+
+anyhow.workspace = true
+libc.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

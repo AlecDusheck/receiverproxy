@@ -20,7 +20,7 @@ sweep), `analysis/fpga/lut_hist_16.53.txt`,
 ## 1. The id in the parameter pack
 
 Vendor `ResetChipType` @ `0x1e5130`, reproduced in
-`crates/e120-rcvbp/src/spec/basic_pack.rs`:
+`crates/rcvbp/src/spec/basic_pack.rs`:
 
 | pack offset | contents |
 |---|---|

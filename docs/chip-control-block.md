@@ -54,7 +54,7 @@ whole-struct getter/setter pair.
 
 Bytes 10–13 of the block in the boot image are therefore recomputed at
 pack-build time and need not match what the `.rcvbp` stores. The generator in
-this repository (`crates/e120-rcvbp/src/spec/basic_pack.rs`, `put(0x91, …)`)
+this repository (`crates/rcvbp/src/spec/basic_pack.rs`, `put(0x91, …)`)
 copies the record bytes verbatim. That is correct only while the record's own
 bytes 10–13 equal what the vendor would compute; for the bench config they do
 (§2).

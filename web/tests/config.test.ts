@@ -21,6 +21,14 @@ test("the bench spec is first, tested, and reads its chip library", () => {
   assert.equal(bench.chip.library, "config/chips/sm16269s-factory.toml");
   assert.deepEqual(bench.formats, ["rcvbp"]);
   assert.equal(bench.mined, false);
+  assert.equal(bench.meta.maker, "Eager LED");
+  assert.equal(bench.meta.product, "P2.5-O16S-SMD1415-128x64-E");
+  assert.match(bench.meta.url ?? "", /^https:\/\/eager-led\.com\//);
+  assert.match(bench.meta.datasheet ?? "", /\.pdf$/);
+  assert.match(bench.meta.image ?? "", /\.jpg$/);
+  assert.equal(bench.meta.image_source, "eager-led.com product photo");
+  assert.equal(bench.chip.vendor, "Sunmoon");
+  assert.match(bench.chip.datasheet ?? "", /sm16269\.pdf$/);
   assert.ok(list.slice(1).every((p) => p.mined), "mined specs follow the bench spec");
   assert.equal(new Set(list.map((p) => p.name)).size, list.length);
 });
@@ -51,6 +59,7 @@ test("the E120 model file reads whole", () => {
   assert.equal(e120!.tested[0]!.panel, "config/panels/p25-128x64-sm16269s.toml");
   assert.equal(e120!.image, "cards/e120.jpg");
   assert.equal(e120!.image_source, "eager-led.com product photo");
+  assert.match(e120!.datasheet ?? "", /colorlight-e120\.pdf$/);
   assert.equal(e120!.limits.max_width, 1024);
   assert.equal(e120!.memory.parameter_block, 7);
   assert.deepEqual(e120!.memory.guarded[0], { from: "16.53", blocks: [0, 1, 2, 8] });

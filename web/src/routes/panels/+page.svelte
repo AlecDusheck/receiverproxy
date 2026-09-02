@@ -4,7 +4,7 @@
   import Head from "$parts/Head.svelte";
   import TitleRow from "$parts/TitleRow.svelte";
   import Module from "$parts/Module.svelte";
-  import { panelTitle } from "$lib/panel";
+  import { chipLabel, panelTitle } from "$lib/panel";
 
   let { data } = $props();
   type Row = (typeof data.entries)[number];
@@ -48,7 +48,7 @@
     const t = q.trim().toLowerCase();
     const list = entries.filter(
       (e) =>
-        (!t || [panelTitle(e), e.name, e.path, e.chip.name, ...e.meta.vendors, ...e.cards].join(" ").toLowerCase().includes(t)) &&
+        (!t || [panelTitle(e), e.name, e.path, e.chip.name, e.meta.maker ?? "", e.meta.product ?? "", ...e.meta.vendors, ...e.cards].join(" ").toLowerCase().includes(t)) &&
         (!vendor || e.meta.vendors.includes(vendor)) &&
         (!chip || e.chip.name === chip) &&
         (!scan || String(e.module.scan) === scan) &&
@@ -69,9 +69,14 @@
   }
   const href = (e: Row) => `/panels/${encodeURIComponent(e.name)}`;
   const cols: [Col, string, boolean][] = [["title", "panel", false], ["pitch", "pitch", true], ["module", "module", false], ["scan", "scan", true], ["chip", "chip", false], ["status", "status", false], ["formats", "formats", false], ["cards", "tested with", false]];
+  // The description: the formats, the chips and the pitches the table covers.
+  const formats = $derived([...new Set(entries.flatMap((e) => e.formats))].join(", "));
+  const chipNames = $derived([...new Set(entries.map((e) => chipLabel(e.chip.name)))].sort().join(", "));
+  const pitches = $derived([...new Set(entries.map((e) => e.meta.pitch_mm).filter((p): p is number => p !== undefined))].sort((a, b) => a - b).map((p) => `P${p}`).join(", "));
+  const description = $derived(`${entries.length} receiving card config files (${formats}) by module, scan and chip: ${chipNames}${pitches ? `; ${pitches}` : ""}. Download or customize.`);
 </script>
 
-<Head title="Panels" description="Panel configs by pitch, chip and scan for Colorlight receiving cards; download as rcvbp or open in the builder." path="/panels" />
+<Head title="Panel configs ({formats})" {description} path="/panels" />
 
 <TitleRow title="Panels" />
 
@@ -110,8 +115,15 @@
     <tbody>
       {#each rows as e (e.path)}
         <tr>
-          <td class="pic"><a href={href(e)} aria-label={panelTitle(e)}><Module width={e.module.width} height={e.module.height} scan={e.module.scan} size={48} caption={false} /></a></td>
-          <td><a href={href(e)}>{panelTitle(e)}</a></td>
+          <td class="pic">
+            <a href={href(e)} aria-label={panelTitle(e)}>
+              {#if e.meta.image}<img src={e.meta.image} alt={panelTitle(e)} />{:else}<Module width={e.module.width} height={e.module.height} scan={e.module.scan} size={48} caption={false} />{/if}
+            </a>
+          </td>
+          <td>
+            <a href={href(e)}>{panelTitle(e)}</a>
+            {#if e.meta.maker || e.meta.product}<div class="caption">{[e.meta.maker, e.meta.product].filter(Boolean).join(" ")}</div>{/if}
+          </td>
           <td class="num">{e.meta.pitch_mm ?? ""}</td>
           <td class="mono">{e.module.width}x{e.module.height}</td>
           <td class="num">1/{e.module.scan}</td>
@@ -134,5 +146,14 @@
   .pic a {
     display: block;
     line-height: 0;
+  }
+  img {
+    height: 48px;
+    width: auto;
+    border: 1px solid var(--line);
+  }
+  td .caption {
+    line-height: 1.2;
+    padding-bottom: var(--s1);
   }
 </style>

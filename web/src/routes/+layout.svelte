@@ -1,7 +1,7 @@
 <script lang="ts">
   // The shell on every route: the top bar, the daemon banner when it applies,
-  // the content (960 px, the Wall unbounded) and the footer. The daemon probe
-  // starts once, on the client, after the token is read from the address bar.
+  // the content (960 px, the Wall unbounded). The daemon probe starts once,
+  // on the client, after the token is read from the address bar.
   import "../app.css";
   import { onMount } from "svelte";
   import { page } from "$app/state";
@@ -9,7 +9,6 @@
   import TopBar from "$parts/TopBar.svelte";
   import Banner from "$parts/Banner.svelte";
   import { ops } from "$api/ops";
-  import { version } from "../../package.json";
 
   let { children } = $props();
   const wide = $derived(page.url.pathname === "/wall");
@@ -25,7 +24,6 @@
   <div class={["content", { wide }]}>
     {@render children()}
   </div>
-  <footer class="caption">version {version}</footer>
 </main>
 
 <style>
@@ -44,11 +42,5 @@
   }
   .content.wide {
     max-width: none;
-  }
-  footer {
-    max-width: 960px;
-    margin-top: var(--s5);
-    padding-top: var(--s3);
-    border-top: 1px solid var(--line);
   }
 </style>

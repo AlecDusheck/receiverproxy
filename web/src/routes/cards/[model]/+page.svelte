@@ -4,7 +4,7 @@
   import Head from "$parts/Head.svelte";
   import TitleRow from "$parts/TitleRow.svelte";
   import SubNav from "$parts/SubNav.svelte";
-  import KeyValue from "$parts/KeyValue.svelte";
+  import KeyValue, { type Row } from "$parts/KeyValue.svelte";
   import { REPO } from "$lib/site";
   import { panelTitle } from "$lib/panel";
 
@@ -13,8 +13,8 @@
   const hex = (n: number, w = 2) => "0x" + n.toString(16).padStart(w, "0");
   const blocks = (bytes: number) => Math.ceil(bytes / c.memory.block_bytes);
 
-  const identity = $derived.by((): [string, string][] => {
-    const rows: [string, string][] = [
+  const identity = $derived.by((): Row[] => {
+    const rows: Row[] = [
       ["name", c.name],
       ["vendor", c.vendor],
       ["family", c.family],
@@ -24,6 +24,7 @@
       ["image pattern", c.firmware.image_pattern],
       ["sdram staging", String(c.firmware.sdram_staging)],
     ];
+    if (c.datasheet) rows.push(["specification", { href: c.datasheet, text: "specification" }]);
     if (c.notes) rows.push(["notes", c.notes]);
     return rows;
   });

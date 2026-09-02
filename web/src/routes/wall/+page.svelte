@@ -1,75 +1,102 @@
 <script lang="ts">
-  // The layout as a drawing: drag moves, snapped to the panel size. The same
-  // data as tables is /wall/layout. Needs the WASM module for validation.
+  // The Wall: the grid form, the drawing, the selected card. The form writes
+  // the layout JSON (lib/wall.ts); an imported layout the grid cannot
+  // express keeps the drawing and leaves the form blank. The same JSON as
+  // tables is /wall/layout.
+  import { untrack } from "svelte";
   import Head from "$parts/Head.svelte";
   import TitleRow from "$parts/TitleRow.svelte";
   import SubNav from "$parts/SubNav.svelte";
   import Drop from "$parts/Drop.svelte";
-  import Lines from "$parts/Lines.svelte";
-  import WallCanvas, { type Sel } from "./WallCanvas.svelte";
+  import WallForm from "./WallForm.svelte";
+  import WallDrawing from "./WallDrawing.svelte";
+  import WallCard from "./WallCard.svelte";
   import { app } from "$lib/state.svelte";
   import { ops } from "$api/ops";
   import { Action } from "$lib/action.svelte";
   import { save } from "$lib/download";
-  import { addPanel, addReceiver, normalize, snapSize } from "$lib/layout";
+  import { normalize } from "$lib/layout";
+  import { gridOf, gridValid, layoutFromGrid, type Grid } from "$lib/wall";
+  import { panelTitle } from "$lib/panel";
   import { errText } from "$lib/error";
   import { WALL_NAV } from "./nav";
-  import type { Canvas, Outcome, Pattern } from "$api/types";
+  import type { Canvas, Entry } from "$api/types";
 
-  let sel = $state<Sel>(null);
-  void ops.pure.load();
-  let ex = $state({ cols: 2, rows: 1, w: 128, h: 64 });
-  let pattern = $state<Pattern>("rgb");
+  let entries = $state<Entry[]>([]);
+  let form = $state<Grid | null>(gridOf(app.wall));
+  let panel = $state("");
+  let sel = $state<number | null>(null);
 
-  const wall = $derived(app.wall);
-  const grid = $derived(snapSize(wall));
-  const verdict = $derived.by(() => {
-    try {
-      return app.wasm === "ready" || app.wasm === "failed" ? ops.pure.validateLayout(wall) : "ok";
-    } catch (e) {
-      return errText(e);
-    }
+  void ops.pure.gallery().then((g) => {
+    entries = [...g].sort((a, b) => panelTitle(a).localeCompare(panelTitle(b)));
+    panel = matchPanel(form, panel);
   });
 
+  // The listed panel with the grid's module: the current one when it fits, else the first.
+  function matchPanel(g: Grid | null, current: string): string {
+    if (!g) return "";
+    const fits = (e: Entry) => e.module.width === g.module.width && e.module.height === g.module.height;
+    const cur = entries.find((e) => e.path === current);
+    return cur && fits(cur) ? current : (entries.find(fits)?.path ?? "");
+  }
+
+  // A layout that arrives from outside (import, the daemon) re-reads the form;
+  // one the form wrote keeps the form as it is.
+  let seen = app.wall;
+  $effect(() => {
+    const w = app.wall;
+    untrack(() => {
+      if (w === seen) return;
+      seen = w;
+      if (form && gridValid(form) && JSON.stringify(layoutFromGrid(form)) === JSON.stringify(normalize(w))) return;
+      form = gridOf(w);
+      panel = matchPanel(form, panel);
+      sel = null;
+    });
+  });
   $effect(() => {
     try {
-      localStorage.setItem("rxp.wall", JSON.stringify(wall));
+      localStorage.setItem("rxp.wall", JSON.stringify(app.wall));
     } catch {
       /* no storage */
     }
   });
 
-  function setWall(c: Canvas) {
-    app.wall = normalize(c);
-    sel = null;
+  function regen() {
+    if (!form) return;
+    const e = entries.find((q) => q.path === panel);
+    if (e) form.module = { width: e.module.width, height: e.module.height };
+    if (!gridValid(form)) return;
+    app.wall = layoutFromGrid(form);
+    seen = app.wall;
+    if (sel !== null && !app.wall.receivers.some((r) => r.index === sel)) sel = null;
   }
-  function remove() {
-    if (!sel) return;
-    if (sel.kind === "panel") wall.panels.splice(sel.i, 1);
-    else {
-      const idx = wall.receivers[sel.i]!.index;
-      wall.receivers.splice(sel.i, 1);
-      app.wall.panels = wall.panels.filter((p) => p.receiver !== idx);
+  function newGrid() {
+    const e = entries.find((q) => q.path === panel) ?? entries[0]!;
+    panel = e.path;
+    form = { module: { width: e.module.width, height: e.module.height }, perCard: { columns: 1, rows: 1 }, cards: { columns: 1, rows: 1 }, start: "top-left", direction: "rows", serpentine: false };
+    regen();
+  }
+
+  const verdict = $derived.by(() => {
+    try {
+      return ops.pure.validateLayout(app.wall);
+    } catch (e) {
+      return errText(e);
     }
-    sel = null;
-  }
+  });
+
   const imp = new Action<string>("import layout");
   const importFile = (files: File[]) =>
     imp.run(async () => {
-      setWall(JSON.parse(await files[0]!.text()) as Canvas);
+      app.wall = normalize(JSON.parse(await files[0]!.text()) as Canvas);
       return files[0]!.name;
     });
   const saved = new Action<Canvas>("save wall");
   const saveDaemon = () =>
     saved.run(async () => {
-      app.wall = await ops.card!.saveWall(normalize(wall));
+      app.wall = await ops.card!.saveWall(normalize(app.wall));
       return app.wall;
-    });
-  const shown = new Action<Outcome | { id: string }>("show pattern");
-  const showOnWall = () =>
-    shown.run(async () => {
-      await ops.card!.saveWall(normalize(wall));
-      return ops.card!.showPattern({ name: pattern, hold: false });
     });
 </script>
 
@@ -79,27 +106,22 @@
 
 <TitleRow title="Wall">
   {#snippet action()}
-    <button class="primary" onclick={() => save("wall.json", JSON.stringify(normalize(wall), null, 2) + "\n")}>wall.json</button>
+    <button class="primary" onclick={() => save("wall.json", JSON.stringify(normalize(app.wall), null, 2) + "\n")}>wall.json</button>
   {/snippet}
 </TitleRow>
 <SubNav links={WALL_NAV} />
 
-<div class="row tools">
-  <label>screen <input type="number" bind:value={app.wall.width} min="1" aria-label="screen width" /> x <input type="number" bind:value={app.wall.height} min="1" aria-label="screen height" /></label>
-  <button onclick={() => { addReceiver(wall); sel = { kind: "receiver", i: wall.receivers.length - 1 }; }}>add card</button>
-  <button onclick={() => { const r = sel?.kind === "receiver" ? wall.receivers[sel.i]!.index : (wall.receivers[0]?.index ?? 0); addPanel(wall, r); sel = { kind: "panel", i: wall.panels.length - 1 }; }} disabled={!wall.receivers.length}>add panel</button>
-  <button onclick={remove} disabled={!sel}>remove selected</button>
-  <span class="caption">snap {grid} px</span>
-</div>
-<div class="row tools">
-  <label>example <input type="number" bind:value={ex.cols} min="1" class="short" aria-label="columns" /> x <input type="number" bind:value={ex.rows} min="1" class="short" aria-label="rows" /> cards of <input type="number" bind:value={ex.w} min="1" aria-label="card width" /> x <input type="number" bind:value={ex.h} min="1" aria-label="card height" /></label>
-  <button onclick={() => setWall(ops.pure.layoutExample(ex.cols, ex.rows, ex.w, ex.h))}>layout example</button>
-</div>
+<WallForm bind:grid={form} bind:panel {entries} onchange={regen} onnew={newGrid} />
+{#if app.wasm === "failed"}<p class="error">{app.wasmError}</p>{/if}
 
-<WallCanvas bind:sel />
+<WallDrawing bind:sel />
 <p class={verdict === "ok" ? "ok" : "error"}>{verdict}</p>
 
-<section>
+{#if sel !== null}
+  <WallCard index={sel} spec={panel} />
+{/if}
+
+<section class="narrow">
   <h2>Import</h2>
   <Drop label="wall.json" accept=".json,application/json" onfiles={importFile} />
   {#if imp.error}<p class="error">{imp.error}</p>{/if}
@@ -107,31 +129,17 @@
 </section>
 
 {#if ops.card}
-  <section>
-    <h2>Daemon</h2>
+  <section class="narrow">
     <div class="row">
       <button onclick={saveDaemon} disabled={saved.busy || verdict !== "ok"}>save as the daemon's wall</button>
-      <label>pattern <select bind:value={pattern}>{#each ["rgb", "border", "rows", "gradient", "white"] as n (n)}<option value={n}>{n}</option>{/each}</select></label>
-      <button onclick={showOnWall} disabled={shown.busy || verdict !== "ok"}>show on the wall</button>
     </div>
     {#if saved.error}<p class="error">{saved.error}</p>{/if}
     {#if saved.result}<p class="ok">saved</p>{/if}
-    {#if shown.error}<p class="error">{shown.error}</p>{/if}
-    {#if shown.result && "lines" in shown.result}<Lines lines={shown.result.lines} files={shown.result.files} />{/if}
   </section>
 {/if}
 
 <style>
-  .tools {
-    margin-bottom: var(--s2);
-  }
-  label {
-    display: flex;
-    gap: var(--s1);
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .short {
-    width: 56px;
+  .narrow {
+    max-width: 960px;
   }
 </style>

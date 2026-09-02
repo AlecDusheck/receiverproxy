@@ -151,6 +151,11 @@ input[type="file"] {
 input[type="number"] {
   width: 88px;
 }
+/* a select is as wide as its longest option, never wider than its field */
+select {
+  max-width: 100%;
+  min-width: 0;
+}
 textarea {
   height: auto;
   padding: var(--s2);

@@ -42,10 +42,15 @@
   <Field label="height" caption="pixels"><input type="number" bind:value={spec.screen.height} min="1" /></Field>
 
   <h2>Chip</h2>
-  <Field label="library" caption="config/chips" wide>
+  <Field label="library" caption={spec.chip.library || "config/chips"} mono>
     <select bind:value={spec.chip.library} disabled={!libs}>
       <option value="">choose</option>
-      {#each libs?.chips ?? [] as c (c.path)}<option value={c.path}>{c.name} ({c.path})</option>{/each}
+      <optgroup label="libraries">
+        {#each (libs?.chips ?? []).filter((c) => !c.path.includes("/mined/")) as c (c.path)}<option value={c.path}>{c.name.replace(/\s*\(mined\)/, "")}</option>{/each}
+      </optgroup>
+      <optgroup label="mined">
+        {#each (libs?.chips ?? []).filter((c) => c.path.includes("/mined/")) as c (c.path)}<option value={c.path}>{c.name.replace(/\s*\(mined\)/, "")}</option>{/each}
+      </optgroup>
     </select>
   </Field>
 

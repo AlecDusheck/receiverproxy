@@ -1,14 +1,15 @@
 <script lang="ts">
   // One form field: label above the control, the unit or range in the
-  // caption, an invalid value's message under the control in err.
+  // caption (monospace for a path), an invalid value's message under the
+  // control in err.
   import type { Snippet } from "svelte";
-  let { label, caption = "", error = "", wide = false, children }: { label: string; caption?: string; error?: string; wide?: boolean; children: Snippet } = $props();
+  let { label, caption = "", error = "", wide = false, mono = false, children }: { label: string; caption?: string; error?: string; wide?: boolean; mono?: boolean; children: Snippet } = $props();
 </script>
 
 <div class={["field", { wide }]}>
   <span class="name">{label}</span>
   <span class="row">{@render children()}</span>
-  {#if caption}<span class="caption">{caption}</span>{/if}
+  {#if caption}<span class={["caption", { mono }]}>{caption}</span>{/if}
   {#if error}<span class="error">{error}</span>{/if}
 </div>
 
@@ -25,5 +26,9 @@
   }
   .error {
     font-size: 12px;
+  }
+  .caption.mono {
+    font-size: 11px;
+    overflow-wrap: anywhere;
   }
 </style>

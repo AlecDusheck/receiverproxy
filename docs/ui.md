@@ -452,15 +452,15 @@ web/
     tokens.css            the colour tokens of ui-design.md, light and dark; the only file that writes a colour
     app.css               tokens.css, then Tailwind with the tokens as the theme (`@theme inline`: colours, the two font stacks, `--spacing: 4px`, the four type sizes; the default palette, sizes, radii and shadows cleared), then the component classes: controls, forms, tables, key-value blocks, drop target
     routes/
-      +layout.svelte      top bar (parts/TopBar.svelte: Panels, Cards, Builder, Wall, Control, GitHub), the daemon banner (parts/Banner.svelte), content (960 px, the Wall unbounded), footer (package.json version); `onMount` reads the token from the address bar and starts the probe (`ops.start`)
+      +layout.svelte      top bar (parts/TopBar.svelte: Panels, Cards, Builder, Wall, Control, GitHub), the daemon banner (parts/Banner.svelte), content (960 px, the Wall unbounded); `onMount` reads the token from the address bar and starts the probe (`ops.start`)
       +page.svelte        `/`, prerendered: one sentence, the install commands, the pages, what is tested
       panels/             `/panels`, prerendered: +page.server.ts loads config/panels/**/*.toml through lib/server/config.ts and the cards whose [[tested]] name each spec; the table (module drawing, title from lib/panel.ts, status, formats, tested with), the filters (text, vendor, chip, scan, status) and the sort
-      panels/[name]/      `/panels/<name>`, one prerendered page per spec (`entries`), sections Downloads, Module, Wiring, Timing, TOML: the download buttons (WASM, on click), open in Builder, provision (daemon), the spec as key-value blocks, the TOML
+      panels/[name]/      `/panels/<name>`, one prerendered page per spec (`entries`), the one-line summary under the title, the photo and the maker's links (product page, specification) when [meta] has them, sections Download, Module, Wiring, Timing, TOML: the download buttons named by file (WASM, on click), customize, provision (daemon), the spec as key-value blocks (the chip's vendor and datasheet from its library), the TOML
       gallery/, gallery/[name]/  the old addresses: prerendered 301 redirects to /panels (Cloudflare `_redirects`; a refresh page in the static build)
       cards/              `/cards`, prerendered from config/cards/*.toml: photo, model, vendor, family, id, limits, status, panels tested
       cards/[model]/      `/cards/<name>`, sections Photo and identity, Limits, Memory map, Tested panels, Firmware (the manifest as a table, each image name a download link)
-      builder/            `/builder` (+layout.ts: `ssr = false` for the sub-pages too): +page.svelte (the two panes, generate, the card actions), BuilderForm.svelte; import/ (`/builder/import`: the drop target, the unresolved list, open in Builder); inspect/ (`/builder/inspect`: BuilderTools.svelte, inspect and diff)
-      wall/               `/wall` (+layout.ts: `ssr = false`): +page.svelte (the drawing, WallCanvas.svelte, import, the daemon actions); layout/ (`/wall/layout`: WallTables.svelte, the same document as tables)
+      builder/            `/builder` (+layout.ts: `ssr = false` for the sub-pages too): +page.svelte (the two panes, generate, the card actions), BuilderForm.svelte; import/ (`/builder/import`: the drop target, the unresolved list, customize); inspect/ (`/builder/inspect`: BuilderTools.svelte, inspect and diff)
+      wall/               `/wall` (+layout.ts: `ssr = false`): +page.svelte (the grid form WallForm.svelte, the drawing WallDrawing.svelte, the selected card WallCard.svelte with its provision line, import, save to the daemon); layout/ (`/wall/layout`: WallTables.svelte, the same document as tables, add and remove rows, import)
       control/            `/control` (+layout.ts: `ssr = false`): the discovered cards (a row selects `app.card`) and brightness; show/, provision/, firmware/, flash/, card/: one page per action group, each headed by parts/ControlHead.svelte (title, sibling links, the selected card; the install command without the daemon); job.ts (start and follow a job, the dry-run test)
       sitemap.xml/        +server.ts, prerendered: every prerendered page with lastmod the build date; the client-only routes are noindex and absent
       robots.txt/         +server.ts, prerendered
@@ -477,7 +477,8 @@ web/
       state.svelte.ts     the shared store (below); handSpec(toml) hands a spec to the Builder and the Control provision form (localStorage `rxp.builder.toml`)
       action.svelte.ts    Action<T>: one action's idle/busy/done/error state
       panel.ts            panelTitle(entry): "P2.5 128x64 1/16 SM16269S"; chipLabel(name)
-      layout.ts           Canvas helpers: snap, bounds, addReceiver, addPanel, the JS validate and example
+      layout.ts           Canvas helpers: rotated, addReceiver, addPanel, normalize, the JS validate and example
+      wall.ts             the Wall's grid (panel module, panels per card, cards, chain start corner, direction, serpentine): layoutFromGrid writes the layout JSON, gridOf reads one back or null, chainOrder, cardPanels, provisionLine
       error.ts            errText(e)
       download.ts         save(name, bytes | text) through a Blob URL
       spec.ts             PanelSpec <-> TOML (parse the [table] form the generator accepts; emit the same order as config/panels/*.toml; tables the form does not edit, [meta] among them, pass through)
@@ -488,6 +489,7 @@ web/
   src/wasm/               generated, gitignored
   tests/token.test.ts     node --test: the fragment handling of token.ts
   tests/config.test.ts    node --test: the loader against config/ and the crate's format list
+  tests/wall.test.ts      node --test: lib/wall.ts, screen and card sizes, panel placement, every chain start corner, direction and serpentine combination both ways
   .svelte-kit/cloudflare/ pnpm build output, gitignored, what wrangler deploys
   build-static/           pnpm build:embed output, gitignored, embedded by daemon when present
 ```
@@ -513,7 +515,7 @@ through `parts/Head.svelte`; a panel page's title is `<panelTitle> panel`.
 module and the daemon are, and carry `<meta name="robots" content="noindex">`.
 `/builder?panel=<path>` opens a library spec; `/control/provision?provision=<index>`
 selects a receiver and sets `position` from its `x,y` (the Wall's
-"provision" link). A panel page's "open in Builder" and "provision", and
+"provision" link). A panel page's "customize" and "provision", and
 `/builder/import`, hand the spec over through `handSpec` and `goto`.
 
 ### Shared state (`state.svelte.ts`)

@@ -129,7 +129,7 @@ Daemon absent: card actions are absent, not greyed. The screens that need it
   module, scan, chip: "P2.5 128x64 1/16 SM16269S"), status as a word, the
   formats it generates, which cards it is tested with. Filter row above
   (text, vendor, chip, scan, status). Each row is a page: downloads first,
-  then the spec as key-value blocks and the TOML, "open in Builder", and
+  then the spec as key-value blocks and the TOML, "customize", and
   with a daemon "provision".
 - Cards: a table of receiver models (image, vendor, model, status, tested
   panels); each a page with the photo, identity, limits, memory map, tested
@@ -139,10 +139,27 @@ Daemon absent: card actions are absent, not greyed. The screens that need it
   in sync both ways with a 300 ms debounce and the last valid parse shown on
   error. Below: Generate with the output format as a select, then the files
   and the sources list. Import: a file drop target above the form.
-- Wall: the layout as a scaled drawing on the left (receivers as outlined
-  boxes with their index and position, panels inside; drag moves, snap to
-  panel size) and the same data as a table on the right. Import, export,
-  layout-example. With a daemon: provision per receiver, show on the wall.
+- Wall: built the way a wall is built on site. A wall is a screen made of
+  cards; a card drives a rectangle of panels through its hub ports; the
+  cards hang in a grid and are chained in an order. The page has three
+  parts, top to bottom:
+  1. Grid form. Panel (a spec from Panels, giving the module size), panels
+     per card (columns x rows), cards (columns x rows), chain start corner
+     and direction (rows or columns, serpentine or not). Changing a field
+     regenerates the layout; the screen size and the card size are shown
+     as results next to the form.
+  2. Drawing. The screen to scale; each card is a box labelled with its
+     chain index and its position in pixels, the panels inside it drawn as
+     module grids, the chain as a line through the cards in order. Clicking
+     a card selects it: its position, its panels, and its provision line
+     (\`rxp provision --position x,y\`) appear under the drawing; with a
+     daemon, a provision button. No free dragging: order and placement come
+     from the form; irregular walls are edited in the table.
+  3. Table (/wall/layout). The same JSON as editable rows: cards (index,
+     x, y, width, height) and panels (card, x, y, rotation, flip), for the
+     walls the grid cannot express. Import and export JSON; the file is what
+     \`rxp show --layout\` reads.
+  Words on the page: screen, card, panel, chain. No other vocabulary.
 - Cards: a table of discovered cards (index, model, firmware, size, position),
   then the selected card's actions in groups: show, brightness, provision,
   firmware, flash, card. Each group is a form with one button.

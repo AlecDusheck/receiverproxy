@@ -52,6 +52,7 @@ function meta(t: Table): Meta {
   if (typeof t.pitch_mm === "number") m.pitch_mm = t.pitch_mm;
   if (typeof t.agreement === "number") m.agreement = t.agreement;
   if (typeof t.notes === "string") m.notes = t.notes;
+  for (const k of ["maker", "product", "url", "datasheet", "image", "image_source"] as const) if (typeof t[k] === "string") m[k] = t[k];
   return m;
 }
 
@@ -62,7 +63,8 @@ function meta(t: Table): Meta {
  */
 export const FORMATS: Format[] = [{ name: "rcvbp", vendor: "Colorlight", extension: "rcvbp", generate: true, import: true }];
 
-export type Panel = Entry & { toml: string; mined: boolean };
+/** An entry with its TOML; the chip library's `vendor` and `datasheet` when it has them. */
+export type Panel = Entry & { toml: string; mined: boolean; chip: Entry["chip"] & { vendor?: string; datasheet?: string } };
 
 /** Every panel spec under config/panels, non-mined first, then mined, each by path. */
 export function panels(repo = root()): Panel[] {
@@ -74,7 +76,7 @@ export function panels(repo = root()): Panel[] {
     const mod = table(t.module);
     const chipPath = str(table(t.chip).library);
     const chip = chipPath ? (parse(readFileSync(join(repo, chipPath), "utf8")) as Table) : {};
-    return {
+    const p: Panel = {
       path,
       name: str(t.name, basename(file, ".toml")),
       meta: meta(table(t.meta)),
@@ -84,6 +86,9 @@ export function panels(repo = root()): Panel[] {
       toml,
       mined: path.startsWith(join("config", "panels", "mined") + "/"),
     };
+    if (typeof chip.vendor === "string") p.chip.vendor = chip.vendor;
+    if (typeof chip.datasheet === "string") p.chip.datasheet = chip.datasheet;
+    return p;
   });
   const names = new Set<string>();
   for (const p of list) {
@@ -106,6 +111,8 @@ export type Card = {
   /** A photo under web/static, `cards/e120.jpg`, and where it came from. */
   image?: string;
   image_source?: string;
+  /** Specification sheet. */
+  datasheet?: string;
   tested: Tested[];
   limits: { max_width: number; max_height: number; hub_ports: number; chain?: number };
   memory: {
@@ -157,6 +164,7 @@ export function cards(repo = root()): Card[] {
     if (typeof t.notes === "string") card.notes = t.notes;
     if (typeof t.image === "string") card.image = t.image;
     if (typeof t.image_source === "string") card.image_source = t.image_source;
+    if (typeof t.datasheet === "string") card.datasheet = t.datasheet;
     if (typeof lim.chain === "number") card.limits.chain = lim.chain;
     return card;
   });

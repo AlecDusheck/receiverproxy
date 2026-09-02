@@ -41,7 +41,7 @@
     {/if}
     <pre>{imp.result.spec_toml}</pre>
     <div class="actions">
-      <button class="primary" onclick={() => toBuilder(imp.result!.spec_toml)}>open in Builder</button>
+      <button class="primary" onclick={() => toBuilder(imp.result!.spec_toml)}>customize</button>
     </div>
   </section>
 {/if}

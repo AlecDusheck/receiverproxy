@@ -1,17 +1,17 @@
 <script lang="ts">
-  // One spec: downloads first, then the module, wiring and timing tables as
-  // key-value blocks, then the TOML. The page is static; the files are
-  // generated in the browser when a download button is pressed.
+  // One spec: the photo and the maker's links, the downloads, then the
+  // module, wiring and timing tables as key-value blocks, then the TOML. The
+  // page is static; the files are generated in the browser on a download.
   import { goto } from "$app/navigation";
   import Head from "$parts/Head.svelte";
   import TitleRow from "$parts/TitleRow.svelte";
   import SubNav from "$parts/SubNav.svelte";
-  import KeyValue from "$parts/KeyValue.svelte";
+  import KeyValue, { type Row } from "$parts/KeyValue.svelte";
   import Module from "$parts/Module.svelte";
   import { ops, type Generated } from "$api/ops";
   import { app, handSpec } from "$lib/state.svelte";
   import { Action } from "$lib/action.svelte";
-  import { panelTitle } from "$lib/panel";
+  import { chipLabel, panelTitle } from "$lib/panel";
   import { parseToml, type Tables } from "$lib/spec";
   import { save } from "$lib/download";
 
@@ -19,6 +19,8 @@
   const entry = $derived(data.entry);
   const toml = $derived(data.entry.toml);
   const title = $derived(panelTitle(entry));
+  const formats = $derived(data.formats.filter((f) => f.generate));
+  const formatNames = $derived(formats.map((f) => f.name).join(", "));
 
   const HEX = new Set(["gclock", "family_id", "sub_id"]);
   const show = (v: unknown, k = ""): string =>
@@ -37,13 +39,29 @@
     ["timing", ["timing", "current"]],
   ];
   const named = new Set(GROUPS.flatMap(([, t]) => t));
-  const blocks = (names: string[], rest = false): [string, [string, string][]][] =>
+  const blocks = (names: string[], rest = false): [string, Row[]][] =>
     Object.entries(tables)
       .filter(([name, t]) => name !== "meta" && Object.keys(t).length && (rest ? !named.has(name) : names.includes(name)))
       .map(([name, t]) => [name || "spec", Object.entries(t).map(([k, v]) => [k, show(v, k)])]);
-  const meta = $derived.by((): [string, string][] => {
+  // The maker's block: who makes it, the product page, the specification sheet.
+  const maker = $derived.by((): Row[] => {
     const m = entry.meta;
-    const rows: [string, string][] = [
+    const rows: Row[] = [];
+    if (m.maker) rows.push(["maker", m.maker]);
+    if (m.product) rows.push(["product", m.url ? { href: m.url, text: m.product } : m.product]);
+    else if (m.url) rows.push(["product", { href: m.url, text: "product page" }]);
+    if (m.datasheet) rows.push(["specification", { href: m.datasheet, text: "specification" }]);
+    return rows;
+  });
+  const chipRows = $derived.by((): Row[] => {
+    const rows: Row[] = [["name", entry.chip.name], ["library", entry.chip.library]];
+    if (entry.chip.vendor) rows.push(["vendor", entry.chip.vendor]);
+    if (entry.chip.datasheet) rows.push(["datasheet", { href: entry.chip.datasheet, text: "datasheet" }]);
+    return rows;
+  });
+  const meta = $derived.by((): Row[] => {
+    const m = entry.meta;
+    const rows: Row[] = [
       ["file", entry.path],
       ["status", m.status],
       ["origin", m.origin],
@@ -56,11 +74,13 @@
     if (m.notes) rows.push(["notes", m.notes]);
     return rows;
   });
-  // At most 155 characters: title, what the page offers, and how far the spec is tested.
+  // One line under the title: module, scan, chip, pitch, formats.
+  const summary = $derived([`${entry.module.width}x${entry.module.height}`, `1/${entry.module.scan} scan`, chipLabel(entry.chip.name), entry.meta.pitch_mm !== undefined ? `${entry.meta.pitch_mm} mm pitch` : "", formatNames].filter(Boolean).join(", "));
+  // At most 155 characters: the module, the format, the download, and how far the spec is tested.
   const description = $derived.by(() => {
-    const cards = data.tested.map((t) => t.card);
-    const tail = entry.meta.status === "tested" ? `Tested on the bench${cards.length ? ` with the ${[...new Set(cards)].join(", ")}` : ""}.` : `Generated from ${entry.meta.sources} vendor file${entry.meta.sources === 1 ? "" : "s"}, not driven.`;
-    return `${title} panel config for Colorlight receiving cards: rcvbp download, wiring, timing. ${tail}`;
+    const module = `${entry.meta.pitch_mm !== undefined ? `P${entry.meta.pitch_mm} ` : ""}${entry.module.width}x${entry.module.height} 1/${entry.module.scan} scan ${chipLabel(entry.chip.name)} module`;
+    const tail = entry.meta.status === "tested" ? "Tested on the bench." : `Generated from ${entry.meta.sources} vendor file${entry.meta.sources === 1 ? "" : "s"}.`;
+    return `Download the ${formatNames} receiving card config for a ${module}, or customize it. ${tail}`;
   });
 
   const gen = new Action<Generated & { format: string }>("generate");
@@ -77,23 +97,36 @@
   }
 </script>
 
-<Head title="{title} panel" {description} path="/panels/{encodeURIComponent(entry.name)}" />
+<Head title="{title} {formatNames} config" {description} path="/panels/{encodeURIComponent(entry.name)}" />
 
 <TitleRow {title}>
   {#snippet action()}
     <a href="/panels">Panels</a>
   {/snippet}
 </TitleRow>
-<SubNav links={[["#downloads", "Downloads"], ["#module", "Module"], ["#wiring", "Wiring"], ["#timing", "Timing"], ["#toml", "TOML"]]} />
+<p class="summary">{summary}</p>
+<SubNav links={[["#download", "Download"], ["#module", "Module"], ["#wiring", "Wiring"], ["#timing", "Timing"], ["#toml", "TOML"]]} />
 
-<section id="downloads">
-  <h2>Downloads</h2>
+{#if entry.meta.image || maker.length}
+  <section class="maker">
+    {#if entry.meta.image}
+      <figure>
+        <img src={entry.meta.image} alt={title} />
+        {#if entry.meta.image_source}<figcaption class="caption">{entry.meta.image_source}</figcaption>{/if}
+      </figure>
+    {/if}
+    {#if maker.length}<KeyValue rows={maker} />{/if}
+  </section>
+{/if}
+
+<section id="download">
+  <h2>Download</h2>
   <div class="row">
-    {#each data.formats.filter((f) => f.generate) as f (f.name)}
-      <button onclick={() => downloadAs(f.name)} disabled={gen.busy || app.wasm === "failed"}>{entry.name}.{f.extension}</button>
+    {#each formats as f (f.name)}
+      <button class="mono" onclick={() => downloadAs(f.name)} disabled={gen.busy || app.wasm === "failed"}>{entry.name}.{f.extension}</button>
     {/each}
-    <button onclick={() => save(`${entry.name}.toml`, toml)}>{entry.name}.toml</button>
-    <button class="primary" onclick={() => go("/builder")}>open in Builder</button>
+    <button class="mono" onclick={() => save(`${entry.name}.toml`, toml)}>{entry.name}.toml</button>
+    <button class="primary" onclick={() => go("/builder")}>customize</button>
     {#if ops.card}
       <button onclick={() => go("/control/provision")}>provision</button>
     {/if}
@@ -123,7 +156,8 @@
   <Module width={entry.module.width} height={entry.module.height} scan={entry.module.scan} size={192} />
   <div class="blocks mt-4">
     <KeyValue title="entry" rows={meta} />
-    {#each blocks(GROUPS[0]![1]) as [name, rows] (name)}<KeyValue title={name} rows={rows} />{/each}
+    <KeyValue title="chip" rows={chipRows} />
+    {#each blocks(GROUPS[0]![1]).filter(([name]) => name !== "chip") as [name, rows] (name)}<KeyValue title={name} rows={rows} />{/each}
   </div>
 </section>
 
@@ -147,6 +181,26 @@
 </section>
 
 <style>
+  .summary {
+    margin: calc(-1 * var(--s2)) 0 var(--s4);
+    color: var(--text-2);
+  }
+  .maker {
+    display: flex;
+    gap: var(--s4) var(--s5);
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  figure {
+    margin: 0;
+  }
+  img {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    border: 1px solid var(--line);
+  }
   .toml {
     max-height: none;
   }

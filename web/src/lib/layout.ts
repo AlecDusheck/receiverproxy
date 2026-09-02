@@ -6,14 +6,6 @@ import type { Canvas, Panel, Receiver, Rotation } from "../api/types";
 export const rotated = (p: Panel): [number, number] =>
   p.rotation === "cw90" || p.rotation === "ccw90" ? [p.height, p.width] : [p.width, p.height];
 
-export function snapSize(c: Canvas): number {
-  const sizes = c.panels.flatMap((p) => [p.width, p.height]);
-  return sizes.length ? Math.max(1, Math.min(...sizes)) : 16;
-}
-
-export const snap = (v: number, g: number) => Math.round(v / g) * g;
-export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-
 export function addReceiver(c: Canvas): Receiver {
   const index = c.receivers.reduce((m, r) => Math.max(m, r.index + 1), 0);
   const w = c.receivers[0]?.width ?? 128;
@@ -47,17 +39,6 @@ export function addPanel(c: Canvas, receiver: number): Panel {
   };
   c.panels.push(p);
   return p;
-}
-
-// Panel position in screen space is x,y; place() keeps receiver_x/y consistent.
-export function place(c: Canvas, p: Panel, x: number, y: number) {
-  const r = c.receivers.find((q) => q.index === p.receiver);
-  p.x = x;
-  p.y = y;
-  if (r) {
-    p.receiver_x = x - (r.x ?? 0);
-    p.receiver_y = y - (r.y ?? 0);
-  }
 }
 
 export function validateJs(c: Canvas): string {

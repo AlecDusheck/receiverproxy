@@ -40,12 +40,16 @@ speckle. What is established about it (all on the flash-configured card):
 * single camera frames of it correlate ~0.6 with each other and ~0.88 with
   the average, so it has both a static and a flickering component.
 
-What remains: how the card turns input 0 into the word it shifts out at grey
-depth 12 — a gamma/LUT with a non-zero origin, or a word-width mismatch
-between the 12-bit pack setting and the registers' 14-bit derivation — which
-is a question for the vendor library (`GetBasicParam`, the grey-table
-builders) rather than the bench. Knobs left in for it: `E120_LATCHES`,
-`E120_WRITES`, `E120_SYNC_GAIN`.
+The vendor-library side of this is now answered in
+[grey-mapping.md](grey-mapping.md). The gamma/LUT hypothesis is **ruled out**:
+the 8-bit→N-bit table maps 0 to exactly 0 in every code path, and the copy in
+this card's flash is byte-identical to the vendor formula for gamma 2.8 at
+14-bit. What is left is the depth inconsistency — the vendor can never derive
+grey 12 for chip `0x14C` (minimum 13; our registers give 14), and our boot
+image pairs the grey byte 12 with a **14-level scan table**, so two bit-plane
+slots carrying ~75 % of the frame's lit time have no bits to read. That note
+carries the vendor's own gray-12 field table and the experiment. Knobs left in
+for it: `E120_LATCHES`, `E120_WRITES`, `E120_SYNC_GAIN`.
 
 ### Geometry
 

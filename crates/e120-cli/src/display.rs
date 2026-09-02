@@ -348,11 +348,13 @@ pub fn test_pattern(cli: &Cli, pattern: &str) -> Result<Vec<[u8; 3]>> {
 pub fn show_as(cli: &Cli, fb: &[[u8; 3]], hold: bool, raster: Raster, row_base: u16) -> Result<()> {
     let mut dev = open(cli)?;
     dev.send(&protocol::brightness(cli.brightness))?;
+    // Frame period; E120_FRAME_MS overrides it for flicker experiments.
+    let period = std::env::var("E120_FRAME_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(33u64);
     if hold {
-        println!("refreshing at ~30fps ({raster:?}), Ctrl-C to stop");
+        println!("refreshing every {period} ms ({raster:?}), Ctrl-C to stop");
         loop {
             send_frame_as(&mut dev, cli, fb, raster, row_base)?;
-            std::thread::sleep(Duration::from_millis(33));
+            std::thread::sleep(Duration::from_millis(period));
         }
     } else {
         for _ in 0..3 {

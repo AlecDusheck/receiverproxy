@@ -187,12 +187,31 @@ def capture(name, frames=90, quiet=False):
     sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', jpg, '-vf',
         f'crop={crop()},scale=64:128', '-frames:v', '1', '-f', 'rawvideo',
         '-pix_fmt', 'rgb24', '-y', raw], check=True)
+    # A high-resolution crop (about 5 camera pixels per LED) for looking at
+    # individual pixels, and an outlier count: LEDs whose luminance is far
+    # from the median of their 3x3 neighbourhood at panel resolution.
+    sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', jpg, '-vf',
+        f'crop={crop()},scale=320:640:flags=neighbor', '-y', f'{DIR}/hi-{name}.png'])
     px = load(name)
     clip = sum(1 for v in px if v >= 250) / len(px)
+    out = outliers(px)
     if not quiet:
-        print(f'{name}: mean {statistics.mean(px):.0f}  clipped {clip * 100:.1f}%'
+        print(f'{name}: mean {statistics.mean(px):.0f}  clipped {clip * 100:.1f}%  outliers {out}'
               + ('   <-- too bright, shoot dimmer' if clip > 0.03 else ''))
     return px, clip
+
+
+def outliers(px, thresh=60):
+    """LEDs deviating more than `thresh` levels from their 3x3 median."""
+    w, h = 64, 128
+    n = 0
+    for y in range(1, h - 1):
+        for x in range(1, w - 1):
+            nb = sorted(px[(y + dy) * w + x + dx] for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
+            med = (nb[3] + nb[4]) / 2
+            if abs(px[y * w + x] - med) > thresh:
+                n += 1
+    return n
 
 
 def load(name):
@@ -219,6 +238,101 @@ def tile(names, out):
     sh(['ffmpeg', '-hide_banner', '-loglevel', 'error'] + ins +
        ['-filter_complex', f'{filt}hstack=inputs={len(names)}', '-y', out], check=True)
     print(f'tile: {out}   ({" | ".join(names)})')
+
+
+def flicker(name, seconds=3.0):
+    """Record the panel for a few seconds and report per-frame brightness.
+
+    A steady picture gives a flat series; buffer swaps, scan beating with the
+    camera, or a slow refresh show up as periodic modulation. The dominant
+    period is estimated from the autocorrelation of the mean series.
+    """
+    mp4 = f'{DIR}/flk-{name}.mp4'
+    dev = os.environ.get('E120_CAMERA', '0')
+    n = int(seconds * 30)
+    sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'avfoundation',
+        '-pixel_format', 'uyvy422', '-framerate', '30', '-video_size', '1920x1080',
+        '-i', dev, '-frames:v', str(n), '-vf', f'crop={crop()},scale=64:128',
+        '-c:v', 'libx264', '-qp', '0', '-y', mp4], check=True)
+    # Record the whole frame so a static reference region (wood, left of the
+    # panel) can be measured in the same frames: its frame-to-frame variation
+    # is the camera's own noise, which the panel figure must clear.
+    sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'avfoundation',
+        '-pixel_format', 'uyvy422', '-framerate', '30', '-video_size', '1920x1080',
+        '-i', dev, '-frames:v', str(n), '-vf', 'crop=300:600:600:300,scale=64:128',
+        '-c:v', 'libx264', '-qp', '0', '-y', f'{DIR}/flk-{name}-ref.mp4'], check=True)
+    def series(path):
+        raw = os.path.join(tempfile.mkdtemp(), 'f.rgb')
+        sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', path, '-f', 'rawvideo',
+            '-pix_fmt', 'gray', '-y', raw], check=True)
+        d = open(raw, 'rb').read()
+        fr = 64 * 128
+        return d, fr, [sum(d[i * fr:(i + 1) * fr]) / fr for i in range(len(d) // fr)]
+    _, _, ref = series(f'{DIR}/flk-{name}-ref.mp4')
+    d, fr, means = series(mp4)
+    rsd = statistics.pstdev(ref) / max(statistics.mean(ref), 1) * 100
+    if len(means) < 8:
+        print('too few frames'); return
+    m = statistics.mean(means); sd = statistics.pstdev(means)
+    # per-pixel temporal std (flicker that a whole-frame mean would average out)
+    step = max(1, fr // 512)
+    ptsd = statistics.mean(
+        statistics.pstdev([d[i * fr + p] for i in range(len(means))])
+        for p in range(0, fr, step))
+    # dominant lag by autocorrelation
+    c = [(x - m) for x in means]
+    best, bestv = 0, 0.0
+    for lag in range(2, len(c) // 2):
+        v = sum(c[i] * c[i + lag] for i in range(len(c) - lag)) / (len(c) - lag)
+        if v > bestv:
+            best, bestv = lag, v
+    print(f'{name}: {len(means)} frames  mean {m:.1f}  frame-to-frame {sd / max(m, 1) * 100:.1f}% '
+          f'(camera reference {rsd:.1f}%)  per-pixel temporal std {ptsd:.1f}  '
+          f'dominant period {best / 30:.2f} s')
+    print('  series: ' + ' '.join(f'{x:.0f}' for x in means[:40]))
+
+
+def bands(name):
+    """Fast panel modulation, read off the rolling shutter of one frame.
+
+    The camera exposes its 1080 rows in sequence over roughly a frame time,
+    so a panel modulating at hundreds of Hz appears as horizontal bands in a
+    single still. The band period in camera rows, against the readout time,
+    gives the modulation frequency; a steady panel gives a flat row profile.
+    """
+    jpg = f'{DIR}/band-{name}.jpg'
+    dev = os.environ.get('E120_CAMERA', '0')
+    sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'avfoundation',
+        '-pixel_format', 'uyvy422', '-framerate', '30', '-video_size', '1920x1080',
+        '-i', dev, '-frames:v', '1', '-update', '1', '-y', jpg], check=True)
+    w, h, x, y = (int(v) for v in crop().split(':'))
+    raw = os.path.join(tempfile.mkdtemp(), 'f.rgb')
+    sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', jpg, '-vf',
+        f'crop={w}:{h}:{x}:{y},scale=32:{h}', '-frames:v', '1', '-f', 'rawvideo',
+        '-pix_fmt', 'gray', '-y', raw], check=True)
+    d = open(raw, 'rb').read()
+    rows = [sum(d[r * 32:(r + 1) * 32]) / 32 for r in range(h)]
+    # Smooth over the LED pitch (~5 camera rows per LED here) so the grid of
+    # LEDs and gaps does not masquerade as modulation.
+    k = 21
+    rows = [statistics.mean(rows[max(0, i - k // 2):i + k // 2 + 1]) for i in range(h)]
+    m = statistics.mean(rows)
+    c = [v - m for v in rows]
+    import math
+    # Single-frequency DFT over band periods of 40..400 camera rows; report
+    # the strongest, as amplitude relative to the mean.
+    best, bestamp = 0, 0.0
+    for period in range(40, 400, 2):
+        re = sum(c[i] * math.cos(2 * math.pi * i / period) for i in range(h))
+        im = sum(c[i] * math.sin(2 * math.pi * i / period) for i in range(h))
+        amp = 2 * math.hypot(re, im) / h
+        if amp > bestamp:
+            best, bestamp = period, amp
+    freq = 1080 / best * 30 if best else 0
+    print(f'{name}: strongest band period {best} rows, amplitude {bestamp / max(m, 1) * 100:.1f}% of mean '
+          f'≈ {freq:.0f} Hz (lower bound; readout assumed 1/30 s over 1080 rows)')
+    sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', jpg, '-vf',
+        f'crop={w}:{h}:{x}:{y},scale=160:-1', '-y', f'{DIR}/band-{name}.png'])
 
 
 def locate():
@@ -326,6 +440,8 @@ def main():
     p = sub.add_parser('power'); p.add_argument('action', choices=['on', 'off', 'cycle', 'status']); p.add_argument('--minutes', type=int, default=10)
     p = sub.add_parser('boot'); p.add_argument('--spec', required=True)
     sub.add_parser('locate')
+    p = sub.add_parser('flicker'); p.add_argument('name'); p.add_argument('--seconds', type=float, default=3.0)
+    p = sub.add_parser('bands'); p.add_argument('name')
     p = sub.add_parser('capture'); p.add_argument('name'); p.add_argument('--frames', type=int, default=90)
     p = sub.add_parser('compare'); p.add_argument('names', nargs='+')
     p = sub.add_parser('tile'); p.add_argument('names', nargs='+'); p.add_argument('--out', default=f'{DIR}/tile.png')
@@ -349,6 +465,10 @@ def main():
         boot(a.spec)
     elif a.cmd == 'locate':
         locate()
+    elif a.cmd == 'flicker':
+        flicker(a.name, a.seconds)
+    elif a.cmd == 'bands':
+        bands(a.name)
     elif a.cmd == 'capture':
         capture(a.name, a.frames)
     elif a.cmd == 'compare':

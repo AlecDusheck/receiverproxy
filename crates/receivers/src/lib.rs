@@ -28,6 +28,12 @@ pub struct CardModel {
     pub status: Status,
     #[serde(default)]
     pub notes: String,
+    /// A photo for the web app, relative to `web/static` (`cards/e120.jpg`).
+    #[serde(default)]
+    pub image: Option<String>,
+    /// Where the photo came from.
+    #[serde(default)]
+    pub image_source: Option<String>,
     /// Panels driven on a bench with this card, one entry per measurement.
     #[serde(default)]
     pub tested: Vec<Tested>,

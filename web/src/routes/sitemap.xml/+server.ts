@@ -1,10 +1,13 @@
+// Every prerendered page, lastmod the build date; the client-only routes
+// (builder, wall, control) are noindex and absent.
 import { cards, panels } from "$lib/server/config";
 import { SITE } from "$lib/site";
 
 export const prerender = true;
 
 export function GET() {
-  const paths = ["/", "/gallery", ...panels().map((p) => `/gallery/${encodeURIComponent(p.name)}`), "/cards", ...cards().map((c) => `/cards/${encodeURIComponent(c.name.toLowerCase())}`), "/builder", "/wall"];
-  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paths.map((p) => `  <url><loc>${SITE}${p}</loc></url>`).join("\n")}\n</urlset>\n`;
+  const paths = ["/", "/panels", ...panels().map((p) => `/panels/${encodeURIComponent(p.name)}`), "/cards", ...cards().map((c) => `/cards/${encodeURIComponent(c.name.toLowerCase())}`)];
+  const lastmod = new Date().toISOString().slice(0, 10);
+  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paths.map((p) => `  <url><loc>${SITE}${p}</loc><lastmod>${lastmod}</lastmod></url>`).join("\n")}\n</urlset>\n`;
   return new Response(body, { headers: { "Content-Type": "application/xml" } });
 }

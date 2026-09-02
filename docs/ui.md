@@ -6,7 +6,7 @@ else is built against the shapes here; a shape that changes changes here first.
 ## 1. Overview and the two modes
 
 The UI is a SvelteKit site (Svelte 5, TypeScript, Tailwind 4) with the
-prerendered **Gallery** and **Cards** pages and the client-rendered
+prerendered **Panels** and **Cards** pages and the client-rendered
 **Builder**, **Wall** and **Control** screens (the design is
 [ui-design.md](ui-design.md); section 4 has the routes). It has two sources of function:
 
@@ -23,15 +23,13 @@ token when it has one (section 2, "The token").
 
 | | daemon absent (standalone) | daemon answers, no token (locked) | daemon present |
 |---|---|---|---|
-| Under the title row | on the first visit one line: "Card actions need the daemon: `cargo install --path crates/cli`, then `rxp ui`." with "retry" and "dismiss"; dismissed once, remembered in localStorage `rxp.install` | a token field and "connect"; "bad token" next to it when one was sent | nothing |
-| Sidebar foot | "daemon not running: install" | "daemon: token required" | "daemon: HOST:PORT" |
-| Control screen | absent from the sidebar; `/control` shows one sentence and the install command | as absent | enabled |
-| Wall screen | editor, table, import/export | as standalone | plus "provision this card" per receiver, "save as the daemon's wall", "show on the wall" |
-| Gallery, Builder | full, through WASM | full, through WASM | full, through WASM; Gallery gains "provision this card", Builder "send to card" and "write to card" |
-| Status bar | "standalone" | "standalone" | "iface en24 · 1 card: E120 16.53 128x64" and the running job |
+| Banner under the top bar | one line: "daemon not running: `cargo install --path crates/cli && rxp ui`" with "retry" and "dismiss" (under 640 px: "Control needs the desktop daemon: github.com/AlecDusheck/receiverproxy"); dismissed for the session, sessionStorage `rxp.install` | a token field and "connect"; "bad token" next to it when one was sent | nothing |
+| Control pages | `/control` and its sub-pages show "daemon not running" and the install command | as absent | enabled; the selected card and the daemon's iface and version under the title |
+| Wall | editor, table, import/export | as standalone | plus "provision" per receiver, "save as the daemon's wall", "show on the wall" |
+| Panels, Builder | full, through WASM | full, through WASM | full, through WASM; a panel page gains "provision", the Builder "send to card" and "write to card" |
 
 The probe runs once at load and again when the user clicks "retry" or
-"connect" under the title row. Health answers `{ version }` alone without the
+"connect" in the banner. Health answers `{ version }` alone without the
 token; that answer is what tells the app it is locked. When served by the
 daemon the API base is the page's own origin; a `VITE_RXP_API` build
 variable overrides it for `pnpm dev`.
@@ -59,8 +57,7 @@ locked out of from no daemon at all.
 The built app reads `#token=` from the fragment once, stores it in
 `sessionStorage` (`rxp.token`, one browser tab, gone when the tab closes),
 removes it from the address bar with `history.replaceState`, and sends
-`X-Token` on every request. A token typed into the field under the title
-row is stored the same way.
+`X-Token` on every request. A token typed into the banner's field is stored the same way.
 
 **Network exposure**: the daemon binds `127.0.0.1` unless `--listen ADDR`
 names another address (`0.0.0.0` for every interface); the printed URL uses
@@ -455,21 +452,22 @@ web/
     tokens.css            the colour tokens of ui-design.md, light and dark; the only file that writes a colour
     app.css               tokens.css, then Tailwind with the tokens as the theme (`@theme inline`: colours, the two font stacks, `--spacing: 4px`, the four type sizes; the default palette, sizes, radii and shadows cleared), then the component classes: controls, forms, tables, key-value blocks, drop target
     routes/
-      +layout.svelte      sidebar (Gallery, Cards, Builder, Wall, and Control once the daemon answers), content (960 px, the Wall unbounded), footer (repository link, package.json version), status bar; `onMount` reads the token from the address bar and starts the probe (`ops.start`)
-      +page.svelte        `/`, prerendered: what receiverproxy is, the install commands, the pages
-      gallery/            `/gallery`, prerendered: +page.server.ts loads config/panels/**/*.toml through lib/server/config.ts; the table, the filters and the sort, the vendor-file import
-      gallery/[name]/     `/gallery/<name>`, one prerendered page per spec (`entries`): the spec as key-value blocks, the TOML, the download buttons (WASM, on click), open in Builder, provision this card
-      cards/              `/cards`, prerendered from config/cards/*.toml
-      cards/[model]/      `/cards/<name>`: identity, limits, status, memory map, boot-image offsets, panels tested, the firmware manifest as a table with a download link per image
-      builder/            `/builder`, `ssr = false`: +page.svelte (the two panes, generate, the card actions), BuilderForm.svelte, BuilderTools.svelte (inspect, diff)
-      wall/               `/wall`, `ssr = false`: +page.svelte, WallCanvas.svelte, WallTables.svelte
-      control/            `/control`, `ssr = false`: +page.svelte (discovered cards, show, brightness), ControlWrite.svelte (provision, firmware, flash, card state); one sentence and the install command without the daemon
-      sitemap.xml/        +server.ts, prerendered: every static route and the builder and wall
+      +layout.svelte      top bar (parts/TopBar.svelte: Panels, Cards, Builder, Wall, Control, GitHub), the daemon banner (parts/Banner.svelte), content (960 px, the Wall unbounded), footer (package.json version); `onMount` reads the token from the address bar and starts the probe (`ops.start`)
+      +page.svelte        `/`, prerendered: one sentence, the install commands, the pages, what is tested
+      panels/             `/panels`, prerendered: +page.server.ts loads config/panels/**/*.toml through lib/server/config.ts and the cards whose [[tested]] name each spec; the table (module drawing, title from lib/panel.ts, status, formats, tested with), the filters (text, vendor, chip, scan, status) and the sort
+      panels/[name]/      `/panels/<name>`, one prerendered page per spec (`entries`), sections Downloads, Module, Wiring, Timing, TOML: the download buttons (WASM, on click), open in Builder, provision (daemon), the spec as key-value blocks, the TOML
+      gallery/, gallery/[name]/  the old addresses: prerendered 301 redirects to /panels (Cloudflare `_redirects`; a refresh page in the static build)
+      cards/              `/cards`, prerendered from config/cards/*.toml: photo, model, vendor, family, id, limits, status, panels tested
+      cards/[model]/      `/cards/<name>`, sections Photo and identity, Limits, Memory map, Tested panels, Firmware (the manifest as a table, each image name a download link)
+      builder/            `/builder` (+layout.ts: `ssr = false` for the sub-pages too): +page.svelte (the two panes, generate, the card actions), BuilderForm.svelte; import/ (`/builder/import`: the drop target, the unresolved list, open in Builder); inspect/ (`/builder/inspect`: BuilderTools.svelte, inspect and diff)
+      wall/               `/wall` (+layout.ts: `ssr = false`): +page.svelte (the drawing, WallCanvas.svelte, import, the daemon actions); layout/ (`/wall/layout`: WallTables.svelte, the same document as tables)
+      control/            `/control` (+layout.ts: `ssr = false`): the discovered cards (a row selects `app.card`) and brightness; show/, provision/, firmware/, flash/, card/: one page per action group, each headed by parts/ControlHead.svelte (title, sibling links, the selected card; the install command without the daemon); job.ts (start and follow a job, the dry-run test)
+      sitemap.xml/        +server.ts, prerendered: every prerendered page with lastmod the build date; the client-only routes are noindex and absent
       robots.txt/         +server.ts, prerendered
     api/
       types.ts            generated from the Rust structs (section 5, "Shared types"); never edited
       ops.ts              the one interface: `ops.pure` (WASM), `ops.card` (daemon, null when absent), `ops.start`, `ops.probe`, `ops.connect`
-      daemon.ts           the transport: base URL, token, request/call ({error} handling, status bar), sse(jobId, onLine, onEnd); nothing runs at import
+      daemon.ts           the transport: base URL, token, request/call ({error} handling), sse(jobId, onLine, onEnd); nothing runs at import
       mock.ts             the canned daemon behind `VITE_RXP_MOCK=1`
     lib/
       server/config.ts    the build-time loader: panels(), cards(), firmware() from the repository's config/ with smol-toml, the field names of the files; `FORMATS` is the codec registry by hand, pinned by tests/config.test.ts
@@ -477,13 +475,15 @@ web/
       token.ts            the token: splitFragment (pure), sessionStorage, loadToken(replace)
       wasm.ts             `ready(): Promise<WasmModule>`, loaded on the first call and only in the browser; the generated glue typed with api/types.ts, or a stub when it is not built; a build missing a function throws a rebuild message for it
       state.svelte.ts     the shared store (below); handSpec(toml) hands a spec to the Builder and the Control provision form (localStorage `rxp.builder.toml`)
-      action.svelte.ts    Action<T>: one action's idle/busy/done/error state, the status bar driven with it
+      action.svelte.ts    Action<T>: one action's idle/busy/done/error state
+      panel.ts            panelTitle(entry): "P2.5 128x64 1/16 SM16269S"; chipLabel(name)
       layout.ts           Canvas helpers: snap, bounds, addReceiver, addPanel, the JS validate and example
       error.ts            errText(e)
       download.ts         save(name, bytes | text) through a Blob URL
       spec.ts             PanelSpec <-> TOML (parse the [table] form the generator accepts; emit the same order as config/panels/*.toml; tables the form does not edit, [meta] among them, pass through)
     parts/
-      Head.svelte (title, description, canonical, Open Graph)  Sidebar.svelte  StatusBar.svelte  TitleRow.svelte (title, primary action, the install line or the token field)
+      Head.svelte (title, description, canonical, Open Graph, og:image /og.png; `noindex` for the client-only routes)  TopBar.svelte  Banner.svelte  TitleRow.svelte (title, primary action)  SubNav.svelte (a row of text links: sibling pages or a page's sections)  ControlHead.svelte
+      Module.svelte (a module as a dot grid in the line token, at its aspect)  JobLines.svelte (a job's lines as they arrive, cancel, the final state)
       Field.svelte  KeyValue.svelte  Drop.svelte  Hex.svelte  Lines.svelte
   src/wasm/               generated, gitignored
   tests/token.test.ts     node --test: the fragment handling of token.ts
@@ -501,18 +501,20 @@ operations while `app.daemon` is `"present"` and `null` otherwise, so a
 route that needs the card tests `ops.card` and hides the control when it is
 null.
 
-The prerendered routes (`/`, `/gallery`, `/gallery/<name>`, `/cards`,
-`/cards/<name>`, `sitemap.xml`, `robots.txt`) set `prerender = true` and
-load their data in `+page.server.ts` from `config/` at build time; no WASM
-runs at build. Each sets its title, description, canonical URL and Open
-Graph title and description through `parts/Head.svelte`; the entry page's
-title is `<name> panel config`. `/builder`, `/wall` and `/control` set
-`ssr = false` and `prerender = false` and render on the client, where the
-WASM module and the daemon are. `/builder?panel=<path>` opens a library
-spec; `/control?provision=<index>` opens the provision form for a receiver
-(the Wall's "provision this card" sets `position` from the receiver's
-`x,y`). The Gallery's "open in Builder" and "provision this card", and a
-file import, hand the spec over through `handSpec` and `goto`.
+The prerendered routes (`/`, `/panels`, `/panels/<name>`, `/cards`,
+`/cards/<name>`, `sitemap.xml`, `robots.txt`, and the `/gallery` redirects)
+set `prerender = true` and load their data in `+page.server.ts` from
+`config/` at build time; no WASM runs at build. Each sets its title (`<subject>
+· receiverproxy`, at most 60 characters), a description of at most 155
+characters, canonical URL and Open Graph title, description and image
+through `parts/Head.svelte`; a panel page's title is `<panelTitle> panel`.
+`/builder`, `/wall`, `/control` and their sub-pages set `ssr = false` and
+`prerender = false` in a `+layout.ts`, render on the client, where the WASM
+module and the daemon are, and carry `<meta name="robots" content="noindex">`.
+`/builder?panel=<path>` opens a library spec; `/control/provision?provision=<index>`
+selects a receiver and sets `position` from its `x,y` (the Wall's
+"provision" link). A panel page's "open in Builder" and "provision", and
+`/builder/import`, hand the spec over through `handSpec` and `goto`.
 
 ### Shared state (`state.svelte.ts`)
 
@@ -524,17 +526,15 @@ tokenError: string;               // "bad token" when a token was sent and healt
 health:   Health | null;          // the last full GET /health
 settings: { iface: string; brightness: number; card: string | null } | null;
 wall:     Canvas;                 // the editor's document; loaded from GET /wall when present, else localStorage "rxp.wall", else single 128x64
-job:      Job | null;             // the job the status bar follows (last started from this page)
-status:   { kind: "idle" | "busy" | "error"; text: string };  // status bar right side
-wasm:     "loading" | "ready" | "failed";
-install:  boolean;                // the first-visit install line under the title row is visible
+job:      Job | null;             // the job last started from a page; its lines arrive over SSE
+card:     number;                 // the receiver index the Control pages act on
+wasm:     "unloaded" | "loading" | "ready" | "failed";
+install:  boolean;                // the install banner is visible (dismissed for the session)
 ```
 
-`api/daemon.ts` sets `status` to `busy` while a request is in flight and to `error`
-with the `error` text when one fails; screens show the same text next to the
-control that caused it. Starting a job sets `job` and opens its SSE; the
-status bar shows `kind`, the last line, and a cancel button; `end` sets
-`idle` or `error`.
+An error is shown next to the control that caused it, verbatim. Starting a
+job sets `job` and opens its SSE; `parts/JobLines.svelte` shows the lines as
+they arrive and a cancel button where the action was, then the final state.
 
 ### The layout JSON (`wall`)
 
@@ -754,12 +754,14 @@ The design is [ui-design.md](ui-design.md): principles, layout, type,
 spacing, the colour tokens, components, states and the review checklist.
 What follows is how the code meets it.
 
-**Layout.** `App.svelte`: the 180 px sidebar (`parts/Sidebar.svelte`, the
-daemon state at its foot), a content pane 960 px wide that scrolls on its
-own (the Wall's drawing may be wider), the 28 px status bar
-(`parts/StatusBar.svelte`, monospace). Every screen starts with
-`parts/TitleRow.svelte`, which renders the title, the primary action, and
-under them the first-visit install line or the token field.
+**Layout.** `+layout.svelte`: the 44 px top bar (`parts/TopBar.svelte`,
+links wrap on a narrow screen), the daemon banner (`parts/Banner.svelte`,
+only when it applies), the content 960 px wide (the Wall's drawing scales
+to the width it has), the footer. Every screen starts with
+`parts/TitleRow.svelte` (title, primary action) and, where it has sibling
+pages or sections, `parts/SubNav.svelte`. Under 640 px forms are one column
+(`.form`), every table scrolls inside `.scroll`, and the banner shows the
+repository instead of the install command.
 
 **Spacing and type.** `app.css` holds the scale as `--s1: 4px` to `--s5:
 24px`, the font stacks as `--font` and `--mono`, 32 px controls, 28 px table
@@ -775,10 +777,10 @@ border, the selected one `--accent`, rotation as a small arrow, flips as a
 mirrored arrow, the grid at 1 px `--line` at 50 % opacity.
 
 **States.** `lib/action.svelte.ts` gives every action the four states of
-ui-design.md: `run` sets busy and the status bar, done clears the status bar
-and keeps the result where the action was, error keeps the message verbatim
-under the action and in the status bar. Controls are `disabled` while their
-action is busy, the label unchanged; the cursor is `progress`.
+ui-design.md: `run` sets busy, done keeps the result where the action was,
+error keeps the message verbatim under the action. Controls are `disabled`
+while their action is busy, the label unchanged. A job's progress is its
+lines, shown where it was started (`parts/JobLines.svelte`).
 
 Confirmation before a commit is one line above a second button, `commit`,
 that appears only after a dry run finished, under its plan; not a dialog.

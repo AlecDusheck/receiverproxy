@@ -12,13 +12,11 @@ export function load({ params }) {
   const specs = panels();
   return {
     card,
-    // Each tested entry with the spec's name for the gallery link and the firmware version from the manifest.
-    tested: card.tested.map((t) => ({
-      ...t,
-      name: specs.find((p) => p.path === t.panel)?.name ?? null,
-      version: fw.images.find((i) => i.name === t.firmware)?.version ?? null,
-    })),
-    base_url: fw.base_url,
+    // Each tested entry with the spec (for its title and link) and the firmware version from the manifest.
+    tested: card.tested.map((t) => {
+      const p = specs.find((s) => s.path === t.panel);
+      return { ...t, entry: p ? { name: p.name, meta: p.meta, module: p.module, chip: p.chip } : null, version: fw.images.find((i) => i.name === t.firmware)?.version ?? null };
+    }),
     images: fw.images.map((i) => ({ ...i, location: imageLocation(fw, i) })),
   };
 }

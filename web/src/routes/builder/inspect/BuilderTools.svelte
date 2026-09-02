@@ -22,7 +22,7 @@
 
 <section>
   <h2>Inspect</h2>
-  <Drop label="A .rcvbp file" accept=".rcvbp" disabled={wasmOff} onfiles={inspect} />
+  <Drop label=".rcvbp file" accept=".rcvbp" disabled={wasmOff} onfiles={inspect} />
   {#if insp.error}<p class="error">{insp.error}</p>{/if}
   {#if insp.result}
     {@const r = insp.result}
@@ -78,6 +78,7 @@
     {#if d.records.length === 0}
       <p class="ok">no differing records</p>
     {:else}
+      <div class="scroll">
       <table>
         <thead><tr><th>record</th><th class="num">len a</th><th class="num">len b</th><th>differing offsets</th></tr></thead>
         <tbody>
@@ -91,6 +92,7 @@
           {/each}
         </tbody>
       </table>
+      </div>
     {/if}
   {/if}
 </section>

@@ -42,7 +42,7 @@
   <Field label="height" caption="pixels"><input type="number" bind:value={spec.screen.height} min="1" /></Field>
 
   <h2>Chip</h2>
-  <Field label="library" caption="config/chips path, embedded set" wide>
+  <Field label="library" caption="config/chips" wide>
     <select bind:value={spec.chip.library} disabled={!libs}>
       <option value="">choose</option>
       {#each libs?.chips ?? [] as c (c.path)}<option value={c.path}>{c.name} ({c.path})</option>{/each}

@@ -10,10 +10,12 @@
 
   let { sel = $bindable() }: { sel: Sel } = $props();
   let el = $state<HTMLCanvasElement | null>(null);
+  // The drawing fits the width it is given (the viewport on a phone) and 400 px of height.
+  let avail = $state(800);
 
   const wall = $derived(app.wall);
   const grid = $derived(snapSize(wall));
-  const scale = $derived(Math.max(0.5, Math.min(4, 800 / Math.max(1, wall.width), 400 / Math.max(1, wall.height))));
+  const scale = $derived(Math.max(0.05, Math.min(4, Math.max(64, avail - 2) / Math.max(1, wall.width), 400 / Math.max(1, wall.height))));
 
   // Colours come from the tokens on the element, so the drawing follows the scheme.
   const token = (css: CSSStyleDeclaration, name: string) => css.getPropertyValue(name).trim();
@@ -129,9 +131,15 @@
   }
 </script>
 
-<canvas bind:this={el} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up} aria-label="wall drawing"></canvas>
+<div class="frame" bind:clientWidth={avail}>
+  <canvas bind:this={el} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up} aria-label="wall drawing"></canvas>
+</div>
 
 <style>
+  .frame {
+    width: 100%;
+    min-width: 0;
+  }
   canvas {
     display: block;
     touch-action: none;

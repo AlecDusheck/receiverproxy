@@ -4,7 +4,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 fn main() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config/cards");
+    let dir = Path::new(&std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set by cargo")).join("../../config/cards");
     let dir = dir.canonicalize().unwrap_or(dir);
     println!("cargo:rerun-if-changed={}", dir.display());
     let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)

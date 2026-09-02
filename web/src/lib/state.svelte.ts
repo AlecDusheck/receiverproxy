@@ -1,7 +1,5 @@
 import type { Canvas, Health, Job, Settings } from "../api/types";
 
-export type Status = { kind: "idle" | "busy" | "error"; text: string };
-
 export const single = (w: number, h: number): Canvas => ({
   width: w,
   height: h,
@@ -27,20 +25,18 @@ export const app = $state({
   health: null as Required<Health> | null,
   settings: null as Settings | null,
   wall: storedWall(),
+  // The job last started from a screen; its lines arrive over SSE and show where the action was.
   job: null as Job | null,
-  status: { kind: "idle", text: "" } as Status,
+  // The receiver index the Control pages act on.
+  card: 0,
   // Loaded on first use (lib/wasm.ts); "unloaded" until a route asks for it.
   wasm: "unloaded" as "unloaded" | "loading" | "ready" | "failed",
   wasmError: "",
-  // The first-visit install line under the title row; dismissed once, kept in localStorage.
+  // The install banner under the top bar; dismissed for the session (sessionStorage).
   install: false,
 });
 
-export function setStatus(kind: Status["kind"], text = "") {
-  app.status = { kind, text };
-}
-
-// Hand a spec to the Builder or the Cards provision form: both read this key at load.
+// Hand a spec to the Builder or the Control provision form: both read this key at load.
 export function handSpec(toml: string) {
   try {
     localStorage.setItem("rxp.builder.toml", toml);

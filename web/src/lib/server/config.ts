@@ -103,6 +103,9 @@ export type Card = {
   id: number;
   status: string;
   notes?: string;
+  /** A photo under web/static, `cards/e120.jpg`, and where it came from. */
+  image?: string;
+  image_source?: string;
   tested: Tested[];
   limits: { max_width: number; max_height: number; hub_ports: number; chain?: number };
   memory: {
@@ -152,6 +155,8 @@ export function cards(repo = root()): Card[] {
       firmware: { image_pattern: str(fw.image_pattern), sdram_staging: fw.sdram_staging === true },
     };
     if (typeof t.notes === "string") card.notes = t.notes;
+    if (typeof t.image === "string") card.image = t.image;
+    if (typeof t.image_source === "string") card.image_source = t.image_source;
     if (typeof lim.chain === "number") card.limits.chain = lim.chain;
     return card;
   });

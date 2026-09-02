@@ -186,7 +186,7 @@ rxp-demo comet --seconds 30 --brightness 40 --iface en24 --layout wall.json
 
 `web/` is the site at [receiverproxy.com](https://receiverproxy.com) and the front end for the daemon:
 
-- Gallery: every panel spec under `config/panels/` as a table; each spec has its own page with the fields, the TOML, one download per output format, import of a vendor file back into a spec, and "open in Builder".
+- Panels: every panel spec under `config/panels/` as a table (title, status, formats, the cards it is tested with); each spec has its own page with downloads, the fields, the TOML and "open in Builder". Builder > Import reads a vendor file back into a spec.
 - Cards: every receiver model under `config/cards/` with its limits, memory map, status, tested panels and firmware downloads.
 - Builder and Wall: the spec as a form and TOML; the layout as a drawing and a table. Both run in the browser through `rcvbp` and `wall` compiled to WebAssembly.
 - Control: discovered cards, brightness, show, provision, firmware, flash. Needs the daemon.

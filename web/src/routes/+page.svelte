@@ -4,47 +4,51 @@
   import { REPO } from "$lib/site";
 </script>
 
-<Head
-  title="receiverproxy"
-  description="A command-line tool and a web app that drive a Colorlight E120 LED receiving card over raw Ethernet, without a sender card or vendor software."
-  path="/"
-/>
+<Head title="receiverproxy" description="Drive LED receiving cards over Ethernet without a sender card or vendor software. Panel configs, firmware, wall layout, live video." path="/" />
 
 <TitleRow title="receiverproxy" />
 
-<p>
-  receiverproxy is a command-line tool, <code>rxp</code>, and this web app; they drive a Colorlight E120 LED receiving card and its modules over raw Ethernet, generate and flash the module configuration, and put images, video and live streams on the panel.
-</p>
-<p>The card is driven from a Mac or Linux machine with an Ethernet port, without a sender card, vendor software or an account.</p>
+<p>Drives a Colorlight E120 LED receiving card and its modules over raw Ethernet from a Mac or Linux machine: no sender card, no vendor software.</p>
 
 <section>
   <h2>Install</h2>
   <pre>git clone {REPO}
 cd receiverproxy
 cargo install --path crates/cli
-rxp discover</pre>
-  <p class="caption">Rust stable through rustup; raw Ethernet needs privileges on the interface (<code>sudo chmod o+rw /dev/bpf*</code> on macOS, <code>setcap cap_net_raw,cap_net_admin+ep</code> on Linux). <code>rxp ui</code> serves this app with the card actions.</p>
+sudo chmod o+rw /dev/bpf*        # macOS
+sudo setcap cap_net_raw,cap_net_admin+ep "$(which rxp)"   # Linux
+rxp discover
+rxp ui</pre>
 </section>
 
 <section>
   <h2>Pages</h2>
   <dl class="kv">
-    <dt><a href="/gallery">Gallery</a></dt>
-    <dd>every panel spec under config/panels, with its generated files</dd>
+    <dt><a href="/panels">Panels</a></dt>
+    <dd>panel specs and their generated files</dd>
     <dt><a href="/cards">Cards</a></dt>
-    <dd>the receiving-card models under config/cards and the firmware manifest</dd>
+    <dd>receiving-card models and firmware</dd>
     <dt><a href="/builder">Builder</a></dt>
-    <dd>a panel spec as a form and as TOML; generate, inspect and diff files in the browser</dd>
+    <dd>a spec as a form and as TOML; generate, inspect, diff</dd>
     <dt><a href="/wall">Wall</a></dt>
-    <dd>the layout JSON for several cards, as a drawing and as tables</dd>
-    <dt><a href={REPO}>Source</a></dt>
+    <dd>the layout of several cards</dd>
+    <dt><a href="/control">Control</a></dt>
+    <dd>the card, through <code>rxp ui</code></dd>
+    <dt><a href={REPO}>GitHub</a></dt>
     <dd>{REPO.replace("https://", "")}, MIT</dd>
   </dl>
 </section>
 
 <section>
   <h2>Tested</h2>
-  <p>One Colorlight E120 on firmware 16.53 driving one P2.5 128x64 module with SM16269S drivers, on macOS. Every other card and module in the tables is a vendor default, not a measurement.</p>
+  <dl class="kv">
+    <dt>card</dt>
+    <dd>Colorlight E120, firmware 16.53</dd>
+    <dt>panel</dt>
+    <dd><a href="/panels/p25-128x64-sm16269s">P2.5 128x64 1/16 SM16269S</a></dd>
+    <dt>host</dt>
+    <dd>macOS</dd>
+  </dl>
 </section>
 
 <style>

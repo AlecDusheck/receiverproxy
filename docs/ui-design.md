@@ -39,26 +39,26 @@ an exclamation mark.
 ## Layout
 
 ```
-+--------+---------------------------------------------------+
-| Gallery|  title row: screen name          [primary action]  |
-| Builder|                                                    |
-| Wall   |  content: tables and forms, 720-960 px wide,       |
-| Cards  |  left-aligned, scrolls; never centred as a card    |
-|        |                                                    |
-| daemon |                                                    |
-| status |                                                    |
-+--------+---------------------------------------------------+
-| status bar: card / job progress / last error, one line      |
++-------------------------------------------------------------+
+| receiverproxy   Panels  Cards  Builder  Wall  Control  GitHub|
++-------------------------------------------------------------+
+| banner, only when it applies: daemon not running / token     |
++-------------------------------------------------------------+
+|  title row: page name                    [primary action]    |
+|  content: tables and forms, up to 960 px, left-aligned       |
++-------------------------------------------------------------+
+| footer: version                                              |
 +-------------------------------------------------------------+
 ```
 
-Sidebar 180 px, text only, current item marked by weight and the accent bar.
-Footer under the content on every page: the GitHub repository link, the
-version, and nothing else, in the 11 px caption size.
-The daemon state lives at the bottom of the sidebar (connected to which
-address, or "daemon not running: install"), not in a banner, except on the
-first visit where a single dismissible line under the title row says how to
-install it. Status bar 28 px, monospace for progress and errors.
+No sidebar. A 44 px top bar with the project name at the left, the pages
+as text links, the GitHub link at the right; on narrow screens the links
+wrap to a second row, nothing collapses behind a menu. The daemon state is
+a one-line banner under the bar: absent (install command, dismiss for the
+session) or present without a token (token field). No status bar; job
+progress and errors show where the action was. Tables scroll horizontally
+inside their own container on narrow screens; forms stack to one column
+under 640 px; the wall drawing scales to the viewport width.
 
 ## Styling
 
@@ -116,21 +116,24 @@ the same button with the word "commit" and a confirm line above them.
 ## States
 
 Every action has four visible states and they look the same everywhere:
-idle (button enabled), busy (button disabled, label unchanged, progress in
-the status bar), done (result where the action was, status bar cleared),
-error (message under the action in err, verbatim from the API, status bar
-shows the same line).
+idle (button enabled), busy (button disabled, label unchanged, progress
+lines under the action), done (result where the action was), error (message
+under the action in err, verbatim from the API).
 
 Daemon absent: card actions are absent, not greyed. The screens that need it
 (Cards) show one sentence and the install command in a code block.
 
 ## Screens
 
-- Gallery: a table, not tiles. Columns: pitch, module, scan, chip, vendor
-  formats available, source count, status. Filter row above (text, chip,
-  scan, status). Selecting a row opens the entry beneath the table: the spec
-  as key-value blocks, the download-as buttons, "open in Builder", and, with
-  a daemon, "provision this card".
+- Panels (the gallery): a table with a readable title per row (pitch,
+  module, scan, chip: "P2.5 128x64 1/16 SM16269S"), status as a word, the
+  formats it generates, which cards it is tested with. Filter row above
+  (text, vendor, chip, scan, status). Each row is a page: downloads first,
+  then the spec as key-value blocks and the TOML, "open in Builder", and
+  with a daemon "provision".
+- Cards: a table of receiver models (image, vendor, model, status, tested
+  panels); each a page with the photo, identity, limits, memory map, tested
+  panels and firmware downloads as a table.
 - Builder: two panes. Left the form by section (module, screen, chip, colour,
   current, timing, mapping, boot, overrides); right the TOML, editable, kept
   in sync both ways with a 300 ms debounce and the last valid parse shown on

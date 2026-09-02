@@ -2,7 +2,6 @@
 // URL, the token, one request helper and one SSE helper. Only ops.ts calls
 // this. Nothing runs at import time: the layout calls `ops.probe()` once on
 // the client, which reads the token first.
-import { app, setStatus } from "../lib/state.svelte";
 import type { Job, Line } from "./types";
 import * as mock from "./mock";
 import { loadToken, setToken } from "../lib/token";
@@ -60,18 +59,8 @@ export async function request<T>(method: string, path: string, body?: unknown, t
   }
 }
 
-// Same as request, but drives the status bar: busy while in flight, error text on failure.
-export async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
-  setStatus("busy", `${method} ${path}`);
-  try {
-    const r = await request<T>(method, path, body);
-    if (app.status.kind === "busy") setStatus("idle");
-    return r;
-  } catch (e) {
-    setStatus("error", e instanceof Error ? e.message : String(e));
-    throw e;
-  }
-}
+// A request with no timeout: the daemon answers a card command when the card does.
+export const call = <T>(method: string, path: string, body?: unknown): Promise<T> => request<T>(method, path, body);
 
 // Follow a job's event stream. Returns a function that stops listening.
 export function sse(jobId: string, onLine: (l: Line) => void, onEnd: (j: Job) => void): () => void {

@@ -1,11 +1,10 @@
-import { FORMATS, panels } from "$lib/server/config";
+// The old address: /gallery is /panels. Prerendered as a redirect (the
+// Cloudflare adapter writes it to _redirects, the static build as a page
+// that refreshes to the new one).
+import { redirect } from "@sveltejs/kit";
 
 export const prerender = true;
 
 export function load() {
-  // The table's rows without the TOML; the entry pages carry it.
-  return {
-    entries: panels().map(({ toml: _toml, ...e }) => e),
-    formats: FORMATS,
-  };
+  redirect(301, "/panels");
 }

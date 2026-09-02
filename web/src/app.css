@@ -49,9 +49,6 @@ body {
   background: var(--bg);
   color: var(--text);
 }
-body.busy {
-  cursor: progress;
-}
 h1 {
   font-size: 15px;
   font-weight: 600;
@@ -65,6 +62,18 @@ h2 {
 p {
   margin: 0 0 var(--s3);
   max-width: 72ch;
+}
+/* the banner: the install command on a desktop, the repository on a phone */
+.narrow-only {
+  display: none;
+}
+@media (max-width: 640px) {
+  .wide-only {
+    display: none;
+  }
+  .narrow-only {
+    display: inline;
+  }
 }
 a {
   color: var(--accent);
@@ -191,6 +200,12 @@ textarea.invalid {
 .form h2 {
   grid-column: 1 / -1;
 }
+/* under 640 px a form is one column */
+@media (max-width: 640px) {
+  .form {
+    grid-template-columns: 1fr;
+  }
+}
 .form h2 {
   margin: var(--s2) 0 0;
 }
@@ -251,8 +266,13 @@ td select {
 td input[type="number"] {
   width: 64px;
 }
+/* every table sits in one of these: it scrolls sideways, the page never does */
 .scroll {
   overflow-x: auto;
+  max-width: 100%;
+}
+.scroll table {
+  min-width: max-content;
 }
 .lines {
   max-height: 16em;

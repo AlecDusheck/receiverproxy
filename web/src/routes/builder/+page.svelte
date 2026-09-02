@@ -1,21 +1,22 @@
 <script lang="ts">
-  // Needs the WASM module: client-rendered (+page.ts). `?panel=<path>` opens a
-  // library spec, `?chip=<path>` picks a chip library; both are cleared once read.
+  // The form and the TOML, kept in sync, with Generate. `?panel=<path>` opens
+  // a library spec, `?chip=<path>` picks a chip library; both are cleared
+  // once read. Import and inspect are the sibling pages.
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import { title } from "$lib/site";
+  import Head from "$parts/Head.svelte";
   import TitleRow from "$parts/TitleRow.svelte";
-  import Drop from "$parts/Drop.svelte";
+  import SubNav from "$parts/SubNav.svelte";
   import Lines from "$parts/Lines.svelte";
   import BuilderForm from "./BuilderForm.svelte";
-  import BuilderTools from "./BuilderTools.svelte";
   import { app, handSpec } from "$lib/state.svelte";
-  import { ops, type Format, type Generated, type Imported } from "$api/ops";
+  import { ops, type Format, type Generated } from "$api/ops";
   import { Action } from "$lib/action.svelte";
   import { errText } from "$lib/error";
   import { save, toB64 } from "$lib/download";
   import { defaultSpec, fromToml, toToml, type PanelSpec } from "$lib/spec";
   import type { GatedOutcome, Libraries, Outcome } from "$api/types";
+  import { BUILDER_NAV } from "./nav";
 
   const query = page.url.searchParams;
 
@@ -57,7 +58,7 @@
       handSpec(toml);
     });
 
-  // The last TOML edited or handed over (Gallery, import) seeds the pane.
+  // The last TOML edited or handed over (Panels, import) seeds the pane.
   try {
     const s = localStorage.getItem("rxp.builder.toml");
     if (s) setToml(s);
@@ -79,16 +80,6 @@
     if (p || c) void goto("/builder", { replaceState: true });
   });
 
-  const imp = new Action<Imported & { file: string }>("import");
-  function importFile(files: File[]) {
-    const f = files[0]!;
-    void imp.run(async () => {
-      const r = await ops.pure.importSpec(new Uint8Array(await f.arrayBuffer()));
-      setToml(r.spec_toml);
-      return { ...r, file: f.name };
-    });
-  }
-
   const gen = new Action<Generated>("generate");
   const generate = () => gen.run(() => ops.pure.generate(toml, format));
 
@@ -108,23 +99,16 @@
   const wasmOff = $derived(app.wasm !== "ready");
 </script>
 
-<svelte:head><title>{title("Builder")}</title></svelte:head>
+<Head title="Builder" noindex />
 
 <TitleRow title="Builder">
   {#snippet action()}
     <button class="primary" onclick={generate} disabled={wasmOff || !!tomlError || gen.busy}>Generate</button>
   {/snippet}
 </TitleRow>
+<SubNav links={BUILDER_NAV} />
 
 {#if app.wasm === "failed"}<p class="error">{app.wasmError}</p>{/if}
-
-<Drop label="Import a vendor file or a spec" disabled={wasmOff} onfiles={importFile} />
-{#if imp.error}<p class="error">{imp.error}</p>{/if}
-{#if imp.result}
-  <p class={imp.result.unresolved.length ? "warn" : "ok"}>
-    {imp.result.file}: {imp.result.format}{imp.result.unresolved.length ? `, unresolved: ${imp.result.unresolved.join(", ")}` : ", every field resolved"}
-  </p>
-{/if}
 
 <div class="split">
   <div>
@@ -135,7 +119,7 @@
     <textarea rows="36" class={{ invalid: !!tomlError }} value={toml} oninput={(e) => onToml(e.currentTarget.value)} spellcheck="false" aria-label="spec TOML"></textarea>
     {#if tomlError}<div class="error">{tomlError}</div>{/if}
     <div class="actions">
-      <button onclick={() => save(`${spec.name}.toml`, toml)}>download TOML</button>
+      <button onclick={() => save(`${spec.name}.toml`, toml)}>{spec.name}.toml</button>
     </div>
   </div>
 </div>
@@ -152,17 +136,19 @@
   {#if gen.error}<p class="error">{gen.error}</p>{/if}
   {#if gen.result}
     {@const g = gen.result}
-    <table class="files">
-      <thead><tr><th>file</th><th class="num">bytes</th><th></th></tr></thead>
-      <tbody>
-        {#each g.files as f (f.name)}
-          <tr><td class="mono">{f.name}</td><td class="num">{f.bytes.length}</td><td><button onclick={() => save(f.name, f.bytes)}>download</button></td></tr>
-        {/each}
-      </tbody>
-    </table>
+    <div class="scroll mt-3">
+      <table class="files">
+        <thead><tr><th>file</th><th class="num">bytes</th><th></th></tr></thead>
+        <tbody>
+          {#each g.files as f (f.name)}
+            <tr><td class="mono">{f.name}</td><td class="num">{f.bytes.length}</td><td><button onclick={() => save(f.name, f.bytes)}>download</button></td></tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
     <div class="actions">
       <button onclick={() => g.files.forEach((f) => save(f.name, f.bytes))}>download all</button>
-      <button onclick={() => save(`${g.name}-sources.txt`, g.sources.join("\n") + "\n")}>download sources</button>
+      <button onclick={() => save(`${g.name}-sources.txt`, g.sources.join("\n") + "\n")}>{g.name}-sources.txt</button>
     </div>
     {#if g.notes.length}<pre>{g.notes.join("\n")}</pre>{/if}
     <h2 class="sources">Sources</h2>
@@ -191,28 +177,24 @@
   </section>
 {/if}
 
-<BuilderTools />
-
 <style>
   .split {
     display: grid;
-    grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: var(--s5);
     align-items: start;
     margin-bottom: var(--s5);
   }
   @media (max-width: 860px) {
     .split {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
   .toml textarea {
     width: 100%;
   }
   .files {
-    margin-top: var(--s3);
     width: auto;
-    min-width: 420px;
   }
   .sources {
     margin-top: var(--s3);

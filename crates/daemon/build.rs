@@ -6,7 +6,7 @@ use std::path::Path;
 
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(web_dist)");
-    let dist = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/build-static");
+    let dist = Path::new(&std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set by cargo")).join("../../web/build-static");
     println!("cargo::rerun-if-changed={}", dist.display());
     if dist.join("index.html").is_file() {
         println!("cargo::rustc-cfg=web_dist");

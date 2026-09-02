@@ -49,6 +49,8 @@ test("the E120 model file reads whole", () => {
   assert.equal(e120!.id, 0x64);
   assert.equal(e120!.status, "tested");
   assert.equal(e120!.tested[0]!.panel, "config/panels/p25-128x64-sm16269s.toml");
+  assert.equal(e120!.image, "cards/e120.jpg");
+  assert.equal(e120!.image_source, "eager-led.com product photo");
   assert.equal(e120!.limits.max_width, 1024);
   assert.equal(e120!.memory.parameter_block, 7);
   assert.deepEqual(e120!.memory.guarded[0], { from: "16.53", blocks: [0, 1, 2, 8] });
@@ -56,13 +58,13 @@ test("the E120 model file reads whole", () => {
   assert.equal(e120!.firmware.sdram_staging, true);
 });
 
-test("the firmware manifest lists five images and locates them in the repository", () => {
+test("the firmware manifest lists five images and locates them at base_url", () => {
   const fw = firmware(repo);
   assert.equal(fw.images.length, 5);
-  assert.equal(fw.base_url, "");
+  assert.equal(fw.base_url, "https://assets.receiverproxy.com/firmware");
   const first = fw.images[0]!;
   assert.equal(first.version, "16.53");
   assert.equal(first.size, 721024);
-  assert.deepEqual(imageLocation(fw, first), { href: `third-party/firmware/${first.name}`, remote: false });
-  assert.deepEqual(imageLocation({ base_url: "https://x/", images: [] }, first), { href: `https://x/${first.name}`, remote: true });
+  assert.deepEqual(imageLocation(fw, first), { href: `${fw.base_url}/${first.name}`, remote: true });
+  assert.deepEqual(imageLocation({ base_url: "", images: [] }, first), { href: `third-party/firmware/${first.name}`, remote: false });
 });

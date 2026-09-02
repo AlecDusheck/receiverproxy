@@ -1,10 +1,12 @@
 <script lang="ts">
-  // One card model: identity, limits, memory map, status, the panels driven
-  // with it, and the firmware manifest.
+  // One card model: the photo and identity, limits, memory map, the panels
+  // driven with it, and the firmware manifest.
   import Head from "$parts/Head.svelte";
   import TitleRow from "$parts/TitleRow.svelte";
+  import SubNav from "$parts/SubNav.svelte";
   import KeyValue from "$parts/KeyValue.svelte";
   import { REPO } from "$lib/site";
+  import { panelTitle } from "$lib/panel";
 
   let { data } = $props();
   const c = $derived(data.card);
@@ -16,7 +18,8 @@
       ["name", c.name],
       ["vendor", c.vendor],
       ["family", c.family],
-      ["id", `${hex(c.id)} (first byte of the discovery reply)`],
+      ["id", hex(c.id)],
+      ["status", c.status],
       ["file", c.path],
       ["image pattern", c.firmware.image_pattern],
       ["sdram staging", String(c.firmware.sdram_staging)],
@@ -46,11 +49,7 @@
     return rows;
   });
   const bootImage = $derived(c.memory.boot_image.map(([k, v]): [string, string] => [k, k === "map_entries" ? String(v) : hex(v, 4)]));
-  const status = $derived.by((): [string, string][] => [
-    ["status", c.status],
-    ["panels tested", String(c.tested.length)],
-  ]);
-  const description = $derived(`${c.vendor} ${c.name} receiving card, id ${hex(c.id)}, ${c.limits.max_width}x${c.limits.max_height} control area, ${c.limits.hub_ports} HUB75 ports; ${c.status}, ${c.tested.length} panel${c.tested.length === 1 ? "" : "s"} tested.`);
+  const description = $derived(`${c.vendor} ${c.name} receiving card: limits, memory map, firmware images, tested panels.`);
 </script>
 
 <Head title="{c.vendor} {c.name}" {description} path="/cards/{encodeURIComponent(c.name.toLowerCase())}" />
@@ -60,55 +59,67 @@
     <a href="/cards">Cards</a>
   {/snippet}
 </TitleRow>
+<SubNav links={[["#identity", "Photo and identity"], ["#limits", "Limits"], ["#memory", "Memory map"], ["#tested", "Tested panels"], ["#firmware", "Firmware"]]} />
 
-<section>
+<section id="identity">
+  {#if c.image}
+    <figure>
+      <img src="/{c.image}" alt="{c.vendor} {c.name}" />
+      {#if c.image_source}<figcaption class="caption">{c.image_source}</figcaption>{/if}
+    </figure>
+  {/if}
+  <KeyValue title="identity" rows={identity} />
+</section>
+
+<section id="limits">
+  <KeyValue title="limits" rows={limits} />
+</section>
+
+<section id="memory">
   <div class="blocks">
-    <KeyValue title="identity" rows={identity} />
-    <KeyValue title="limits" rows={limits} />
-    <KeyValue title="status" rows={status} />
     <KeyValue title="memory map" rows={memory} />
     <KeyValue title="boot image offsets" rows={bootImage} />
   </div>
 </section>
 
-<section>
-  <h2>Panels tested</h2>
+<section id="tested">
+  <h2>Tested panels</h2>
   {#if data.tested.length}
-    <table>
-      <thead><tr><th>panel</th><th>spec</th><th>firmware</th><th>version</th></tr></thead>
-      <tbody>
-        {#each data.tested as t (t.panel)}
-          <tr>
-            <td>{#if t.name}<a href="/gallery/{encodeURIComponent(t.name)}">{t.name}</a>{:else}{t.panel}{/if}</td>
-            <td class="mono">{t.panel}</td>
-            <td class="mono">{t.firmware}</td>
-            <td class="mono">{t.version ?? ""}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>panel</th><th>spec</th><th>firmware</th><th>version</th></tr></thead>
+        <tbody>
+          {#each data.tested as t (t.panel)}
+            <tr>
+              <td>{#if t.entry}<a href="/panels/{encodeURIComponent(t.entry.name)}">{panelTitle(t.entry)}</a>{:else}{t.panel}{/if}</td>
+              <td class="mono">{t.panel}</td>
+              <td class="mono">{t.firmware}</td>
+              <td class="mono">{t.version ?? ""}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   {:else}
-    <p>No panel has been driven with this card.</p>
+    <p class="muted">none</p>
   {/if}
 </section>
 
-<section>
-  <h2>Firmware images</h2>
-  <p class="caption">config/firmware.toml; <code>rxp firmware install NAME</code> checks the sha256 before any write. {data.base_url ? `Downloads come from ${data.base_url}.` : "base_url is empty: each image is expected at its path in the repository or in the firmware cache."}</p>
+<section id="firmware">
+  <h2>Firmware</h2>
   <div class="scroll">
     <table>
-      <thead><tr><th>name</th><th>version</th><th>kind</th><th>pcb</th><th>chips</th><th class="num">size</th><th>sha256</th><th>download</th></tr></thead>
+      <thead><tr><th>image</th><th>version</th><th>kind</th><th>pcb</th><th>chips</th><th class="num">size</th><th>sha256</th></tr></thead>
       <tbody>
         {#each data.images as i (i.name)}
           <tr>
-            <td class="mono">{i.name}</td>
+            <td class="mono"><a href={i.location.remote ? i.location.href : `${REPO}/blob/main/${i.location.href}`}>{i.name}</a></td>
             <td class="mono">{i.version}</td>
             <td>{i.kind}</td>
             <td>{i.pcb ?? ""}</td>
             <td>{i.chips.join(", ")}</td>
             <td class="num">{i.size}</td>
             <td class="mono sha">{i.sha256}</td>
-            <td class="mono">{#if i.location.remote}<a href={i.location.href}>{i.location.href}</a>{:else}<a href="{REPO}/blob/main/{i.location.href}">{i.location.href}</a>{/if}</td>
           </tr>
         {/each}
       </tbody>
@@ -117,6 +128,16 @@
 </section>
 
 <style>
+  figure {
+    margin: 0 0 var(--s4);
+  }
+  img {
+    display: block;
+    width: 100%;
+    max-width: 480px;
+    height: auto;
+    border: 1px solid var(--line);
+  }
   .sha {
     font-size: 11px;
   }

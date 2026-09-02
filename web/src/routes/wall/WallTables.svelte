@@ -23,7 +23,7 @@
             <td class="num"><input type="number" bind:value={r.y} min="0" aria-label="y" /></td>
             <td class="num"><input type="number" bind:value={r.width} min="1" aria-label="width" /></td>
             <td class="num"><input type="number" bind:value={r.height} min="1" aria-label="height" /></td>
-            <td>{#if ops.card}<a href="/control?provision={r.index}">provision this card</a>{/if}</td>
+            <td>{#if ops.card}<a href="/control/provision?provision={r.index}">provision</a>{/if}</td>
           </tr>
         {:else}
           <tr><td colspan="6" class="muted">no receivers</td></tr>

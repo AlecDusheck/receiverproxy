@@ -1,17 +1,14 @@
 <script lang="ts">
-  // The shell on every route: the sidebar, the content pane (960 px, the
-  // Wall unbounded) with the footer under it, and the status bar. The daemon
-  // probe starts once, on the client, after the token is read from the
-  // address bar.
+  // The shell on every route: the top bar, the daemon banner when it applies,
+  // the content (960 px, the Wall unbounded) and the footer. The daemon probe
+  // starts once, on the client, after the token is read from the address bar.
   import "../app.css";
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { replaceState } from "$app/navigation";
-  import Sidebar from "$parts/Sidebar.svelte";
-  import StatusBar from "$parts/StatusBar.svelte";
-  import { app } from "$lib/state.svelte";
+  import TopBar from "$parts/TopBar.svelte";
+  import Banner from "$parts/Banner.svelte";
   import { ops } from "$api/ops";
-  import { REPO } from "$lib/site";
   import { version } from "../../package.json";
 
   let { children } = $props();
@@ -20,35 +17,38 @@
   onMount(() => {
     void ops.start((url) => replaceState(url, {}));
   });
-  $effect(() => {
-    document.body.classList.toggle("busy", app.status.kind === "busy");
-  });
 </script>
 
-<div class="flex h-screen flex-col">
-  <div class="flex min-h-0 flex-1">
-    <Sidebar />
-    <main class="min-w-0 flex-1 overflow-auto px-6 pt-4 pb-6">
-      <div class={["content", { wide }]}>
-        {@render children()}
-      </div>
-      <footer class="caption mt-6 flex gap-3 border-t border-line pt-3">
-        <a href={REPO}>{REPO.replace("https://", "")}</a>
-        <span>version {version}</span>
-      </footer>
-    </main>
+<TopBar />
+<Banner />
+<main>
+  <div class={["content", { wide }]}>
+    {@render children()}
   </div>
-  <StatusBar />
-</div>
+  <footer class="caption">version {version}</footer>
+</main>
 
 <style>
+  main {
+    padding: var(--s4) var(--s5) var(--s5);
+    min-width: 0;
+  }
+  @media (max-width: 640px) {
+    main {
+      padding: var(--s3) var(--s3) var(--s5);
+    }
+  }
   .content {
     max-width: 960px;
+    min-width: 0;
   }
   .content.wide {
     max-width: none;
   }
   footer {
     max-width: 960px;
+    margin-top: var(--s5);
+    padding-top: var(--s3);
+    border-top: 1px solid var(--line);
   }
 </style>

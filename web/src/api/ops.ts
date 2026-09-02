@@ -4,7 +4,7 @@
 // and the screens hide what needs it). Screens import nothing else from
 // api/ or lib/wasm.ts.
 import type * as T from "./types";
-import { app, setStatus } from "../lib/state.svelte";
+import { app } from "../lib/state.svelte";
 import { call, hasToken, readToken, request, sse, useToken } from "./daemon";
 import { current, ready } from "../lib/wasm";
 import { example, validateJs } from "../lib/layout";
@@ -62,7 +62,7 @@ export type CardOps = {
   jobs(): Promise<T.Job[]>;
   job(id: string): Promise<T.Job>;
   cancel(id: string): Promise<T.Job>;
-  /** Show the job in the status bar until it ends; resolves with its final state. */
+  /** Keep `app.job` current over SSE until the job ends; resolves with its final state. */
   follow(id: string): Promise<T.Job>;
 };
 
@@ -74,7 +74,7 @@ export type Ops = {
   start(replace: (url: string) => void): Promise<void>;
   /** Ask the daemon whether it is there; sets `app.daemon`. */
   probe(): Promise<void>;
-  /** Use a token typed under the title row, then probe again. */
+  /** Use a token typed into the banner, then probe again. */
   connect(token: string): Promise<void>;
 };
 
@@ -107,20 +107,14 @@ const qs = (q: object) => {
 async function follow(id: string): Promise<T.Job> {
   const job = await card.job(id);
   app.job = job;
-  setStatus("busy", `${job.kind} ${job.id}`);
   return new Promise((resolve) => {
     sse(
       id,
       (l) => {
-        if (app.job?.id === id) {
-          app.job.lines.push(l);
-          setStatus("busy", `${job.kind} ${job.id}: ${l.text}`);
-        }
+        if (app.job?.id === id) app.job.lines.push(l);
       },
       (j) => {
         if (app.job?.id === id) app.job = j;
-        if (j.state === "failed") setStatus("error", `${j.kind} ${j.id}: ${j.error ?? "failed"}`);
-        else setStatus("idle", `${j.kind} ${j.id}: ${j.state}`);
         resolve(j);
       },
     );
@@ -165,7 +159,7 @@ const card: CardOps = {
   follow,
 };
 
-// Probe the daemon once at load; the install line's "retry" and the token field's "connect" call this again.
+// Probe the daemon once at load; the banner's "retry" and "connect" call this again.
 // "locked": the daemon answered but the app has no token, or a wrong one.
 async function probe() {
   app.daemon = "probing";
@@ -186,7 +180,7 @@ async function probe() {
         app.settings = settings;
         app.wall = wall;
       } catch {
-        /* the status bar already shows the error */
+        /* the screens that need settings or the wall ask again */
       }
     }
   } catch {
@@ -196,7 +190,7 @@ async function probe() {
   if (app.daemon === "absent") {
     let dismissed = false;
     try {
-      dismissed = localStorage.getItem("rxp.install") === "off";
+      dismissed = sessionStorage.getItem("rxp.install") === "off";
     } catch {
       /* no storage */
     }

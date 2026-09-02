@@ -11,6 +11,9 @@ family = "colorlight"
 id = 0x64
 status = "tested"
 notes = "Gateware builds are named E320: one line for the whole classic family (third-party/README.md)."
+# The photo the web app shows, under web/static.
+image = "cards/e120.jpg"
+image_source = "eager-led.com product photo"
 
 # Panels driven on the bench with this card (docs/rendering.md); `firmware`
 # names an image in config/firmware.toml.

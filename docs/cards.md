@@ -23,6 +23,8 @@ is required unless marked optional.
 | `id` | the first byte of the discovery reply; `rxp discover` prints it as `id=0x64` |
 | `status` | `tested` (driven on a bench), `generates` (configurations build, never driven), `unsupported` |
 | `notes` | optional free text shown nowhere but the file |
+| `image` | optional: a photo for the web app's Cards pages, relative to `web/static` (`cards/e120.jpg`) |
+| `image_source` | optional: where the photo came from, shown as its caption (`eager-led.com product photo`) |
 | `[[tested]]` | one entry per panel driven on a bench with this card; a `tested` card has at least one, the others none |
 | `tested.panel` | the panel spec it was driven with, relative to the repository root (`config/panels/p25-128x64-sm16269s.toml`); must be a file the build embeds |
 | `tested.firmware` | the image the card ran, by its name in `config/firmware.toml` (`E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex`); the version comes from the manifest entry |

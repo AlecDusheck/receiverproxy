@@ -9,50 +9,35 @@ are things you would otherwise conclude again. Then
 [`docs/bench-measurement.md`](docs/bench-measurement.md), because most of them
 came from measuring badly rather than reasoning badly.
 
-## Where it stands (2026-09-01)
+## Where it stands (2026-09-01, evening)
 
-**The panel does not yet show sent content.** What is known about why:
+**The panel renders sent patterns.** Four row bands and four column bands
+come up as coherent colour stripes, half-lit patterns land as solid
+rectangles in the right places, white draws current in proportion, and the
+same-content control returns. The recipe is in
+`config/panels/p25-128x64-sm16269s.toml` and explained in
+[`docs/rendering-recipe.md`](docs/rendering-recipe.md):
 
-* The card's **own built-in test patterns also render as garbage**. They are
-  generated inside the card and never touch the host, so the fault is at or
-  below the card's raster stage — in how the card drives the hub, not in what
-  we transmit.
-* Content-independence is now exact, not approximate: interleaved and
-  repeated, all-black and all-white differ by **0.001 A** against a spread of
-  0.033 A.
-* Therefore the host-side raster packing and the row-base/screen-number field
-  are ruled out for now. Both were swept (`image --raster`, `--row-base`) and
-  neither moves the panel, which is consistent with a fault the host cannot
-  reach.
-* Since our config now matches the seller's file exactly and the panel still
-  misrenders, **the seller's configuration is itself wrong for this module.**
-  Their file is labelled `P2.5-32S`; the panel is `P2.5-O16S`.
+* chip id **0x14C** (the vendor's "SM16169SH" SH stream) — the only identity
+  firmware 16.53 brings the SM16269S outputs up for;
+* **grey depth 12** (`[module] gray_bits`) — the card arrived saying 14; at 14
+  and 16 pixel data never reaches the chips' SRAM;
+* **`+0x02F = 1`** — the vendor Reset() default; inherited cleared;
+* `rows` raster, **brightness → rows → three latches** per frame (one latch
+  never starts the display, two decays on a ~10 s period, three holds);
+* mapping `block = 64`, firmware 16.53, EEPROM control area intact.
 
-**Check the EEPROM before anything else.** The card discards every pixel that
-falls outside its control area, and ours had been erased to an empty window by
-our own tooling — with `discover` still reporting a healthy 128x64 throughout.
-After any flash operation:
+**Still wrong:** an all-black frame — and greys below roughly 96/255 — show
+per-pixel noise instead of dark; the noise is *written* (a black frame
+overwrites a rendered pattern), so it is how low values are encoded, not a
+skipped write. Row band order reads reversed on the rotated panel. The
+vendor-default and LEDSetting-2.2.6 register sets are worse than the inherited
+one; zeroing the inherited `+0x0FC` table or `+0x19A` lane map breaks
+rendering; the calibration/gamma records are zero in every vendor file too.
 
-```
-e120 dump-flash --block 7 --out now.bin
-python3 scripts/flash-review.py now.bin          # names every damaged record
-python3 scripts/eeprom-restore.py --live now.bin # dry run; --commit to write
-```
-
-Three things were fixed today and all were real:
-
-* **Firmware.** The card was running the factory `10.81`, not the `16.53` the
-  notes claimed. On 10.81 the panel changed *with no network traffic at all*
-  (29–37 levels between photos five seconds apart). On 16.53 it is static
-  (1.6–1.8, camera noise) and the built-in test generator works. See
-  [`docs/firmware-16.53-bench-result.md`](docs/firmware-16.53-bench-result.md).
-* **Pixel mapping and driver registers.** The module's row-halves interleave
-  every 64 columns; we had flashed the contiguous wiring, scrambling every
-  column. See [`docs/panel-wiring.md`](docs/panel-wiring.md).
-* **The control area.** Restored from the day-one dump and verified across a
-  power cycle. See [`docs/receiver-identity.md`](docs/receiver-identity.md),
-  [`docs/eeprom-map.md`](docs/eeprom-map.md) — the vendor device library names
-  essentially every EEPROM field, so that layout is known, not guesswork.
+Use `scripts/bench.py run` for every experiment (one continuous stream, or
+`--restart` for per-condition `image` flags), and `--boot` before any
+configuration change so the card starts from a known state.
 
 ## The rig
 

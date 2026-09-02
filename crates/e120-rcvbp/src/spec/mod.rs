@@ -1,12 +1,8 @@
-//! A panel described declaratively, and everything the card needs generated from it.
+//! A panel spec (`config/panels/*.toml`) and the config generated from it.
 //!
-//! Record 0x01, the pixel mapping and the basic pack. Field offsets come from
-//! `docs/record-0x01-fields.md`; pack formulas from the vendor's `GetBasicParam`,
-//! each pinned against the factory bytes under test.
-//!
-//! Nothing is copied from a donor file: every byte is a vendor default, a spec
-//! field, a chip-library value, or a documented literal, and the provenance
-//! lists each placement.
+//! Record 0x01 (`docs/record-0x01-fields.md`), the pixel mapping and the basic
+//! pack (vendor `GetBasicParam`). Nothing is copied from a donor file: every
+//! byte is a vendor default, a spec field, a chip-library value or a listed literal.
 
 mod basic_pack;
 mod generate;
@@ -40,10 +36,8 @@ pub struct PanelSpec {
     pub mapping: Mapping,
     #[serde(default)]
     pub boot: Boot,
-    /// Raw record 0x01 byte overrides, `"0x043" = 0x20`, applied last and
-    /// reported in the provenance. Carries experiments and also measured
-    /// single-byte settings the field dictionary has not named — the bench
-    /// spec's `+0x02F = 1` lives here and nothing displays without it.
+    /// Raw record 0x01 byte overrides (`"0x043" = 0x20`), applied last. The
+    /// bench spec's `+0x02F = 1` lives here; nothing displays without it.
     #[serde(default, deserialize_with = "crate::chips::record01_offsets")]
     pub record01_overrides: BTreeMap<usize, u8>,
 }
@@ -159,18 +153,14 @@ pub struct Mapping {
     pub reversed_groups: bool,
     /// Scan lines addressed bottom-up (`scan-1-row`) instead of top-down.
     pub reversed_lines: bool,
-    /// Columns per block of the shift chain before it switches to the other
-    /// data group. A module whose two halves hang off one chain in alternating
-    /// runs — `[lower 0..b][upper 0..b][lower b..2b]...` — needs the run
-    /// length here. The default, the full module width, gives each group one
-    /// contiguous half of the chain; the seller's own file for the panel on
-    /// this bench uses 64, i.e. the halves alternate every four driver chips.
+    /// Columns per run of the shift chain before it switches data group:
+    /// `[lower 0..b][upper 0..b][lower b..2b]...`. Default (module width) gives
+    /// each group one contiguous half; the bench panel's own file uses 64.
     #[serde(default)]
     pub block: Option<u16>,
-    /// Displace line positions `width..2*width` off the chain through the
-    /// void-line column table; the card otherwise drives them with a fixed
-    /// pattern that shows as a floor at black (docs/black-floor.md). Off
-    /// reproduces the factory image.
+    /// Displace line positions `width..2*width` off the chain via the void-line
+    /// column table; otherwise the card drives them with a fixed pattern that
+    /// shows as a floor at black (docs/rendering.md). Off reproduces the factory image.
     #[serde(default = "default_true")]
     pub gate_phantom_positions: bool,
 }
@@ -213,8 +203,8 @@ impl PanelSpec {
         toml::from_str(&text).with_context(|| format!("parse {}", path.display()))
     }
 
-    /// Generate the config and basic pack (chip library path relative to the
-    /// working directory).
+    /// Generate the config and basic pack; the chip library path is relative
+    /// to the working directory.
     ///
     /// # Errors
     /// Fails on an invalid spec or unusable chip library.

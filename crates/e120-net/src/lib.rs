@@ -1,7 +1,5 @@
-//! Transport layer: raw Ethernet I/O and capture-file reading.
-//!
-//! Deliberately protocol-agnostic — it moves opaque Ethernet frames so that
-//! the Colorlight protocol itself lives entirely in `e120-proto`.
+//! Raw Ethernet I/O (`/dev/bpf`) and classic pcap reading. Frames are opaque
+//! here; the Colorlight protocol lives in `e120-proto`.
 
 mod bpf;
 mod pcap;

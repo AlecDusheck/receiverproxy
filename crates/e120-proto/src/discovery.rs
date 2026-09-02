@@ -1,4 +1,8 @@
-//! Discovery, layout, test mode, and the upgrade descriptor query.
+//! Discovery, layout, test mode, parameter reload, and the upgrade-descriptor
+//! query.
+//!
+//! The descriptor query is a discovery frame (type 0x0700) with `ff ff ff` at
+//! payload 1..4; the card answers with type 0x08 instead of 0x0805.
 
 use super::{command, frame, frame_with, indexed};
 
@@ -7,10 +11,8 @@ use super::{command, frame, frame_with, indexed};
 pub fn discovery() -> Vec<u8> {
     frame([0x07, 0x00], &[0u8; 270])
 }
-/// Set the receiver layout: this card's size and the size of the whole screen.
-///
-/// Field positions follow the type 0x02 packet documented by FPP, expressed
-/// here relative to the payload that follows the two type bytes.
+/// Receiver layout (FPP's type 0x02 packet): this card's size and offset,
+/// and the whole screen's size. Offsets are into the payload after the type.
 #[must_use]
 pub fn set_layout(
     rcv_index: u16,
@@ -31,7 +33,7 @@ pub fn set_layout(
         p[18..20].copy_from_slice(&total_h.to_be_bytes());
     })
 }
-/// Built-in test-pattern mode (card-generated, RAM only).
+/// Card-generated test pattern; not persisted.
 #[must_use]
 pub fn test_mode(rcv_index: u16, pattern: u8) -> Vec<u8> {
     frame_with([0x33, 0x00], 0x109, |p| {
@@ -39,20 +41,18 @@ pub fn test_mode(rcv_index: u16, pattern: u8) -> Vec<u8> {
         p[4] = pattern;
     })
 }
-/// Ask the card to reload its parameters from flash (opcode 0x79).
+/// Reload parameters from flash, opcode 0x79.
 #[must_use]
 pub fn reload_params(rcv_index: u16) -> Vec<u8> {
     command(rcv_index, 0x79, &[])
 }
-/// The vendor's post-save reload: opcode 0x77, flags `01 01 01` ("all three
-/// parameter classes"). Which of the two reloads the card needs is unmeasured.
+/// The vendor's post-save reload: opcode 0x77, flags `01 01 01`. Which of the
+/// two reloads the card needs after a flash save has not been measured.
 #[must_use]
 pub fn reload_params_full(rcv_index: u16) -> Vec<u8> {
     command(rcv_index, 0x77, &[0x01, 0x01, 0x01])
 }
-/// Ask the card to describe its firmware-upgrade capabilities: a discovery
-/// frame marked `ff ff ff` plus a magic number. Decode the reply with
-/// `upgrade::parse_descriptor`.
+/// Upgrade-descriptor query; decode the reply with `upgrade::parse_descriptor`.
 #[must_use]
 pub fn upgrade_info() -> Vec<u8> {
     frame_with([0x07, 0x00], 270, |p| {
@@ -62,7 +62,8 @@ pub fn upgrade_info() -> Vec<u8> {
         p[10] = 0x09;
     })
 }
-/// Parsed discovery response (field meanings from community 5A-75B work).
+/// Type 0x0805 discovery reply; field offsets follow the community 5A-75B
+/// decode (`e120 discover` reads firmware 16.53 from `ver_major.ver_minor`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiscoveryInfo {
     pub card_id: u8,

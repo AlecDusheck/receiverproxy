@@ -1,4 +1,5 @@
-//! Minimal libpcap file reader (classic tcpdump format, big/little endian).
+//! Classic libpcap file reader, either byte order, microsecond or nanosecond
+//! magic. pcapng is rejected with a hint to convert.
 
 use anyhow::{bail, Context, Result};
 use std::path::Path;
@@ -8,7 +9,7 @@ pub struct PcapPacket<'a> {
     pub ts_sec: u32,
     /// Microseconds, also for nanosecond-resolution files.
     pub ts_usec: u32,
-    /// The raw Ethernet frame, starting at the destination MAC.
+    /// The Ethernet frame from the destination MAC.
     pub data: &'a [u8],
 }
 
@@ -35,8 +36,6 @@ impl Pcap {
     }
 }
 
-/// Read a classic pcap file. pcapng is rejected.
-///
 /// # Errors
 /// Fails if the file cannot be read or is not a classic pcap file.
 pub fn read_pcap(path: impl AsRef<Path>) -> Result<Pcap> {
@@ -53,7 +52,7 @@ pub fn parse_pcap(d: &[u8]) -> Result<Packets<'_>> {
     Ok(Header::parse(d)?.packets(d))
 }
 
-/// What the magic number says about the record headers.
+/// Record-header byte order and timestamp unit, from the magic number.
 #[derive(Clone, Copy, Debug)]
 struct Header {
     read_u32: fn([u8; 4]) -> u32,
@@ -90,7 +89,6 @@ impl Header {
     }
 }
 
-/// Iterator over the packets of a pcap file, borrowing the file bytes.
 #[derive(Clone, Debug)]
 pub struct Packets<'a> {
     header: Header,

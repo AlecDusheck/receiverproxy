@@ -79,7 +79,7 @@ so `ecpunpack` does not walk into the trailer and abort.
 → [bitstream-format.md](fpga/bitstream-format.md),
 [decode-method.md](fpga/decode-method.md)
 
-## Two traps that will bite anyone who repeats this — HIGH
+## Traps — HIGH
 
 1. **prjtrellis `word:` bit order varies per field.** The PLL's dividers are
    MSB-first; other fields are not. Always check `bits.db`.
@@ -102,14 +102,15 @@ span wires to the boundary), so only 45 of the 96 RGB pads resolve to a driver
 cell. **Prefer forward reasoning or one-hop IOLOGIC signatures** — that is how
 the 96 RGB pins were actually found.
 
-## Which firmware the card is actually running — HIGH
+## Which firmware the dumps hold — HIGH
 
-**`E320_PCB6.0_PWM_FPGA10.81_20230907`, not 16.53.** Confirmed three ways: the
+The day-one dump and the first snapshots hold
+`E320_PCB6.0_PWM_FPGA10.81_20230907`, not 16.53, confirmed three ways: the
 header date, a per-block match of exactly `1.000000` outside the reserved
-span, and 10.81's uniquely different EBR ROM present in both primary dumps.
-
-Most of the analysis targets 16.53 because that is the firmware the project
-intends to run. **Check which image a claim refers to before acting on it.**
+span, and 10.81's uniquely different EBR ROM. 16.53 was installed on
+2026-09-01 and `e120 discover` reports it ([rendering.md](rendering.md)). The
+analysis targets 16.53; check which image a claim refers to before acting on
+it.
 
 → [flash-layout.md](fpga/flash-layout.md)
 
@@ -126,9 +127,9 @@ must not be repeated. The surviving hypothesis is a register file compared
 data-vs-data. (The `R27C44_Q0..Q3` "mode field" lead that once looked concrete
 is **refuted** — it is an ordinary CCU2 accumulator.)
 
-The bench settles what the netlist could not: the gateware **does** branch on
-the id, and **`0x014C` is very likely correct while `0x0214` is not** —
-MEDIUM-HIGH.
+The bench settles what the netlist could not: the gateware branches on the
+id. `0x014C` arms the SM16269S outputs and renders; `0x0214` and `0x00DE`
+never arm ([rendering.md](rendering.md)).
 
 → [chip-id.md](fpga/chip-id.md),
 [parameter-path.md](fpga/parameter-path.md)
@@ -152,44 +153,18 @@ Version numbers are not one sequence: 10.81 is dated *after* 13.39.
 
 ---
 
-## What this means for getting a test pattern on the panel
-
-The bench facts triangulate tightly:
+## What the bench settled
 
 | fact | what it establishes |
 |---|---|
-| brightness scales current | the card parses our frames, the scan engine runs, OE/current modulation works, the drivers are armed and sinking current — **HIGH** |
-| `0x014C` gives per-pixel noise at 2.8–4 A | individual pixels are individually addressable: the chain loads, the latch fires, the PWM engines run. A panel showing per-pixel noise under a uniform white fill is **displaying buffer contents that are not our content** — **HIGH** |
-| dead on Normal 13.39, responds on PWM builds | SM16269S is a PWM-class self-scanning driver and only PWM gateware speaks its protocol. **16.53 is the right build; stop chasing other families** — **HIGH** |
-| our frames are byte-exact FPP and on the wire | the host encoder is not the problem — **HIGH** |
-| the card's own test pattern also fails | the fault is at or below the card's raster stage — **but the selector enum is unknown and a background streamer may have been overwriting the framebuffer, so this is the weakest link in the chain** — NOT RESOLVED |
+| dead on Normal 13.39 (0.44 A), responds on PWM builds | SM16269S is a PWM-class self-scanning driver and only PWM gateware speaks its protocol; 16.53 is the build |
+| the frames are byte-exact against CLTNic.dll and on the wire | the host encoder was never the problem |
+| `0x014C` armed the drivers and, once `+0x02F = 1`, the frame order and booting from flash were in place, rendered content | the driver protocol is selected by the chip id in the pack, not by a table in the gateware |
+| an all-black frame drew a fixed pattern until the positions `width..2·width` were displaced through the void-line column table | the card emits `2 × width` positions per line for this wiring and fills the upper half from a fixed source; the void-line remap gates it |
 
-> **The driver protocol is right, the drivers are armed, and the raster is
-> being scanned. What is wrong is which bytes reach the scan buffer.**
-
-### Do these, in order
-
-1. **Flash `build/p25-128x64-sm16269s-block7.bin`** (it lands at flash
-   `0x070000`), fix the screen-size record at `0x7F000`, `reload-params
-   --full`, `send-params`. The corrected config — right CardScanLen (256, not
-   512), right module positions, right serial clock, double latch — **has
-   never actually been on the card.** Every scrambled-content result predates
-   it.
-2. **Keep sending chip id `0x014C`**, not `0x0214`.
-   `config/panels/p25-128x64-sm16269s.toml` already points at
-   `config/chips/sm16269.toml` (family `0x14C`, sub `0x14D`), which is
-   correct.
-3. **Kill every background `fill --hold` streamer**, confirm the wire is
-   quiet, and **press the card's physical test button.** That bypasses the
-   host, the Ethernet stack and the `0x33` command path entirely. If the
-   button lights the panel, the output stage is proven good and everything
-   left is the data path — and it settles the one fact the whole diagnosis
-   currently hangs on.
-4. **Send exactly one lit pixel** at (0,0), then one row, then one column. A
-   scrambled raster and a missing raster are indistinguishable under a uniform
-   fill and completely different under one pixel.
-
-Full ranked hypotheses with per-hypothesis experiments:
-[output-stage.md §6](fpga/output-stage.md#6-reconciling-the-bench-facts).
-Everything still unresolved, tiered by impact, with what would settle each:
-[open-questions.md](fpga/open-questions.md).
+The per-hypothesis experiments written before those results are in
+[output-stage.md §6](fpga/output-stage.md#6-reconciling-the-bench-facts) and
+[open-questions.md](fpga/open-questions.md); read them against
+[rendering.md](rendering.md) and [retracted-findings.md](retracted-findings.md)
+(the physical test button does nothing on this card; the "per-pixel noise"
+was a buffer nothing was driving on firmware 10.81).

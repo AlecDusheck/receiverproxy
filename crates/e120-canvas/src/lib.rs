@@ -1,9 +1,7 @@
-//! Panel topology: mapping one logical image onto an arbitrary wall of panels.
-//!
-//! A wall is described independently of the protocol that drives it. Panels may
-//! be any size, in any arrangement, rotated or mirrored, spread across any
-//! number of receiving cards. Rendering a frame produces one framebuffer per
-//! receiver, in that receiver's own pixel coordinates, ready to be sent.
+//! Panel topology: one logical image mapped onto a wall of panels, any size,
+//! rotation or mirroring, across any number of receiving cards. Rendering
+//! yields one framebuffer per receiver in that receiver's own pixel space;
+//! the wire protocol is not involved here.
 
 use serde::{Deserialize, Serialize};
 
@@ -183,11 +181,9 @@ impl Panel {
     /// receiver's framebuffer that lights it. Requires a non-empty panel.
     fn receiver_coords(&self, local_x: u32, local_y: u32) -> (u32, u32) {
         let (max_x, max_y) = (self.width - 1, self.height - 1);
-        // Apply mirroring in canvas space first.
+        // Mirror in canvas space, then undo the mounting rotation.
         let lx = if self.flip_x { max_x - local_x } else { local_x };
         let ly = if self.flip_y { max_y - local_y } else { local_y };
-
-        // Then undo the mounting rotation to reach panel-native coordinates.
         let (px, py) = match self.rotation {
             Rotation::None => (lx, ly),
             Rotation::Cw90 => (ly, max_x - lx),
@@ -197,8 +193,8 @@ impl Panel {
         (self.receiver_x + px, self.receiver_y + py)
     }
 
-    /// The mapping as an affine map, so the per-pixel loop is plain adds.
-    /// Every rotation/flip combination is a rigid motion, so this is exact.
+    /// The mapping as an affine map; exact because every rotation/flip
+    /// combination is a rigid motion (`every_mounting_matches_the_per_pixel_mapping`).
     fn placement(&self) -> Placement {
         let at = |x, y| {
             let (rx, ry) = self.receiver_coords(x, y);
@@ -206,8 +202,8 @@ impl Panel {
         };
         let origin = at(0, 0);
         let step = |p: (i64, i64)| (p.0 - origin.0, p.1 - origin.1);
-        // A one-pixel-wide (or high) panel never takes the step, so any value
-        // is fine; (0, 0) keeps the arithmetic in range.
+        // A one-pixel-wide or -high panel never takes the step; (0, 0) keeps
+        // the arithmetic in range.
         let col_step = if self.width > 1 { step(at(1, 0)) } else { (0, 0) };
         let row_step = if self.height > 1 { step(at(0, 1)) } else { (0, 0) };
         Placement {
@@ -225,9 +221,8 @@ impl Panel {
         }
     }
 
-    /// Copy this panel's canvas rectangle from `src` into `dst`. Pixels off
-    /// either frame are skipped (source reads black, destination writes are
-    /// dropped), matching what per-pixel `pixel`/`set_pixel` did.
+    /// Copy this panel's canvas rectangle from `src` into `dst`. Off-frame
+    /// source reads black; off-frame destination writes are dropped.
     fn blit(&self, src: &Frame, dst: &mut Frame) {
         if self.width == 0 || self.height == 0 {
             return;
@@ -254,8 +249,7 @@ impl Panel {
 
     fn blit_rows(&self, src: &Frame, dst: &mut Frame, origin: (i64, i64)) {
         let (rx, ry) = (origin.0 as u32, origin.1 as u32);
-        // Clip to the destination; whatever the source does not cover is
-        // written black, as reading off the source frame always was.
+        // Clip to the destination; what the source does not cover is written black.
         let dst_w = self.width.min(dst.width.saturating_sub(rx)) as usize;
         let dst_rows = self.height.min(dst.height.saturating_sub(ry));
         let src_w = dst_w.min(src.width.saturating_sub(self.x) as usize);
@@ -434,8 +428,7 @@ mod tests {
         f
     }
 
-    /// The per-pixel mapping, as `render` did it before the row copy and the
-    /// affine walk: the reference the fast paths must match byte for byte.
+    /// Reference per-pixel mapping the row-copy and affine paths must match.
     fn render_per_pixel(canvas: &Canvas, src: &Frame) -> Vec<(u16, Frame)> {
         let mut out = canvas.receiver_frames();
         for panel in &canvas.panels {
@@ -498,8 +491,7 @@ mod tests {
 
     #[test]
     fn rotation_maps_corners_where_expected() {
-        // A panel mounted rotated 90 degrees clockwise: the canvas rectangle is
-        // 2 wide by 4 high, the panel itself is 4 by 2.
+        // Mounted 90 degrees clockwise: canvas rectangle 2x4, panel itself 4x2.
         let canvas = Canvas {
             width: 2,
             height: 4,
@@ -526,8 +518,7 @@ mod tests {
         let mut src = Frame::black(2, 4);
         src.set_pixel(0, 0, [255, 0, 0]); // canvas top-left
         let out = canvas.render(&src);
-        // Turning the panel clockwise sends the canvas top-left to the panel's
-        // bottom-left.
+        // Canvas top-left lands at the panel's bottom-left.
         assert_eq!(out[0].1.pixel(0, 1), [255, 0, 0]);
     }
 
@@ -543,9 +534,8 @@ mod tests {
 
     #[test]
     fn every_mounting_matches_the_per_pixel_mapping() {
-        // Two receivers, panels offset on both the canvas and the receiver,
-        // odd sizes, every rotation with every flip combination; plus a panel
-        // hanging off both frames, which must clip the way set_pixel dropped.
+        // Two receivers, offset panels, odd sizes, every rotation and flip,
+        // plus a panel hanging off both frames.
         let src = gradient(23, 17);
         let rotations = [
             Rotation::None,

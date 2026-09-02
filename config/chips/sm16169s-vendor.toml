@@ -12,11 +12,9 @@
 # vendor .rcvbp files in the corpus that declare chip 0x00DE have no 0x0A84
 # record whatsoever.
 #
-# This file therefore CANNOT be loaded by crates/e120-rcvbp/src/chips.rs as it
-# stands — that struct is `deny_unknown_fields` and requires `order` and
-# `registers`. See docs/chip-libraries-non-sh.md for the schema change the
-# generator needs. The values below are complete and citable; only the loader
-# is missing.
+# crates/e120-rcvbp/src/chips.rs loads it through chip_custom,
+# chip_custom_scan_patch, chip_custom_ex, emit_record_84 and gray_bits
+# (docs/chip-libraries-non-sh.md). Not measured on the bench.
 #
 # Sources (all file offsets in the macOS build libCLTDevice.1.dylib unless
 # marked LEDSet; LEDSet = CLTInterface.dll from LEDSetting 2.2.6, image base
@@ -155,8 +153,8 @@ gray_bits = 14
 "0x205" = 0x00
 # +0x02F: the vendor Reset() default is 1 (`movl $0x1, 0xd4(%rdi)` @ 0x12FACD)
 # and ALL 59 SM16169S corpus files carry 1. Our 0x14C file inherited 0 from
-# the seller.
+# the reference file.
 "0x02F" = 0x01
 # +0x043: ALL 59 SM16169S corpus files carry 0. Our 0x14C file inherited 0x60
-# from the seller (8 of 1146 vendor files use 0x60; none of them is this chip).
+# from the reference file (8 of 1146 vendor files use 0x60; none of them is this chip).
 "0x043" = 0x00

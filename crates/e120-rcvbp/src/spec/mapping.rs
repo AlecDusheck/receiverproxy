@@ -1,9 +1,7 @@
-//! Record 0x03, the pixel mapping: for every module pixel in raster order
-//! (over the stored height), the scan line it belongs to and its slot in
-//! that line's buffer.
-//!
-//! The count is width x stored height (`SaveBpToBuffer` @ 0x1cc404); the
-//! entry formula is corpus-derived (docs/panel-wiring.md).
+//! Record 0x03, the pixel mapping: per module pixel in raster order over the
+//! stored height, its scan line and slot in that line's buffer. Count is
+//! width x stored height (`SaveBpToBuffer` @ 0x1cc404); the entry formula is
+//! corpus-derived (docs/panel-wiring.md).
 
 use super::PanelSpec;
 
@@ -14,9 +12,8 @@ pub fn record(spec: &PanelSpec) -> Vec<u8> {
     let scan = u16::from(spec.module.scan);
     let groups = h / scan;
     let n = w * h;
-    // The chain is walked in blocks of `blk` columns; each block holds one
-    // run per data group, so a group's columns are contiguous only within a
-    // block. With `blk == w` this collapses to `group * w + col`.
+    // Each block of `blk` columns holds one run per data group; with
+    // `blk == w` the slot collapses to `group * w + col`.
     let blk = spec.mapping.block.unwrap_or(w).clamp(1, w);
     let mut out = Vec::with_capacity(2 + usize::from(n) * 3);
     out.extend_from_slice(&n.to_le_bytes());

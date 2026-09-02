@@ -1,98 +1,204 @@
 # e120
 
-Drive a Colorlight E120 LED receiving card directly from a Mac over raw
-Ethernet — no vendor software involved. The card speaks a layer-2 protocol
-with hardcoded MAC addresses and no IP, so everything here works on raw
-Ethernet frames via `/dev/bpf`.
+Drive a Colorlight E120 LED receiving card and its modules over raw Ethernet: generate and flash the module configuration yourself, then put images, video and live streams on the panel.
 
-## Workspace
+The card speaks a layer-2 protocol with fixed MAC addresses and no IP, so `e120` writes whole Ethernet frames through `/dev/bpf` on macOS and needs no vendor software. It reads and writes the card's flash and EEPROM, with address allowlists that keep configuration writes inside the parameter block and firmware writes on the card's own staging path. It installs FPGA firmware. It generates the receiver configuration (the `.rcvbp` file and the 64 KB boot image the card loads at power-on) from a short TOML panel spec plus a chip library, and ships libraries for common driver chips and module classes mined from 2,381 vendor config files. It shows still images, plays video through ffmpeg, reads raw rgb24 frames from stdin, and serves a unix socket other programs can write frames to. Every command that writes flash or EEPROM prints its plan and stops unless `--commit` is given.
 
-| Crate | Role |
-|---|---|
-| `e120-proto` | The wire protocol: discovery, pixel rows, sync, brightness, layout, test mode, flash/EEPROM access, parameter packs. Pure logic. |
-| `e120-net` | Raw Ethernet over BPF, plus a pcap reader. |
-| `e120-rcvbp` | The `.rcvbp` config format (parse/write/CRC), the compiled boot-image builder, and the panel-spec generator. |
-| `e120-canvas` | Wall topology: one image onto any arrangement of panels. |
-| `e120-video` | Frame sources: video via ffmpeg, test patterns. |
-| `e120-driver` | Joins topology, protocol and transport. |
-| `e120-cli` | The `e120` binary. |
+## Install
 
-## Setup
+Rust stable via [rustup](https://rustup.rs) (`rust-toolchain.toml` pins the channel), then:
 
 ```sh
-sudo chmod o+rw /dev/bpf*      # resets on reboot
-cargo build
+cargo install --path crates/e120-cli
 ```
 
-Global options: `--iface en24 --width 128 --height 64 --order bgr --brightness N`.
+`e120 show video` and `e120 show stream` pipelines need `ffmpeg` on the PATH (`brew install ffmpeg`).
 
-Output follows unix conventions: commands print only their result on stdout
-(a value, the path of each file written, a table) and nothing on success
-otherwise; progress for long operations goes to stderr; errors are
-`e120: <subcommand>: <reason>` on stderr with exit 1, usage errors exit 2.
-Commands that write to the card print a plan and stop unless `--commit` is
-given.
-
-## Configuring a panel
-
-A panel is described once, declaratively, and everything the card needs is
-generated from it — see [`docs/building-a-config.md`](docs/building-a-config.md).
+Raw Ethernet needs read/write access to the BPF devices. Without it `e120` fails with `could not open any /dev/bpf* device ... (try: sudo chmod o+rw /dev/bpf*)`:
 
 ```sh
-e120 gen-config --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
-e120 restore-flash build/p25-128x64-sm16269s-block7.bin --commit   # install the boot image
-e120 screen-size --set 128x64 --commit
-e120 reload-params --full                                          # apply without a power cycle
-e120 send-params --spec config/panels/p25-128x64-sm16269s.toml            # or push the RAM packs directly
+sudo chmod o+rw /dev/bpf*    # resets on reboot
 ```
 
-Inspecting configs: `e120 rcvbp file.rcvbp`, `e120 config-diff a b`,
-`e120 read-config --out card.rcvbp` (what the card holds).
+The card is connected directly to one interface; the default is `en24`, pass `--iface` for another.
 
-## Driving the panel
+## Usage
+
+```
+Drive a Colorlight receiving card over raw Ethernet
+
+Usage: e120 [OPTIONS] <COMMAND>
+
+Commands:
+  discover    Send a discovery packet and print any card that answers
+  brightness  Set panel brightness (0-255)
+  provision   Bring a card to a working state: snapshot, firmware, config, EEPROM, verify
+  show        Put pixels on the panel: images, video, streams, patterns
+  config      Generate, inspect and transfer .rcvbp configurations
+  flash       Read and write the card's flash, and snapshot or restore it
+  firmware    Install FPGA firmware
+  card        Card state held in RAM or EEPROM: layout, screen size, test modes
+  debug       Wire diagnostics: listen, hand-built frames, pcap tools
+  help        Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help                     Print help
+  -i, --iface <IFACE>            Network interface directly connected to the receiving card [default: en24]
+      --width <WIDTH>            Panel width in pixels [default: 128]
+      --height <HEIGHT>          Panel height in pixels [default: 64]
+      --order <ORDER>            Color order on the wire [default: bgr]
+  -b, --brightness <BRIGHTNESS>  Brightness 0-255 (sent in sync frames) [default: 255]
+```
+
+Find the card; the reply includes its firmware version:
 
 ```sh
-e120 discover                  # firmware version and detected size
-e120 set-layout                # tell the card its size (RAM; needed each boot)
-e120 test rgb --hold           # rgb | border | rows | gradient | white
-e120 fill ff8000 --hold
-e120 image picture.png --hold
-e120 play clip.mp4
-e120 blank
+e120 discover
 ```
 
-`--layout wall.json` drives a multi-panel wall (`e120 layout-example`).
-
-## Bench
-
-`scripts/bench.py boot` powers the panel on behind `psu.sh`'s dead-man timer and
-arms it, `scripts/bench.py capture` takes strobe-proof averaged stills, and
-`scripts/bench.py run --boot` runs one experiment as a single continuous stream
-with current readings, photos and a same-content control
-([docs/bench-measurement.md](docs/bench-measurement.md)).
-
-## Flash and firmware
-
-Reads are always safe; writes need `--commit` and are confined by guards in
-`e120-proto` (config writes reach only the parameter block; firmware only
-through the card's own SDRAM staging path). Snapshot before flashing:
+Provision a card from a panel spec and a firmware image. Without `--commit` it prints the five steps (snapshot, firmware, EEPROM read, config, EEPROM write) and does nothing. Power-cycle the card afterwards; it configures itself from flash.
 
 ```sh
-e120 snapshot --dir before                      # primary bank + golden bank
-e120 read-config --out before/config.rcvbp      # the live configuration
-e120 upgrade install image.hex --commit
-e120 restore all --dir before --commit          # puts the configuration back (not firmware)
+e120 provision --spec config/panels/p25-128x64-sm16269s.toml \
+    --firmware third-party/firmware/E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex \
+    --position 0,0 --commit
 ```
 
-Layout, images and procedure: [`third-party/README.md`](third-party/README.md).
+Show an image, scaled to the panel, and keep refreshing until Ctrl-C:
 
-## Documentation
+```sh
+e120 show image picture.png --hold
+```
 
-* [`docs/architecture.md`](docs/architecture.md) — the pipeline end to end, crate responsibilities, where each measured default lives.
-* [`docs/building-a-config.md`](docs/building-a-config.md) — the generator, what is derived from where, honest limits.
-* [`docs/record-0x01-fields.md`](docs/record-0x01-fields.md) — every byte of the main parameter record.
-* [`docs/compiled-image-format.md`](docs/compiled-image-format.md) — the boot image, region by region.
-* [`docs/rcvbp-format.md`](docs/rcvbp-format.md) — the `.rcvbp` container.
-* [`docs/vendor-sdk-analysis.md`](docs/vendor-sdk-analysis.md) — how findings were extracted from the vendor binaries.
-* [`docs/archive/config-protocol.md`](docs/archive/config-protocol.md) — the original analysis log (superseded where the documents above disagree).
-* [`HANDOFF.md`](HANDOFF.md) — current state and next steps.
+Play a video in a loop at 30 fps, fitted inside the panel:
+
+```sh
+e120 show video clip.mp4 --loop --fps 30 --fit contain
+```
+
+Pipe frames from ffmpeg. `show stream` reads bare rgb24 frames of `--size` from stdin; a size other than the panel's is resampled with `--fit`:
+
+```sh
+ffmpeg -i clip.mp4 -vf scale=128:64 -f rawvideo -pix_fmt rgb24 - \
+    | e120 show stream --size 128x64 --fps 30
+
+ffmpeg -f avfoundation -capture_cursor 1 -framerate 30 -i "Capture screen 0" \
+    -vf scale=128x64:flags=area -f rawvideo -pix_fmt rgb24 - \
+    | e120 show stream --size 128x64 --fps 30
+```
+
+`scripts/mirror.sh` is the second pipeline as a script: `scripts/mirror.sh -s 128x64 -f 30 -c 0,0,640,320` mirrors a crop of the screen.
+
+Serve a unix socket. One client at a time connects, sends a 12-byte header, then rgb24 frames, and is paced at the header's fps; the panel keeps the last frame between clients. The header is `E120`, version byte `1`, one reserved byte, then width, height and fps as little-endian u16 (`crates/e120-video/src/raw.rs`).
+
+```sh
+e120 show serve --socket /tmp/e120.sock
+```
+
+```python
+import socket, struct
+s = socket.socket(socket.AF_UNIX); s.connect("/tmp/e120.sock")
+s.sendall(struct.pack("<4sBBHHH", b"E120", 1, 0, 128, 64, 30) + bytes(128 * 64 * 3))  # header, then one black frame
+```
+
+Other things the panel can show:
+
+```sh
+e120 show fill ff8000 --hold        # solid colour
+e120 show test rgb --hold           # gradient | rows | border | rgb | white
+e120 show blank
+e120 brightness 40
+```
+
+Configuration without a full provision:
+
+```sh
+e120 config gen --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
+e120 config info build/p25-128x64-sm16269s.rcvbp
+e120 config read --out card.rcvbp                  # what the card holds
+e120 config diff card.rcvbp build/p25-128x64-sm16269s.rcvbp
+e120 config send --spec config/panels/p25-128x64-sm16269s.toml   # RAM only, no flash
+```
+
+Flash and firmware. Reads are always safe; writes need `--commit`:
+
+```sh
+e120 flash snapshot --dir before                   # primary bank + golden bank
+e120 firmware install image.hex --commit
+e120 flash restore --dir before --commit           # configuration back, not firmware
+```
+
+Multi-panel walls: provision each card with its own `--position x,y`, describe the wall in a layout file (`e120 card layout-example` prints one) and stream it with `e120 show video --layout wall.json`.
+
+## Configuration
+
+A panel is described once in `config/panels/<panel>.toml`; `e120 config gen` produces the `.rcvbp`, the boot image and a provenance file naming the source of every byte. The spec that has driven the bench panel, shortened:
+
+```toml
+name = "p25-128x64-sm16269s"
+
+[module]
+gray_bits = 12
+width = 128
+height = 64
+scan = 16
+line_dir = 0
+data_groups = 1
+serial_clock = 8
+
+[screen]
+width = 128
+height = 64
+
+[chip]
+library = "config/chips/sm16269s-factory.toml"
+
+[color]
+swap = 3
+source = [2, 1, 0]
+
+[current]
+gains = [43, 43, 43, 43]
+percent = [0.1, 0.1, 0.1]
+
+[timing]
+gamma = 2.8
+refresh_hz = 60.0
+gclock = 0x14
+min_oe = 0.0001
+luminance_level = 188
+oe_8ns = true
+
+[mapping]
+reversed_groups = true
+reversed_lines = false
+block = 64
+
+[boot]
+arm_at_boot = true
+
+[record01_overrides]
+"0x02F" = 0x01
+```
+
+- `[module]` the module: size, scan (1/16 here), line direction, data groups, grey depth, serial clock.
+- `[screen]` the whole screen this card drives.
+- `[chip]` the driver-chip library file: chip ids, the 20-byte chip-control block, the register table.
+- `[color]` channel swap and the R/G/B source order.
+- `[current]` per-channel current gains and percentages.
+- `[timing]` gamma, refresh rate, GCLK, minimum OE, luminance level, 8 ns OE.
+- `[mapping]` the wiring: group and line reversal, and the column block after which the row halves alternate along the shift chain.
+- `[boot]` whether the card arms the drivers from flash at power-on.
+- `[record01_overrides]` individual record 0x01 bytes applied last.
+
+Chip libraries are in `config/chips/`, panel specs in `config/panels/`. `config/chips/mined/` (21 chip families) and `config/panels/mined/` (87 module classes) were generated by `scripts/corpus-mine.py` from the vendor config corpus; each file's header states how many files agreed. Only the P2.5 128x64 SM16269S module on firmware 16.53, with `config/panels/p25-128x64-sm16269s.toml`, has been driven on a bench. Everything mined is a vendor default, not a measurement; use it as a starting point and check it against a vendor file for the exact module when one exists.
+
+How the generator derives each record, and its limits, is in [docs/building-a-config.md](docs/building-a-config.md).
+
+## How it was worked out
+
+[docs/README.md](docs/README.md) indexes the notes: the `.rcvbp` container and record 0x01 byte by byte, the boot image region by region, the pixel map, the chip-control block, the EEPROM records, the pixel protocol recovered from the vendor sender DLL, the FPGA bitstream and flash layout, and the firmware 16.53 install. `crates/e120-rcvbp/tests/factory.rs` pins the generator to the card: the factory basic pack and boot image regenerate byte for byte from `card-dumps/primary-region.bin`. Bench results were taken with PSU current readings and averaged camera captures ([docs/bench.md](docs/bench.md)); the values that mattered and what each alternative did are in [docs/rendering.md](docs/rendering.md), and every claim that later measurement disproved is kept in [docs/retracted-findings.md](docs/retracted-findings.md).
+
+## Hardware
+
+Developed against one Colorlight E120 receiving card running firmware 16.53 (`E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex`), one P2.5 128x64 SMD1415 module, 1/16 scan, with SM16269S driver chips, on macOS. The Ethernet transport is `/dev/bpf`, so the tool runs on macOS only.

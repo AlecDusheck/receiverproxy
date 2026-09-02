@@ -91,9 +91,8 @@ GetBasicParam output offset (pack = body offset + 4).
 | 0x277-0x2FB | — | constructor constants: `01 01`, zeros, `01 00 01 00`, `01 00`, then a 120-byte zero tail never read | — | high |
 
 Offsets not listed above are either constants (see the constructor), provenance-
-known-but-meaning-unresolved members, or explicitly NOT RESOLVED — the full
-per-byte account incl. all vt-slot pins is in the session transcript and
-`analysis/record01-fieldmine/fielddict.csv`.
+known-but-meaning-unresolved members, or explicitly NOT RESOLVED; the
+per-byte account is `analysis/record01-fieldmine/fielddict.csv`.
 
 ## Flag word #1 (payload +0x018, u32 LE)
 
@@ -128,6 +127,8 @@ vt+0x2A0 · bit12 OBJ+0xD6D9 · bit13 always set · bits13|14 OBJ+0xE1A3.
   never called in the dylib.
 
 ## Corrections to earlier docs (verified against the factory pack body)
+
+The section numbers refer to [archive/config-protocol.md](archive/config-protocol.md).
 
 1. vt+0x50 is **GetChipType** @ 0x16daa0, not GetSplitSegment — §21.2's gray
    override is a chip-type test.

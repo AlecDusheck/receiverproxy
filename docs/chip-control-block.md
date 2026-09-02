@@ -2,8 +2,7 @@
 
 What the card is told about the driver chip's serial protocol, decoded from
 the macOS build `libCLTDevice.1.dylib` (every hex address below is a file
-offset in that image; `full.asm` in the session scratchpad is its `objdump -d`
-with demangled names). Cross-checked against 1146 vendor `.rcvbp` files that
+offset in that image; `full.asm` is its `objdump -d` with demangled names). Cross-checked against 1146 vendor `.rcvbp` files that
 parse (`vendor/led-config-files` plus LEDVISION 9.6 `config_files/`) and
 against the chip-name tables in `CLTInterface.dll` from LEDSet 2.26.
 
@@ -134,7 +133,7 @@ level = ceil( trunc(64 · 2^n) / A  +  C  +  1 )
 ```
 (`23.0` at `0x3fe2d0`/`0x3fe0c4`, `6` at `0x3fe2f0`, `64.0` at `0x3fc7b0`/`0x3fc7f8`.)
 
-**Verification against the seller's file.** Its record 0x84 has
+**Verification against the reference file.** Its record 0x84 has
 `reg 0x07 = 04 04 04`, its sub-id (`+0x0E9`/`+0x205`) is **`0x0000`**, so the
 SM16169SH branch applies: `A=1, u=1, v=0, n=0` → `1·128/1 + (0+10+12) + 1 =`
 **`151 = 0x97`**, which is exactly bytes 11 and 13 of `00 0e 01 05 06 01 03 00
@@ -145,15 +144,14 @@ Consequences worth knowing:
 * Our generated config (`build/p25-128x64-sm16269s.rcvbp`) has the same
   `reg 0x07 = 0x04` and the same sub-id `0x0000`, so `0x97` is **correct and
   self-consistent** for it. This block is *not* currently wrong.
-* If you ever set `sub_id = 0x14D` (as `config/chips/sm16269.toml` does) the
-  vendor would compute `sm16269(0x04) = 94 = 0x5E`, not `0x97`; and if you also
-  restore the vendor `reg 0x07 = 0x44` it becomes `48 = 0x30`. **Changing
-  `reg 0x07` or the sub-id without recomputing bytes 10–13 desynchronises the
-  card's GCLK count from the chip's own frequency-division setting.** Our
-  `chips.rs` stores `chip_control` as a literal, so this is a real footgun:
-  `config/chips/sm16269.toml` pairs `sub_id = 0x14D` + `reg 0x07 = 0x44` with a
-  `chip_control` of `0x97`, a combination the vendor would never emit
-  (it would emit `0x30`).
+* With `sub_id = 0x14D` (as `config/chips/sm16269.toml` has) the vendor
+  would compute `sm16269(0x04) = 94 = 0x5E`, not `0x97`; with the vendor
+  `reg 0x07 = 0x44` as well it becomes `48 = 0x30`. Changing `reg 0x07` or
+  the sub-id without recomputing bytes 10–13 desynchronises the card's GCLK
+  count from the chip's own frequency-division setting. `chips.rs` stores
+  `chip_control` as a literal, so `config/chips/sm16269.toml` pairs
+  `sub_id = 0x14D` + `reg 0x07 = 0x44` with a `chip_control` of `0x97`, a
+  combination the vendor would never emit (it would emit `0x30`).
 
 ### chip 0x2F — case `0x151BCF`
 
@@ -181,9 +179,8 @@ stack slot `−(0x32C − N)(%rbp)`):
 | `+0x043` | `-0x2E9` | `OBJ+0xB8` | `0x1c713c` |
 | `+0x044` | `-0x2E8` | `OBJ+0xB9` | `0x1c76be` |
 
-A whole-image scan for readers of these members (script in the session
-transcript; it walks `full.asm` attributing every `0x…(%r*)` reference to its
-enclosing function) gives:
+A whole-image scan for readers of these members (walking `full.asm` and
+attributing every `0x…(%r*)` reference to its enclosing function) gives:
 
 * **`OBJ+0xD3B8` ("GCLK setting", record `+0x031`, ours `0x14`)** is referenced
   by exactly four functions: `Reset()` (which sets the default, `movb $0x14,
@@ -351,7 +348,7 @@ same tables use stride `0x84` with 2-byte `wchar_t`.
 Neighbours: `0x00DE` SM16169S, `0x0170` SM16169SW/SM16189, `0x024D` SM16169SK,
 `0x0217` SM16269SW, `0x0215` SM16386SH.
 
-Two corrections this forces on our own notes:
+Two corrections this forces on earlier notes:
 
 1. **`0x014D` is SM16380SH, not "the SM16269 sub-variant".**
    `config/chips/sm16269.toml`'s header comment and `sub_id = 0x014D` are wrong.
@@ -362,7 +359,7 @@ Two corrections this forces on our own notes:
 2. **The real SM16269S is `0x0214`, and `libCLTDevice`/LEDVISION 9.6 do not
    know it at all** — the dylib's tables stop at `0x15D`. Declaring `0x014C`
    (SM16169SH) is the closest thing those builds can express, and it is what
-   both the seller's file and ours do.
+   both the reference file and ours do.
 
 The task brief described the `0x002F` corpus as "SM16169 modules". It is not:
 `0x2F` is MBI5153 with sub-id SM16159. Treat that corpus as a *different chip
@@ -385,29 +382,19 @@ for us.
   RGB bit order, OE polarity: **not in the configuration at all**. They are in
   the FPGA bitstream, selected by chip id.
 
-## 9. Ranked suspects for "no pixel data, identical on all 16 scan lines"
+## 9. Outcome on the bench
 
-1. **The chip identity itself.** The silicon is SM16269S = `0x0214`; the config
-   declares `0x014C` = SM16169SH with sub-id 0. Neither `libCLTDevice` nor
-   LEDVISION 9.6 can express `0x0214`; only LEDSet 2.26 can. Since the serial
-   protocol is in gateware and the chip id selects it
-   (`docs/fpga/output-stage.md` §0), the card may be driving an SM16169SH
-   protocol at SM16269S silicon. This is structural, not a byte to tweak.
-2. **Record `+0x043 = 0x60` → basic-pack body `+0x26`.** The single strongest
-   *byte-level* anomaly: `OBJ+0xB8` sits in the scan/output member cluster
-   (between the scan-method/split bytes and the data-group/output-code byte),
-   it is written into the pack next to the output-code byte, and `0x60` occurs
-   in only **8 of 1146** vendor configs while 1126 use `0`. Its meaning is not
-   resolved, but "a scan/output byte we inherited from a wrong donor and that
-   almost nobody else sets" is exactly the shape of this fault. Setting it to
-   `0` costs nothing and is a clean A/B.
-3. **Record `+0x02F = 0` → basic-pack body `+0x19`.** The vendor's own
-   `Reset()` default is `1` and 961/1146 corpus files use `1`. We use the
-   minority value, inherited from the seller.
-4. `SChipControl` byte 16 = `0x02`, which the vendor's reset path never
-   produces for this chip. The 0x2F family has `0` there.
+This analysis ranked four suspects for "no pixel data". The one that mattered
+was record `+0x02F`: the reference file has `0`, the vendor `Reset()` default
+and 961 of 1146 corpus files have `1`, and with `1` the panel displays
+([rendering.md](rendering.md)). Chip id `0x014C` with sub-id 0 is the
+identity that arms the SM16269S outputs; `0x0214` (the real SM16269S id,
+known only to LEDSet 2.26) and `0x00DE` never arm. Record `+0x043 = 0x60`
+(8 of 1146 vendor files; `OBJ+0xB8` in the scan/output member cluster, pack
+body `+0x26`) and `SChipControl` byte 16 = `0x02` (never written by the reset
+path for this chip) were not needed and their meaning is still not resolved.
 
-Explicitly **cleared** by this work — do not spend time on them:
+Cleared by this analysis:
 
 * `SChipControl` bytes 10–13 = `00 97 00 97` are **correct** for our record
   (`reg 0x07 = 0x04`, sub-id `0`); the vendor would compute the same 151.

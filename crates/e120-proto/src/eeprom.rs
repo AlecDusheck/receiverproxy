@@ -1,11 +1,8 @@
-//! The receiver's on-board EEPROM (cabinet identity) and the frames that
-//! write it.
+//! The receiver's EEPROM (cabinet identity) and the type-0x1900 frames that
+//! write it: opcode 0x85 writes one record, 0x87 commits to the flash mirror.
 //!
-//! Writes go one record at a time at the record's own address and length: the
-//! card silently ignores a write that crosses a record boundary
-//! (`docs/eeprom-map.md`). Frames are type `0x1900`, addressed to
-//! [`BROADCAST`]; opcode `0x85` writes, `0x87` commits the EEPROM to its flash
-//! mirror.
+//! A write must use a record's own address and length; the card silently
+//! ignores one that crosses a record boundary (`docs/eeprom-map.md`).
 
 use super::{command, frame_with, indexed, BROADCAST};
 
@@ -18,7 +15,7 @@ pub struct Record {
 }
 
 /// Every record the vendor device library reads or writes
-/// (`docs/eeprom-map.md`). Lengths are load-bearing.
+/// (`docs/eeprom-map.md`); the lengths are what the card accepts.
 pub const RECORDS: &[Record] = &[
     Record { addr: 0x000, len: 2, name: "debug bytes" },
     Record { addr: 0x002, len: 42, name: "control area" },
@@ -61,8 +58,8 @@ pub const RECORDS: &[Record] = &[
     Record { addr: 0x0fd, len: 1, name: "screen-shake param" },
 ];
 
-/// The corners of the 42-byte control-area record: the cabinet's rectangle in
-/// the whole screen, stored as `startX, startY, endX, endY` (end exclusive).
+/// The cabinet's rectangle in the whole screen, from the first 8 bytes of the
+/// 42-byte control-area record: `startX, startY, endX, endY`, end exclusive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ControlArea {
     pub start_x: u16,
@@ -78,8 +75,7 @@ impl ControlArea {
         Self { start_x: x, start_y: y, end_x: x + w, end_y: y + h }
     }
 
-    /// The record: the four corners big-endian, a reserved word, then a zero
-    /// blob (the factory value).
+    /// The record: four big-endian corners, then zeros (the factory value).
     #[must_use]
     pub fn to_record(self) -> [u8; 42] {
         let mut r = [0u8; 42];
@@ -90,7 +86,6 @@ impl ControlArea {
         r
     }
 
-    /// Decode a control-area record.
     #[must_use]
     pub fn parse(r: &[u8]) -> Option<Self> {
         if r.len() < 8 {
@@ -101,14 +96,13 @@ impl ControlArea {
     }
 }
 
-/// The 42-byte control-area record for a cabinet at `(x, y)` in the whole
-/// screen, `w` by `h` pixels: [`ControlArea::for_cabinet`] as bytes.
+/// [`ControlArea::for_cabinet`] as the 42-byte record.
 #[must_use]
 pub fn control_area(x: u16, y: u16, w: u16, h: u16) -> [u8; 42] {
     ControlArea::for_cabinet(x, y, w, h).to_record()
 }
 
-/// Decode a control-area record: `(startX, startY, endX, endY)`.
+/// [`ControlArea::parse`] as a `(startX, startY, endX, endY)` tuple.
 #[must_use]
 pub fn parse_control_area(r: &[u8]) -> Option<(u16, u16, u16, u16)> {
     ControlArea::parse(r).map(|a| (a.start_x, a.start_y, a.end_x, a.end_y))
@@ -116,7 +110,8 @@ pub fn parse_control_area(r: &[u8]) -> Option<(u16, u16, u16, u16)> {
 
 /// A type-0x1900 record frame: `[4..8]` address, `[8..12]` length, data at 12.
 fn record_frame(opcode: u8, addr: u32, data: &[u8]) -> Vec<u8> {
-    // Payload length is max(0x80, len + 0x12), as the vendor builds it.
+    // Payload length max(0x80, len + 0x12), as the vendor builds it
+    // (`write_frame_matches_the_vendor_layout`).
     let n = (data.len() + 0x12).max(0x80);
     frame_with([0x19, 0x00], n, |p| {
         indexed(p, BROADCAST, opcode);
@@ -139,7 +134,7 @@ pub fn save() -> Vec<u8> {
 }
 
 /// `ReLoadLocalParam` as the vendor sends it after an EEPROM save: opcode
-/// 0x77, flags `01 01 00` (the flash-save reloads are `discovery::reload_params*`).
+/// 0x77, flags `01 01 00`. The flash-save reloads are `discovery::reload_params*`.
 #[must_use]
 pub fn reload() -> Vec<u8> {
     command(BROADCAST, 0x77, &[0x01, 0x01, 0x00])
@@ -189,7 +184,7 @@ mod tests {
 
     #[test]
     fn records_are_in_address_order() {
-        // Only ordering: the vendor's map overlaps once (0x0C1 x12 spans 0x0C8).
+        // Ordering only: the vendor map overlaps once (0x0c1 len 12 spans 0x0c8).
         for w in RECORDS.windows(2) {
             assert!(w[1].addr > w[0].addr, "{} out of order", w[1].name);
         }

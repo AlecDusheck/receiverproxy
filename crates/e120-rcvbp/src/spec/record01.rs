@@ -1,16 +1,13 @@
-//! Record 0x01 built from first principles: the vendor's write-side defaults
-//! (`CHWParamRcvGeneral::Reset`/`ResetIS`/`ResetSwapData`, serialised by
-//! `SaveBpToBuffer`), then the spec's fields, then the chip-derived blocks.
-//! Every byte is accounted for in `docs/record-0x01-fields.md`.
+//! Record 0x01: the vendor's write-side defaults (`CHWParamRcvGeneral::Reset`,
+//! `ResetIS`, `ResetSwapData`, serialised by `SaveBpToBuffer`), then the spec's
+//! fields, then the chip blocks. Offsets: `docs/record-0x01-fields.md`.
 
 use super::PanelSpec;
 use crate::chips::ChipLibrary;
 use crate::record01::{off, LEN};
 use anyhow::Result;
 
-/// Non-zero bytes of a freshly constructed config before any user setting:
-/// (offset, bytes). Ramps and floats are spelled out where the constructor
-/// stores them.
+/// Non-zero bytes of a freshly constructed config before any user setting.
 const DEFAULTS: &[(usize, &[u8])] = &[
     (0x000, &[0x20, 0x20, 0x01]),                 // module 32x32(stored), OBJ+0x6c = 1
     (0x008, &[0x02]),
@@ -45,9 +42,8 @@ const DEFAULTS: &[(usize, &[u8])] = &[
     (0x282, &[0x01]),
 ];
 
-/// Bytes our working config carries that the vendor code sets from state not
-/// yet named (provenance known, meaning NOT RESOLVED). Carried as literals so
-/// the generator reproduces a config the card is known to accept.
+/// Bytes the vendor sets from state not yet named (source known, meaning
+/// unresolved), carried as literals so the output matches a config the card accepts.
 const LITERALS: &[(usize, &[u8])] = &[
     (0x043, &[0x60]),                             // OBJ+0xB8
     (0x04F, &[0x01]),                             // OBJ+0xBC
@@ -60,8 +56,8 @@ const LITERALS: &[(usize, &[u8])] = &[
     (0x269, &[0x06]),                             // OBJ+0xE6EC = 3
 ];
 
-/// Flag word 1 (+0x018): the geometry-source bit (OBJ+0xD6EA) is set — module
-/// width/height come from record 0xCA, which we emit.
+/// Flag word 1 (+0x018) geometry-source bit (OBJ+0xD6EA): module size comes
+/// from record 0xCA, which is emitted.
 const FLAG1_GEOMETRY_FROM_RECORD_CA: u32 = 1 << 20;
 
 /// # Errors
@@ -71,9 +67,8 @@ pub fn build(spec: &PanelSpec, chip: &ChipLibrary, prov: &mut Vec<String>) -> Re
     for &(at, bytes) in DEFAULTS {
         p[at..at + bytes.len()].copy_from_slice(bytes);
     }
-    // Swap tables: one identity ramp 0x00..0x3F laid across two regions
-    // (the chip-custom block sits between them), the 96-entry identity map,
-    // and the 0x40..0x7F lane map.
+    // Swap tables: identity ramp 0x00..0x3F split around the chip-custom
+    // block, the 96-entry identity map, the 0x40..0x7F lane map.
     for (i, b) in p[0x05A..0x06A].iter_mut().enumerate() {
         *b = i as u8;
     }
@@ -121,8 +116,8 @@ pub fn build(spec: &PanelSpec, chip: &ChipLibrary, prov: &mut Vec<String>) -> Re
     put(off::SERIAL_CLOCK_HALF, &(sck / 2).to_le_bytes(), "serial clock / 2");
     put(off::SERIAL_CLOCK_DUP, &sck.to_le_bytes(), "serial clock (duplicate)");
     put(0x050, &[u8::from(spec.timing.oe_8ns)], "timing.oe_8ns");
-    // Chip-custom block: PWM flag | serial clock, as the chip reset leaves it
-    // (the vendor does not refresh it when the clock is edited later).
+    // PWM flag | the chip's reset serial clock; the vendor does not refresh
+    // this when the clock is edited later.
     let reset_sck = chip.serial_clock;
     put(
         off::CHIP_CUSTOM,

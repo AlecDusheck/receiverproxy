@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 const RECV_TIMEOUT: Duration = Duration::from_millis(200);
 
 /// Per-refresh timing. The defaults were measured on the bench
-/// (docs/rendering-recipe.md); change them only with a measurement.
+/// (docs/rendering.md); change them only with a measurement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Timing {
     /// Latch frames after the rows. One never starts the display; two decays
@@ -162,9 +162,9 @@ impl<S: FrameSink> Wall<S> {
 
     /// Render one canvas frame and push it to every receiver:
     /// brightness, one row packet per panel row, the latch gap, the latches.
-    /// The order matters: a card fresh from arming never starts displaying
-    /// when the latch leads the rows; once woken, either order works, which
-    /// hid the difference for a long time.
+    ///
+    /// A card fresh from arming never starts when the latch leads the rows;
+    /// once woken either order works (docs/rendering.md).
     ///
     /// # Errors
     /// Fails if a frame cannot be sent.

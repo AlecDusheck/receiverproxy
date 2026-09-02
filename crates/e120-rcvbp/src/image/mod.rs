@@ -1,9 +1,8 @@
-//! The compiled parameter image — flash block 7, what the card applies at
-//! boot. Format: `docs/compiled-image-format.md`.
+//! The compiled parameter image: flash block 7, applied by the card at boot.
 //!
-//! The vendor writes it as a fixed-offset scatter of pack bodies with no
-//! framing or checksums; the builder assembles it from erased flash, one
-//! region per module below, and reports every page it wrote.
+//! A fixed-offset scatter of pack bodies with no framing or checksums
+//! (`docs/compiled-image-format.md`); the builder starts from erased flash
+//! and reports every page it wrote.
 
 pub mod anti_void;
 pub mod data_swap;
@@ -31,10 +30,9 @@ pub const RCVBP_OFFSET: usize = 0x8000;
 /// The vendor clamps the embedded .rcvbp at this many bytes.
 pub const RCVBP_MAX: usize = 0x6FFC;
 
-/// Regions the vendor writes as zeros for this chip and config, each because
-/// a gate in its builder fails: void table (mode 0), current segment (chip id
-/// outside the table), current exchange, void-line packs (empty table),
-/// anti-void packs 4-7 (no large-load support).
+/// Regions the vendor zeroes for this chip because a builder gate fails: void
+/// table (mode 0), current segment (chip id outside the table), current
+/// exchange, void-line packs (empty table), anti-void packs 4-7 (no large-load).
 const ZERO_REGIONS: [(usize, usize); 6] = [
     (0x0100, 0x0500),
     (0x0A00, 0x0C00),
@@ -50,8 +48,7 @@ pub struct Block7Builder {
 }
 
 impl Block7Builder {
-    /// Start from erased flash — all 0xFF, as the block looks after the
-    /// vendor's erase — so every byte present is one we placed.
+    /// Erased flash (all 0xFF), so every other byte is one the builder placed.
     #[must_use]
     pub fn erased() -> Self {
         Self {
@@ -60,10 +57,9 @@ impl Block7Builder {
         }
     }
 
-    /// The raster-state regions every caller places, in the one order that
-    /// works: `void_line_columns` must follow `zero_regions`, which clears
-    /// 0x1000..0x1800 (docs/black-floor.md). The chip page and the embedded
-    /// `.rcvbp` are left to the caller — RAM pushes must not send them.
+    /// The raster-state regions. `void_line_columns` must follow `zero_regions`,
+    /// which clears 0x1000..0x1800 (docs/rendering.md). The chip page and the
+    /// embedded `.rcvbp` are left to the caller: RAM pushes must not send them.
     ///
     /// # Errors
     /// Fails if the generated config lacks a record or a region builder
@@ -99,10 +95,9 @@ impl Block7Builder {
     }
 
     /// 0x1400: the void-line column table, one byte per line position
-    /// (`physical = a + table[a]`, `GetVoidLineInfoPacks` @ 0x1e58c0).
-    /// 0xFF pushes positions `from..to` past the end of the chain; for this
-    /// interleaved wiring `width..2*width` carry nothing of ours and were
-    /// driven with a fixed pattern (docs/black-floor.md).
+    /// (`physical = a + table[a]`, `GetVoidLineInfoPacks` @ 0x1e58c0). 0xFF
+    /// pushes `from..to` past the end of the chain; for this wiring
+    /// `width..2*width` carried a fixed pattern instead (docs/rendering.md).
     pub fn void_line_columns(&mut self, from: u16, to: u16) {
         let at = VOID_LINE_COLUMNS_OFFSET;
         self.img[at + usize::from(from)..at + usize::from(to)].fill(0xFF);
@@ -123,9 +118,8 @@ impl Block7Builder {
         Ok(())
     }
 
-    /// Page 0x09: the chip-register table, record 0x84 verbatim; the card
-    /// arms the drivers at boot only when this page is written. A config
-    /// without record 0x84 (a non-addressed chip) leaves the page erased.
+    /// Page 0x09: record 0x84 verbatim; the card arms the drivers at boot only
+    /// when this page is written. No record 0x84 leaves the page erased.
     ///
     /// # Errors
     /// Fails if record 0x84 is present but not one page.
@@ -166,8 +160,8 @@ impl Block7Builder {
         self.place(ANTI_VOID_OFFSET, &region, "0x1800: anti-void-line counters");
     }
 
-    /// 0x3000: the pixel mapping — record 0x03 with each entry's u16 flipped
-    /// LE→BE (the vendor's 16 pixel-sequence packs are this table, sliced).
+    /// 0x3000: record 0x03 with each entry's u16 flipped LE to BE; the
+    /// vendor's 16 pixel-sequence packs are this table, sliced.
     ///
     /// # Errors
     /// Fails if the record is missing, malformed, or too large.
@@ -207,8 +201,8 @@ impl Block7Builder {
         Ok(())
     }
 
-    /// 0x8000: the length-prefixed `.rcvbp` source, erased flash after it
-    /// up to the EEPROM-backed page 0xF0.
+    /// 0x8000: the length-prefixed `.rcvbp`, erased flash after it up to the
+    /// EEPROM-backed page 0xF0.
     ///
     /// # Errors
     /// Rejects a file over the vendor's clamp.

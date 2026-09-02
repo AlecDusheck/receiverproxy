@@ -16,15 +16,13 @@ pub use pixel::*;
 pub const CARD_MAC: [u8; 6] = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66];
 pub const SENDER_MAC: [u8; 6] = [0x22, 0x22, 0x33, 0x44, 0x55, 0x66];
 
-/// Receiver index addressing every card on the link; the vendor uses it even
-/// for a single card, and it is the only index a card with a corrupt cabinet
-/// record still answers to.
+/// Receiver index addressing every card on the link. The vendor uses it even
+/// for one card, and a card with a corrupt cabinet record answers only to it.
 pub const BROADCAST: u16 = 0xffff;
 
-/// Bytes of Ethernet header (two MACs and the type) in front of every payload.
+/// Two MACs and the type.
 pub const HEADER_LEN: usize = 14;
 
-/// Write the two MACs and the type into the first [`HEADER_LEN`] bytes of `f`.
 pub(crate) fn write_header(f: &mut [u8], ethertype: [u8; 2]) {
     f[..6].copy_from_slice(&CARD_MAC);
     f[6..12].copy_from_slice(&SENDER_MAC);
@@ -52,8 +50,7 @@ pub(crate) fn indexed(p: &mut [u8], rcv_index: u16, opcode: u8) {
     p[3] = opcode;
 }
 
-/// A type-0x0600 command frame with no data: `[1..3]` receiver index, `[3]`
-/// opcode, flag bytes (if any) at payload offset 0x0a.
+/// A type-0x0600 command with no data; `flags` land at payload offset 8.
 pub(crate) fn command(rcv_index: u16, opcode: u8, flags: &[u8]) -> Vec<u8> {
     frame_with([0x06, 0x00], 126, |p| {
         indexed(p, rcv_index, opcode);

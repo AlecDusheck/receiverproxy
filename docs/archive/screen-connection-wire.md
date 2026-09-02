@@ -1,10 +1,12 @@
 # "Screen Connection" on the wire — the card-area pack (type 0x0200)
 
+> Archived. The type-0x0200 card-area pack decoded here was not adopted: provisioning sets the control area through the EEPROM record ([receiver-identity.md](../receiver-identity.md), [provisioning.md](../provisioning.md)), and `e120_proto::discovery::set_layout` still sends the 98-byte FPP form, off by default in the driver. Section 7 remains open.
+
 What LEDVISION/iSet actually transmits when the user lays cabinets out and
 presses Send or Save. Static analysis of `libCLTDevice.1.dylib` (iSet 7 macOS,
 C++ symbols intact). Nothing was executed or transmitted.
 
-Read with [`docs/receiver-identity.md`](receiver-identity.md), which covers the
+Read with [`docs/receiver-identity.md`](../receiver-identity.md), which covers the
 *persisted* half (the EEPROM control area). This file covers the *volatile*
 half.
 

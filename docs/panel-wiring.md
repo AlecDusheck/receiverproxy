@@ -46,14 +46,14 @@ group gets one contiguous 128-slot half of the chain. That is the majority
 wiring across the vendor corpus and remains the generator's default, but it is
 **not** this module's wiring, and it is what had been flashed to the card.
 
-The difference had been recorded as an unreproducible "outlier" in the seller's
+The difference had been recorded as an unreproducible "outlier" in the reference
 file, and pinned by a test asserting our own table was right. It is not an
 outlier; it is a property of the module. `[mapping] block = 64` in the panel
-spec selects it, and with that the generated table is the seller's byte-for-byte.
+spec selects it, and with that the generated table is the reference file's byte-for-byte.
 
 **Both `tests/fixtures/p25-128x64-fixed.rcvbp` and the "consensus donor" carry
 the contiguous table and are our own artefacts, not vendor ground truth.** The
-file that shipped with the panel is
+reference file, whose records match the card's day-one flash under test, is
 `third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp`.
 
 ## Reading scan from the file, not the label
@@ -72,10 +72,9 @@ normal, not a bug.
 
 The record is a flat stream of **4-byte groups**: register address, then one
 value per colour. Decode and compare with `scripts/chipregs.py a.rcvbp b.rcvbp`.
-Grouping it in 3s produces plausible-looking nonsense — that mistake cost a
-round of analysis.
+Grouping it in 3s produces plausible-looking nonsense.
 
-`config/chips/sm16269s-factory.toml` holds the values read out of the seller's
+`config/chips/sm16269s-factory.toml` holds the values read out of the reference
 file. The generic `sm16269.toml` (the vendor tool's "Default Parameter" set)
 disagrees in eleven registers, several governing greyscale and blanking.
 
@@ -85,13 +84,14 @@ vendor's own ResetIS rule where the sub-id overrides max scan.
 
 ## Status
 
-With `block = 64`, the factory registers and no sub-id, `gen-config` reproduces
-the seller's shipped file **record-for-record from TOML alone**, no donor —
-pinned by `the_sellers_config_is_regenerated_record_for_record`. The only
+With `block = 64`, the factory registers and no sub-id, `config gen` reproduces
+the reference file **record-for-record from TOML alone**, no donor —
+pinned by `the_reference_config_is_regenerated_record_for_record`. The only
 intended difference is screen size: they compiled for a 256x384 wall of twelve
 modules, we have one.
 
-That is necessary but **not sufficient**: the panel still does not render
-correctly, and the card's own test patterns fail too, so the seller's
-configuration is itself not right for this module. See
-[firmware-16.53-bench-result.md](firmware-16.53-bench-result.md).
+The mapping alone was not sufficient: the panel rendered only after `+0x02F`
+was set to 1, the frame order was fixed and the card was configured from
+flash, and black went dark only after the phantom positions `width..2·width`
+were gated through the void-line column table. Every setting and its
+measurement: [rendering.md](rendering.md).

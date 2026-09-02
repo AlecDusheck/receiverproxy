@@ -1,7 +1,7 @@
-//! The other records of a `.rcvbp`, from their decoded defaults (the loader
-//! pre-fills each record's buffer with these and applies them whether or not
-//! the record is present, so a config with exactly these bytes behaves like
-//! one that omits them). Order and sizes follow the vendor's files.
+//! The remaining records of a `.rcvbp`, at their decoded defaults. The vendor
+//! loader pre-fills each record buffer with these whether or not the record is
+//! present, so a config carrying exactly them behaves like one that omits them.
+//! Order and sizes follow the vendor's files.
 
 use super::PanelSpec;
 use crate::{Rcvbp, Record};
@@ -71,9 +71,8 @@ pub fn assemble(spec: &PanelSpec, rec01: Vec<u8>, mapping: Vec<u8>, chip_regs: O
         Record::new(0x0a86, vec![0; 5]),      // switch-status bitfield
         Record::new(0x0a8a, secondary_params(spec)),
     ];
-    // Record 0x84 sits between the secondary parameters and the cabinet
-    // strings when the chip has one; non-addressed chips get no record at all,
-    // exactly as the vendor writes them.
+    // Record 0x84 sits here when the chip has one; the vendor writes none
+    // for non-addressed chips.
     if let Some(regs) = chip_regs {
         records.push(Record::new(0x0a84, regs));
     }

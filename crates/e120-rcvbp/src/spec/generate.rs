@@ -1,7 +1,6 @@
-//! Turning a spec into the `.rcvbp` and basic pack, with nothing copied
-//! from a donor file: record 0x01 from defaults + spec + chip library, the
-//! mapping from geometry, the chip registers from the library, the other
-//! records from their decoded defaults, and the pack from the record.
+//! Spec to `.rcvbp` and basic pack: record 0x01 from defaults + spec + chip
+//! library, the mapping from geometry, record 0x84 from the library, the rest
+//! from decoded defaults, and the pack from the finished record 0x01.
 
 use super::{basic_pack, record01, records, PanelSpec};
 use crate::chips::ChipLibrary;

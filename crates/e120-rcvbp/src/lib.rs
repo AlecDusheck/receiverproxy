@@ -1,20 +1,15 @@
-//! Parser for Colorlight `.rcvbp` receiver-parameter files.
-//!
-//! Layout (verified against P2.5-32S-128X64-SM16269S-256X384I.rcvbp):
+//! Reader and writer for Colorlight `.rcvbp` receiver-parameter files
+//! (`docs/rcvbp-format.md`). The record stream must tile the blob exactly.
 //!
 //! ```text
 //! file:   [32-byte header][zlib stream][u32 CRC trailer]
-//! header: 0x00 16 bytes  signature/uuid
+//! header: 0x00 16 bytes  signature
 //!         0x10 u32       version (4)
 //!         0x14 u32       compressed size
 //!         0x18 u32       decompressed size
 //!         0x1c u32       reserved (0)
-//! blob:   a sequence of records that tiles the whole buffer exactly:
-//!         [u16 size_le][u16 type][payload; size-4]
-//!         `size` counts the 4-byte header.
+//! record: [u16 size_le][u16 type][payload; size-4]   (size counts the header)
 //! ```
-//!
-//! Record types and their meaning: `docs/rcvbp-format.md`.
 
 pub mod chips;
 pub mod image;
@@ -49,9 +44,7 @@ impl Record {
         u16::from_be_bytes(self.rtype)
     }
 
-    /// The record's identity: its id byte alone. The container marker byte
-    /// before it is not part of it — the vendor parser takes only the id and
-    /// ignores the marker.
+    /// The id byte alone; the vendor parser ignores the marker byte before it.
     #[must_use]
     pub fn id(&self) -> u8 {
         self.rtype[1]
@@ -82,12 +75,8 @@ impl Rcvbp {
         }
         let version = le_u32(d, 0x10)?;
 
-        // Two variants exist in the wild, distinguished by their 16-byte
-        // signature: the newer one zlib-compresses the record stream, the
-        // older one stores it inline right after the version field and ends
-        // with a 4-byte trailer. Both end with a 4-byte CRC trailer; only the
-        // legacy one carries it inside the record stream (the compressed
-        // trailer sits outside the inflated blob), hence the slack.
+        // Signed files zlib-compress the record stream; legacy ones store it
+        // inline after the version field, with the CRC trailer inside it (slack).
         let (blob, slack): (Cow<[u8]>, usize) = if d[0..4] == SIG_COMPRESSED {
             let raw_len = le_u32(d, 0x18)? as usize;
             let mut blob = Vec::with_capacity(raw_len.min(1 << 20));
@@ -144,10 +133,8 @@ impl Rcvbp {
         self.find_by_id(0x01)
     }
 
-    /// Scan denominator, held literally (16, 32 or 64) at record 0x01 +0x020.
-    ///
-    /// This is the authoritative scan field; the value near the start of the
-    /// record is module geometry and is easily mistaken for it.
+    /// Scan denominator (16, 32, 64) at record 0x01 +0x020. The byte at
+    /// +0x001 is stored module height, not scan.
     pub fn scan(&self) -> Option<u8> {
         self.record_01()?.payload.get(0x20).copied()
     }
@@ -239,8 +226,8 @@ impl Rcvbp {
     }
 }
 
-/// Table-driven CRC-32 over the reflected polynomial 0xEDB88320, shared by
-/// the file trailer and the basic pack (which differ only in init/final xor).
+/// CRC-32, reflected polynomial 0xEDB88320. The file trailer and the basic
+/// pack use it with different init/final xor.
 mod crc32 {
     const TABLE: [u32; 256] = {
         let mut t = [0u32; 256];
@@ -266,18 +253,14 @@ mod crc32 {
     }
 }
 
-/// The 4-byte trailer every `.rcvbp` ends with: a CRC-32 over the whole file
-/// up to the trailer itself.
-///
-/// It uses the ordinary reflected polynomial but an initial value of 0 and no
-/// final inversion, which is why it does not match a stock CRC-32.
+/// The trailer CRC: CRC-32 over the file up to the trailer, init 0, no final
+/// inversion (so it does not match a stock CRC-32). Pinned by `crc_tests`.
 #[must_use]
 pub fn trailer_crc(data: &[u8]) -> u32 {
     crc32::update(0, data)
 }
 
-/// Full 16-byte signature of the compressed variant, as written by the vendor
-/// tools and validated by the card. Files we generate reuse it verbatim.
+/// 16-byte signature of the compressed variant, copied from vendor files.
 const SIGNATURE: [u8; 16] = [
     0x20, 0x20, 0x19, 0xbe, 0x74, 0x23, 0x43, 0x45, 0xb1, 0xc7, 0x93, 0x03, 0x9b, 0x83, 0xae, 0xab,
 ];
@@ -315,7 +298,6 @@ fn parse_records(blob: &[u8], slack: usize) -> Result<Vec<Record>> {
     Ok(records)
 }
 
-/// Read a little-endian u32 without risking a panic on a short buffer.
 fn le_u32(d: &[u8], off: usize) -> Result<u32> {
     let b: [u8; 4] = d
         .get(off..off + 4)
@@ -369,7 +351,6 @@ mod tests {
 
         f.upsert(0x0a84, vec![9; 8]);
         assert_eq!(f.records.len(), 4);
-        // Inserted ahead of the trailing geometry record.
         assert_eq!(f.records.last().unwrap().type_u16(), 0x0aca);
     }
 
@@ -414,14 +395,13 @@ mod tests {
 mod crc_tests {
     use super::*;
 
-    /// The trailer of the file that shipped with the panel.
     #[test]
-    fn trailer_matches_the_sellers_file() {
+    fn trailer_matches_the_reference_file() {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp"
         );
-        let d = std::fs::read(path).expect("seller's config");
+        let d = std::fs::read(path).expect("reference config");
         let expected = 0x128b_ebeeu32;
         let (body, tail) = d.split_at(d.len() - 4);
         assert_eq!(trailer_crc(body), expected);

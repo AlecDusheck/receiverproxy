@@ -1,25 +1,19 @@
-//! SDRAM-staged firmware upgrade.
+//! SDRAM-staged firmware upgrade: descriptor query, 1 KiB chunk uploads
+//! (unacknowledged; the caller paces them), erase, program, completion poll.
 //!
-//! Query the descriptor, upload the image in 1 KiB chunks, erase, program,
-//! poll until done. Upload frames are not acknowledged; the caller's pacing is
-//! the protocol. The card programs only 0x000000-0x02FFFF and
-//! 0x080000-0x0AFFFF from the staged image; the 320KB between is
-//! configuration and reads back unchanged after a successful upgrade
-//! (`third-party/README.md`, `docs/firmware-16.53-bench-result.md`).
+//! The card programs only 0x000000-0x02FFFF and 0x080000-0x0AFFFF from the
+//! staged image; the 320 KB between reads back unchanged after an upgrade
+//! (`docs/archive/firmware-16.53-bench-result.md`).
 
 use super::{frame_with, indexed};
 
-/// Frame type for every SDRAM staging operation.
 const SDRAM_TYPE: [u8; 2] = [0x1a, 0x00];
 
-/// Upload one chunk into SDRAM.
 const OP_DATA: u8 = 0x01;
-/// Program flash from the staged image.
 const OP_PROGRAM: u8 = 0x03;
-/// Erase the target region.
 const OP_ERASE: u8 = 0x05;
 
-/// Bytes per staging chunk.
+/// Bytes per upload chunk.
 pub const CHUNK: usize = 1024;
 
 /// Which stored image an erase or program operation targets.
@@ -27,7 +21,7 @@ pub const CHUNK: usize = 1024;
 pub enum Partition {
     /// The image the card normally runs.
     Primary,
-    /// The golden backup. Only reachable on cards that report one.
+    /// The golden backup; only on cards whose descriptor reports one.
     Golden,
 }
 
@@ -54,15 +48,13 @@ fn sdram_frame(sel: u16, op: u8, flag: u8, offset: u32, len: u32, data: &[u8]) -
     })
 }
 
-/// Upload one 1 KiB chunk of the image into the card's SDRAM.
-///
-/// `offset` is the chunk's byte position within the image.
+/// Upload one chunk into SDRAM; `offset` is its byte position in the image.
 #[must_use]
 pub fn sdram_chunk(sel: u16, offset: u32, data: &[u8]) -> Vec<u8> {
     sdram_frame(sel, OP_DATA, 0x00, offset, data.len() as u32, data)
 }
 
-/// Erase the target region, in preparation for programming.
+/// Erase `len` bytes of the partition.
 #[must_use]
 pub fn sdram_erase(sel: u16, partition: Partition, len: u32) -> Vec<u8> {
     sdram_frame(sel, OP_ERASE, partition.selector(), 0, len, &[])
@@ -74,16 +66,16 @@ pub fn sdram_program(sel: u16, partition: Partition, len: u32) -> Vec<u8> {
     sdram_frame(sel, OP_PROGRAM, partition.selector(), 0, len, &[])
 }
 
-/// What the card says about the image it expects and how it can be upgraded.
+/// The card's reply to `upgrade_info`: image geometry and upgrade capabilities.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Descriptor {
-    /// Where the image begins in the card's own address space.
+    /// Flash address the image starts at.
     pub start: u32,
-    /// Bytes actually programmed into flash.
+    /// Bytes programmed into flash.
     pub image_len: u32,
-    /// Size the source file must be, which includes trailing padding.
+    /// Required source-file size, including trailing padding.
     pub file_len: u32,
-    /// Type byte the card wants for direct flash operations.
+    /// Type byte for direct flash operations.
     pub flash_op_type: u8,
     capabilities: u8,
 }
@@ -119,7 +111,8 @@ impl Descriptor {
         (self.image_len as usize).div_ceil(CHUNK)
     }
 
-    /// How long to wait before the first completion poll, in milliseconds.
+    /// Vendor delay before the first completion poll: 150 ms per 64 KiB
+    /// block, at least 1000 ms (`timings_match_the_vendor_formulas`).
     #[must_use]
     pub const fn first_poll_ms(self) -> u64 {
         let blocks = (self.image_len as u64).div_ceil(0x10000);
@@ -131,8 +124,8 @@ impl Descriptor {
         }
     }
 
-    /// The vendor's own estimate of how long programming takes, in
-    /// milliseconds. Treat it as a guide, not a guarantee.
+    /// Vendor estimate of programming time: 500 ms per 64 KiB block plus
+    /// 3 ms per 256-byte page.
     #[must_use]
     pub const fn estimated_ms(self) -> u64 {
         let blocks = (self.image_len as u64).div_ceil(0x10000);
@@ -141,18 +134,18 @@ impl Descriptor {
     }
 }
 
-/// Decode the descriptor from a reply frame. Offsets are relative to the type
-/// bytes (frame offset 12).
+/// Decode a `Descriptor` from the 0x08xx reply; offsets below are relative to
+/// frame offset 12.
 #[must_use]
 pub fn parse_descriptor(eth_frame: &[u8]) -> Option<Descriptor> {
     let p = eth_frame.get(12..)?;
-    // The reply type's low byte doubles as a validity marker.
+    // Bit 1 of the type's second byte marks a valid descriptor.
     if *p.first()? != 0x08 || p.get(1)? & 0b10 == 0 {
         return None;
     }
     let byte = |i: usize| p.get(i).copied();
     let image_len = u32::from(byte(0x18)?) << 16 | u32::from(byte(0x19)?) << 8;
-    // The file's low length byte is encoded across two fields.
+    // File length low byte = [0x1b] + 4 * [0x1a], as the vendor computes it.
     let low = u32::from(byte(0x1b)?.wrapping_add(byte(0x1a)?.wrapping_mul(4)));
     Some(Descriptor {
         start: u32::from(byte(0x16)?) << 16 | u32::from(byte(0x17)?) << 8,
@@ -163,8 +156,8 @@ pub fn parse_descriptor(eth_frame: &[u8]) -> Option<Descriptor> {
     })
 }
 
-/// Whether a completion poll reply (an `upgrade_info` reply) says programming
-/// has finished; there is no dedicated completion frame.
+/// Completion is polled with `upgrade_info`; bit 1 at payload offset 0xc0 of
+/// the reply is set once programming has finished.
 #[must_use]
 pub fn programming_finished(eth_frame: &[u8]) -> bool {
     eth_frame
@@ -177,7 +170,7 @@ mod tests {
     use super::*;
     use crate::BROADCAST;
 
-    /// The reply this card actually sent, captured from the wire.
+    /// The `upgrade_info` reply captured from the bench card (fw 16.53).
     fn real_reply() -> Vec<u8> {
         let mut f = vec![0u8; 12];
         f.extend_from_slice(&[0x08, 0x02]);
@@ -248,7 +241,7 @@ mod tests {
 
         let p = sdram_program(BROADCAST, Partition::Primary, len);
         assert_eq!(p[17], OP_PROGRAM);
-        // Program is byte-identical to erase but for the opcode.
+        // Program differs from erase only in the opcode.
         assert_eq!(&p[18..], &e[18..]);
     }
 

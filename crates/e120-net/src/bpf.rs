@@ -1,12 +1,8 @@
-//! Raw Ethernet I/O on macOS via `/dev/bpf`.
-//!
-//! The Colorlight protocol is pure layer 2 — no IP — so frames have to be
-//! written whole, including their Ethernet header. On Darwin that means a BPF
-//! device bound to an interface. Requires read/write access to `/dev/bpf*`
-//! (root, or `chmod o+rw`).
+//! Raw Ethernet I/O on macOS through a `/dev/bpf` device bound to one
+//! interface. The protocol is layer 2 only, so frames go out whole, header
+//! included. Needs read/write access to `/dev/bpf*` (root or `chmod o+rw`).
 
-// Talking to a character device through ioctl has no safe abstraction in std;
-// the unsafety is confined to `ioctl` and the header decode below.
+// std has no safe ioctl; the unsafety is confined to `ioctl` and its callers.
 #![allow(unsafe_code)]
 
 use anyhow::{bail, Context, Result};
@@ -15,12 +11,11 @@ use std::io::{Read, Write};
 use std::os::fd::AsRawFd;
 use std::time::Duration;
 
-/// BPF records are padded so each starts on a word boundary.
+/// Each BPF record starts on a word boundary.
 const BPF_ALIGNMENT: usize = 4;
 
-/// Field offsets within `struct bpf_hdr` (Darwin, 32-bit timestamp fields).
-/// Decoded by hand rather than by pointer cast: the buffer is only byte
-/// aligned, so casting to the struct type would be undefined behaviour.
+/// Offsets into Darwin's `struct bpf_hdr` (32-bit timeval). Decoded by hand:
+/// the read buffer is byte-aligned, so a pointer cast would be UB.
 const HDR_CAPLEN: usize = 8;
 const HDR_HDRLEN: usize = 16;
 const HDR_MIN_LEN: usize = 18;
@@ -28,24 +23,21 @@ const HDR_MIN_LEN: usize = 18;
 #[derive(Debug)]
 pub struct Bpf {
     file: File,
-    /// One kernel read buffer (BIOCGBLEN bytes), reused across `recv` calls.
+    /// BIOCGBLEN bytes, reused across `recv` calls.
     buf: Vec<u8>,
 }
 
 impl Bpf {
-    /// Open the first free `/dev/bpf*` device and bind it to `iface`.
-    ///
-    /// The device is put in promiscuous mode: the card's replies are
-    /// addressed to the spoofed sender MAC, not to the host's.
+    /// Open the first free `/dev/bpf*` and bind it to `iface`, promiscuous:
+    /// the card replies to `SENDER_MAC`, not to the host's own address.
     ///
     /// # Errors
-    /// Fails if every BPF device is busy, if permissions deny access, or if
-    /// the interface does not exist.
+    /// Fails if every BPF device is busy, permissions deny access, or the
+    /// interface does not exist.
     pub fn open(iface: &str, read_timeout: Duration) -> Result<Self> {
         let file = Self::open_device()?;
         let fd = file.as_raw_fd();
 
-        // Darwin ioctl numbers come from libc (<net/bpf.h>).
         let mut ifr: libc::ifreq = unsafe { std::mem::zeroed() };
         if iface.len() >= ifr.ifr_name.len() {
             bail!("interface name too long: {iface}");
@@ -56,12 +48,12 @@ impl Bpf {
         unsafe { ioctl(fd, libc::BIOCSETIF, std::ptr::from_mut(&mut ifr).cast()) }
             .with_context(|| format!("BIOCSETIF {iface}"))?;
 
-        // Deliver frames as they arrive rather than waiting for a full buffer.
+        // Return each read as soon as a frame arrives, not when the buffer fills.
         let mut on: u32 = 1;
         unsafe { ioctl(fd, libc::BIOCIMMEDIATE, std::ptr::from_mut(&mut on).cast()) }
             .context("BIOCIMMEDIATE")?;
 
-        // We supply the whole Ethernet header ourselves, source MAC included.
+        // Keep our source MAC; without this the kernel overwrites it.
         let mut on: u32 = 1;
         unsafe { ioctl(fd, libc::BIOCSHDRCMPLT, std::ptr::from_mut(&mut on).cast()) }
             .context("BIOCSHDRCMPLT")?;
@@ -105,10 +97,10 @@ impl Bpf {
         bail!("could not open any /dev/bpf* device: {reason} (try: sudo chmod o+rw /dev/bpf*)")
     }
 
-    /// Send one raw Ethernet frame: destination MAC, source MAC, type, payload.
+    /// Send one whole Ethernet frame.
     ///
     /// # Errors
-    /// Fails if the write is rejected or truncated by the kernel.
+    /// Fails if the kernel rejects or truncates the write.
     pub fn send(&mut self, frame: &[u8]) -> Result<()> {
         let n = self.file.write(frame).context("write to bpf")?;
         if n != frame.len() {
@@ -117,11 +109,11 @@ impl Bpf {
         Ok(())
     }
 
-    /// Read whatever frames are available, up to the configured read timeout.
-    /// The frames borrow the device's buffer and are valid until the next call.
+    /// Frames received within the read timeout, borrowed from the device
+    /// buffer until the next call. A timeout or EINTR yields no frames.
     ///
     /// # Errors
-    /// Fails on a read error other than a timeout or interruption.
+    /// Fails on any other read error.
     pub fn recv(&mut self) -> Result<Records<'_>> {
         let n = match self.file.read(&mut self.buf) {
             Ok(n) => n,
@@ -137,8 +129,8 @@ impl Bpf {
     }
 }
 
-/// The individual frames packed into one BPF read buffer.
-/// A truncated trailing record ends the walk.
+/// The frames packed into one BPF read buffer; a truncated trailing record
+/// ends the walk (`truncated_tail_is_dropped`).
 #[derive(Clone, Debug)]
 pub struct Records<'a>(pub &'a [u8]);
 
@@ -175,7 +167,7 @@ unsafe fn ioctl(fd: libc::c_int, req: libc::c_ulong, arg: *mut libc::c_void) -> 
 mod tests {
     use super::*;
 
-    /// One bpf_hdr record with the given header length, padded to alignment.
+    /// One `bpf_hdr` record with the given header length, padded to alignment.
     fn record(hdrlen: u16, data: &[u8]) -> Vec<u8> {
         let mut r = vec![0u8; hdrlen as usize];
         r[HDR_CAPLEN..HDR_CAPLEN + 4].copy_from_slice(&(data.len() as u32).to_ne_bytes());

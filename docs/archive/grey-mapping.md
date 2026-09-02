@@ -1,7 +1,9 @@
 # Grey mapping: how 8-bit input becomes an N-bit word, and where the black floor is not
 
+> Archived. Superseded by [rendering.md](../rendering.md) ("The black floor"): the gamma table and the scan-schedule depth were both ruled out as the floor's cause (the 12-level schedule raised black from 0.75 A to 0.90 A). Kept for the decode of the gamma-table pack, the grey-depth register formula and the low-grey survey.
+
 Static analysis of the vendor libraries, answering the four questions raised by
-"Black is not off" in [rendering-recipe.md](rendering-recipe.md). Nothing was
+"Black is not off" in [rendering.md](../rendering.md). Nothing was
 executed; every address below is a byte offset in a file on disk.
 
 Primary source: the macOS build `libCLTDevice.1.dylib` (iSet 7, C++ symbols
@@ -597,7 +599,7 @@ block-7 image, leave everything else alone, and reflash only that page. If black
 goes dark, §5.1 is confirmed without touching the solver.
 
 **Instrumentation.** `scripts/psu.sh` for the current, an averaged webcam snap
-for the speckle (`docs/bench-measurement.md`); compare against the recorded
+for the speckle (`docs/bench.md`); compare against the recorded
 gain sweep 0/4/12/40/120 → 0.47/0.71/0.75/0.86/1.08 A.
 
 ---

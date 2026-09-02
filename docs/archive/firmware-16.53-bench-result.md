@@ -1,6 +1,8 @@
 # Installing firmware 16.53: what it fixed, and what it did not
 
-Bench session 2026-09-01. The card had been running
+> Archived. Superseded by [rendering.md](../rendering.md) ("Firmware 16.53") for the install procedure and what changed, and by [retracted-findings.md](../retracted-findings.md) for the free-running finding. The "raster still wrong" section describes the state before `+0x02F = 1`, the frame order and booting from flash were found.
+
+Bench, 2026-09-01. The card had been running
 `E320_PCB6.0_PWM_FPGA10.81_20230907` — the factory image — even though the
 project's notes recorded it as 16.53. `docs/fpga/flash-layout.md` established
 that from the dumps; `discover` now confirms it directly, since the card

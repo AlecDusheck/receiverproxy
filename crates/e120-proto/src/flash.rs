@@ -1,57 +1,57 @@
-//! Flash access, with allowlists that keep writes where they belong.
+//! Flash read, erase and write frames.
+//!
+//! Reads are unrestricted; every write builder is allowlisted: page-addressed
+//! (type 0x0600) to the parameter block or the primary firmware blocks,
+//! linear (type 0x1900) to the screen-size record only.
 
 use super::{frame_with, indexed};
 
-/// Read opcode. A read frame carries no data, so it cannot modify the card
-/// wherever it is pointed.
+/// A read frame carries no data, so it cannot modify the card wherever it
+/// is pointed.
 const FLASH_OP_READ: u8 = 0x44;
 
-/// Flash region holding the receiver's basic parameters, in 256-byte pages.
+/// Page index (256-byte pages) of the receiver's basic parameters.
 pub const FLASH_PAGE_BASIC_PARAM: u16 = 0x0780;
 
 /// Pages advance by 4 per 1024-byte chunk read.
 pub const FLASH_PAGES_PER_CHUNK: u16 = 4;
 
-/// Opcode that erases a flash block.
 const FLASH_OP_ERASE: u8 = 0x23;
 
-/// Opcode that writes one 256-byte flash page (also the EEPROM record write).
+/// Page write; the same opcode writes an EEPROM record (`eeprom::write`).
 const FLASH_OP_WRITE: u8 = 0x85;
 
-/// Bytes in one flash page.
 pub const FLASH_PAGE_BYTES: usize = 256;
 
-/// The 64KB block holding the receiver parameters: the only block the
-/// parameter helpers (`erase_block`, `write_page`) accept.
+/// The 64 KB block holding the receiver parameters: the only block
+/// `erase_block` and `write_page` accept.
 pub const PARAM_BLOCK: u8 = 0x07;
 
-/// Blocks holding the primary firmware image. The golden backup at
-/// [`GOLDEN_BLOCK`] is never writable, so it stays as an in-hardware fallback.
+/// Blocks of the primary firmware image; the golden backup at
+/// [`GOLDEN_BLOCK`] is outside every allowlist.
 pub const FIRMWARE_BLOCKS: std::ops::Range<u8> = 0x00..0x0b;
 
 /// First block of the golden backup image.
 pub const GOLDEN_BLOCK: u8 = 0x20;
 
-/// Flash address of the screen-size record. It sits outside the window the
-/// page-addressed frames reach, so it is only writable through the linear
-/// frames below.
+/// Flash address of the screen-size record, reachable only through the
+/// linear-address frames.
 pub const SCREEN_RECORD_ADDR: u32 = 0x0007_f000;
 
-/// Bytes in the screen-size record.
 pub const SCREEN_RECORD_LEN: usize = 256;
 
 /// Linear-address writes can reach firmware, so exactly one range is allowed.
 const LINEAR_ALLOWED: std::ops::Range<u32> =
     SCREEN_RECORD_ADDR..SCREEN_RECORD_ADDR + SCREEN_RECORD_LEN as u32;
 
-/// Frame type the card answers a flash read with.
+/// Frame type of a flash-read reply.
 pub const FLASH_REPLY_TYPE: [u8; 2] = [0x09, 0x01];
 
-/// Payload bytes of flash data carried by each reply frame.
+/// Flash bytes per reply frame.
 pub const FLASH_CHUNK_BYTES: usize = 1024;
 
-/// Card-flash read: type 0x0600, 126-byte payload. Requests 1024 bytes
-/// starting at `page` (a 256-byte page index).
+/// Read 1024 bytes starting at `page` (a 256-byte page index): type 0x0600,
+/// 126-byte payload.
 #[must_use]
 pub fn read_flash(rcv_index: u16, page: u16) -> Vec<u8> {
     paged(rcv_index, FLASH_OP_READ, page)
@@ -68,9 +68,9 @@ fn paged(rcv_index: u16, opcode: u8, page: u16) -> Vec<u8> {
 
 /// Unlock or relock the write-protected program region.
 ///
-/// Erases and page writes silently do nothing while locked. The vendor builder
-/// negates the flag, so enable is 0xff. Always relock when finished, including
-/// on failure.
+/// Erases and page writes silently do nothing while locked. The vendor negates
+/// the flag, so enable is 0xff (`unlock_uses_the_negated_flag`). Relock on
+/// every exit path.
 #[must_use]
 pub fn set_program_writable(rcv_index: u16, writable: bool) -> Vec<u8> {
     frame_with([0x23, 0x00], 126, |p| {
@@ -78,14 +78,11 @@ pub fn set_program_writable(rcv_index: u16, writable: bool) -> Vec<u8> {
     })
 }
 
-/// Rejected before anything reaches the wire.
+/// A write refused before any frame is built.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WriteError {
-    /// A block outside the allowlist was requested.
     ForbiddenBlock(u8),
-    /// A page payload was not exactly one page.
     WrongPageSize(usize),
-    /// A linear-address frame targeted something outside the allowed range.
     ForbiddenAddress(u32),
 }
 
@@ -111,7 +108,6 @@ impl std::fmt::Display for WriteError {
 
 impl std::error::Error for WriteError {}
 
-/// The allowlist for the parameter helpers: [`PARAM_BLOCK`] only.
 fn param_block(block: u8) -> Result<u8, WriteError> {
     if block == PARAM_BLOCK {
         Ok(block)
@@ -120,7 +116,6 @@ fn param_block(block: u8) -> Result<u8, WriteError> {
     }
 }
 
-/// The allowlist for the firmware helpers: [`FIRMWARE_BLOCKS`] only.
 fn firmware_block(block: u8) -> Result<u8, WriteError> {
     if FIRMWARE_BLOCKS.contains(&block) {
         Ok(block)
@@ -137,7 +132,7 @@ fn one_page(data: &[u8]) -> Result<&[u8], WriteError> {
     }
 }
 
-/// Erase the parameter block (all 64KB; the caller must hold a full copy).
+/// Erase the whole 64 KB parameter block; the caller must hold a full copy.
 ///
 /// # Errors
 /// Refuses any block other than [`PARAM_BLOCK`].
@@ -145,8 +140,8 @@ pub fn erase_block(rcv_index: u16, block: u8) -> Result<Vec<u8>, WriteError> {
     Ok(erase_block_unchecked(rcv_index, param_block(block)?))
 }
 
-/// Erase a firmware block. Separate from [`erase_block`] so that writing
-/// firmware is always an explicit act.
+/// Erase a firmware block. Kept apart from [`erase_block`] so a firmware
+/// write is never reachable through the parameter path.
 ///
 /// # Errors
 /// Refuses any block outside [`FIRMWARE_BLOCKS`].
@@ -182,8 +177,8 @@ pub fn write_page(rcv_index: u16, block: u8, page: u8, data: &[u8]) -> Result<Ve
 }
 
 fn write_page_unchecked(rcv_index: u16, block: u8, page: u8, data: &[u8]) -> Vec<u8> {
-    // Mirrors the read frame: [1..3] index, [3] opcode, [4] flag, [5] block,
-    // [6] page; the vendor copies data to payload offset 0x0a (index 8).
+    // [1..3] index, [3] opcode, [4] flag, [5] block, [6] page, data at 8
+    // (`write_frame_carries_the_page_data_at_the_documented_offset`).
     frame_with([0x06, 0x00], 8 + FLASH_PAGE_BYTES, |p| {
         indexed(p, rcv_index, FLASH_OP_WRITE);
         p[5] = block;
@@ -192,7 +187,7 @@ fn write_page_unchecked(rcv_index: u16, block: u8, page: u8, data: &[u8]) -> Vec
     })
 }
 
-/// Write the screen-size record back to flash (linear-address frame 0x1900).
+/// Write the screen-size record (linear-address frame, type 0x1900).
 ///
 /// # Errors
 /// Refuses any address outside the screen-size record, or a wrong length.
@@ -209,8 +204,7 @@ pub fn write_screen_record(rcv_index: u16, addr: u32, data: &[u8]) -> Result<Vec
     Ok(linear(rcv_index, FLASH_OP_WRITE, addr, SCREEN_RECORD_LEN as u32, data, 4))
 }
 
-/// Read `len` bytes at any flash address (used to dump firmware and survey
-/// unmapped regions).
+/// Read `len` bytes at any flash address.
 #[must_use]
 pub fn read_flash_linear(rcv_index: u16, addr: u32, len: u32) -> Vec<u8> {
     linear(rcv_index, FLASH_OP_READ, addr, len, &[], 0)
@@ -227,8 +221,8 @@ fn linear(rcv_index: u16, opcode: u8, addr: u32, len: u32, data: &[u8], tail: us
     })
 }
 
-/// Extract the flash bytes from a reply frame: Ethernet header, a one-byte
-/// status, then the data, zero-padded to a fixed frame size.
+/// The flash bytes of a reply: header, one status byte at 14, then up to
+/// [`FLASH_CHUNK_BYTES`] of data.
 pub fn flash_reply_data(eth_frame: &[u8]) -> Option<&[u8]> {
     if eth_frame.len() < 15 || eth_frame[12..14] != FLASH_REPLY_TYPE {
         return None;
@@ -308,7 +302,6 @@ mod firmware_tests {
             assert!(erase_firmware_block(0, block).is_ok());
             assert!(write_firmware_page(0, block, 0, &page).is_ok());
         }
-        // The golden bank and everything past the primary image are refused.
         for block in [GOLDEN_BLOCK, 0x0b, 0x0c, 0x21, 0xff] {
             assert_eq!(
                 erase_firmware_block(0, block),
@@ -414,7 +407,6 @@ mod tests {
     fn write_frame_carries_the_page_data_at_the_documented_offset() {
         let data: Vec<u8> = (0..=255u8).collect();
         let f = write_page(1, PARAM_BLOCK, 0x81, &data).unwrap();
-        // 12 MAC + 2 type + 8 header + 256 data.
         assert_eq!(f.len(), 278);
         assert_eq!(f[17], FLASH_OP_WRITE);
         assert_eq!(f[18], 0x00, "flag byte");

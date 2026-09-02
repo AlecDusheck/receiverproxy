@@ -1,36 +1,34 @@
-//! Pixel data, latching, and brightness: the frames sent every refresh.
+//! Pixel rows, the latch (sync) frame, and brightness: the frames sent every
+//! refresh.
 //!
-//! Layouts follow FPP's ColorLight-5a-75 output, byte-verified against the
-//! vendor DLL (`docs/pixel-protocol.md` §3). The type is one byte at frame
-//! offset 12 and the first data byte rides at offset 13, inside what would be
-//! the second EtherType byte; shifting data by one turns the panel into a 5 Hz
-//! strobe.
+//! Layouts follow FPP's ColorLight-5a-75 output, byte-checked against the
+//! vendor DLL (`docs/pixel-protocol.md` §1.3). The type is one byte at frame
+//! offset 12 and data starts at 13, in the second EtherType byte; data
+//! shifted by one byte made the panel a 5 Hz strobe on the bench.
 
 use super::{write_header, HEADER_LEN};
 
-/// Max pixels per row packet (FPP's CL_MAX_PIXL_PER_PACKET, hard-coded in the vendor DLL).
+/// FPP's `CL_MAX_PIXL_PER_PACKET`, also hard-coded in the vendor DLL.
 pub const MAX_PIXELS_PER_PACKET: usize = 497;
 
-/// Display/vsync frame: wire type 0x01, data[0] = 0x07 ("PC sender").
+/// Latch frame: type 0x01, first data byte 0x07.
 ///
-/// Latches the previously sent row data onto the panel and carries the master
-/// brightness at frame offset 35 and three channel gains at 38..41. Callers
-/// send three per refresh (`docs/rendering-recipe.md`).
+/// Latches the rows sent since the last one; master brightness at offset 35,
+/// three channel gains at 38..41. Callers send three per refresh: one never
+/// starts the display, two decay into noise, three hold (`docs/rendering.md`).
 #[must_use]
 pub fn sync(brightness: u8) -> [u8; 112] {
     let mut f = [0u8; 112];
     write_header(&mut f, [0x01, 0x07]);
     f[35] = brightness;
     f[36] = 0x05;
-    // The vendor derives the three gains from separate bytes of its brightness
-    // block; that derivation is unresolved (docs/pixel-protocol.md §2.2), so
-    // they follow the master value.
+    // The vendor derives the three gains from its brightness block by an
+    // unresolved rule (docs/pixel-protocol.md §2.2); they follow the master here.
     f[38..41].fill(brightness);
     f
 }
 
-/// Brightness frame: wire type 0x0A, data = [b, b, b, 0xFF] starting at frame
-/// offset 13 (so the first copy of b is the second EtherType byte).
+/// Brightness frame: type 0x0a, data `[b, b, b, 0xff]` from offset 13.
 #[must_use]
 pub fn brightness(b: u8) -> [u8; 77] {
     let mut f = [0u8; 77];
@@ -72,12 +70,10 @@ impl std::str::FromStr for ColorOrder {
     }
 }
 
-/// Bytes between the frame start and the first pixel of a row packet.
 const ROW_PIXELS_AT: usize = HEADER_LEN + 7;
 
-/// Pixel row frame: wire type 0x55, then data at offset 13:
-/// [row MSB, row LSB, offs MSB, offs LSB, count MSB, count LSB, 0x08, 0x88,
-/// pixels...]
+/// Pixel row frame: type 0x55, then from offset 13: row u16, pixel offset
+/// u16, count u16 (all BE), 0x08, 0x88, pixels.
 #[must_use]
 pub fn pixel_row(row: u16, pixel_offset: u16, rgb: &[[u8; 3]], order: ColorOrder) -> Vec<u8> {
     let mut f = Vec::new();
@@ -85,8 +81,8 @@ pub fn pixel_row(row: u16, pixel_offset: u16, rgb: &[[u8; 3]], order: ColorOrder
     f
 }
 
-/// [`pixel_row`] written into a reused buffer, so a refresh loop allocates
-/// nothing per packet. `buf` is cleared first.
+/// [`pixel_row`] into a reused buffer (cleared first), so a refresh loop
+/// allocates nothing per packet.
 pub fn pixel_row_into(buf: &mut Vec<u8>, row: u16, pixel_offset: u16, rgb: &[[u8; 3]], order: ColorOrder) {
     let count = rgb.len() as u16;
     buf.clear();
@@ -111,7 +107,6 @@ mod tests {
 
     #[test]
     fn pixel_rows_follow_the_fpp_layout() {
-        // FPP: data[0] = row MSB lives at frame offset 13.
         let px = [[1u8, 2, 3], [4, 5, 6]];
         let f = pixel_row(0x0102, 5, &px, ColorOrder::Rgb);
         assert_eq!(f[12], 0x55, "type byte");
@@ -154,8 +149,7 @@ mod tests {
 
     #[test]
     fn sync_frame_matches_fpp_byte_for_byte() {
-        // FPP: 112-byte packet, data[0]=0x07 at offset 13, brightness at
-        // data[22] (offset 35) and data[25..28] (offsets 38..41), 0x05 at 36.
+        // FPP: brightness at data[22] and data[25..28], 0x05 at data[23].
         let f = sync(0x7f);
         assert_eq!(f.len(), 112);
         assert_eq!(&f[12..14], &[0x01, 0x07]);
@@ -166,7 +160,6 @@ mod tests {
 
     #[test]
     fn brightness_frame_matches_fpp() {
-        // FPP: 77-byte packet, data[0..4] = [b, b, b, 0xFF] from offset 13.
         let f = brightness(0x40);
         assert_eq!(f.len(), 77);
         assert_eq!(f[12], 0x0a);

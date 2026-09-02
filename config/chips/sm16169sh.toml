@@ -1,6 +1,6 @@
 # Driver-chip library: SM16169SH — the vendor's name for chip id 0x14C with no
-# sub-variant. This is the register set the seller's config actually carried
-# (with reg 0x07 hand-edited to 0x04: freq division 1, line gray 64).
+# sub-variant. This is the register set the reference config carried
+# (reg 0x07 at 0x04: freq division 1, line gray 64).
 #
 # Sources: libCLTDevice ResetChipCustom (chip 0x14C, __TEXT,__const 0x4010B0),
 # ChipSetting.dll dialog IDD20173 "Default Parameter" builders.
@@ -22,7 +22,7 @@ order = [
 0x04 = [0x00, 0x00, 0x00]
 0x05 = [0x00, 0x00, 0x00]
 0x06 = [0x00, 0x00, 0x00]
-0x07 = [0x04, 0x04, 0x04]   # seller's edit; vendor default 0x2c (freq div 2, line gray 128)
+0x07 = [0x04, 0x04, 0x04]   # reference file; vendor default 0x2c (freq div 2, line gray 128)
 0x08 = [0x00, 0x00, 0x00]
 0x09 = [0x00, 0x00, 0x00]
 0x0a = [0x00, 0x00, 0x00]

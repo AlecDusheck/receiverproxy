@@ -1,13 +1,8 @@
 //! The scan table (`CalScanTalbeDefault` @ 0x14d710): the card's PWM bit-time schedule.
 //!
-//! Computed the way the vendor does: a field table of (segment id, enabled
-//! slots) per gray level, bit times snapped to 8-unit quanta, then rendered
-//! bucket by bucket. Reproduces the factory image byte-exact under test.
-//!
-//! Transcribed case: default style, 16 segments, the 14-level schedule. The
-//! vendor hand-codes one field-table block per gray level; the card's
-//! schedule depth is independent of the pixel word width (docs/grey-mapping.md
-//! §5.2 records the 12-level block too).
+//! A field table of (segment id, enabled slots) per gray level, bit times
+//! snapped to 8-unit quanta, rendered bucket by bucket. Only style 0, 16
+//! segments, 14 levels is transcribed; byte-exact in tests/factory.rs.
 
 use crate::record01::View;
 use anyhow::{bail, Result};
@@ -16,12 +11,9 @@ pub const LEN: usize = 0x400;
 const LEVELS: usize = 16;
 const SLOTS: u32 = 32;
 const MAX_ENTRIES: usize = 0xE7;
-/// Schedule depth of the transcribed field table. Deliberately not taken
-/// from the spec's `gray_bits`: measured 2026-09-01, the vendor's 12-level
-/// block paired with 12-bit words raised the black floor (0.75 -> 0.90 A)
-/// instead of removing it, so the schedule depth is not the floor's cause
-/// (docs/grey-mapping.md §6; the floor was the phantom positions,
-/// docs/black-floor.md). 14 is what the factory image carries.
+/// Schedule depth, not taken from `gray_bits`: on 2026-09-01 the 12-level
+/// block with 12-bit words raised the black floor (0.75 -> 0.90 A) rather than
+/// removing it (docs/archive/grey-mapping.md §6). 14 is what the factory image carries.
 const GRAY: u32 = 14;
 
 /// Field-table block for 16 segments at 14-bit gray, levels 0..=12

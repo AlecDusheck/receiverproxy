@@ -1,8 +1,7 @@
-//! The basic-parameter pack body (page 0 of the boot image; the real-time
-//! pack with sub-index 0), built the way `GetBasicParam` @ 0x1dfb50 does
-//! from record 0x01 — all 256 bytes derived, verified byte-exact against the
-//! vendor's own pack. Fields the vendor computes from chip-specific tables
-//! are zero for this chip family and stay zero here.
+//! The basic-parameter pack body (page 0 of the boot image; real-time pack
+//! sub-index 0), built from record 0x01 as `GetBasicParam` @ 0x1dfb50 does.
+//! Byte-exact against the factory pack (tests/factory.rs). Fields the vendor
+//! takes from chip-specific tables are zero for this chip family.
 
 use super::PanelSpec;
 use crate::record01::{off, View};
@@ -107,9 +106,9 @@ fn head_code(rec_008: u8, dim_hi: u8) -> u8 {
     code | ((dim_hi & 3) << 4) | ((dim_hi & 3) << 6)
 }
 
-/// Pack +0x4C..+0x53: the luminance level split by the current percents —
-/// R = floor(V·pR), B = floor((V−R−G)·pB), rest = V−R−G−B, G = floor(V·pG),
-/// emitted as R, B, rest, G. The factory tool floors (this dylib rounds).
+/// Pack +0x48..+0x4F: luminance level split by the current percents,
+/// R = floor(V*pR), G = floor(V*pG), B = floor((V-R-G)*pB), rest = V-R-G-B,
+/// emitted as R, B, rest, G. The factory tool floors; the SDK dylib rounds.
 fn current_split(v: u16, rec: View<'_>) -> [u8; 8] {
     let pr = rec.f32_le(off::CURRENT_PCT);
     let pg = rec.f32_le(off::CURRENT_PCT + 4);
@@ -127,9 +126,8 @@ fn current_split(v: u16, rec: View<'_>) -> [u8; 8] {
     out
 }
 
-/// The vendor's trailing dword: standard CRC-32 over body[0..0xFC], computed
-/// before `ResetChipType` fills the chip-id escape (0x1B) and chip id
-/// (0xE7..0xE8) — so those three bytes are zero when hashed.
+/// Standard CRC-32 over body[..0xFC], computed before `ResetChipType` fills
+/// the chip-id escape (0x1B) and chip id (0xE7..0xE8), so those hash as zero.
 fn body_crc(body: &[u8; 256]) -> u32 {
     let mut hashed = *body;
     hashed[0x1B] = 0;

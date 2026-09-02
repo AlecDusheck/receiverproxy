@@ -1,11 +1,16 @@
 # The fixed black floor: the void-line path, and what it rules in and out
 
+> Archived. Superseded by [rendering.md](../rendering.md) ("The black floor"):
+> the void-line column table decoded here is what `Block7Builder::void_line_columns`
+> writes, and with it black measures 0.466 A (LEDs off). Kept for the decode
+> and the verification of the other candidate tables.
+
 2026-09-01. Static analysis only — nothing was executed, nothing touched the
 card. Every hex address is a byte offset in the macOS build
 `libCLTDevice.1.dylib` (`__TEXT` VAs = file offsets); the disassembly used is
-`<scratch>/libCLTDevice.asm`. Image offsets are offsets into the 0x8000-byte
+`<scratch>/libCLTDevice.asm` (a scratch directory outside the tree). Image offsets are offsets into the 0x8000-byte
 compiled parameter image (flash `0x70000`), per
-[compiled-image-format.md](compiled-image-format.md).
+[compiled-image-format.md](../compiled-image-format.md).
 
 **The bench fact this file exists to explain.** An all-black frame leaves a
 *fixed* per-slot, per-colour duty (~24 % of white): red lit on chain slots
@@ -169,7 +174,7 @@ with no void lines.
 
 ---
 
-## 2. Candidates closed by this session
+## 2. Candidates closed by this analysis
 
 ### (b) data-swap / colour source / current exchange — CLOSED, our zeros are right
 
@@ -189,7 +194,7 @@ dst[g] = GetModuleIndex(...)                                               ; 0x1
 single module every group maps to module **0**, so the vendor's output is the
 all-zero buffer it started from. This resolves the "may differ from vendor
 output — NOT RESOLVED" note in
-[compiled-image-format.md](compiled-image-format.md) for image `0x0C00`:
+[compiled-image-format.md](../compiled-image-format.md) for image `0x0C00`:
 **zeros are correct for one module.** (VERIFIED for the writer; the value
 `GetModuleIndex` returns for module 0 is inferred to be 0 — MEDIUM.)
 
@@ -229,7 +234,7 @@ Nothing is wrong here.
 ### (d) scan table — not a *configuration* differentiator
 
 Our scan table is byte-identical to the factory's, and
-[output-stage.md §3](fpga/output-stage.md) records that the generator produces
+[output-stage.md §3](../fpga/output-stage.md) records that the generator produces
 the same table for a 256- and a 512-clock load (the width enters only a frame-
 time estimate). A table that does not change with the load cannot be the thing
 whose *shape* changes when CardScanLen changes. The `(start,end)` pairs at
@@ -255,7 +260,7 @@ into slots it considers unused.** — VERIFIED negative over these five builders
    it is not leakage, not a stuck OE, and not the driver free-running. If it
    were any of those, displacing the position map could not extinguish it.
 2. The floor is therefore **content in the line buffer** (`EBR@4,25`, 512 x 36,
-   [pixel-write-path.md §3.1](fpga/pixel-write-path.md)) for real slot
+   [pixel-write-path.md §3.1](../fpga/pixel-write-path.md)) for real slot
    positions, and pixel data **adds on top of it** rather than replacing it —
    sent patterns render correctly over it.
 3. It is bit-exact across power cycles, so its source is deterministic: either a
@@ -279,7 +284,7 @@ candidate in the brief is now either verified-correct (§1.5, §2) or shown to b
 width-independent (§2d). **The remaining hypothesis is card-side: one plane's
 worth of the line buffer is filled from a fixed internal source.** That is not
 decidable from the vendor library — the library has no model of the card's line
-buffer at all — and [output-stage.md §7.3](fpga/output-stage.md) already
+buffer at all — and [output-stage.md §7.3](../fpga/output-stage.md) already
 records the unresolved 2:1 mux in the output stage (CCU2 counter vs block-RAM
 data-out) as exactly this kind of "fixed source vs live data" selection.
 
@@ -309,7 +314,7 @@ data-out) as exactly this kind of "fixed source vs live data" selection.
 
 * Which internal source fills the plane. The library cannot say; the netlist
   question is the `Q5@23,18` 2:1 mux and `Q6@9,27` (the line buffer's only write
-  gate) in [output-stage.md §7.2–7.4](fpga/output-stage.md).
+  gate) in [output-stage.md §7.2–7.4](../fpga/output-stage.md).
 * `OBJ+0xD4D0`, the "custom void data" flag that makes
   `ChangeVoidLineDataFromNormalToCustom` return without rebuilding. Its record
   0x01 offset was not traced. Irrelevant while there are no void lines, but it

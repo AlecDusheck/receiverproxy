@@ -1,7 +1,6 @@
-//! Pins against reality: the day-one flash dump (the card's factory boot
-//! image and the config it was compiled from), the seller's config, the
-//! vendor corpus consensus, and the hand-derived single-module pack. The
-//! generator must land on those bytes exactly, from the spec alone.
+//! Byte-exact tests against the day-one flash dump (`card-dumps/primary-region.bin`),
+//! the config the card arrived with, the vendor corpus and the hand-derived
+//! single-module pack. The generator must reproduce them from the spec alone.
 
 use e120_rcvbp::image::{self, Block7Builder};
 use e120_rcvbp::spec::PanelSpec;
@@ -37,13 +36,12 @@ fn our_panel() -> PanelSpec {
     PanelSpec::load("config/panels/p25-128x64-sm16269s.toml").unwrap()
 }
 
-/// The seller's config, as a spec: same module, the SM16169SH register set
-/// they actually shipped, and the 256x384 wall they compiled for.
-fn sellers_panel() -> PanelSpec {
+/// The config the card arrived with, as a spec: same module, the SM16169SH
+/// register set, a 256x384 wall.
+fn reference_panel() -> PanelSpec {
     let mut spec = our_panel();
-    // The file the card arrived with says 14-bit grey and +0x02F = 0. Ours
-    // keeps 12 (measured most; 12-16 render alike, docs/rendering-recipe.md)
-    // and sets +0x02F = 1, without which nothing displays.
+    // That file says 14-bit grey and +0x02F = 0. Ours keeps 12 (12-16 render
+    // alike, docs/rendering.md) and +0x02F = 1, without which nothing displays.
     spec.module.gray_bits = None;
     spec.record01_overrides.remove(&0x02F);
     spec.chip.library = "config/chips/sm16169sh.toml".into();
@@ -71,12 +69,11 @@ fn differing_bytes(a: &[u8], b: &[u8]) -> Vec<usize> {
 }
 
 #[test]
-fn the_sellers_config_is_regenerated_record_for_record() {
-    // Every record the seller's file carries, from defaults + spec alone.
-    let g = sellers_panel().generate().unwrap();
-    let seller = Rcvbp::load(repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
-    assert_eq!(g.rcvbp.records.len(), seller.records.len());
-    for rec in &seller.records {
+fn the_reference_config_is_regenerated_record_for_record() {
+    let g = reference_panel().generate().unwrap();
+    let reference = Rcvbp::load(repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
+    assert_eq!(g.rcvbp.records.len(), reference.records.len());
+    for rec in &reference.records {
         let ours = record(&g.rcvbp, rec.id());
         let diffs = differing_bytes(ours, &rec.payload);
         assert!(diffs.is_empty(), "record 0x{:02x} differs at {diffs:x?}", rec.id());
@@ -84,37 +81,32 @@ fn the_sellers_config_is_regenerated_record_for_record() {
 }
 
 #[test]
-fn the_sellers_config_reproduces_the_factory_pack_byte_for_byte() {
-    let g = sellers_panel().generate().unwrap();
+fn the_reference_config_reproduces_the_factory_pack_byte_for_byte() {
+    let g = reference_panel().generate().unwrap();
     let diffs = differing_bytes(&g.basic_pack, &factory().block[..0x100]);
     assert!(diffs.is_empty(), "pack differs at {diffs:x?}");
 }
 
 #[test]
-fn our_panel_differs_from_the_sellers_only_where_intended() {
+fn our_panel_differs_from_the_reference_only_where_intended() {
     let ours = our_panel().generate().unwrap();
-    let seller = Rcvbp::load(repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
-    // Record 0x01: one module instead of their 256x384 wall, and nothing else.
-    // The secondary chip id at +0x0E9/+0x205 used to differ too; the seller
-    // writes none, and claiming one (0x14D) would declare max scan 64 on a
-    // 1/16 module, so config/chips/sm16269s-factory.toml leaves it clear.
-    let d = differing_bytes(record(&ours.rcvbp, 0x01), record(&seller, 0x01));
-    // +0x023 grey depth 12 (theirs 14; 12-16 render alike) and +0x02F = 1
-    // (theirs 0; required to display); the rest is the single-module screen size.
+    let reference = Rcvbp::load(repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
+    // Secondary chip id (+0x0E9/+0x205) stays clear as in their file: 0x14D
+    // would declare max scan 64 on a 1/16 module (config/chips/sm16269s-factory.toml).
+    let d = differing_bytes(record(&ours.rcvbp, 0x01), record(&reference, 0x01));
+    // +0x023 grey 12 (theirs 14; 12-16 render alike), +0x02F = 1 (theirs 0;
+    // required to display), then the single-module screen size.
     assert_eq!(d, vec![0x023, 0x02F, 0x0C0, 0x0C1, 0x0C2, 0x0C3]);
-    // The mapping and the chip registers now agree with theirs exactly.
-    assert!(differing_bytes(record(&ours.rcvbp, 0x03), record(&seller, 0x03)).is_empty());
-    assert!(differing_bytes(record(&ours.rcvbp, 0x84), record(&seller, 0x84)).is_empty());
-    let seller = Rcvbp::load(fixture("p25-128x64-fixed.rcvbp")).unwrap();
+    assert!(differing_bytes(record(&ours.rcvbp, 0x03), record(&reference, 0x03)).is_empty());
+    assert!(differing_bytes(record(&ours.rcvbp, 0x84), record(&reference, 0x84)).is_empty());
+    let reference = Rcvbp::load(fixture("p25-128x64-fixed.rcvbp")).unwrap();
     // Secondary parameters: the screen size the vendor mirrors there.
-    let d = differing_bytes(record(&ours.rcvbp, 0x8a), record(&seller, 0x8a));
+    let d = differing_bytes(record(&ours.rcvbp, 0x8a), record(&reference, 0x8a));
     assert_eq!(d, vec![0x10, 0x11, 0x12, 0x13]);
-    // The pack: the hand-derived single-module pack (which patched four
-    // fields and left the rest at the wall's values), plus the layout-derived
-    // fields the hand patch missed, plus a real CRC.
+    // The hand-derived pack patched four fields and left the rest at the
+    // wall's values; the generated one also derives these from the layout.
     let v2 = std::fs::read(fixture("basic-pack-single-module-v2.bin")).unwrap();
-    // +0x08 (grey depth 12) and +0x19 (record +0x02F = 1) mirror the record
-    // 0x01 departures above.
+    // +0x08 (grey 12) and +0x19 (record +0x02F = 1) mirror the record 0x01 diffs above.
     let layout_derived = [0x08, 0x19, 0x25, 0x2A, 0x39, 0x3A, 0x3B, 0x3C, 0xE3, 0xE4, 0xE5, 0xE6];
     let d: Vec<usize> = (0..0xFC)
         .filter(|i| !layout_derived.contains(i))
@@ -130,9 +122,8 @@ fn our_panel_differs_from_the_sellers_only_where_intended() {
 
 #[test]
 fn the_factory_image_rebuilds_from_erased_flash_and_its_own_parts() {
-    // The factory pack and config are not a `Generated`, so the region
-    // sequence is spelled out; it must match `Block7Builder::from_generated`
-    // minus the phantom-position gate (the factory left that table zero).
+    // Same sequence as `Block7Builder::from_generated` minus the
+    // phantom-position gate (the factory left that table zero).
     let f = factory();
     let rec01 = &f.cfg.record_01().unwrap().payload;
     let mut b = Block7Builder::erased();
@@ -151,9 +142,8 @@ fn the_factory_image_rebuilds_from_erased_flash_and_its_own_parts() {
 
 #[test]
 fn the_bench_spec_displaces_the_phantom_positions() {
-    // With `gate_phantom_positions` on, positions width..2*width of the
-    // void-line column table are 0xFF (pushed off the chain) and the real
-    // columns are left in place; this is what makes black LEDs-off.
+    // Positions width..2*width of the void-line column table are 0xFF (off the
+    // chain), real columns untouched; this is what makes black LEDs-off (docs/rendering.md).
     let spec = our_panel();
     let g = spec.generate().unwrap();
     let img = Block7Builder::from_generated(&spec, &g).unwrap().finish().image;
@@ -193,9 +183,8 @@ fn a_single_module_screen_gets_a_module_position_table() {
 
 #[test]
 fn the_default_block_gives_the_vendor_consensus_table() {
-    // With no `block` set, each data group takes one contiguous half of the
-    // shift chain. That is the majority wiring across the vendor corpus, so it
-    // stays the default — but it is not the wiring of the panel on this bench.
+    // No `block`: each data group takes one contiguous half of the chain, the
+    // majority wiring in the vendor corpus. Not the wiring of the bench panel.
     let donor = Rcvbp::load(repo("third-party/configs/donor-P2.5-320x160-2153-consensus.rcvbp")).unwrap();
     let mut spec = our_panel();
     spec.mapping.block = None;
@@ -203,16 +192,11 @@ fn the_default_block_gives_the_vendor_consensus_table() {
 }
 
 #[test]
-fn the_sellers_mapping_is_reproduced_by_the_block_knob() {
-    // The seller's own file for this panel interleaves the two row-halves
-    // every 64 columns rather than once at the midpoint. That is a real
-    // property of the module's wiring, and `mapping.block` is the knob for
-    // it: with block = 64 the generated table is theirs byte-for-byte.
-    // (Earlier this difference was recorded as an unreproducible "outlier",
-    // and the contiguous table was flashed to the card instead, which
-    // scrambled every column.)
-    let seller = Rcvbp::load(repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
-    assert_eq!(our_panel().mapping_record(), *record(&seller, 0x03));
+fn the_reference_mapping_is_reproduced_by_the_block_knob() {
+    // The panel's own file interleaves the two row-halves every 64 columns;
+    // block = 64 reproduces it. Flashing the contiguous table scrambled every column.
+    let reference = Rcvbp::load(repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
+    assert_eq!(our_panel().mapping_record(), *record(&reference, 0x03));
 }
 
 #[test]

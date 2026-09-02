@@ -1,5 +1,7 @@
 # Per-receiver packet statistics — how LEDVISION reads them
 
+> Archived. Exploratory: the four discovery-reply counters at payload 37, 41, 45 and 97 were located but never named, and the deciding experiment was not run. The reply parser is `crates/e120-proto/src/discovery.rs`; the control-area read-back at payload 16-23 it points out is still worth adopting.
+
 **Answer in one line:** there is **no dedicated statistics query**. The counters
 ride in the ordinary discovery reply (request type `0x0700`, reply type `0x08xx`),
 as four big-endian `u32` at payload offsets **37, 41, 45 and 97**; the only
@@ -14,10 +16,10 @@ read of `LedAdmin.dll`. Nothing was executed; nothing touched the network.
 Paths:
 
 ```
-.../scratchpad/iset7pkg/iSet.pkg/Payload/iSet.app/Contents/Frameworks/lib/libCLTDevice.1.dylib
-.../scratchpad/libCLTDevice.asm                     (otool -tv of the above)
-.../scratchpad/ledvision/$_15_/Language/Hw/iSeries/Multi_eng.ini
-.../scratchpad/ledvision/$_15_/x64/Bin/LedAdmin.dll
+<scratch>/iset7pkg/iSet.pkg/Payload/iSet.app/Contents/Frameworks/lib/libCLTDevice.1.dylib
+<scratch>/libCLTDevice.asm                     (otool -tv of the above)
+<scratch>/ledvision/$_15_/Language/Hw/iSeries/Multi_eng.ini
+<scratch>/ledvision/$_15_/x64/Bin/LedAdmin.dll
 ```
 
 All addresses below are `libCLTDevice.1.dylib` virtual addresses unless stated.
@@ -319,7 +321,7 @@ apart from the type word:
 | 17–283 | `00` × 267 | pad |
 
 Send selector `0x807d` with `r9d = 2` is the same fire-and-forget path used by
-`ReLoadLocalParam` (`docs/screen-connection-wire.md`), so **no reply is
+`ReLoadLocalParam` (`docs/archive/screen-connection-wire.md`), so **no reply is
 expected**. The frame carries no write opcode and no data, so it cannot touch
 flash or EEPROM. **HIGH.**
 

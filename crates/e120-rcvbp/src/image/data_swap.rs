@@ -1,9 +1,8 @@
 //! The data-swap pack body (`GetDataSwapEx2ParamPack` @ 0x1ec700).
 //!
-//! The 64-byte lane map from record +0x19A (an identity ramp 0x40..0x7F
-//! unless the file overrides it), zeros, and three deseam-correction pairs
-//! written by `CalDeseamCorrectData` — 8.8 fixed point 1.0 (`01 00`) when
-//! deseam is off, which is the case the vendor's own image shows.
+//! The 64-byte lane map from record +0x19A, zeros, and three deseam pairs
+//! from `CalDeseamCorrectData`: 8.8 fixed-point 1.0 (`01 00`) with deseam
+//! off, as in the factory image.
 
 use crate::record01::View;
 

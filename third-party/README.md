@@ -1,7 +1,11 @@
 # Third-party material
 
-Vendor firmware builds (`firmware/`), the seller's and donor `.rcvbp` configs
-(`configs/`), and datasheets (`datasheets/`). Nothing here is ours; nothing here
+Vendor firmware builds (`firmware/`), `.rcvbp` configs (`configs/`), and
+datasheets (`datasheets/`). `configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp`
+is the reference file the tests compare against: its records match the card's
+day-one flash (`crates/e120-rcvbp/tests/factory.rs`); where it came from is
+not recorded, and its name says a 256x384 wall, which is not this bench.
+`configs/donor-*.rcvbp` is our own construction, not vendor material. Nothing here is ours; nothing here
 is ever executed. Our own reads of this card's flash live in `../card-dumps/`.
 
 ## Firmware archive
@@ -66,7 +70,7 @@ copy of what this specific card shipped with.
 
 **The bitstream is not contiguous.** It occupies 0x000000-0x02FFFF and
 0x080000-0x0AFFFF only; the 320KB between them is reserved for configuration
-and is never loaded. The card's own upgrade agent programs exactly those two
+and is never loaded. The card's own upgrade path programs exactly those two
 regions and skips the middle, and a `.hex` file's contents there are padding.
 
 This was confirmed the hard way. The card shipped running firmware 10.81 while

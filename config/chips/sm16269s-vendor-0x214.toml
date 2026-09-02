@@ -13,8 +13,8 @@
 # chip-name tables know 0x0214 at all — record at file offset 0xD70EA0,
 # group 2, name "SM16269S"; the neighbours are SM16269SW 0x0217 @ 0xD70F24 and
 # SM16386S 0x0187 @ 0xD71554). Image base 0x180000000. Disassembly by
-# .pdata-driven capstone dump (ls226/disasm_i.py -> itext.dis in the session
-# scratchpad). libCLTDevice.1.dylib / LEDVISION 9.6 CLTDevice.dll cannot
+# .pdata-driven capstone dump (ls226/disasm_i.py -> itext.dis in a scratch
+# directory outside the tree). libCLTDevice.1.dylib / LEDVISION 9.6 CLTDevice.dll cannot
 # express 0x0214 at all — their chip tables stop at 0x015D.
 #
 # 1. ResetChipCustom @ 0x18029CE00. Bound check `cmp eax, 0x25d` @ 0x18029CFBB;

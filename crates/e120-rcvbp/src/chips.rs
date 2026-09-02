@@ -36,8 +36,8 @@ pub struct ChipLibrary {
     pub chip_custom_scan_patch: Option<ScanPatch>,
     /// `SChipCustomEX` (record 0x01 +0x0E0..+0x0E3).
     pub chip_custom_ex: Option<[u8; 4]>,
-    /// Whether record 0x84 exists for this chip at all. The vendor omits it
-    /// for non-addressed chips; a zeroed record is not the same file.
+    /// The vendor omits record 0x84 for non-addressed chips; a zeroed record
+    /// is not the same file.
     #[serde(default = "default_true")]
     pub emit_record_84: bool,
     /// Grey depth as a literal, for chips whose depth is not derived from
@@ -49,9 +49,8 @@ pub struct ChipLibrary {
     pub record01_overrides: BTreeMap<usize, u8>,
 }
 
-/// A `0x..` map key parsed to its number at load time. Two spellings of the
-/// same key (`0x02F` / `0x2F`) are refused so the output cannot depend on
-/// which one the map happens to keep.
+/// `0x..` map keys parsed at load. Two spellings of one key (`0x02F`/`0x2F`)
+/// are refused rather than letting the map pick one.
 fn hex_keys<'de, D, K, V>(d: D) -> std::result::Result<BTreeMap<K, V>, D::Error>
 where
     D: serde::Deserializer<'de>,

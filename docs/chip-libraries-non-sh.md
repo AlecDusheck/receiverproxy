@@ -1,14 +1,13 @@
 # Chip libraries for non-SH driver chips
 
-`config/chips/*.toml` and `crates/e120-rcvbp/src/chips.rs` assume every driver
-chip is like SM16169SH (0x014C): an *addressed* part whose configuration is a
-table of numbered registers, serialised into record 0x84 and written by the
-card one register-write at a time. That assumption is wrong for a large part of
-the vendor's chip list, including SM16169S (0x00DE) — the closest relative of
-our silicon for which vendor data actually exists.
+SM16169SH (0x014C) is an *addressed* part: its configuration is a table of
+numbered registers, serialised into record 0x84 and written by the card one
+register-write at a time. A large part of the vendor's chip list is not,
+including SM16169S (0x00DE), the closest relative of this panel's silicon for
+which vendor data exists.
 
-This note records the other shape, what the vendor emits for it, and what the
-generator would have to change.
+This note records the other shape, what the vendor emits for it, and how
+`crates/e120-rcvbp/src/chips.rs` carries it.
 
 ## 1. Two kinds of chip
 
@@ -69,27 +68,21 @@ in a shared helper (`CLTInterface.dll 0x1802C7940`: `cc[n] = (cc[n] & ~0x0F) |
 the same coupling that `docs/chip-control-block.md` §2 describes for 0x014C,
 except the input is a `SChipCustom` byte rather than register 0x07.
 
-## 3. What `chips.rs` would need
+## 3. How `chips.rs` carries it
 
-`ChipLibrary` is `#[serde(deny_unknown_fields)]` and requires `order` and
-`registers`, so `config/chips/sm16169s-vendor.toml` and
-`config/chips/sm16269s-vendor-0x214.toml` **do not load today**. The minimum
-change:
-
-* make `order` and `registers` `Option`, and add
-  `chip_custom: Option<[u8; 16]>`, `chip_custom_ex: Option<[u8; 4]>`,
-  `chip_custom_scan_patch: Option<{ bytes, mask, base }>`,
-  `emit_record_84: bool` (default `true`), `gray_bits: Option<u8>`, and a
-  `record01_overrides: BTreeMap<String, u8>` table;
-* `record_84()` returns `None` when `emit_record_84` is false, and
-  `spec::generate` then omits the `0x0A84` record entirely rather than writing
-  a zero one — the vendor omits it, and a 256-byte record of zeros is not the
-  same file;
-* `gray_bits()` returns the library's literal when the chip has no register
-  table (`GetGrayLevelCalType` is 31 for 0x00DE against 12 for 0x014C, so the
-  reg-0x07/0x03 derivation is simply the wrong formula);
-* record 0x01 takes `chip_custom` at `+0x06A` with the scan patch applied,
-  `chip_custom_ex` at `+0x0E0`, and then the `record01_overrides` bytes last.
+`ChipLibrary` has `chip_custom: Option<[u8; 16]>`, `chip_custom_ex:
+Option<[u8; 4]>`, `chip_custom_scan_patch: Option<{ bytes, mask, base }>`,
+`emit_record_84: bool` (default `true`), `gray_bits: Option<u8>` and a
+`record01_overrides` table. `record_84()` returns `None` when
+`emit_record_84` is false and `spec::generate` omits the `0x0A84` record
+entirely, as the vendor does; `gray_bits()` returns the library's literal
+when the chip has no register table (`GetGrayLevelCalType` is 31 for 0x00DE
+against 12 for 0x014C, so the reg-0x07/0x03 derivation would be the wrong
+formula); record 0x01 takes `chip_custom` at `+0x06A` with the scan patch
+applied and `chip_custom_ex` at `+0x0E0`, then the overrides.
+`config/chips/sm16169s-vendor.toml` and `sm16269s-vendor-0x214.toml` load
+and generate; neither has been measured on the bench since the loader was
+added.
 
 ## 4. Per-id behaviour that changes the basic pack
 
@@ -136,10 +129,10 @@ everything else equal:
 | `+0xE3..+0xE4` (pack `+0xE7`) | `00 00` | `01 4C` | **`02 14`** | escaped chip id, big-endian |
 | `+0xFC..+0xFF` | — | — | — | CRC-32, recomputed with `+0x17` and `+0xE3..+0xE4` zeroed, so it moves with everything above |
 
-## 5. Why this matters for the bench result
+## 5. What the bench saw, and the mechanism
 
-The bench saw: id `0x14C` arms the drivers but shows no data; ids `0x0DE` and
-`0x0214` never arm. Both halves now have a mechanism.
+Id `0x14C` arms the drivers (and, with the settings in
+[rendering.md](rendering.md), renders); ids `0x0DE` and `0x0214` never arm.
 
 * **`0x0214` cannot arm anything.** `IsPWMChip(0x214)` is false, so
   `ResetChipCustom` skips the prologue that sets bit 7 of `SChipCustom[0]`
@@ -147,14 +140,14 @@ The bench saw: id `0x14C` arms the drivers but shows no data; ids `0x0DE` and
   nothing; `ResetChipControl` zeroes its 20 bytes. A config declaring `0x0214`
   ships the driver an all-zero configuration. That is not a tuning problem, it
   is an absent chip library — and no shipped Colorlight build has one.
-* **`0x0DE` was tested unfairly, as suspected.** Its configuration is
-  `SChipCustom`, not a register table, and the earlier test sent it the SH
-  register table for `0x14C` while leaving `SChipCustom` at the 0x14C value
+* **`0x0DE` was tested with the wrong block.** Its configuration is
+  `SChipCustom`, not a register table, and the test sent it the SH register
+  table for `0x14C` while leaving `SChipCustom` at the 0x14C value
   (`80 0F 00 …`). Byte 2 was therefore `0x00`, not `0xE?`, which alone
   (a) leaves the three colour config words zero and (b) makes
   `SetGclkNums` take the `n < 2` branch so `SChipControl[10..13]` never gets
-  `00 81 00 81`. `config/chips/sm16169s-vendor.toml` is the fair version of
-  that test.
+  `00 81 00 81`. `config/chips/sm16169s-vendor.toml` is the correct form of
+  that test; it has not been run.
 
 ## 6. Not resolved
 

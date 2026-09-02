@@ -1,9 +1,9 @@
-# Driver-chip library: SM16269S, as the seller actually programmed it.
+# Driver-chip library: SM16269S, as the card arrived.
 #
 # Every register value below is read straight out of record 0x0a84 of
-# third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp — the config that
-# shipped with the panel on this bench — decoded with scripts/chipregs.py.
-# It is therefore ground truth for this exact module and chip revision, which
+# third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp, whose records
+# match the card's day-one flash (tests/factory.rs), decoded with
+# scripts/chipregs.py. It is the value set this module was driven with, which
 # the two derived libraries next to it are not: config/chips/sm16269.toml holds
 # the vendor tool's generic "Default Parameter" set and sm16269-ls226.toml the
 # LEDSetting 2.2.6 revision, and both disagree with the factory file in eleven
@@ -19,7 +19,7 @@
 # despite the "32S" in the factory file's name. It is overwritten from the
 # panel spec's scan on load, as in every other library.
 
-name = "SM16269S (seller's factory values)"
+name = "SM16269S (factory values)"
 family_id = 0x014C
 # The factory file writes no secondary chip id at all (record 0x01 +0x0E9 and
 # +0x205 are both zero). Per the vendor's ResetIS rule the sub-id overrides

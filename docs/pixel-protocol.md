@@ -10,13 +10,13 @@ static reading of `CLTNic.dll`. Nothing was executed.
 | **x86** | `<scratch>/ledup/x52b/x86/Bin/CLTNic.dll` (2025-04-30, 1 892 904 B) | 32-bit, `__stdcall`, decorated exports carry argument sizes. Image base `0x10000000`. Every address below is from this build unless tagged x64. |
 | **x64** | `<scratch>/ledvision/$_15_/x64/Bin/CLTNic.dll` (2024-06-10, LEDVISION 9.6) | Image base `0x180000000`. Used only to confirm the templates are unchanged in the newest release. |
 
-`<scratch>` =
-`/private/tmp/claude-501/-Users-amd-e120/261c3dad-ba97-45d2-8ea3-ab7a950a8ff9/scratchpad`
+`<scratch>` is a scratch directory outside the tree (the vendor packages
+unpack with `7z x`; see [archive/vendor-sdk-analysis.md](archive/vendor-sdk-analysis.md)).
 
 There is **no** macOS build of CLTNic; `libCLTDevice.1.dylib` (iSet) contains the
 device/config side only — no `Nic_*` symbols, no picture sender. Six copies of
-CLTNic exist under the scratchpad; all export the same 25 symbols and the x86
-and x64 builds agree byte-for-byte on the frame templates.
+CLTNic exist across the vendor packages; all export the same 25 symbols and
+the x86 and x64 builds agree byte-for-byte on the frame templates.
 
 CLTNic is the **only** sender library LEDVISION ships (`$_15_/x64/Bin/` has no
 alternative), so there is one pixel format for the whole product line.
@@ -76,7 +76,7 @@ The patch sites, x86 `fcn.10003580` (the row packetizer):
 | count hi/lo | `mov word [edi+0x55], 0xf101` (= `01 F1` = 497 BE) | `0x1000369b` (full packet) |
 | count hi/lo | `mov [edi+0x55], al` / `mov [edi+0x56], al` | `0x10003763`, `0x10003777` (tail) |
 
-The `0x1f101` store is the clincher for endianness: 497 decimal is written as
+The `0x1f101` store settles the endianness: 497 decimal is written as
 the byte pair `01 F1` at offsets 17,18 — big-endian, and it lands *after* the
 row and offset fields, not before.
 
@@ -211,14 +211,15 @@ inter-packet delay anywhere. Confidence: high.
 | 40 | 1 | channel gain 2 | `0x100034e5`, `[bright+6]` |
 | 41–111 | 71 | `0x00` | `memset` at `0x100034b6` |
 
-This is **byte-identical to what `pixel::sync()` already emits.** Confidence:
-high.
+This is byte-identical to what `pixel::sync()` emits. Confidence: high.
 
 `bright` is the 7-byte block at `0x101b1664` written by `Nic_SetBrightness`
 (`fcn.100062c0`). `[bright+3] = round(master_float * 255)` (`0x10006300`,
-`0x10006336`). The exact per-channel derivation of `[bright+4..6]` involves a
-gamma call (`fcn.1013d1f0`) and is **NOT RESOLVED** at the arithmetic level;
-what is resolved is *which* byte lands at which frame offset.
+`0x10006336`). The per-channel bytes `[bright+4..6]` are
+`round(c_k * round(255 * percent / 100) / 255)` with `c_k = 255` at neutral
+colour temperature: strictly linear, no gamma and no offset
+(`fcn.1013d1f0` is `pow`, used only for the type-0x0A frame's bytes 13–15;
+[archive/grey-mapping.md](archive/grey-mapping.md) §3).
 
 ### 2.3 The brightness frame (type 0x0A, 77 bytes)
 
@@ -235,11 +236,9 @@ Same function, `0x100034f8`–`0x1000356a`. `caplen = len = 77` (`0x10003518`,
 | 16 | 1 | `0xFF` | `0x1000352a` |
 | 17–76 | 60 | `0x00` | `memset` at `0x1000352e` |
 
-Byte-identical to `pixel::brightness()`. Confidence: high.
-
-**We do not currently send this frame as part of the display loop.** The vendor
-sends it on every single video frame, immediately after the latch frame and
-immediately before the rows.
+Byte-identical to `pixel::brightness()`. Confidence: high. The vendor sends
+it on every video frame, after the latch frame and before the rows;
+`Wall::show` sends it first in every refresh.
 
 ---
 
@@ -281,8 +280,7 @@ frame, then every row packet with all-zero pixel bytes. Confidence: high.
 show flag (`0x101a7470`, set by `Nic_SetScreenShowOnOff`) is 0.
 
 So "make the panel go black" is not a shortcut — it is the full sequence with
-zero pixels. Which is good news: **there is exactly one pixel path to get
-right.**
+zero pixels: there is exactly one pixel path.
 
 ---
 
@@ -307,17 +305,12 @@ Both are **purely host-side**. Video is *not* gated on them. Confidence: high.
   It is a **framebuffer rotation**, not a cabling descriptor sent to the card.
   **No packet is transmitted.**
 
-Corollary for our fault: a card that latches but never stores pixels is *not*
-explained by a missing size or connection-style command **from CLTNic**. Those
-sender-side calls do not exist on the wire.
-
-**But the conclusion "so nothing configures the card's window" was wrong.**
-The screen connection is configured from the *device* side, `CLTDevice` /
+The card's window is configured from the *device* side, `CLTDevice` /
 `libCLTDevice`, not from `CLTNic`: a volatile type-`0x0200` card-area pack
-(`docs/screen-connection-wire.md`) and a persisted 42-byte record in the card's
-EEPROM at address `0x02` (`docs/receiver-identity.md`). Our card's copy of that
-record currently reads `startX = startY = 0xFFFF`, an empty window — which is
-exactly why pixel content is ignored.
+([archive/screen-connection-wire.md](archive/screen-connection-wire.md)) and
+a persisted 42-byte record in the card's EEPROM at address `0x02`
+([receiver-identity.md](receiver-identity.md)). With that record erased the
+card drops every pixel while reporting a healthy size.
 
 ### 5.1 Bonus: `Nic_SetTestModeIndex` is host-side too
 
@@ -325,9 +318,8 @@ exactly why pixel content is ignored.
 (`0x100065cc`–`0x100065ff`) uses it to *render a pattern into the local
 framebuffer* (`fcn.10006d00` for 1–4, `fcn.10006f80` for 5–9, `fcn.10006e20`
 for 10–13) which is then sent as ordinary pixel rows. LEDVISION never asks the
-card's built-in generator to draw. That is consistent with the observation that
-the card's own test-pattern generator does nothing for us — the vendor tool
-does not use it either. Confidence: high.
+card's built-in generator to draw; `e120 card test-mode <n>` does, over the
+type-0x33 frame. Confidence: high.
 
 ---
 
@@ -367,86 +359,37 @@ Full burst for one frame at brightness 0xFF:
 
 ---
 
-## 7. Diff against what we send today
+## 7. What `crates/e120-proto/src/pixel.rs` sends
 
-`crates/e120-proto/src/pixel.rs` has just been changed. Both the previous and
-the current layout are compared here, because the answer is not the one that
-was expected.
-
-### 7.1 Our *previous* layout (FPP `ColorLight-5a-75`) vs the vendor
-
-| Field | FPP / our previous code | Vendor | Same? |
-|---|---|---|---|
-| dst MAC | `11:22:33:44:55:66` | `11:22:33:44:55:66` | ✅ |
-| src MAC | `22:22:33:44:55:66` | `22:22:33:44:55:66` | ✅ |
-| offset 12 | `0x55` | `0x55` | ✅ |
-| offsets 13–14 | row, BE | row, BE | ✅ |
-| offsets 15–16 | xoff, BE | xoff, BE | ✅ |
-| offsets 17–18 | count, BE | count, BE | ✅ |
-| offsets 19–20 | `08 88` | `08 88` | ✅ |
-| offset 21+ | 3 B/pixel | 3 B/pixel | ✅ |
-| max per packet | 497 | 497 | ✅ |
-| frame length | `21 + 3n` (405 at n=128) | `21 + 3n` | ✅ |
-| sync frame | 112 B, `01 07`, bright at 35/38–40, `0x05` at 36 | identical | ✅ |
-| brightness frame | 77 B, `0A`, b,b,b,`FF` at 13–16 | identical | ✅ |
-
-**The pixel-row format we were already sending is byte-for-byte what Colorlight
-sends.** The suspicion that the E120 needs a different pixel frame than the
-5A-75 is **not supported by the vendor code**: there is no product branch
-anywhere in CLTNic (§3).
-
-Differences that remain, and they are *not* in the frame layout:
-
-| # | Vendor does | We do | Confidence |
-|---|---|---|---|
-| D1 | Sends the **0x0A brightness frame (77 B) on every video frame**, between the latch frame and the rows | Sends brightness only when explicitly asked | high |
-| D2 | Emits the latch frame **before** the row packets of the same burst | Emits rows, then latch | high |
-| D3 | Sends the entire burst back-to-back with **no delay**, in one pcap send-queue transmit | (check current pacing) | high |
-| D4 | Row field = `base(screenNo) + y`, base 0 only for screen number **1** | plain `y` — equivalent to screen 1 | high, no action |
-| D5 | Pads `count` to ≥ 16 for narrow screens | no padding | high, no action at 128 px |
-| D6 | Pixel bytes are the low 3 bytes of a 32bpp BGRA source → **BGR** on the wire | configurable | medium |
-
-### 7.2 Our *current* (just-changed) layout vs the vendor
-
-The new `pixel_row` emits EtherType `0x5500` as a constant and starts the
-payload at frame offset **14**, shifting row/xoff/count/marker/pixels one byte
-later than the vendor:
-
-| Offset | Vendor | Current code |
+| Field | `pixel.rs` (and FPP `ColorLight-5a-75`) | Vendor |
 |---|---|---|
-| 12 | `0x55` | `0x55` |
-| 13 | row hi | `0x00` |
-| 14 | row lo | row hi |
-| 15–16 | xoff BE | row lo, xoff hi |
-| 17–18 | count BE | xoff lo, count hi |
-| 19–20 | `08 88` | count lo, `0x08` |
-| 21 | first pixel byte | `0x88` |
-| 22+ | — | pixels |
-| length (n=128) | 405 | 406 |
+| dst MAC | `11:22:33:44:55:66` | same |
+| src MAC | `22:22:33:44:55:66` | same |
+| offset 12 | `0x55` | same |
+| offsets 13–14 | row, BE | same |
+| offsets 15–16 | xoff, BE | same |
+| offsets 17–18 | count, BE | same |
+| offsets 19–20 | `08 88` | same |
+| offset 21+ | 3 B/pixel | same |
+| max per packet | 497 | same |
+| frame length | `21 + 3n` (405 at n=128) | same |
+| sync frame | 112 B, `01 07`, bright at 35/38–40, `0x05` at 36 | same |
+| brightness frame | 77 B, `0A`, b,b,b,`FF` at 13–16 | same |
 
-**This does not match the vendor.** It is one byte longer and every field is
-displaced.
+The row format is byte for byte what Colorlight sends; there is no product
+branch anywhere in CLTNic (§3). A one-byte-shifted layout (payload starting
+at frame offset 14, 406-byte rows) was tried once on the strength of a
+white-versus-black current reading (3.1 A → 4.4 A) taken without a control;
+the difference was the card's per-run state toggle
+([retracted-findings.md](retracted-findings.md)) and the vendor layout is
+what the proto tests pin.
 
-I am reporting a conflict, not a verdict: the commit message for that change
-records a hardware measurement (3.1 A → 4.4 A on white vs black) that the
-vendor-exact layout reportedly did not produce. I cannot reconcile those two
-facts from static analysis, and I am not going to explain the measurement away.
-What I can state with high confidence is that the bytes in §1.2 are what
-Colorlight's own software sends, in the newest build, for every product it
-supports.
-
-Two hypotheses worth an A/B on the bench, in this order:
-
-1. **The layout was right all along and something else in the burst was
-   missing.** The most likely candidate is D1 — the 77-byte `0x0A` brightness
-   frame that the vendor injects into *every* frame, ahead of the rows. Second
-   candidate is D2/D3 (latch first, whole burst back-to-back). Test: vendor
-   layout + latch + brightness + rows, in that order, no gaps.
-2. **The E120 firmware really does differ.** If the shifted layout reproduces
-   under a clean A/B while the vendor-exact one plus D1/D2/D3 does not, then the
-   E120 is the first Colorlight product to diverge from its own sender, which
-   would be a genuinely new finding — worth recording here explicitly, with the
-   capture, rather than left implicit in a code comment.
+What differs is the sequence, not the bytes. The vendor sends latch,
+brightness, rows, back to back, latching the previous burst. Measured on
+this card ([rendering.md](rendering.md)): brightness, rows, a 500 µs gap,
+then three latch frames; one latch never starts the display and two decay.
+The row field is plain `y` (screen number 1); no padding applies at 128 px;
+the wire colour order is BGR by default (`--order`).
 
 ---
 
@@ -465,6 +408,6 @@ Two hypotheses worth an A/B on the bench, in this order:
 | No card-model / scan-mode / chip-family branch anywhere | **high** |
 | `SetScreenSize` and `SetScreenConnectionStyle` send nothing | **high** |
 | `SetTestModeIndex` renders host-side, never asks the card | **high** |
-| Per-channel derivation of brightness bytes `[bright+4..6]` | **NOT RESOLVED** |
+| Per-channel derivation of brightness bytes `[bright+4..6]` | **high** — linear, traced in CLTNic `0x100062c0` |
 | Purpose of the second 12-byte template at `+0x69` (x86) / `+0x9d` (x64), bytes `11 55 44 33 22 11 11 55 44 33 22 22` | **NOT RESOLVED** — no read reference found anywhere in the DLL; possibly dead |
 | Meaning of the per-row change-flag array (`node+0x1c` gate, `node+0x20` u16 array, `0x10003601`–`0x10003619`) that lets the vendor skip unchanged rows | **medium** — the mechanism is clear, the producer of the flags is in the caller, not CLTNic |

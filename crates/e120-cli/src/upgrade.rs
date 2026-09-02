@@ -1,9 +1,8 @@
-//! Installing firmware, by the route the card actually supports.
+//! Installing firmware by the route the card supports: upload the whole image
+//! into SDRAM, then ask the card to erase and program itself.
 //!
-//! The host does not write the firmware region. It uploads a whole image into
-//! the card's SDRAM, then asks the card to erase and program itself. Direct
-//! writes to the program area are silently ignored no matter what we send, so
-//! this is the only path that works.
+//! Direct writes to the program area are silently ignored, so this is the
+//! only path.
 
 use crate::util::{await_any_frame, has_lattice_header, open};
 use crate::{protocol, Cli};
@@ -50,10 +49,8 @@ pub fn info(cli: &Cli, wait: u64) -> Result<()> {
     Ok(())
 }
 
-/// Install a firmware image.
-///
-/// Uploads the image into the card's SDRAM, then asks it to erase and program
-/// itself, then waits for it to report done.
+/// Install a firmware image through SDRAM staging and wait for the card to
+/// report done.
 ///
 /// # Errors
 /// Fails if the image does not match what the card expects, if the card does
@@ -113,9 +110,8 @@ pub fn install(
     for (n, chunk) in staged.chunks(upgrade::CHUNK).enumerate() {
         let offset = (n * upgrade::CHUNK) as u32;
         dev.send(&upgrade::sdram_chunk(sel, offset, chunk))?;
-        // Nothing is acknowledged, so pacing is the only flow control there
-        // is. Sending too fast overruns the card and whole runs of chunks are
-        // dropped silently, leaving stale SDRAM that then gets programmed.
+        // Chunks are not acknowledged; pacing is the only flow control. Sent
+        // too fast, runs of chunks drop silently and stale SDRAM gets programmed.
         std::thread::sleep(Duration::from_micros(chunk_delay_us));
         if n.is_multiple_of(128) {
             eprintln!("upgrade: chunk {n}/{}", d.chunks());
@@ -129,7 +125,6 @@ pub fn install(
     dev.send(&upgrade::sdram_program(sel, partition, d.image_len))?;
     std::thread::sleep(Duration::from_millis(1));
 
-    // The card is now writing its own flash. Do not interrupt it.
     eprintln!("upgrade: programming, do not power off");
     std::thread::sleep(Duration::from_millis(d.first_poll_ms()));
 
@@ -153,6 +148,6 @@ pub fn install(
 
     anyhow::bail!(
         "no completion report within {timeout_s}s; the card may still be programming, \
-         do not power it off; check with: e120 upgrade info"
+         do not power it off; check with: e120 firmware info"
     )
 }

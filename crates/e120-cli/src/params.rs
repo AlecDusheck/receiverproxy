@@ -1,10 +1,8 @@
 //! Pushing parameter packs into the card's RAM, generated from a panel spec.
 //!
-//! The vendor tool sends the card's whole raster state at the start of every
-//! session, not just the chip registers: the lookup tables the scan engine
-//! reads from (pixel sequence, scan table, void and anti-void lines) live in
-//! RAM and are re-sent every time. Sending only the three type-0x05 packs
-//! leaves those tables at whatever the card booted with.
+//! The vendor tool re-sends the whole raster state on every push, not only the
+//! chip registers: pixel sequence, scan table and void tables live in RAM, and
+//! sending only the three type-0x05 packs leaves them as the card booted.
 
 use crate::util::open;
 use crate::{protocol, rcvbp, Cli};

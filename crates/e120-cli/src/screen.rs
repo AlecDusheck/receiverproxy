@@ -1,6 +1,8 @@
 //! The screen-size record: a 256-byte EEPROM-backed record at a linear flash
-//! address that the page-addressed frames cannot reach. A block erase clears
-//! it and a firmware write never restores it, so it is read and set by value.
+//! address that the page-addressed frames cannot reach.
+//!
+//! A block erase clears it and a firmware write never restores it, so it is
+//! read and set by value.
 
 use crate::util::{await_reply, open};
 use crate::{protocol, Cli};
@@ -39,9 +41,11 @@ pub fn read(dev: &mut Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
 const START_X: usize = 2;
 const START_Y: usize = 4;
 
-/// True when the record has been erased rather than programmed. The write
-/// path sends all 256 bytes, i.e. every EEPROM record (`docs/eeprom-map.md`),
-/// so an erased read must never be written back (docs/retracted-findings.md).
+/// True when the record has been erased rather than programmed.
+///
+/// The write path sends all 256 bytes, i.e. every EEPROM record
+/// (docs/eeprom-map.md), so an erased read must never be written back
+/// (docs/retracted-findings.md).
 #[must_use]
 pub fn looks_erased(record: &[u8]) -> bool {
     let empty_window =

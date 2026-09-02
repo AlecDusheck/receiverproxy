@@ -40,10 +40,8 @@ memcpy(buf + 0xe, data, dataLen)     payload[14..] = the data
 | data attached only when | `opcode + 0x7b ∈ [0,5]` and `≠ 2`, i.e. opcode ∈ {0x85, 0x86, 0x88, 0x89, 0x8a} | `0x30be85`–`0x30be93` |
 | no data for | 0x44 / 0x45 (read) and **0x87** (save/commit) | ″ |
 
-This is byte-for-byte the frame `e120_proto::flash::linear_frame` already
-builds (its `p[n]` = `payload[n+2]`), so the repo has been speaking this
-protocol correctly all along — it just had the wrong idea of what device is on
-the other end.
+This is byte-for-byte the frame `e120_proto::eeprom` builds (its `p[n]` =
+`payload[n+2]`); the repo once treated it as a linear flash accessor.
 
 ### Opcodes seen at call sites
 
@@ -61,7 +59,7 @@ the other end.
 
 `docs/archive/config-protocol.md` §24 established that the type-0x1900 address
 is masked into a small space, so the repo's `SCREEN_RECORD_ADDR = 0x0007F000`
-lands at EEPROM byte **0**. The bench evidence agrees: `e120 screen-size`
+lands at EEPROM byte **0**. The bench evidence agrees: `e120 card screen-size`
 returns 256 bytes whose fields line up exactly with the address map below.
 
 Independently, the card **mirrors the EEPROM to SPI flash at `0x07F000`**:
@@ -88,7 +86,7 @@ and pushed length arguments. `addr`/`len` are decimal-exact from immediates.
 | `0x43` | 3 | white-balance adjust | `Read/WriteEepromWhiteBalanceAdj` |
 | `0x4b` | 1 | calibration-coefficient source | `Read/WriteEepromCaliCoefFrom` |
 | `0x4c` | 1 | seam enable | `Read/WriteEepromSeamEnable` |
-| `0x4d`–`0x55` | 9 | **NOT RESOLVED** — no `BulidEepromFlashOperation` call site covers it. Factory content `28 00 00 00 01 80 01 00 00`, which contains the seller's wall dimensions 384 (`0x0180`) and 256 (`0x0100`) | — |
+| `0x4d`–`0x55` | 9 | **NOT RESOLVED** — no `BulidEepromFlashOperation` call site covers it. Factory content `28 00 00 00 01 80 01 00 00`, which contains the reference file's wall dimensions 384 (`0x0180`) and 256 (`0x0100`) | — |
 | `0x56` | 3 | void-line info | `ReadEepromVoidLineInfo` |
 | `0x59` | 1 | receiver-card light | `WriteEepromRcvCardLight` (opcode 0x86) |
 | `0x5a` | 20 | receiver card name (ASCII) | `Read/WriteEepromRcvCardName` |
@@ -124,9 +122,11 @@ The EEPROM is therefore **at least 0x128 bytes**, not 256. Addresses ≥ 0x118
 use a different opcode pair (0x45 / 0x88), which is consistent with a second
 device or a paged access above 0x100.
 
-> **Consequence for the repo:** `screen_size` writes 256 bytes starting at
-> EEPROM 0, so it rewrites *every* record in the table above from `0x00` to
-> `0xFF`. That is how the card ended up with `0xFF` in
-> `NoInputShowInfo` (0x41), `TurnOnScreenShow` (0x42), `SeamEnable` (0x4c) and
-> the control-area offsets — see `docs/receiver-identity.md` §4. Prefer
-> targeted writes at the exact address and length in this table.
+> `e120 card screen-size --set` writes 256 bytes starting at EEPROM 0, i.e.
+> every record in the table above. Written back after a block-0x07 erase, it
+> persisted `0xFF` into `NoInputShowInfo` (0x41), `TurnOnScreenShow` (0x42),
+> `SeamEnable` (0x4c) and the control-area offsets
+> ([receiver-identity.md](receiver-identity.md) §4). It now refuses a record
+> that reads as erased. `e120 provision` and `scripts/eeprom-restore.py`
+> write each record at its own address and length; the card silently ignores
+> a write that spans record boundaries, and drops back-to-back writes.

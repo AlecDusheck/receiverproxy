@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""Restore the card's EEPROM records from the day-one flash dump.
-
-Restores from the dump rather than from what we understand: several factory
-records are still unidentified (docs/eeprom-map.md, docs/retracted-findings.md).
-`e120 provision` does the same job natively; this is the standalone repair path
-named by `e120 screen-size`. Dry run unless --commit.
+"""Rewrite the card's EEPROM records from the day-one flash dump, one record at a time.
 
 Usage:
-  eeprom-restore.py [--dump card-dumps/primary-region.bin] [--live now.bin] [--commit]
+  eeprom-restore.py [--dump card-dumps/primary-region.bin] [--live NOW.bin] [--exe ./target/debug/e120] [--commit]
+  Dry run unless --commit. With --live, only records that differ from that block-7 dump are written.
 """
 import argparse
 import subprocess
@@ -18,7 +14,7 @@ from flash_review_map import EEPROM
 
 MIRROR = 0x7F000          # EEPROM mirror inside the primary-region dump
 
-# Records above 0x0fd use opcodes 0x45/0x88, not 0x85; kept in the map for labelling only.
+# Records above 0x0fd use opcodes 0x45/0x88, not 0x85; the map keeps them for labelling only.
 RECORDS = [r for r in EEPROM if r[0] <= 0x0fd]
 
 
@@ -55,7 +51,7 @@ def main():
             continue
         payload = frame_payload(addr, data)
         pad = max(0x80, length + 0x12)
-        cmd = [a.exe, 'raw-send', '--type', '1900',
+        cmd = [a.exe, 'debug', 'send', '--type', '1900',
                '--pad', str(pad), '--payload', payload, '--wait', '0']
         print(f'0x{addr:03x} +{length:3d}  {data[:8].hex(" "):24} {note}')
         if a.commit:
@@ -66,15 +62,15 @@ def main():
 
     if a.commit:
         # 0x87 save-to-flash (addr 0, no data); without it the writes stay in the working copy.
-        subprocess.run([a.exe, 'raw-send', '--type', '1900', '--pad', '128',
+        subprocess.run([a.exe, 'debug', 'send', '--type', '1900', '--pad', '128',
                         '--payload', '00ffff87' + '00000000' * 2, '--wait', '0'],
                        capture_output=True)
         # 0x77 reload local params.
-        subprocess.run([a.exe, 'raw-send', '--type', '0600', '--pad', '126',
+        subprocess.run([a.exe, 'debug', 'send', '--type', '0600', '--pad', '126',
                         '--payload', '00ffff77000000000101000000', '--wait', '0'],
                        capture_output=True)
         print('\nwrote and asked the card to reload; power-cycle and verify with:')
-        print('  e120 dump-flash --block 7 --out now.bin && '
+        print('  e120 flash dump --block 7 --out now.bin && '
               'python3 scripts/flash-review.py now.bin')
     else:
         print('\ndry run: nothing sent. Re-run with --commit.')

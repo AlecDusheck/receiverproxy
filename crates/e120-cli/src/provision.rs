@@ -1,14 +1,11 @@
-//! Bring a receiver card from whatever it holds to a working state, in one
-//! command: firmware, configuration, cabinet identity, verification.
+//! Bring a receiver card to a working state in one command: snapshot,
+//! firmware, configuration, cabinet identity, verification.
 //!
-//! Why two firmware paths and a record-by-record EEPROM rewrite
-//! (`docs/provisioning.md`, `docs/receiver-identity.md`):
-//!
-//! * firmware 16.53 guards blocks 0-2 and 8 from the host path and its SDRAM
-//!   self-program writes only those, so a full install needs both paths;
-//! * writing block 7 wipes the EEPROM mirror, after which the card reports a
-//!   healthy size while dropping every pixel, so the records are read first
-//!   and written back one by one with the control area set for this cabinet.
+//! Firmware takes both write paths because 16.53 guards blocks 0-2 and 8 from
+//! the host path and its SDRAM self-program writes only those. The EEPROM
+//! records are read before block 7 is written, because that write wipes their
+//! mirror and the card then reports a healthy size while dropping every pixel
+//! (docs/provisioning.md, docs/receiver-identity.md).
 
 use crate::capture::discover_one;
 use crate::flash::{flash_firmware, read_primary_bank, restore_flash, BANK_BYTES};

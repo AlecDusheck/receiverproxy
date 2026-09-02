@@ -249,7 +249,7 @@ all sym!). The **fast path** to first light is smaller (see §6).
 
 ---
 
-## 6. Recommended implementation path (for the parent)
+## 6. Recommended implementation path
 
 1. **Fastest test:** the card already answers discovery and self-reports 128×64,
    which means it *has* some stored params. The dark panel is more likely a
@@ -262,7 +262,7 @@ all sym!). The **fast path** to first light is smaller (see §6).
    @ `0x1dfb50` field-mapping from the parsed `.rcvbp`. Send it (real-time, no
    flash) then the pixel stream. This is the smallest thing that can light a
    correctly-scanned panel.
-3. **Robust path:** add a `pcap-summary` / `replay` mode (already scaffolded in
+3. **Robust path:** add a `debug pcap` / `debug replay` mode (already scaffolded in
    `main.rs`) so that if a capture of iSet/LEDVISION configuring *this* card is
    ever obtained, we can replay the exact `PC→card` frames byte-for-byte and/or
    diff them against our generated packs. This sidesteps the UNCERTAIN fields.
@@ -575,7 +575,7 @@ So the header is:
 | 0x20.. | | zlib stream |
 
 This exactly reproduces what we did by hand, so
-`scratchpad/rcvbp_raw.bin` **is** the buffer handed to `LoadBpBufFromBuffer`.
+`<scratch>/rcvbp_raw.bin` **is** the buffer handed to `LoadBpBufFromBuffer`.
 
 ### 8.2 The blob is NOT a flat struct image — it is a TLV record stream (CONFIRMED)
 
@@ -644,7 +644,7 @@ values rather than returning a stored byte). Two viable strategies:
    ~60 `GetBasicParam` stores that come from `OBJ+0xNN` and simple accessors.
    Unknown-meaning bytes can simply be copied. This is the recommended path.
 2. **Capture-and-diff** — obtain one capture of iSet/LEDVISION configuring this
-   card, then use `e120 pcap-summary --dump` to read the real 272-byte type-0x05
+   card, then use `e120 debug pcap --dump` to read the real 272-byte type-0x05
    frame and diff it against a generated one. This resolves every UNCERTAIN
    bitfield at once and is far cheaper than decoding all 13 702 bytes of
    `GetBasicParam`.
@@ -767,7 +767,7 @@ movups xmm0, xmmword [rbp-0x324]   ; payload+0x08 .. +0x17
 movups xmmword [OBJ + 0x50], xmm0  ; -> OBJ+0x50  (16 bytes verbatim)
 ```
 
-**The coordinator's near-flat hypothesis is explicitly REFUTED for OBJ+0x68.**
+**The near-flat hypothesis is refuted for OBJ+0x68.**
 `OBJ+0x68` (`GetMoudleWidth`) and `OBJ+0x70` are written at `0x1c59d9`/`0x1c59dd`
 from a *different* stack buffer (`rbp-0x37c24` / `rbp-0x37c1c`) — i.e. from a
 **different record**, not record 0x01. That is why record-0x01 payload+0x08
@@ -1026,7 +1026,7 @@ is fully static.
 
 ## 12. Readback of receiver parameters (read-only)
 
-> Numbering note: the coordinator asked for "## 11"; §11 was already taken by the
+> Numbering note: this section was requested as "## 11"; §11 was already taken by the
 > first-light verdict, so this is §12.
 
 Everything here is static analysis of `libCLTDevice.1.dylib`. **No vendor binary
@@ -1155,11 +1155,11 @@ remnant or a protocol header of the reassembled payload could not be settled —
 the reassembly happens behind the virtual call `[deviceIO + 0x48]`, which I did
 not trace. The reply's type byte is likewise unconfirmed; `0xff09` is the only
 related constant. In practice you can resolve this by dumping whatever arrives
-with `e120 listen` after sending the request — that is itself read-only.
+with `e120 debug listen` after sending the request — that is itself read-only.
 
 ### 12.6 Does the readback body match the 0x05 send-pack body?
 
-**I could not confirm this, and I want to be explicit because the coordinator
+**This could not be confirmed, and it is stated explicitly because the brief
 identified this correspondence as what makes the approach work.**
 
 Evidence against assuming they are identical:
@@ -1597,7 +1597,7 @@ Applied to every `.rcvbp` in the vendor corpus plus the user's file, covering
 | `P2.5-64x32-32s-2053` | uncompressed | 0x213f3acb | **0x7bbae2eb** ✓ |
 | + 13 more | uncompressed | 0x213f3acb | all ✓ |
 
-Three of these are values from the coordinator's list of "high-entropy"
+Three of these are values from the brief's list of "high-entropy"
 unknowns, now reproduced exactly. The rule is identical for the compressed
 (0x20-header) and uncompressed (0x14-header) forms: always the whole file up to
 the trailer.
@@ -1651,7 +1651,7 @@ different trailers, and both are reproduced exactly by the algorithm above.
 
 ## 15. The layout / screen-size command (type 0x02) — RAM-only
 
-> **SUPERSEDED in part — see `docs/screen-connection-wire.md`.** The 10-byte
+> **SUPERSEDED in part — see `screen-connection-wire.md`.** The 10-byte
 > entry decoded below as `xOffset, yOffset, width, height` is really
 > `left, top, right, bottom` (an exclusive-edge rectangle). The two readings
 > coincide only for a card at the origin. §15.6's open question — whether the
@@ -1939,7 +1939,7 @@ What the static evidence *does* support:
 * The card clearly reads *something* from flash at boot — your 1024x512 fallback
   after the erase proves a flash-backed record drives the discovery reply.
 * The vendor tool always does **both**: `SendOrSave` sends the real-time packs
-  *and* writes flash (§2, §13.5). It never relies on flash alone within a session.
+  *and* writes flash (§2, §13.5). It never relies on flash alone within one run of the tool.
   `DoSendSave` in the layout writer has the same two-phase shape (§15.1).
 
 That the vendor never relies on flash alone is suggestive but not proof. **Item
@@ -1951,7 +1951,7 @@ type-0x05 packs.
 
 Either way, **sending the §10/§11 real-time packs is a cheap next experiment**
 and I would do it regardless — it is RAM-only and it is exactly what the vendor
-tool does before every session.
+tool does before every run.
 
 ### 16.4 Discovery reply — what I can and cannot attribute
 

@@ -1,10 +1,10 @@
 //! Snapshots of the card's flash, and restoring the configuration from one.
 //!
-//! `snapshot` saves the primary bank and the golden bank; `all` puts the
-//! `.rcvbp` configuration (and with it the screen-size record) back. Firmware
-//! is not restored here: 16.53 guards blocks 0-2 and 8 from the host path, so
-//! a firmware image goes in through `upgrade install` plus `flash-firmware`
-//! (`provision --firmware` does both).
+//! `flash snapshot` saves the primary bank and the golden bank; `flash restore`
+//! puts the `.rcvbp` configuration (and with it the screen-size record) back.
+//! Firmware is not restored here: 16.53 guards blocks 0-2 and 8 from the host
+//! path, so a firmware image goes in through `firmware install` plus
+//! `firmware write` (`provision --firmware` does both).
 
 use crate::flash::{read_blocks, read_primary_bank, write_config, BANK_BYTES};
 use crate::util::{open, warn};
@@ -58,7 +58,7 @@ pub fn all(cli: &Cli, dir: &str, commit: bool, index: u16, wait: u64) -> Result<
     if snap.firmware.is_some() {
         warn(format!(
             "{dir}/primary-region.bin is not restored by this command; host-writable blocks go back with: \
-             e120 flash-firmware {dir}/primary-region.bin --backup <fresh dump> --from-block 3 --to-block 7 --commit"
+             e120 firmware write {dir}/primary-region.bin --backup <fresh dump> --from-block 3 --to-block 7 --commit"
         ));
     }
     let Some(config) = &snap.config else {

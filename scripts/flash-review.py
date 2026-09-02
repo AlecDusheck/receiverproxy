@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""Diff the card's parameter block (0x07) against the day-one dump, run by run.
+"""Diff a block-7 dump against the day-one dump run by run and check the EEPROM control area.
 
-Block 7 holds the boot image, the EEPROM mirror and regions never identified;
-unidentified differences are flagged so damage is visible rather than latent
-(docs/retracted-findings.md). Repair with eeprom-restore.py or `e120 provision`.
-
-Usage: flash-review.py <now-block7.bin> [day-one-primary-region.bin]
+Usage:
+  flash-review.py NOW-BLOCK7.bin [DAY-ONE-PRIMARY-REGION.bin]   default day-one: card-dumps/primary-region.bin
 """
 import sys
 
@@ -13,7 +10,7 @@ from flash_review_map import EEPROM
 
 MIRROR = 0xF000   # EEPROM mirror within block 0x07
 
-KNOWN = [(0x0000, MIRROR, 'compiled boot image (written by restore-flash)')] + [
+KNOWN = [(0x0000, MIRROR, 'compiled boot image (written by e120 flash restore-block)')] + [
     (MIRROR + off, ln, f'EEPROM 0x{off:03x}: {label}') for off, ln, label in EEPROM
 ]
 
@@ -61,7 +58,7 @@ for s, e in d:
     no = now[s:min(e, s + 6)].hex(' ')
     print(f'  0x{s:05x}  {e - s:6d}  {fa:18} {no:18} {name(s)}')
 
-# The control area specifically, since an empty window is silently fatal.
+# An empty control window is silently fatal: the card drops every pixel.
 print('\ncontrol area (EEPROM 0x02, big-endian u16s):')
 for label, buf in (('factory', day1), ('now', now)):
     b = buf[0xF000:0xF00A]

@@ -7,7 +7,7 @@ entry first.
 
 The pattern behind most of them is the same: **a difference measured between
 two conditions that were not measured at the same time.** See
-[bench-measurement.md](bench-measurement.md).
+[bench.md](bench.md).
 
 ---
 
@@ -37,7 +37,7 @@ wandering 226 → 200 → 235.
 This one is the root of several others below, because it makes any single
 before/after comparison meaningless. Installing 16.53 fixed it (the same test
 now gives 1.6–1.8, camera noise) — see
-[firmware-16.53-bench-result.md](firmware-16.53-bench-result.md).
+[archive/firmware-16.53-bench-result.md](archive/firmware-16.53-bench-result.md).
 
 **Always re-run the idle test after any change**: kill every streamer, take
 three photos five seconds apart, and confirm the panel is static before
@@ -60,7 +60,7 @@ the supply current by over an amp (3.14 → 4.57 → 3.14 → 4.60). The card ha
 per-run state toggle. Any A/B test on this rig needs a same-colour control or
 interleaving.
 
-## "The seller's pixel mapping is an outlier against 34 vendor configs" — WRONG
+## "The reference file's pixel mapping is an outlier against 34 vendor configs" — WRONG
 
 It is the correct wiring for this module, and flashing the "consensus" table
 instead is what scrambled every column. The module's two row-halves alternate
@@ -69,11 +69,11 @@ contiguous 128-slot run. See [panel-wiring.md](panel-wiring.md).
 
 This was pinned by a test named
 `the_sellers_outlier_mapping_is_not_what_the_knobs_produce`, which asserted our
-own construction was right and the seller's file wrong. **Two test fixtures —
+own construction was right and the reference file wrong. **Two test fixtures —
 `tests/fixtures/p25-128x64-fixed.rcvbp` and the "consensus donor" — are our own
 artefacts, not vendor ground truth.** Compare against
-`third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp`, which is the
-file that shipped with the panel.
+`third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp`, whose
+records match the card's day-one flash under test.
 
 ## "IsPWMChip(0x214) is false, so try Normal firmware" — WRONG
 
@@ -93,7 +93,7 @@ stage.
 ## "Press the physical test button" — not useful on this card
 
 The owner reports the button does nothing when pressed. Do not build a
-diagnosis around it. `e120 test-mode <n>` reaches the same generator over the
+diagnosis around it. `e120 card test-mode <n>` reaches the same generator over the
 wire.
 
 ## "Our photos are 24-frame averages" — WRONG until 2026-09-01
@@ -112,7 +112,7 @@ full — and it visibly changes what the panel appears to be showing.
 
 ## We broke the card ourselves, and it looked like a panel fault
 
-Erasing flash block 0x07 clears the EEPROM mirror. `e120 screen-size --set` is
+Erasing flash block 0x07 clears the EEPROM mirror. `e120 card screen-size --set` is
 a read-modify-write over all **256** bytes, which spans every record in
 [eeprom-map.md](eeprom-map.md) — so run after that erase it faithfully
 persisted `0xFF` across the control area, the calibration flags, the card name
@@ -126,7 +126,7 @@ counter advanced, the current changed, and nothing we sent ever appeared.
 
 Lessons kept in the tooling:
 
-* `screen-size --set` now refuses to write a record that reads as erased.
+* `card screen-size --set` now refuses to write a record that reads as erased.
 * `scripts/flash-review.py` diffs block 0x07 against the day-one dump and names
   every differing run from the EEPROM map, so this damage is visible instead of
   latent. Run it after **any** flash operation.
@@ -139,7 +139,7 @@ Lessons kept in the tooling:
 
 ## "Only 12-bit grey renders; 14 and 16 never reach the chips" — WRONG
 
-Measured through `send-params` RAM pushes, which land on roughly one boot in
+Measured through `config send` RAM pushes, which land on roughly one boot in
 three. Configured from flash, grey 12, 13, 14, 15 and 16 render identically
 with identical currents. The enablers were `+0x02F = 1`, rows-then-latches,
 and booting from flash. Any result obtained through a RAM push and not

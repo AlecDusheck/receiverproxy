@@ -400,7 +400,7 @@ flash.
 
 A free sub-step regardless: **verify that we can write and read back an
 arbitrary non-primary flash region** (e.g. `0x400000`) through the existing CLI.
-Reads at `0x200000` already work — `e120 snapshot` captures the golden bank. If
+Reads at `0x200000` already work — `e120 flash snapshot` captures the golden bank. If
 writes work too, our image can be staged and byte-verified over Ethernet long
 before anything irreversible happens.
 
@@ -710,8 +710,8 @@ each of which breaks a HUB75 reflex:
 
 ### 5.4 The command tails, and why we believe them
 
-From `SChipControl`, record 0x01 `+0x0C4`, for chip id `0x014C`, as shipped in
-the seller's own `.rcvbp`:
+From `SChipControl`, record 0x01 `+0x0C4`, for chip id `0x014C`, as carried in
+the reference `.rcvbp`:
 
 ```
 00 0e 01 05 06 01 03 00 00 00 00 97 00 97 00 08 02 00 0a 02
@@ -1024,7 +1024,7 @@ a test that can fail. The ordering is a risk ordering, not a feature ordering.
 5. **Verify a non-primary flash write.** Write a known pattern at `0x400000`
    through the existing CLI and read it back.
    **Acceptance:** byte-exact readback, and the primary region unchanged
-   (`e120 dump-flash` + `scripts/flash-review.py`).
+   (`e120 flash dump` + `scripts/flash-review.py`).
 
 > Do not skip 2 and 3. Everything after this point assumes them.
 
@@ -1077,7 +1077,7 @@ after this passes is our gateware allowed to *be* a recovery path.
 `framebuffer` + `frame_parser`. No HUB75 output; instead a readback command that
 dumps framebuffer contents back over Ethernet.
 
-**Acceptance:** send an image with `e120 image`, read the framebuffer back, and
+**Acceptance:** send an image with `e120 show image`, read the framebuffer back, and
 compare against the source in Python. This is the one milestone that can be
 verified *exactly*, with no camera and no interpretation, and it retires the
 entire host-to-buffer path as a suspect. Do not skip it because it feels like a

@@ -174,12 +174,10 @@ pub fn flash_firmware(
         "{image} is only {} bytes; the primary bank is {span}",
         img.len()
     );
-    // Images carry padding past their declared length. The meaningful content
-    // ends with the end marker and CRC just inside the bank, so write exactly
-    // one bank's worth and drop the tail.
+    // Images carry padding past the end marker and CRC, which sit just inside
+    // the bank; write one bank's worth and drop the tail.
     let img = &img[..span];
 
-    // Refuse to proceed without a local copy of what we are about to replace.
     let old = std::fs::read(backup).with_context(|| format!("read backup {backup}"))?;
     anyhow::ensure!(
         old.len() >= span && has_lattice_header(&old),
@@ -233,7 +231,7 @@ pub fn flash_firmware(
         // whole bank itself once every path has run.
         warn(format!(
             "{bad} bytes differ after writing; golden bank at 0x{:02x} untouched; \
-             recover with: e120 flash-firmware {backup} --backup {backup} --commit",
+             recover with: e120 firmware write {backup} --backup {backup} --commit",
             protocol::GOLDEN_BLOCK
         ));
     }
@@ -249,7 +247,7 @@ pub fn scan_flash(cli: &Cli, first: u8, last: u8, index: u16, wait: u64) -> Resu
             continue;
         };
         if d.iter().all(|&b| b == 0xff) || d.iter().all(|&b| b == 0) {
-            continue; // erased or blank
+            continue;
         }
         let kind = if contains_lattice_header(&d) {
             "lattice bitstream header"
@@ -288,8 +286,8 @@ pub fn dump_range(
     let mut misses = 0u32;
     while addr < start + len {
         dev.send(&protocol::read_flash_linear(index, addr, step))?;
-        // Linear reads may answer with a different type than the
-        // page-addressed reads, so take any sufficiently long reply.
+        // Linear reads answer with a different type than page reads; take any
+        // reply long enough to hold a page.
         let reply = await_reply(&mut dev, Duration::from_secs(wait), |f| {
             (f.len() >= 15 + step as usize).then(|| f[15..15 + step as usize].to_vec())
         })?;
@@ -373,13 +371,10 @@ pub fn read_blocks(dev: &mut Bpf, index: u16, first: u8, count: u16, wait: u64) 
     Ok(image)
 }
 
-/// Erase the parameter block and write `image` over it, then verify and repair.
+/// Erase the parameter block, write `image` over it, then verify and repair.
 ///
-/// Flash needs time to settle after a block erase; pages written too early are
-/// silently lost. After writing, the block is read back and any page that did
-/// not take is rewritten. A page can only be rewritten in place while it is
-/// still erased, so if a mismatched page holds other data the whole block is
-/// erased and rewritten instead.
+/// Pages that did not take are rewritten. A page can only be rewritten while
+/// still erased, so a mismatched page holding other data re-erases the block.
 pub fn rewrite_block(
     dev: &mut Bpf,
     index: u16,
@@ -401,7 +396,6 @@ pub fn rewrite_block(
                 eprintln!("flash: block verified");
                 return Ok(());
             }
-            // Rewriting only works into still-erased pages.
             let dirty = bad
                 .iter()
                 .any(|&i| page(&after, i).iter().any(|&b| b != 0xff));
@@ -475,7 +469,6 @@ pub fn write_config(
     index: u16,
     wait: u64,
 ) -> Result<()> {
-    // Refuse to install anything that is not a config we can parse.
     let parsed = rcvbp::Rcvbp::load(config)?;
     let file = std::fs::read(config).with_context(|| format!("read {config}"))?;
     anyhow::ensure!(
@@ -502,12 +495,10 @@ pub fn write_config(
         }
     };
 
-    // Splice the new parameter blob in, leaving the rest of the block alone.
     let mut image = original.clone();
     let old_len = u32::from_le_bytes(image[PARAM_OFFSET..PARAM_OFFSET + 4].try_into()?) as usize;
-    // The stored length is only meaningful if the block already held a config.
-    // When the block comes from a firmware image instead, it is bitstream data
-    // and reads as nonsense, so clamp it to the area the card actually uses.
+    // A base image cut from a firmware dump holds bitstream bytes here, not a
+    // length; clamp to the area the card uses.
     let old_len = old_len.min(PARAM_MAX);
     let region = PARAM_OFFSET + 4 + old_len.max(file.len());
     anyhow::ensure!(region <= image.len(), "parameter region overruns the block");
@@ -533,7 +524,7 @@ pub fn write_config(
     let last = (PARAM_OFFSET + 4 + file.len()).div_ceil(protocol::FLASH_PAGE_BYTES);
     rewrite_block(&mut dev, index, &image, wait, first..last).with_context(|| {
         format!(
-            "original block saved at {backup}; restore with: e120 restore-flash {backup} --commit"
+            "original block saved at {backup}; restore with: e120 flash restore-block {backup} --commit"
         )
     })?;
 

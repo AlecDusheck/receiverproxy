@@ -24,6 +24,9 @@ landing page.
    cancels; the Builder form is usable without a mouse.
 8. Fast. First paint under 100 ms on a static host; the WASM module loads
    lazily; no animation longer than 120 ms and none that conveys information.
+9. Every word is a fact. No taglines, no encouragement, no placeholder copy,
+   no explanatory paragraphs where a label does; a page with nothing to show
+   says so in one sentence.
 
 ## Anti-patterns (each one reads as generated)
 
@@ -50,10 +53,19 @@ an exclamation mark.
 ```
 
 Sidebar 180 px, text only, current item marked by weight and the accent bar.
+Footer under the content on every page: the GitHub repository link, the
+version, and nothing else, in the 11 px caption size.
 The daemon state lives at the bottom of the sidebar (connected to which
 address, or "daemon not running: install"), not in a banner, except on the
 first visit where a single dismissible line under the title row says how to
 install it. Status bar 28 px, monospace for progress and errors.
+
+## Styling
+
+Tailwind, minimal: the tokens below are the Tailwind theme, utilities are
+used for layout and spacing only, and any style that repeats three times
+becomes a class in one stylesheet. No plugin, no preflight overrides beyond
+the font stack, no arbitrary values.
 
 ## Type and spacing
 

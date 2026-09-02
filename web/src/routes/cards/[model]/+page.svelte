@@ -111,7 +111,7 @@
 <section id="firmware">
   <h2>Firmware</h2>
   <p>
-    <a href="{href}/firmware">{data.images} images</a> in <a href={repoFile("config/firmware.toml")}><code>config/firmware.toml</code></a>, with their versions, board revisions, driver chips and sha256.
+    <a href="{href}/firmware">{data.images} images</a> with their versions, driver chips and checksums.
   </p>
   {#if data.tested.length}
     <ul>
@@ -119,8 +119,6 @@
         <li class="mono">{t.firmware}{t.version ? ` (${t.version})` : ""}<span class="caption"> driven with {t.entry ? panelTitle(t.entry) : t.panel}</span></li>
       {/each}
     </ul>
-  {:else}
-    <p class="muted">no image has been driven on this model</p>
   {/if}
 </section>
 

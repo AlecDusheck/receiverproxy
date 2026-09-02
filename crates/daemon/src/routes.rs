@@ -621,7 +621,7 @@ async fn firmware_pick(
                 pcb: c.image.pcb.clone(),
                 kind: c.image.kind.clone(),
                 chips: c.image.chips.clone(),
-                size: c.image.size,
+                size: receivers::firmware::manifest().size,
                 sha256: c.image.sha256.clone(),
                 score: c.score,
                 reasons: c.reasons.clone(),

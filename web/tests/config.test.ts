@@ -73,7 +73,8 @@ test("the firmware manifest lists every archived image and locates them at base_
   assert.equal(fw.base_url, "https://assets.receiverproxy.com");
   const first = fw.images[0]!;
   assert.equal(first.version, "16.53");
-  assert.equal(first.size, 721024);
-  assert.deepEqual(imageLocation(fw, first), { href: `${fw.base_url}/${first.path}`, remote: true });
-  assert.deepEqual(imageLocation({ base_url: "", images: [] }, first), { href: `third-party/firmware/${first.name}`, remote: false });
+  assert.equal(fw.size, 721024);
+  assert.equal(fw.prefix, "firmware/colorlight/e-series");
+  assert.deepEqual(imageLocation(fw, first), { href: `${fw.base_url}/${fw.prefix}/${first.name}`, remote: true });
+  assert.deepEqual(imageLocation({ base_url: "", prefix: fw.prefix, size: fw.size, images: [] }, first), { href: `third-party/firmware/${first.name}`, remote: false });
 });

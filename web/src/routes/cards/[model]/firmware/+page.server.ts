@@ -13,6 +13,7 @@ export function load({ params }) {
     card,
     // The images the model's [[tested]] entries name, marked in the table.
     tested: card.tested.map((t) => t.firmware),
+    size: fw.size,
     images: fw.images.map((i) => ({ ...i, location: imageLocation(fw, i) })),
   };
 }

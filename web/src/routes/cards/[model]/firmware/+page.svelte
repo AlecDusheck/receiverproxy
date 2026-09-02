@@ -41,7 +41,9 @@
 <SubNav links={[[card, "Card"], [`${card}/firmware`, "Firmware"]]} />
 
 <p class="caption">
-  The images <code>rxp firmware list</code> prints (<code>config/firmware.toml</code>). <code>rxp provision --firmware auto</code> picks one for a panel spec; <code>rxp firmware pick --spec SPEC</code> prints the ranking.
+  Every firmware image Colorlight ships for this card. Each one drives a
+  particular set of driver chips: pick the image that names the chip on your
+  module.
 </p>
 
 <div class="row mb-3">
@@ -73,7 +75,7 @@
           <td class="mono">{i.pcb ?? ""}</td>
           <td>{i.kind}</td>
           <td>{i.chips.join(", ")}</td>
-          <td class="num">{i.size}</td>
+          <td class="num">{data.size}</td>
           <td class="mono sha">{i.sha256}</td>
           <td><a href={link(i)}>{i.location.remote ? "download" : "repository"}</a></td>
         </tr>

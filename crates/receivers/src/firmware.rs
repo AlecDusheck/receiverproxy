@@ -14,8 +14,14 @@ const TEXT: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../conf
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
-    /// The asset host `fetch` downloads `base_url/path` from; empty means local only.
+    /// The asset host `fetch` downloads `base_url/prefix/<file>` from; empty
+    /// means local only.
     pub base_url: String,
+    /// Object key prefix the images sit under.
+    #[serde(default)]
+    pub prefix: String,
+    /// Every image is this many bytes.
+    pub size: u64,
     #[serde(default)]
     pub image: Vec<Image>,
 }
@@ -26,19 +32,39 @@ pub struct Manifest {
 pub struct Image {
     /// The file name, and what commands take.
     pub name: String,
-    /// Object path under `base_url`: `firmware/<vendor>/<family>/<file>`.
-    pub path: String,
     /// What the card reports after the install.
     pub version: Version,
     /// The board revision in the file name; absent when the name carries none.
     pub pcb: Option<String>,
     /// The vendor's build variant: `PWM`, `Normal`, `LS0allDA`.
     pub kind: String,
-    /// Driver chips the file name lists.
+    /// Driver chips the file name lists; empty when it lists none.
+    #[serde(default)]
     pub chips: Vec<String>,
-    pub size: u64,
     /// Lowercase hex.
     pub sha256: String,
+}
+
+impl Manifest {
+    /// The object key of an image: the prefix and the file name, with any
+    /// character an object key cannot carry replaced by an underscore.
+    #[must_use]
+    pub fn path(&self, image: &Image) -> String {
+        let file: String = image
+            .name
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') { c } else { '_' })
+            .collect();
+        // Runs of replaced characters collapse, as the uploaded keys do.
+        let mut key = String::with_capacity(file.len());
+        for c in file.chars() {
+            if c == '_' && key.ends_with('_') {
+                continue;
+            }
+            key.push(c);
+        }
+        format!("{}/{key}", self.prefix.trim_end_matches('/'))
+    }
 }
 
 impl Image {
@@ -47,13 +73,9 @@ impl Image {
     /// # Errors
     /// Names the field that disagrees, expected and found.
     pub fn verify(&self, bytes: &[u8]) -> Result<(), String> {
-        if bytes.len() as u64 != self.size {
-            return Err(format!(
-                "{}: size {} bytes, manifest says {}",
-                self.name,
-                bytes.len(),
-                self.size
-            ));
+        let want = manifest().size;
+        if bytes.len() as u64 != want {
+            return Err(format!("{}: size {} bytes, manifest says {want}", self.name, bytes.len()));
         }
         let got = sha256_hex(bytes);
         if got != self.sha256 {
@@ -154,27 +176,28 @@ mod tests {
 
     #[test]
     fn a_wrong_hash_or_size_is_refused() {
+        let bytes = vec![0xA5u8; manifest().size as usize];
         let img = Image {
             name: "synthetic.hex".into(),
-            path: "firmware/x/x.hex".into(),
             version: Version(1, 0),
             pcb: None,
             kind: "PWM".into(),
             chips: Vec::new(),
-            size: 3,
-            sha256: sha256_hex(b"abc"),
+            sha256: sha256_hex(&bytes),
         };
-        assert_eq!(img.sha256, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
-        assert_eq!(img.verify(b"abc"), Ok(()));
-        assert!(img.verify(b"abd").unwrap_err().contains("sha256"));
-        assert!(img.verify(b"abcd").unwrap_err().contains("size"));
+        assert_eq!(img.verify(&bytes), Ok(()));
+        let mut other = bytes.clone();
+        other[0] = 0x5A;
+        assert!(img.verify(&other).unwrap_err().contains("sha256"));
+        assert!(img.verify(&bytes[..bytes.len() - 1]).unwrap_err().contains("size"));
     }
 
     #[test]
     fn a_malformed_manifest_is_refused() {
-        let bad = "base_url = \"\"\n[[image]]\nname = \"x.hex\"\npath = \"firmware/x/x.hex\"\nversion = \"1.0\"\nkind = \"PWM\"\nchips = []\nsize = 1\nsha256 = \"abc\"\n";
+        let bad = "base_url = \"\"\nprefix = \"f\"\nsize = 1\nimage = [ { name = \"x.hex\", version = \"1.0\", kind = \"PWM\", sha256 = \"abc\" } ]\n";
         assert!(parse(bad).unwrap_err().contains("64 lowercase hex"));
-        let twice = TEXT.to_string() + "\n[[image]]\nname = \"E320_PCB6.0_PWM_FPGA9.53_20221031.hex\"\npath = \"firmware/x/y.hex\"\nversion = \"9.53\"\nkind = \"PWM\"\nchips = []\nsize = 1\nsha256 = \"cb7c264231d7123bbf3fba4a9ec964a410b20e284db5715e46f50da0eeaffa19\"\n";
+        let twice = TEXT.trim_end().trim_end_matches(']').to_string()
+            + "  { name = \"E320_PCB6.0_PWM_FPGA9.53_20221031.hex\", version = \"9.53\", kind = \"PWM\", sha256 = \"cb7c264231d7123bbf3fba4a9ec964a410b20e284db5715e46f50da0eeaffa19\" },\n]\n";
         assert!(parse(&twice).unwrap_err().contains("listed twice"));
     }
 }

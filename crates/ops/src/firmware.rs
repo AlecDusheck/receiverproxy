@@ -152,7 +152,7 @@ pub fn list(p: &mut dyn Progress) {
             i.pcb.as_deref().unwrap_or("-"),
             i.kind,
             if i.chips.is_empty() { "-".to_string() } else { i.chips.join(",") },
-            i.size,
+            m.size,
             location(&i.name)
         ));
     }
@@ -192,12 +192,12 @@ fn fetch_in(root: &Path, name: &str, p: &mut dyn Progress) -> Result<()> {
             dest.display()
         );
     }
-    let url = format!("{}/{}", m.base_url.trim_end_matches('/'), image.path);
+    let url = format!("{}/{}", m.base_url.trim_end_matches('/'), m.path(image));
     p.err(&format!("fetch: {url}"));
     std::fs::create_dir_all(&cache).with_context(|| format!("create {}", cache.display()))?;
     let tmp = cache.join(format!("{name}.part"));
     let status = std::process::Command::new("curl")
-        .args(["-fsSL", "--max-filesize", &(image.size + 1).to_string(), "-o"])
+        .args(["-fsSL", "--max-filesize", &(m.size + 1).to_string(), "-o"])
         .arg(&tmp)
         .arg(&url)
         .status()

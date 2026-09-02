@@ -88,6 +88,28 @@ impl Block7Builder {
             .push("0x100/0xA00/0xC00/0x1000/0x6800/0x7000: zeros (builders gated off)".into());
     }
 
+    /// 0x1400: the void-line column table, displacing line positions that
+    /// carry no real column off the chain.
+    ///
+    /// The table is one byte per position — the number of void positions
+    /// inserted before it, so `physical = a + table[a]` (`GetVoidLineInfoPacks`
+    /// @ 0x1e58c0, `GetAntiVoidLineParam` @ 0x1604d0; docs/black-floor.md).
+    /// For a module whose row-halves interleave down one chain the card
+    /// emits `2 * width` positions per line, and positions `width..2*width`
+    /// carry nothing of ours yet were being driven with a fixed pattern —
+    /// the gain-scaled floor that kept black from being dark. Pushing them
+    /// past the end of the chain removes the floor and leaves the picture
+    /// intact (measured 2026-09-01: black 0.47 A = LEDs off, white and the
+    /// band patterns unchanged).
+    pub fn void_line_columns(&mut self, from: u16, to: u16) {
+        for a in from..to {
+            self.img[0x1400 + usize::from(a)] = 0xFF;
+        }
+        self.notes.push(format!(
+            "0x1400: void-line column table, positions {from}..{to} displaced off the chain"
+        ));
+    }
+
     /// Page 0: the basic-parameter pack body.
     ///
     /// # Errors

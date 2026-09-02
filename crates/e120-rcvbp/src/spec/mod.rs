@@ -167,6 +167,17 @@ pub struct Mapping {
     /// this bench uses 64, i.e. the halves alternate every four driver chips.
     #[serde(default)]
     pub block: Option<u16>,
+    /// Displace line positions `width..2*width` off the chain through the
+    /// void-line column table. The card emits two positions per column for
+    /// this interleaved wiring and drives the second set with a fixed
+    /// pattern that shows as a floor at black; gating them leaves the
+    /// picture intact. On by default; off reproduces the factory image.
+    #[serde(default = "default_true")]
+    pub gate_phantom_positions: bool,
+}
+
+const fn default_true() -> bool {
+    true
 }
 
 impl Default for Mapping {
@@ -175,6 +186,7 @@ impl Default for Mapping {
             reversed_groups: true,
             reversed_lines: false,
             block: None,
+            gate_phantom_positions: true,
         }
     }
 }

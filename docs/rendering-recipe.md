@@ -7,7 +7,7 @@ pinned in `config/panels/p25-128x64-sm16269s.toml`; the method is in
 | what | value | why it matters |
 |---|---|---|
 | chip id | `0x14C` (vendor "SM16169SH") | the only identity firmware 16.53 brings the SM16269S outputs up for. The vendor's own SM16169S (0x0DE, non-SH, tails 2/4/8) and the SM16269S entry (0x0214, a stub in every build) never arm; nor do tails 2/4/8 or 3/5/7 under 0x14C. The chip-control block *is* the protocol (`docs/chip-control-block.md`, `docs/fpga/chip-protocol-microcode.md`) and only the SH pattern `1,5,6` works here. |
-| grey depth | **12** | inherited 14. At 14 and 16 pixel data never reaches the chips' SRAM at all; at 12 patterns render; 13/11/10/8 drift. |
+| grey depth | 12–16 all render identically | **Retracted as a cause (evening):** from flash, 12, 13, 14, 15 and 16 give the same picture and the same currents. The "only 12 renders" result came from RAM-push runs, which land on ~1 boot in 3; the real enablers were `+0x02F = 1`, the frame order and configuring from flash. Kept at 12 in the spec only because it is what was measured most. |
 | `+0x02F` | **1** | the vendor Reset() default and 961/1146 corpus files; the inherited config had it cleared and with it cleared nothing displays. Meaning not resolved. |
 | frame order | brightness, rows, **3 latches** | one latch never starts the display; two renders but decays into noise and back on a ~10 s period; three or four hold for as long as measured. Both `image` and `play` use this. |
 | raster | `rows` (64 packets of 128 px) | the double-width layouts place content in the wrong rows. |
@@ -18,40 +18,29 @@ pinned in `config/panels/p25-128x64-sm16269s.toml`; the method is in
 | EEPROM | control area `0,0,128,64` | check with `scripts/flash-review.py` after any flash operation; restore with `scripts/eeprom-restore.py` (one record at a time, broadcast index, paced). |
 | boot | **configure from flash** (`arm_at_boot = true`, `restore-flash` the block-7 image, then `eeprom-restore`) | three of three power-cycles render identically (black 0.73–0.77 A, white 1.74–1.76 A, control returns). Pushing the same parameters into RAM with `send-params` after boot renders on roughly one boot in three: the 34 unacknowledged packs are evidently not all landing. Use RAM pushes for experiments only, and prefer pushing twice with `--gap-ms 25`. |
 
+## The black floor — solved
+
+An all-black frame used to leave ~24 % of white's LED current as a fixed
+pattern (red on panel columns 0–63, blue everywhere), reproducible across
+cold starts and invariant to every driver register, the grey depth, the scan
+schedule, latch/page schemes, the anti-void packs, the lane map and the
+inherited tables. What finally moved it was the load length, and what
+explained it was the **void-line table** (`docs/black-floor.md`): one byte
+per line position, `physical = a + table[a]`, decoded from the vendor library.
+
+The card emits `2 × width` positions per line for this interleaved wiring;
+positions `width..2·width` carry nothing of ours and were being driven with a
+fixed pattern. Displacing them off the chain through the void-line column
+table (`mapping.gate_phantom_positions`, default on; `Block7Builder::
+void_line_columns`) gives, from flash: **black 0.466 A = LEDs off**, boot
+current 0.41 A, greys monotonic (64 → 0.73 A, 128 → 0.98 A, white 2.64 A),
+every pattern intact, and the same-content control returning (0.432 A).
+
 ## Open
 
-### Black is not off — a gain-scaled per-pixel floor
-
-An all-black frame leaves ~0.3 A of LED current at gain 12 as per-pixel
-speckle. What is established about it (all on the flash-configured card):
-
-* it scales with the sync frame's three **channel-gain** bytes (0.47 A = off
-  at 0, 0.71 at 4, 0.75 at 12, 0.86 at 40, 1.08 at 120) and those bytes are
-  the only brightness control — the "master" byte at data[21] is inert;
-* the grey response above it is monotonic with no cliff (72 → 136 → white);
-* it is **not** the stale second buffer page: writing both pages per frame
-  (`E120_WRITES=2`) leaves it unchanged, although that experiment did show the
-  two-latch decay was page alternation;
-* no single driver register moves it: 0x03, 0x07, 0x0B, 0x0C, 0x0F, 0x11,
-  0x14, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1E, 0x22, 0xF0 each tried at the
-  vendor-default or LEDSetting-2.2.6 value; the chip's 13-bit mode
-  (0x03 = 0x40) neither;
-* `[current] percent` (the inherited 0.1) at 0 or 0.02: no change;
-* single camera frames of it correlate ~0.6 with each other and ~0.88 with
-  the average, so it has both a static and a flickering component.
-
-The vendor-library side of this is now answered in
-[grey-mapping.md](grey-mapping.md). The gamma/LUT hypothesis is **ruled out**:
-the 8-bit→N-bit table maps 0 to exactly 0 in every code path, and the copy in
-this card's flash is byte-identical to the vendor formula for gamma 2.8 at
-14-bit. What is left is the depth inconsistency — the vendor can never derive
-grey 12 for chip `0x14C` (minimum 13; our registers give 14), and our boot
-image pairs the grey byte 12 with a **14-level scan table**, so two bit-plane
-slots carrying ~75 % of the frame's lit time have no bits to read. That note
-carries the vendor's own gray-12 field table and the experiment. Knobs left in
-for it: `E120_LATCHES`, `E120_WRITES`, `E120_SYNC_GAIN`.
-
-### Geometry
-
-Row band order reads reversed on the rotated panel (`line_dir` /
-`reversed_lines` in the spec are the knobs).
+* Row band order reads reversed on the rotated panel (`line_dir` /
+  `reversed_lines` in the spec are the knobs).
+* The flicker the user perceived is not measurable with the 30 fps camera
+  (2.4 % frame-to-frame against an 8–14 % camera reference); it may have been
+  the floor's per-pixel structure mixed into content. Re-assess by eye now
+  that black is black.

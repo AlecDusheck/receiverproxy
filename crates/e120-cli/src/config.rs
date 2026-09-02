@@ -210,6 +210,9 @@ pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
     b.data_swap_from(&rec01)?;
     b.module_positions_from(&rec01)?;
     b.anti_void_lines();
+    if spec.mapping.gate_phantom_positions {
+        b.void_line_columns(spec.module.width, spec.module.width * 2);
+    }
     b.mapping_from(&g.rcvbp)?;
     b.scan_table_from(&rec01, spec.card_scan_len())?;
     if spec.boot.arm_at_boot {

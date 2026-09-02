@@ -137,6 +137,14 @@ Lessons kept in the tooling:
 * Flashing firmware also erases block 0x07, so the config must be rewritten
   after — and the EEPROM checked.
 
+## "Only 12-bit grey renders; 14 and 16 never reach the chips" — WRONG
+
+Measured through `send-params` RAM pushes, which land on roughly one boot in
+three. Configured from flash, grey 12, 13, 14, 15 and 16 render identically
+with identical currents. The enablers were `+0x02F = 1`, rows-then-latches,
+and booting from flash. Any result obtained through a RAM push and not
+reproduced from flash should be treated as unmeasured.
+
 ## Camera traps that produced false structure
 
 * **Auto-exposure clips every LED to white** at normal brightness, which reads

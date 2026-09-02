@@ -27,13 +27,12 @@ same-content control returns. The recipe is in
   never starts the display, two decays on a ~10 s period, three holds);
 * mapping `block = 64`, firmware 16.53, EEPROM control area intact.
 
-**Still wrong:** an all-black frame — and greys below roughly 96/255 — show
-per-pixel noise instead of dark; the noise is *written* (a black frame
-overwrites a rendered pattern), so it is how low values are encoded, not a
-skipped write. Row band order reads reversed on the rotated panel. The
-vendor-default and LEDSetting-2.2.6 register sets are worse than the inherited
-one; zeroing the inherited `+0x0FC` table or `+0x19A` lane map breaks
-rendering; the calibration/gamma records are zero in every vendor file too.
+**Black is black** (0.466 A, LEDs off) since the void-line column table
+displaces the phantom line positions `width..2·width` the card was driving
+with a fixed pattern (`mapping.gate_phantom_positions`; `docs/black-floor.md`,
+`docs/rendering-recipe.md`). Grey response is monotonic and every test
+pattern renders. Remaining: row band order reads reversed on the rotated
+panel; a faint perceived flicker not measurable with this camera.
 
 Use `scripts/bench.py run` for every experiment (one continuous stream, or
 `--restart` for per-condition `image` flags), and `--boot` before any

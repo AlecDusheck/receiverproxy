@@ -1,0 +1,272 @@
+2381 configs parsed
+ICN2053 0x0085: 299 files, control 95%, custom block -> config/chips/mined/icn2053.toml
+DP5525 0x00e5: 199 files, control 61%, registers -> config/chips/mined/dp5525.toml
+ICN2065 0x00c2: 181 files, control 81%, registers -> config/chips/mined/icn2065.toml
+ICN2038S 0x00a2: 169 files, control 100%, custom block -> config/chips/mined/icn2038s.toml
+SM16380 0x00fd: 152 files, control 100%, custom block -> config/chips/mined/sm16380.toml
+LS9929 0x0096: 111 files, control 100%, custom block -> config/chips/mined/ls9929.toml
+SM16259 0x00c6: 96 files, control 73%, custom block -> config/chips/mined/sm16259.toml
+MY9868 0x000a: 94 files, control 100%, custom block -> config/chips/mined/my9868.toml
+SM16237DS 0x00b2: 84 files, control 100%, custom block -> config/chips/mined/sm16237ds.toml
+SM16389 0x00bb: 81 files, control 100%, registers -> config/chips/mined/sm16389.toml
+ICND2163 0x00cf: 75 files, control 100%, custom block -> config/chips/mined/icnd2163.toml
+LS9930 0x0098: 65 files, control 100%, custom block -> config/chips/mined/ls9930.toml
+MBI5153 0x002f: 60 files, control 67%, custom block -> config/chips/mined/mbi5153.toml
+ICN2055 0x00c1: 53 files, control 98%, registers -> config/chips/mined/icn2055.toml
+MBI5124N 0x000d: 51 files, control 100%, custom block -> config/chips/mined/mbi5124n.toml
+LS9935B 0x009e: 45 files, control 100%, custom block -> config/chips/mined/ls9935b.toml
+SM16169S 0x00de: 43 files, control 56%, custom block -> config/chips/mined/sm16169s.toml
+LS9936 0x0063: 38 files, control 100%, custom block -> config/chips/mined/ls9936.toml
+MY9862 0x000b: 34 files, control 100%, custom block -> config/chips/mined/my9862.toml
+SM16369S 0x0056: record 0x84 layout not understood (no register 0x07), skipped (32 files)
+LS9929C 0x0065: 27 files, control 100%, custom block -> config/chips/mined/ls9929c.toml
+ICND2263 0x0118: record 0x84 layout not understood (no register 0x07), skipped (24 files)
+MBI5124 0x0006: 23 files, control 100%, custom block -> config/chips/mined/mbi5124.toml
+LS9931 0x0064: 19 files, control 100%, custom block -> config/chips/mined/ls9931.toml
+LS9935 0x009d: 19 files, control 100%, custom block -> config/chips/mined/ls9935.toml
+DP3246 0x0057: 18 files, control 100%, custom block -> config/chips/mined/dp3246.toml
+FM6153/6253 0x00c4: 16 files, control 69%, custom block -> config/chips/mined/fm6153-6253.toml
+LS9919 0x0099: 10 files, control 100%, custom block -> config/chips/mined/ls9919.toml
+FM6127 0x00b8: 9 files, control 100%, custom block -> config/chips/mined/fm6127.toml
+SUM2033 0x0081: 8 files, control 75%, custom block -> config/chips/mined/sum2033.toml
+HX8863/HX8865 0x0125: 8 files, control 100%, registers -> config/chips/mined/hx8863-hx8865.toml
+ICN2038SN 0x00a8: 5 files, control 100%, custom block -> config/chips/mined/icn2038sn.toml
+
+64x64 1/32 ICN2053: 36 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-icn2053.toml
+128x64 1/32 ICN2053: 29 files, block=128 rg=True rl=False -> config/panels/mined/128x64-32s-icn2053.toml
+64x64 1/16 ICN2053: 25 files, block=64 rg=True rl=False -> config/panels/mined/64x64-16s-icn2053.toml
+172x86 1/43 DP5525: 21 files, block=172 rg=True rl=False -> config/panels/mined/172x86-43s-dp5525.toml
+64x128 1/64 LS9929: 17 files, block=64 rg=True rl=False -> config/panels/mined/64x128-64s-ls9929.toml
+64x64 1/32 MY9868: 21 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-my9868.toml
+64x32 1/8 ICN2038S: no majority wiring fit across 21 files (16 fit individually), skipped
+80x40 1/10 ICN2038S: no majority wiring fit across 20 files (3 fit individually), skipped
+80x40 1/10 ICN2053: no majority wiring fit across 19 files (1 fit individually), skipped
+128x128 1/64 ICN2065: 19 files, block=128 rg=True rl=False -> config/panels/mined/128x128-64s-icn2065.toml
+160x80 1/40 ICN2065: 19 files, block=160 rg=True rl=False -> config/panels/mined/160x80-40s-icn2065.toml
+172x86 1/43 SM16380: 16 files, block=172 rg=True rl=False -> config/panels/mined/172x86-43s-sm16380.toml
+160x80 1/40 DP5525: 18 files, block=160 rg=True rl=False -> config/panels/mined/160x80-40s-dp5525.toml
+64x64 1/16 ICN2038S: 17 files, block=64 rg=True rl=False -> config/panels/mined/64x64-16s-icn2038s.toml
+64x64 1/32 SM16380: 17 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-sm16380.toml
+64x128 1/64 DP5525: 17 files, block=64 rg=True rl=False -> config/panels/mined/64x128-64s-dp5525.toml
+64x64 1/32 ICN2038S: 16 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-icn2038s.toml
+64x128 1/64 SM16380: 16 files, block=64 rg=True rl=False -> config/panels/mined/64x128-64s-sm16380.toml
+64x64 1/32 SM16259: 15 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-sm16259.toml
+172x86 1/43 ICND2163: no majority wiring fit across 15 files (8 fit individually), skipped
+172x86 1/43 LS9935B: 12 files, block=172 rg=True rl=False -> config/panels/mined/172x86-43s-ls9935b.toml
+80x40 1/20 ICN2053: 14 files, block=80 rg=True rl=False -> config/panels/mined/80x40-20s-icn2053.toml
+104x52 1/26 ICN2053: 13 files, block=104 rg=True rl=False -> config/panels/mined/104x52-26s-icn2053.toml
+104x52 1/13 ICN2053: 12 files, block=104 rg=True rl=False -> config/panels/mined/104x52-13s-icn2053.toml
+160x80 1/40 ICND2163: 13 files, block=160 rg=True rl=False -> config/panels/mined/160x80-40s-icnd2163.toml
+64x32 1/8 SM16259: 11 files, block=32 rg=True rl=False -> config/panels/mined/64x32-8s-sm16259.toml
+16x104 1/52 DP5525: 13 files, block=16 rg=True rl=False -> config/panels/mined/16x104-52s-dp5525.toml
+64x64 1/32 SM16237DS: 13 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-sm16237ds.toml
+160x80 1/40 SM16380: 13 files, block=160 rg=True rl=False -> config/panels/mined/160x80-40s-sm16380.toml
+64x64 1/16 MBI5153: 12 files, block=64 rg=True rl=False -> config/panels/mined/64x64-16s-mbi5153.toml
+174x58 1/29 ICN2053: 12 files, block=174 rg=True rl=False -> config/panels/mined/174x58-29s-icn2053.toml
+172x86 1/43 SM16389: 8 files, block=172 rg=True rl=False -> config/panels/mined/172x86-43s-sm16389.toml
+80x40 1/10 SM16259: no majority wiring fit across 11 files (0 fit individually), skipped
+64x32 1/8 MBI5124N: no majority wiring fit across 11 files (10 fit individually), skipped
+64x64 1/32 MBI5153: 11 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-mbi5153.toml
+40x20 1/5 ICN2038S: no majority wiring fit across 11 files (0 fit individually), skipped
+64x32 1/8 ICN2053: no majority wiring fit across 11 files (9 fit individually), skipped
+64x32 1/8 SM16237DS: 9 files, block=32 rg=True rl=False -> config/panels/mined/64x32-8s-sm16237ds.toml
+160x80 1/40 LS9929: 8 files, block=160 rg=True rl=False -> config/panels/mined/160x80-40s-ls9929.toml
+58x174 1/58 ICN2065: no majority wiring fit across 11 files (0 fit individually), skipped
+128x64 1/32 ICN2038S: 10 files, block=128 rg=True rl=False -> config/panels/mined/128x64-32s-icn2038s.toml
+64x128 1/64 ICND2163: 10 files, block=64 rg=True rl=False -> config/panels/mined/64x128-64s-icnd2163.toml
+104x104 1/52 LS9929: 9 files, block=104 rg=True rl=False -> config/panels/mined/104x104-52s-ls9929.toml
+80x40 1/10 MY9868: no majority wiring fit across 10 files (1 fit individually), skipped
+64x32 1/8 MY9868: no majority wiring fit across 10 files (10 fit individually), skipped
+112x104 1/52 SM16389: 10 files, block=112 rg=True rl=False -> config/panels/mined/112x104-52s-sm16389.toml
+104x52 1/13 DP5525: 6 files, block=104 rg=True rl=False -> config/panels/mined/104x52-13s-dp5525.toml
+128x64 1/32 SM16237DS: 10 files, block=128 rg=True rl=False -> config/panels/mined/128x64-32s-sm16237ds.toml
+172x86 1/43 ICN2065: 8 files, block=172 rg=True rl=False -> config/panels/mined/172x86-43s-icn2065.toml
+96x96 1/48 ICN2065: 9 files, block=96 rg=True rl=False -> config/panels/mined/96x96-48s-icn2065.toml
+192x64 1/32 ICN2053: 9 files, block=192 rg=True rl=False -> config/panels/mined/192x64-32s-icn2053.toml
+112x104 1/52 ICN2065: 9 files, block=112 rg=True rl=False -> config/panels/mined/112x104-52s-icn2065.toml
+40x20 1/5 ICN2053: no majority wiring fit across 9 files (1 fit individually), skipped
+32x16 1/2 ICN2038S: no majority wiring fit across 9 files (0 fit individually), skipped
+32x16 1/2 ICN2053: no majority wiring fit across 9 files (0 fit individually), skipped
+80x40 1/10 DP5525: no majority wiring fit across 9 files (0 fit individually), skipped
+80x40 1/10 LS9929: no majority wiring fit across 9 files (0 fit individually), skipped
+64x64 1/32 DP5525: 9 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-dp5525.toml
+104x208 1/52 DP5525: no majority wiring fit across 9 files (0 fit individually), skipped
+16x104 1/52 ICN2065: 9 files, block=16 rg=True rl=False -> config/panels/mined/16x104-52s-icn2065.toml
+64x128 1/64 SM16389: 9 files, block=64 rg=True rl=False -> config/panels/mined/64x128-64s-sm16389.toml
+172x86 1/43 LS9936: 6 files, block=172 rg=True rl=False -> config/panels/mined/172x86-43s-ls9936.toml
+64x64 1/16 MBI5124: 8 files, block=64 rg=True rl=False -> config/panels/mined/64x64-16s-mbi5124.toml
+80x40 1/10 SM16169S: no majority wiring fit across 8 files (2 fit individually), skipped
+80x40 1/10 SM16237DS: no majority wiring fit across 8 files (0 fit individually), skipped
+104x52 1/13 MY9868: 6 files, block=104 rg=True rl=False -> config/panels/mined/104x52-13s-my9868.toml
+64x32 1/8 MY9862: no majority wiring fit across 8 files (6 fit individually), skipped
+64x32 1/16 ICN2053: 8 files, block=64 rg=True rl=False -> config/panels/mined/64x32-16s-icn2053.toml
+128x64 1/16 ICN2053: 6 files, block=128 rg=True rl=False -> config/panels/mined/128x64-16s-icn2053.toml
+128x64 1/32 LS9929: 5 files, block=128 rg=True rl=False -> config/panels/mined/128x64-32s-ls9929.toml
+232x58 1/29 ICN2053: 8 files, block=232 rg=True rl=False -> config/panels/mined/232x58-29s-icn2053.toml
+104x104 1/52 ICND2163: 8 files, block=104 rg=True rl=False -> config/panels/mined/104x104-52s-icnd2163.toml
+128x64 1/32 ICN2055: 8 files, block=128 rg=True rl=False -> config/panels/mined/128x64-32s-icn2055.toml
+160x40 1/20 ICN2053: 8 files, block=160 rg=True rl=False -> config/panels/mined/160x40-20s-icn2053.toml
+32x32 1/8 SM16237DS: 6 files, block=32 rg=True rl=False -> config/panels/mined/32x32-8s-sm16237ds.toml
+160x80 1/40 ICN2038S: 8 files, block=160 rg=True rl=False -> config/panels/mined/160x80-40s-icn2038s.toml
+64x32 1/8 MBI5153: 6 files, block=32 rg=True rl=False -> config/panels/mined/64x32-8s-mbi5153.toml
+104x52 1/13 SM16380: 6 files, block=104 rg=True rl=False -> config/panels/mined/104x52-13s-sm16380.toml
+128x64 1/16 DP5525: 8 files, block=128 rg=True rl=False -> config/panels/mined/128x64-16s-dp5525.toml
+48x24 1/6 SM16259: 8 files, block=48 rg=True rl=False -> config/panels/mined/48x24-6s-sm16259.toml
+64x64 1/32 DP3246: 8 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-dp3246.toml
+128x64 1/32 SM16380: 8 files, block=128 rg=True rl=False -> config/panels/mined/128x64-32s-sm16380.toml
+52x52 1/13 ICN2053: 5 files, block=52 rg=True rl=False -> config/panels/mined/52x52-13s-icn2053.toml
+172x86 1/43 LS9930: no majority wiring fit across 7 files (2 fit individually), skipped
+32x32 1/8 ICN2053: 5 files, block=32 rg=True rl=False -> config/panels/mined/32x32-8s-icn2053.toml
+48x24 1/6 ICN2038S: 7 files, block=48 rg=True rl=False -> config/panels/mined/48x24-6s-icn2038s.toml
+208x52 1/26 ICN2053: 7 files, block=208 rg=True rl=False -> config/panels/mined/208x52-26s-icn2053.toml
+208x52 1/26 ICN2055: 7 files, block=208 rg=True rl=False -> config/panels/mined/208x52-26s-icn2055.toml
+104x104 1/52 DP5525: 7 files, block=104 rg=True rl=False -> config/panels/mined/104x104-52s-dp5525.toml
+104x104 1/52 ICN2065: 7 files, block=104 rg=True rl=False -> config/panels/mined/104x104-52s-icn2065.toml
+16x128 1/64 SM16389: 7 files, block=16 rg=True rl=False -> config/panels/mined/16x128-64s-sm16389.toml
+80x40 1/20 ICN2038S: 7 files, block=80 rg=True rl=False -> config/panels/mined/80x40-20s-icn2038s.toml
+32x32 1/8 MY9868: no majority wiring fit across 7 files (7 fit individually), skipped
+40x20 1/5 MBI5124N: no majority wiring fit across 7 files (0 fit individually), skipped
+48x24 1/6 LS9930: 5 files, block=48 rg=True rl=False -> config/panels/mined/48x24-6s-ls9930.toml
+48x24 1/6 SM16237DS: 7 files, block=48 rg=True rl=False -> config/panels/mined/48x24-6s-sm16237ds.toml
+48x24 1/6 SM16169S: 7 files, block=48 rg=True rl=False -> config/panels/mined/48x24-6s-sm16169s.toml
+64x32 1/8 SM16169S: 7 files, block=32 rg=True rl=False -> config/panels/mined/64x32-8s-sm16169s.toml
+64x32 1/8 LS9930: 6 files, block=32 rg=True rl=True -> config/panels/mined/64x32-8s-ls9930.toml
+64x256 1/64 DP5525: no majority wiring fit across 7 files (0 fit individually), skipped
+104x52 1/26 SM16237DS: 7 files, block=104 rg=True rl=False -> config/panels/mined/104x52-26s-sm16237ds.toml
+104x52 1/26 SM16380: 7 files, block=104 rg=True rl=False -> config/panels/mined/104x52-26s-sm16380.toml
+128x64 1/32 LS9930: no majority wiring fit across 6 files (6 fit individually), skipped
+64x64 1/16 MBI5124N: 6 files, block=64 rg=True rl=False -> config/panels/mined/64x64-16s-mbi5124n.toml
+104x104 1/52 LS9919: 6 files, block=104 rg=True rl=True -> config/panels/mined/104x104-52s-ls9919.toml
+86x86 1/43 LS9929: 4 files, block=86 rg=True rl=False -> config/panels/mined/86x86-43s-ls9929.toml
+64x64 1/16 DP5525: 6 files, block=64 rg=True rl=False -> config/panels/mined/64x64-16s-dp5525.toml
+144x48 1/24 ICN2053: 6 files, block=144 rg=True rl=False -> config/panels/mined/144x48-24s-icn2053.toml
+64x128 1/64 ICN2065: 6 files, block=64 rg=True rl=False -> config/panels/mined/64x128-64s-icn2065.toml
+160x80 1/40 LS9930: 4 files, block=160 rg=True rl=False -> config/panels/mined/160x80-40s-ls9930.toml
+80x40 1/10 MBI5153: no majority wiring fit across 6 files (0 fit individually), skipped
+64x32 1/8 DP5525: 6 files, block=32 rg=True rl=False -> config/panels/mined/64x32-8s-dp5525.toml
+80x40 1/20 SM16237DS: 6 files, block=80 rg=True rl=False -> config/panels/mined/80x40-20s-sm16237ds.toml
+80x40 1/20 DP5525: 6 files, block=80 rg=True rl=False -> config/panels/mined/80x40-20s-dp5525.toml
+64x64 1/32 MY9862: 6 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-my9862.toml
+52x52 1/13 ICN2038S: 3 files, block=13 rg=True rl=False -> config/panels/mined/52x52-13s-icn2038s.toml
+120x60 1/30 ICN2053: 3 files, block=120 rg=True rl=False -> config/panels/mined/120x60-30s-icn2053.toml
+96x48 1/24 ICN2038S: 5 files, block=96 rg=True rl=False -> config/panels/mined/96x48-24s-icn2038s.toml
+232x58 1/29 ICN2055: 5 files, block=232 rg=True rl=False -> config/panels/mined/232x58-29s-icn2055.toml
+16x128 1/64 ICN2065: 5 files, block=16 rg=True rl=False -> config/panels/mined/16x128-64s-icn2065.toml
+32x16 1/4 MBI5124N: no majority wiring fit across 5 files (0 fit individually), skipped
+64x32 1/16 ICN2038S: 5 files, block=64 rg=True rl=False -> config/panels/mined/64x32-16s-icn2038s.toml
+32x16 1/2 SM16259: no majority wiring fit across 5 files (0 fit individually), skipped
+32x16 1/2 MBI5124N: no majority wiring fit across 5 files (0 fit individually), skipped
+48x24 1/6 DP5525: 5 files, block=48 rg=True rl=False -> config/panels/mined/48x24-6s-dp5525.toml
+48x24 1/6 MY9868: 5 files, block=48 rg=True rl=False -> config/panels/mined/48x24-6s-my9868.toml
+104x52 1/13 LS9930: 5 files, block=104 rg=True rl=True -> config/panels/mined/104x52-13s-ls9930.toml
+80x40 1/10 LS9930: no majority wiring fit across 5 files (0 fit individually), skipped
+128x64 1/16 LS9930: 4 files, block=128 rg=True rl=True -> config/panels/mined/128x64-16s-ls9930.toml
+40x20 1/5 SM16169S: no majority wiring fit across 5 files (0 fit individually), skipped
+40x20 1/5 DP5525: no majority wiring fit across 5 files (0 fit individually), skipped
+16x104 1/52 SM16389: 5 files, block=16 rg=True rl=False -> config/panels/mined/16x104-52s-sm16389.toml
+16x80 1/40 SM16380: 5 files, block=16 rg=True rl=False -> config/panels/mined/16x80-40s-sm16380.toml
+128x64 1/32 SM16369S: no mined chip library, skipped (5 files)
+128x64 1/32 ICN2065: 5 files, block=128 rg=True rl=False -> config/panels/mined/128x64-32s-icn2065.toml
+104x52 1/26 SM16259: 5 files, block=104 rg=True rl=False -> config/panels/mined/104x52-26s-sm16259.toml
+64x128 1/64 ICND2263: no mined chip library, skipped (5 files)
+144x128 1/48 ICN2065: no majority wiring fit across 5 files (0 fit individually), skipped
+172x86 1/43 ICND2263: no mined chip library, skipped (5 files)
+32x128 1/64 SM16380: 5 files, block=32 rg=True rl=False -> config/panels/mined/32x128-64s-sm16380.toml
+84x84 1/21 SM16259: 4 files, block=84 rg=True rl=False -> config/panels/mined/84x84-21s-sm16259.toml
+84x56 1/28 ICN2053: 4 files, block=84 rg=True rl=False -> config/panels/mined/84x56-28s-icn2053.toml
+96x64 1/32 MBI5253: no mined chip library, skipped (4 files)
+128x64 1/32 FM6153/6253: 4 files, block=128 rg=True rl=False -> config/panels/mined/128x64-32s-fm6153-6253.toml
+128x64 1/32 DP5525: 4 files, block=128 rg=True rl=False -> config/panels/mined/128x64-32s-dp5525.toml
+64x64 1/16 MY9868: no majority wiring fit across 4 files (4 fit individually), skipped
+104x52 1/13 ICN2038S: no majority wiring fit across 4 files (0 fit individually), skipped
+84x84 1/42 LS9929: 4 files, block=84 rg=True rl=False -> config/panels/mined/84x84-42s-ls9929.toml
+96x96 1/48 LS9930: no majority wiring fit across 4 files (4 fit individually), skipped
+96x96 1/48 ICND2163: 4 files, block=96 rg=True rl=False -> config/panels/mined/96x96-48s-icnd2163.toml
+96x96 1/48 LS9929: 4 files, block=96 rg=True rl=False -> config/panels/mined/96x96-48s-ls9929.toml
+128x96 1/48 ICND2163: 4 files, block=128 rg=True rl=False -> config/panels/mined/128x96-48s-icnd2163.toml
+32x32 1/8 MY9862: 3 files, block=32 rg=True rl=False -> config/panels/mined/32x32-8s-my9862.toml
+32x16 1/4 ICN2038S: no majority wiring fit across 4 files (2 fit individually), skipped
+32x16 1/4 MY9868: no majority wiring fit across 4 files (0 fit individually), skipped
+32x16 1/2 SM16237DS: no majority wiring fit across 4 files (0 fit individually), skipped
+32x16 1/4 MBI5124: no majority wiring fit across 4 files (0 fit individually), skipped
+32x32 1/8 ICN2038S: 4 files, block=32 rg=True rl=False -> config/panels/mined/32x32-8s-icn2038s.toml
+160x80 1/20 DP5525: no majority wiring fit across 4 files (0 fit individually), skipped
+80x40 1/10 LS9935: no majority wiring fit across 4 files (0 fit individually), skipped
+80x40 1/10 ICN2055: no majority wiring fit across 4 files (0 fit individually), skipped
+104x52 1/13 SM16169S: 4 files, block=104 rg=True rl=False -> config/panels/mined/104x52-13s-sm16169s.toml
+128x64 1/16 SM16169S: 4 files, block=128 rg=True rl=False -> config/panels/mined/128x64-16s-sm16169s.toml
+128x64 1/16 SM16380: 4 files, block=128 rg=True rl=False -> config/panels/mined/128x64-16s-sm16380.toml
+128x64 1/16 MY9868: 4 files, block=128 rg=True rl=False -> config/panels/mined/128x64-16s-my9868.toml
+32x32 1/8 SM16259: 4 files, block=32 rg=True rl=False -> config/panels/mined/32x32-8s-sm16259.toml
+40x20 1/5 SM16259: no majority wiring fit across 4 files (0 fit individually), skipped
+40x20 1/5 SM16237DS: no majority wiring fit across 4 files (0 fit individually), skipped
+192x64 1/32 SM16259: 4 files, block=192 rg=True rl=False -> config/panels/mined/192x64-32s-sm16259.toml
+104x208 1/52 SM16380: no majority wiring fit across 4 files (0 fit individually), skipped
+64x128 1/64 LS9935B: 4 files, block=64 rg=True rl=False -> config/panels/mined/64x128-64s-ls9935b.toml
+172x86 1/43 LS9929C: no majority wiring fit across 4 files (3 fit individually), skipped
+160x80 1/40 LS9935: 4 files, block=160 rg=True rl=False -> config/panels/mined/160x80-40s-ls9935.toml
+160x80 1/40 LS9935B: 4 files, block=160 rg=True rl=False -> config/panels/mined/160x80-40s-ls9935b.toml
+160x80 1/40 LS9929C: 3 files, block=160 rg=True rl=True -> config/panels/mined/160x80-40s-ls9929c.toml
+160x80 1/40 SM16389: 4 files, block=160 rg=True rl=False -> config/panels/mined/160x80-40s-sm16389.toml
+174x58 1/29 SM16259: 4 files, block=174 rg=True rl=False -> config/panels/mined/174x58-29s-sm16259.toml
+104x52 1/26 ICN2038S: 4 files, block=104 rg=True rl=False -> config/panels/mined/104x52-26s-icn2038s.toml
+160x80 1/40 ICND2263: no mined chip library, skipped (4 files)
+128x72 1/36 ICN2065: no majority wiring fit across 4 files (2 fit individually), skipped
+160x90 1/45 ICN2065: no majority wiring fit across 4 files (2 fit individually), skipped
+112x116 1/58 ICN2065: 4 files, block=112 rg=True rl=False -> config/panels/mined/112x116-58s-icn2065.toml
+16x104 1/52 ICND2163: 4 files, block=16 rg=True rl=False -> config/panels/mined/16x104-52s-icnd2163.toml
+96x96 1/48 SM16380: 4 files, block=96 rg=True rl=False -> config/panels/mined/96x96-48s-sm16380.toml
+16x128 1/64 DP5525: 4 files, block=16 rg=True rl=False -> config/panels/mined/16x128-64s-dp5525.toml
+64x64 1/32 MBI5124N: 3 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-mbi5124n.toml
+64x64 1/16 MY9862: 3 files, block=64 rg=True rl=False -> config/panels/mined/64x64-16s-my9862.toml
+52x52 1/13 MBI5153: 2 files, block=52 rg=True rl=False -> config/panels/mined/52x52-13s-mbi5153.toml
+52x52 1/13 MY9862: 3 files, block=52 rg=True rl=False -> config/panels/mined/52x52-13s-my9862.toml
+104x52 1/26 MY9868: 3 files, block=104 rg=True rl=False -> config/panels/mined/104x52-26s-my9868.toml
+64x32 1/8 MBI5124: 3 files, block=64 rg=True rl=False -> config/panels/mined/64x32-8s-mbi5124.toml
+32x32 1/8 MBI5124: 3 files, block=32 rg=True rl=False -> config/panels/mined/32x32-8s-mbi5124.toml
+160x80 1/40 FM6127: 3 files, block=160 rg=True rl=False -> config/panels/mined/160x80-40s-fm6127.toml
+80x40 1/10 MBI5124N: no majority wiring fit across 3 files (0 fit individually), skipped
+48x24 1/6 SM16380: 3 files, block=48 rg=True rl=False -> config/panels/mined/48x24-6s-sm16380.toml
+104x52 1/13 LS9931: 3 files, block=104 rg=True rl=False -> config/panels/mined/104x52-13s-ls9931.toml
+80x40 1/10 SM16380: no majority wiring fit across 3 files (0 fit individually), skipped
+32x16 1/2 MY9868: no majority wiring fit across 3 files (0 fit individually), skipped
+64x32 1/8 LS9935: 2 files, block=32 rg=True rl=False -> config/panels/mined/64x32-8s-ls9935.toml
+64x32 1/8 LS9929: 2 files, block=32 rg=True rl=True -> config/panels/mined/64x32-8s-ls9929.toml
+64x32 1/8 SM16380: 3 files, block=32 rg=True rl=False -> config/panels/mined/64x32-8s-sm16380.toml
+80x40 1/10 LS9931: no majority wiring fit across 3 files (0 fit individually), skipped
+104x52 1/13 MBI5153: 3 files, block=104 rg=True rl=False -> config/panels/mined/104x52-13s-mbi5153.toml
+48x24 1/6 LS9929: 2 files, block=48 rg=True rl=False -> config/panels/mined/48x24-6s-ls9929.toml
+48x24 1/6 LS9929C: 2 files, block=48 rg=True rl=True -> config/panels/mined/48x24-6s-ls9929c.toml
+48x24 1/6 ICN2053: 3 files, block=48 rg=True rl=False -> config/panels/mined/48x24-6s-icn2053.toml
+32x32 1/8 DP5525: 3 files, block=32 rg=True rl=False -> config/panels/mined/32x32-8s-dp5525.toml
+32x32 1/8 SM16169S: 3 files, block=32 rg=True rl=False -> config/panels/mined/32x32-8s-sm16169s.toml
+40x20 1/5 ICN2055: no majority wiring fit across 3 files (0 fit individually), skipped
+40x20 1/5 LS9930: no majority wiring fit across 3 files (0 fit individually), skipped
+40x20 1/5 MY9868: no majority wiring fit across 3 files (0 fit individually), skipped
+104x208 1/52 LS9936: no majority wiring fit across 3 files (0 fit individually), skipped
+16x104 1/52 LS9935B: 3 files, block=16 rg=True rl=False -> config/panels/mined/16x104-52s-ls9935b.toml
+160x40 1/20 MBI5153: 3 files, block=160 rg=True rl=False -> config/panels/mined/160x40-20s-mbi5153.toml
+64x192 1/64 SM16389: no majority wiring fit across 3 files (0 fit individually), skipped
+80x40 1/20 SM16380: 3 files, block=80 rg=True rl=False -> config/panels/mined/80x40-20s-sm16380.toml
+80x40 1/20 MBI5153: 3 files, block=80 rg=True rl=False -> config/panels/mined/80x40-20s-mbi5153.toml
+80x40 1/20 SM16259: 3 files, block=80 rg=True rl=False -> config/panels/mined/80x40-20s-sm16259.toml
+64x256 1/64 SM16389: no majority wiring fit across 3 files (0 fit individually), skipped
+192x64 1/32 ICN2055: 3 files, block=192 rg=True rl=False -> config/panels/mined/192x64-32s-icn2055.toml
+64x64 1/32 SM16389: 3 files, block=64 rg=True rl=False -> config/panels/mined/64x64-32s-sm16389.toml
+104x208 1/52 SM16389: no majority wiring fit across 3 files (0 fit individually), skipped
+64x128 1/64 LS9929C: 2 files, block=64 rg=True rl=True -> config/panels/mined/64x128-64s-ls9929c.toml
+64x128 1/64 LS9931: 3 files, block=64 rg=True rl=False -> config/panels/mined/64x128-64s-ls9931.toml
+172x86 1/43 SM16369S: no mined chip library, skipped (3 files)
+160x80 1/40 SM16369S: no mined chip library, skipped (3 files)
+96x96 1/48 SM16369S: no mined chip library, skipped (3 files)
+174x58 1/29 ICN2055: 3 files, block=174 rg=True rl=False -> config/panels/mined/174x58-29s-icn2055.toml
+64x64 1/32 LS9929: 2 files, block=64 rg=True rl=True -> config/panels/mined/64x64-32s-ls9929.toml
+128x64 1/32 DP3246: 3 files, block=128 rg=True rl=False -> config/panels/mined/128x64-32s-dp3246.toml
+208x52 1/26 SM16369S: no mined chip library, skipped (3 files)
+104x52 1/26 MBI5153: 3 files, block=104 rg=True rl=False -> config/panels/mined/104x52-26s-mbi5153.toml
+128x64 1/32 MY9868: 2 files, block=128 rg=True rl=False -> config/panels/mined/128x64-32s-my9868.toml
+58x174 1/58 DP5525: no majority wiring fit across 3 files (0 fit individually), skipped
+64x192 1/64 ICN2065: no majority wiring fit across 3 files (0 fit individually), skipped
+116x116 1/58 ICN2065: 3 files, block=116 rg=True rl=False -> config/panels/mined/116x116-58s-icn2065.toml
+104x52 1/26 ICN2065: 3 files, block=104 rg=True rl=False -> config/panels/mined/104x52-26s-icn2065.toml
+16x128 1/64 HX8863/HX8865: 3 files, block=16 rg=True rl=False -> config/panels/mined/16x128-64s-hx8863-hx8865.toml

@@ -66,7 +66,7 @@ impl<R: Read> crate::FrameSource for RawSource<R> {
 
 /// The 12-byte header a socket client sends before its first frame.
 ///
-/// `E120`, version 1, one reserved byte, then width, height and fps as
+/// `RXP` and a zero byte, version 1, one reserved byte, then width, height and fps as
 /// little-endian u16.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Header {
@@ -77,7 +77,7 @@ pub struct Header {
 
 impl Header {
     pub const LEN: usize = 12;
-    const MAGIC: [u8; 4] = *b"E120";
+    const MAGIC: [u8; 4] = *b"RXP\0";
     const VERSION: u8 = 1;
 
     #[must_use]
@@ -97,7 +97,7 @@ impl Header {
         if b[..4] != Self::MAGIC {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "not an E120 stream header",
+                "not a receiverproxy stream header",
             ));
         }
         if b[4] != Self::VERSION {
@@ -141,11 +141,11 @@ impl Header {
     }
 }
 
-/// The client side of `e120 show serve`: writes a [`Header`], then frames.
+/// The client side of `rxp show serve`: writes a [`Header`], then frames.
 ///
 /// ```no_run
 /// use std::os::unix::net::UnixStream;
-/// let stream = UnixStream::connect("/tmp/e120.sock")?;
+/// let stream = UnixStream::connect("/tmp/receiverproxy.sock")?;
 /// let mut writer = sources::raw::Writer::new(stream, 128, 64, 30)?;
 /// let rgb = vec![0u8; 128 * 64 * 3];
 /// writer.frame(&rgb)?;
@@ -269,7 +269,7 @@ mod tests {
             fps: 30,
         };
         let b = h.to_bytes();
-        assert_eq!(&b, b"E120\x01\x00\x80\x00\x40\x00\x1e\x00");
+        assert_eq!(&b, b"RXP\0\x01\x00\x80\x00\x40\x00\x1e\x00");
         assert_eq!(Header::read(&mut Cursor::new(b)).unwrap(), h);
         assert_eq!(h.frame_len(), 128 * 64 * 3);
 

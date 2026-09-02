@@ -107,7 +107,7 @@ async fn config_gen_returns_what_the_cli_writes() {
     assert_eq!(status, StatusCode::OK, "{v}");
     assert_eq!(v["name"], "p25-128x64-sm16269s");
 
-    // `e120 config gen`, as the binary runs it from the repository root.
+    // `rxp config gen`, as the binary runs it from the repository root.
     let out = fresh_dir("gen-cli");
     let loader = |p: &str| ops::read_library(&repo().join(p).to_string_lossy());
     let mut lines = daemon::jobs::Lines::default();
@@ -245,7 +245,7 @@ async fn a_running_job_makes_link_routes_409() {
         req(
             Method::POST,
             "/api/v1/flash/restore",
-            Some(json!({ "dir": "/nonexistent/e120-snapshot" })),
+            Some(json!({ "dir": "/nonexistent/rxp-snapshot" })),
         ),
     )
     .await;
@@ -254,7 +254,7 @@ async fn a_running_job_makes_link_routes_409() {
     assert_eq!(job["state"], "failed");
     assert_eq!(
         job["error"],
-        "flash restore: /nonexistent/e120-snapshot holds neither primary-region.bin nor config.rcvbp"
+        "flash restore: /nonexistent/rxp-snapshot holds neither primary-region.bin nor config.rcvbp"
     );
 
     let (_, jobs) = call(&app, req(Method::GET, "/api/v1/jobs", None)).await;

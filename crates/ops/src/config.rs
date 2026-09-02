@@ -169,7 +169,7 @@ pub fn rcvbp_info(path: &str, dump: bool, p: &mut dyn Progress) -> Result<()> {
     Ok(())
 }
 
-/// `e120 config formats`: the codec registry as a table.
+/// `rxp config formats`: the codec registry as a table.
 pub fn list_formats(p: &mut dyn Progress) {
     p.out(&format!("{:<8} {:<12} {:<10} {:<9} import", "format", "vendor", "extension", "generate"));
     let yes_no = |b: bool| if b { "yes" } else { "no" };
@@ -185,7 +185,7 @@ pub fn list_formats(p: &mut dyn Progress) {
     }
 }
 
-/// `e120 config import`: the spec that regenerates `path`, written to `out`.
+/// `rxp config import`: the spec that regenerates `path`, written to `out`.
 ///
 /// The spec is named after the file. `format` names a codec; without it the
 /// codec is the one whose signature the file starts with. Chip libraries are
@@ -210,7 +210,7 @@ pub fn import_config(path: &str, out: &str, format: Option<&str>, p: &mut dyn Pr
     Ok(())
 }
 
-/// Everything `e120 config gen` produces for a spec.
+/// Everything `rxp config gen` produces for a spec.
 pub struct GenOutputs {
     /// `spec.name`, the stem of the output files.
     pub name: String,
@@ -229,7 +229,7 @@ pub struct GenOutputs {
     pub notes: Vec<String>,
     /// The `<name>-sources.txt` text.
     pub report: String,
-    /// Files written, in the order `e120 config gen` prints them; empty
+    /// Files written, in the order `rxp config gen` prints them; empty
     /// when nothing was written.
     pub paths: Vec<String>,
 }

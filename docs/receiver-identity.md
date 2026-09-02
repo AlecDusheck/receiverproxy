@@ -2,9 +2,9 @@
 
 A Colorlight receiver stores only the incoming pixels that fall inside its
 control area, a rectangle `(startX, startY) -> (endX, endY)` held in the
-card's EEPROM at address `0x02`. `e120 provision --position x,y` writes it.
+card's EEPROM at address `0x02`. `rxp provision --position x,y` writes it.
 With the record erased (`startX = startY = 0xFFFF`) the card drops every
-pixel while reporting a healthy 128x64 to `e120 discover`.
+pixel while reporting a healthy 128x64 to `rxp discover`.
 
 Source: static analysis of `libCLTDevice.1.dylib` (iSet 7 macOS build, C++
 symbols intact) and the bench card's flash dumps. Addresses are in that
@@ -83,7 +83,7 @@ Two paths, both ending at the same 42 bytes at EEPROM `0x02`:
 
 Every vendor save of a configuration to a receiver therefore rewrites the
 control area. A block-0x07 image write on its own does not; the erase clears
-the mirror. `e120 provision` reads the records before the block write and
+the mirror. `rxp provision` reads the records before the block write and
 writes them back after.
 
 ### `SaveSingleRcvCtrlArea`: the three-frame sequence
@@ -137,7 +137,7 @@ Measured: frames accepted, packet counter advancing, current changing,
 Mechanism: a whole-block erase of block 0x07 clears the mirror sector
 (`primary-after-restore.bin` differs from the vendor image in exactly
 `0x07F000`-`0x07FFFF`, all `0xFF`; [fpga/flash-layout.md](fpga/flash-layout.md)).
-`e120 card screen-size --set 128x64` then writes the 256-byte record back
+`rxp card screen-size --set 128x64` then writes the 256-byte record back
 with only bytes `0x06`-`0x09` patched and everything else as the `0xFF` it
 read, restoring the size and leaving the offsets at `0xFFFF`. The command
 refuses a record that reads as erased.
@@ -179,11 +179,11 @@ vendor's test mode says nothing about the card.
 
 ## 6. Frames
 
-`e120 provision --position x,y` writes the control area, its companion and
+`rxp provision --position x,y` writes the control area, its companion and
 every other record from the read-back set, one record at a time, then saves
 (opcode `0x87`) and reloads (`0x77`). `scripts/eeprom-restore.py` rewrites
 records from the factory dump. The frames below are what those send, for
-doing it by hand with `e120 debug send`.
+doing it by hand with `rxp debug send`.
 
 ### 6.0 The RAM-only card-area pack
 
@@ -191,7 +191,7 @@ Screen Connection's `Send` pushes the same rectangle as a volatile pack. It
 writes nothing; a power cycle undoes it:
 
 ```
-e120 debug send --type 0200 --pad 1282 \
+rxp debug send --type 0200 --pad 1282 \
   --payload 0000$(python3 -c "print('00000000008000400000'*128)")
 ```
 
@@ -205,7 +205,7 @@ MACs `11:22:33:44:55:66` / `22:22:33:44:55:66`. Payload length is
 index `0000`, or `FFFF` to broadcast as the vendor does.
 
 ```
-e120 debug send --type 1900 --pad 126 --payload \
+rxp debug send --type 1900 --pad 126 --payload \
 00000085000000020000002a000000000080004000000000000000000000000000000000000000000000000000000000000000000000
 ```
 
@@ -228,24 +228,24 @@ e120 debug send --type 1900 --pad 126 --payload \
 ### 6.2 Companion blob: EEPROM `0x92`, 32 bytes
 
 ```
-e120 debug send --type 1900 --pad 126 --payload \
+rxp debug send --type 1900 --pad 126 --payload \
 0000008500000092000000200000000000000000000000000000000000000000000000000000000000000000
 ```
 
 ### 6.3 Reload
 
 ```
-e120 debug send --type 0600 --pad 126 --payload 00000077000000000101000000
+rxp debug send --type 0600 --pad 126 --payload 00000077000000000101000000
 ```
 
 The vendor's `ReLoadLocalParam` form: opcode `0x77`, data `01 01 00 00 00`.
-A power-cycle has the same effect. `e120 card reload --full` emits an
+A power-cycle has the same effect. `rxp card reload --full` emits an
 equivalent frame.
 
 ### 6.4 Verify
 
 ```
-e120 card screen-size
+rxp card screen-size
 ```
 
 The first 16 bytes must read `00 00 00 00 00 00 00 80 00 40 00 00 ...`. The
@@ -256,8 +256,8 @@ erased card reads `00 00 ff ff ff ff 00 80 00 40 ff ff ...`.
 `0x41` and `0x42` are single bytes, `00` at the factory:
 
 ```
-e120 debug send --type 1900 --pad 126 --payload 00000085000000410000000100
-e120 debug send --type 1900 --pad 126 --payload 00000085000000420000000100
+rxp debug send --type 1900 --pad 126 --payload 00000085000000410000000100
+rxp debug send --type 1900 --pad 126 --payload 00000085000000420000000100
 ```
 
 Neither takes through opcode `0x85` on the bench card; both read
@@ -269,7 +269,7 @@ Opcode `0x44` is not in the data-attaching set, so this frame cannot modify
 the card. 42 bytes from EEPROM 2:
 
 ```
-e120 debug send --type 1900 --pad 126 --payload 00000044000000020000002a
+rxp debug send --type 1900 --pad 126 --payload 00000044000000020000002a
 ```
 
 Layout `00 00 00 | 44 | 00 00 00 02 | 00 00 00 2a`; the length field is the
@@ -277,16 +277,16 @@ number of bytes to return.
 
 ## 7. Command behaviour
 
-* `e120 card screen-size --set` reads and writes all 256 bytes from EEPROM 0.
+* `rxp card screen-size --set` reads and writes all 256 bytes from EEPROM 0.
   It refuses a record that reads as erased. It prints the end coordinates as
   a size, which is right only while `startX = startY = 0`.
-* `e120 flash restore-block` writes block 0x07 from an image whose page
+* `rxp flash restore-block` writes block 0x07 from an image whose page
   `0xF0` is erased, so it clears the mirror every time; page `0xF0` refusing
-  the write is expected. `e120 provision` reads the EEPROM records before
+  the write is expected. `rxp provision` reads the EEPROM records before
   the block write and rewrites them after. By hand: run
   `scripts/eeprom-restore.py --commit`, then check with
   `scripts/flash-review.py`.
 * `parse_discovery_response` (`crates/colorlight/src/discovery.rs`) reads
   reply payload bytes 20-23 as cols/rows. Those are `endX`/`endY`;
-  `startX`/`startY` sit at payload 16-19 and are not read. `e120 discover`
+  `startX`/`startY` sit at payload 16-19 and are not read. `rxp discover`
   therefore reports a healthy size while the control area is erased.

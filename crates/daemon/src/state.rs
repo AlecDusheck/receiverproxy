@@ -241,7 +241,7 @@ impl AppState {
             .await
         {
             Ok((cards, _)) => *lock(&self.cards) = cards,
-            Err(e) => eprintln!("e120 ui: {}", e.message),
+            Err(e) => eprintln!("rxp ui: {}", e.message),
         }
     }
 }

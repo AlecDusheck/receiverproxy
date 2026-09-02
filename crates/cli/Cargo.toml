@@ -1,13 +1,20 @@
 [package]
 name = "cli"
-description = "Command-line tool to configure and drive Colorlight receiver cards"
+description = "receiverproxy: the rxp command-line tool that configures and drives LED receiving cards"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+# `cargo run -p cli` and the rcvbp-wasm test that shells out to it.
+default-run = "rxp"
 
 [[bin]]
-name = "e120"
+name = "rxp"
 path = "src/main.rs"
+
+# The same program under the project's name; src/receiverproxy.rs includes main.rs.
+[[bin]]
+name = "receiverproxy"
+path = "src/receiverproxy.rs"
 
 [dependencies]
 ops.workspace = true

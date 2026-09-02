@@ -3,7 +3,7 @@
 Vendor firmware builds (`firmware/`), `.rcvbp` configs (`configs/`), and
 datasheets (`datasheets/`). `configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp`
 is the reference file the tests compare against: its records match the card's
-day-one flash (`crates/e120-rcvbp/tests/factory.rs`); where it came from is
+day-one flash (`crates/rcvbp/tests/factory.rs`); where it came from is
 not recorded, and its name says a 256x384 wall, which is not this bench.
 `configs/donor-*.rcvbp` is our own construction, not vendor material. Everything
 else here is vendor material, and none of it is ever executed.
@@ -15,7 +15,9 @@ runtime setting for this: the driver-chip protocol is in gateware, so no
 configuration will make a card drive a panel its firmware was not built for.
 
 The files are archived here because they are hard to find and Colorlight
-rotates its download URLs.
+rotates its download URLs. `config/firmware.toml` lists each one with its
+version, build kind, chips, size and sha256; `rxp firmware list` prints it,
+and every firmware write checks the image against it.
 
 ## Naming
 

@@ -285,7 +285,7 @@ impl Panel {
 pub struct Receiver {
     pub index: u16,
     /// The card's top-left on the screen: the same numbers given to
-    /// `e120 provision --position x,y`, which is what the card's EEPROM
+    /// `rxp provision --position x,y`, which is what the card's EEPROM
     /// control area keeps of the stream.
     #[serde(default)]
     pub x: u32,

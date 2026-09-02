@@ -50,7 +50,7 @@ pub enum Show {
     /// Accept rgb24 streams on a unix socket, one client at a time
     Serve {
         /// Socket path; a stale file is replaced and the file removed on exit
-        #[arg(long)]
+        #[arg(long, default_value = "/tmp/receiverproxy.sock")]
         socket: String,
         /// stretch | contain | cover, when a client's size differs from the wall
         #[arg(long, default_value = "contain")]

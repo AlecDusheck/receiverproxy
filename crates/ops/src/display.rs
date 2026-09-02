@@ -27,8 +27,8 @@ fn env_or<T: std::str::FromStr>(name: &str, default: T) -> T {
         .unwrap_or(default)
 }
 
-/// Driver settings from the CLI flags. `E120_LATCHES`, `E120_LATCH_GAP_US`
-/// and `E120_ROW_GAP_US` override the measured timing for experiments.
+/// Driver settings from the CLI flags. `RXP_LATCHES`, `RXP_LATCH_GAP_US`
+/// and `RXP_ROW_GAP_US` override the measured timing for experiments.
 pub fn wall_settings(ctx: &Ctx) -> driver::Settings {
     let t = driver::Timing::default();
     let micros = |name, d: Duration| Duration::from_micros(env_or(name, d.as_micros() as u64));
@@ -37,16 +37,16 @@ pub fn wall_settings(ctx: &Ctx) -> driver::Settings {
         color_order: ctx.order,
         announce_layout: false,
         timing: driver::Timing {
-            latches: env_or("E120_LATCHES", t.latches),
-            latch_gap: micros("E120_LATCH_GAP_US", t.latch_gap),
-            row_gap: micros("E120_ROW_GAP_US", t.row_gap),
+            latches: env_or("RXP_LATCHES", t.latches),
+            latch_gap: micros("RXP_LATCH_GAP_US", t.latch_gap),
+            row_gap: micros("RXP_ROW_GAP_US", t.row_gap),
         },
     }
 }
 
-/// Refresh period for held stills; `E120_FRAME_MS` overrides it.
+/// Refresh period for held stills; `RXP_FRAME_MS` overrides it.
 fn frame_period() -> Duration {
-    Duration::from_millis(env_or("E120_FRAME_MS", 33))
+    Duration::from_millis(env_or("RXP_FRAME_MS", 33))
 }
 
 /// Send the brightness and sync frames once.

@@ -93,7 +93,7 @@ is in the 19-21 % chance band (section 8), so it is a build not present in
 that of 13.39, 9.53, 6.69 and 16.53 and differs from 10.81's
 ([block-ram.md](block-ram.md)).
 
-`e120 firmware write` never writes the golden bank. `e120 flash snapshot`
+`rxp firmware write` never writes the golden bank. `rxp flash snapshot`
 captures it.
 
 ## 5. Regions addressed by the vendor library but not read
@@ -238,8 +238,8 @@ to blocks 0x00-0x02 and 0x08-0x0A it is 100.0000 %.
 The 18-21 % band is the chance floor for two unrelated 25F bitstreams.
 
 The dumps were taken with 10.81 installed; the card shipped with 10.81. The
-card runs 16.53, installed with `e120 provision --firmware`
-([../rendering.md](../rendering.md)). `e120 discover` reports the running
+card runs 16.53, installed with `rxp provision --firmware`
+([../rendering.md](../rendering.md)). `rxp discover` reports the running
 version. Most of `docs/fpga/` analyses 16.53; check which image a claim
 refers to before acting on it.
 
@@ -286,7 +286,7 @@ is present at the predicted address:
 | `0x8000` | `0x078000` | u32-LE length + `.rcvbp` | length `0x241F`, `.rcvbp` at `0x078004`, ends `0x07A422`, erased after |
 
 `build/p25-128x64-sm16269s-block7.bin` lands at absolute flash `0x070000`
-(`e120 flash restore-block`). It is exactly `0x10000` (one 64K block) and its
+(`rxp flash restore-block`). It is exactly `0x10000` (one 64K block) and its
 embedded `.rcvbp` header sits at file offset `0x8000`. Against the factory
 dump's block 0x07 it is 82.03 % identical; the differences are geometry: its
 basic pack has `20 80 01 10 ... 00 01` where the factory has

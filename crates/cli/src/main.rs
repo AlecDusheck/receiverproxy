@@ -7,8 +7,10 @@ use protocol::ColorOrder;
 use std::process::ExitCode;
 
 #[derive(Parser)]
+// bin_name keeps the usage line `rxp` when the binary is run as `receiverproxy`.
 #[command(
-    name = "e120",
+    name = "rxp",
+    bin_name = "rxp",
     about = "Drive a Colorlight receiving card over raw Ethernet"
 )]
 struct Cli {
@@ -45,7 +47,7 @@ struct Cli {
     )]
     brightness: u8,
 
-    /// Card model to work from instead of the one discovery reports (`e120 card models`)
+    /// Card model to work from instead of the one discovery reports (`rxp card models`)
     #[arg(long, global = true, display_order = 1005, value_name = "NAME")]
     card: Option<String>,
 
@@ -107,7 +109,7 @@ enum Cmd {
         /// Panel spec, see config/panels/*.toml
         #[arg(long)]
         spec: String,
-        /// Vendor firmware image to install (skipped when absent)
+        /// Firmware image to install, a name from config/firmware.toml or a path (skipped when absent)
         #[arg(long)]
         firmware: Option<String>,
         /// Cabinet position in the whole screen, "x,y" in pixels
@@ -132,7 +134,7 @@ enum Cmd {
     /// Read and write the card's flash, and snapshot or restore it
     #[command(subcommand)]
     Flash(cli::flash::Flash),
-    /// Install FPGA firmware
+    /// List, fetch and install FPGA firmware
     #[command(subcommand)]
     Firmware(cli::firmware::Firmware),
     /// Card state held in RAM or EEPROM: layout, screen size, test modes
@@ -155,7 +157,7 @@ enum Cmd {
         /// The token every API request must carry (X-Token); random when absent
         #[arg(long)]
         token: Option<String>,
-        /// Where settings, the wall layout, backups and snapshots are kept [default: the OS config dir, e120/]
+        /// Where settings, the wall layout, backups and snapshots are kept [default: the OS config dir, receiverproxy/]
         #[arg(long)]
         data_dir: Option<String>,
     },
@@ -188,7 +190,7 @@ fn subcommand_path(m: &clap::ArgMatches) -> String {
 
 #[allow(unsafe_code)] // one libc call, before any thread exists
 fn main() -> ExitCode {
-    // Die quietly when a pipe closes (`e120 config info f | head`), like other unix tools.
+    // Die quietly when a pipe closes (`rxp config info f | head`), like other unix tools.
     unsafe {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
@@ -203,7 +205,7 @@ fn main() -> ExitCode {
     match run(&cli, iface_given).with_context(|| subject) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("e120: {e:#}");
+            eprintln!("rxp: {e:#}");
             ExitCode::FAILURE
         }
     }

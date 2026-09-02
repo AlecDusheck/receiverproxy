@@ -172,7 +172,7 @@ pub fn discover_one(ctx: &Ctx, wait: u64) -> Result<Option<protocol::DiscoveryIn
     )
 }
 
-/// One line per card, as `e120 discover` prints it; the model from
+/// One line per card, as `rxp discover` prints it; the model from
 /// `config/cards/` by the id byte, `unknown` when no file carries it.
 #[must_use]
 pub fn describe(info: &protocol::DiscoveryInfo) -> String {

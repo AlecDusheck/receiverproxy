@@ -10,7 +10,7 @@ from flash_review_map import EEPROM
 
 MIRROR = 0xF000   # EEPROM mirror within block 0x07
 
-KNOWN = [(0x0000, MIRROR, 'compiled boot image (written by e120 flash restore-block)')] + [
+KNOWN = [(0x0000, MIRROR, 'compiled boot image (written by rxp flash restore-block)')] + [
     (MIRROR + off, ln, f'EEPROM 0x{off:03x}: {label}') for off, ln, label in EEPROM
 ]
 

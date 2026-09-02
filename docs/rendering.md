@@ -28,16 +28,16 @@ give the same picture and the same currents.
 | driver registers | the reference file's table | `config/chips/sm16269s-factory.toml` (record 0x84) | `factory.rs` | the vendor "Default Parameter" set (`sm16269.toml`) renders worse; the LEDSetting 2.2.6 set saturates the panel. A register-by-register sweep changes nothing at black |
 | record 0x01 `+0x0FC` table, `+0x19A` lane map | inherited, non-zero | spec defaults | `factory.rs` | zeroed (the SM16169 corpus value), rendering breaks on this card |
 | serial clock | 8 | `[module] serial_clock` | the reference file's value; the chip default is 15 | not swept |
-| firmware | 16.53 | `third-party/firmware/E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex` | `e120 discover` reports it | 9.53 arms nothing; 10.81 (factory image) free-runs; Normal 13.39 leaves the panel dead at 0.44 A |
-| EEPROM control area | `(0, 0, 128, 64)` | `e120 provision --position 0,0` → `eeprom::control_area` | `scripts/flash-review.py`; `e120 card screen-size` | erased to `startX = startY = 0xFFFF`, the card reports a healthy 128x64 and drops every pixel ([receiver-identity.md](receiver-identity.md)) |
-| configure from flash | `arm_at_boot = true`; block-7 image via `flash restore-block`; EEPROM records rewritten; power-cycle | `[boot]`, `e120 provision` | measured: three of three power-cycles render identically (black 0.73–0.77 A, white 1.74–1.76 A before the phantom gate; 0.466 A / 2.64 A after) | the same parameters pushed into RAM with `config send` after boot render on about one boot in three: the 34 unacknowledged packs do not all land. RAM pushes are for experiments only; push twice with `--gap-ms 25` |
+| firmware | 16.53 | `third-party/firmware/E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex` | `rxp discover` reports it | 9.53 arms nothing; 10.81 (factory image) free-runs; Normal 13.39 leaves the panel dead at 0.44 A |
+| EEPROM control area | `(0, 0, 128, 64)` | `rxp provision --position 0,0` → `eeprom::control_area` | `scripts/flash-review.py`; `rxp card screen-size` | erased to `startX = startY = 0xFFFF`, the card reports a healthy 128x64 and drops every pixel ([receiver-identity.md](receiver-identity.md)) |
+| configure from flash | `arm_at_boot = true`; block-7 image via `flash restore-block`; EEPROM records rewritten; power-cycle | `[boot]`, `rxp provision` | measured: three of three power-cycles render identically (black 0.73–0.77 A, white 1.74–1.76 A before the phantom gate; 0.466 A / 2.64 A after) | the same parameters pushed into RAM with `config send` after boot render on about one boot in three: the 34 unacknowledged packs do not all land. RAM pushes are for experiments only; push twice with `--gap-ms 25` |
 | brightness | ≤ 40 until content is right | operator rule | PSU current | an armed panel showing unmodulated content draws about 4.5 A; at full brightness it rails the 5.1 A limit and browns out |
 | colour order | `bgr` | `--order` default | `colour_order_reorders_the_channels` | |
 | pixels per packet | 497 | `crates/colorlight/src/pixel.rs` `MAX_PIXELS_PER_PACKET` | `pixel_rows_follow_the_fpp_layout`; CLTNic.dll hard-codes it | |
 
 Experiment overrides, read once by `crates/ops/src/display.rs` into
-`driver::Timing`: `E120_LATCHES`, `E120_LATCH_GAP_US`, `E120_ROW_GAP_US`,
-`E120_FRAME_MS`. Nothing in `scripts/` sets them.
+`driver::Timing`: `RXP_LATCHES`, `RXP_LATCH_GAP_US`, `RXP_ROW_GAP_US`,
+`RXP_FRAME_MS`. Nothing in `scripts/` sets them.
 
 ## Frame layout
 
@@ -53,16 +53,16 @@ brightness, rows, gap, three latches. The proto tests pin the bytes.
 ## Firmware 16.53
 
 The factory image on this card is `E320_PCB6.0_PWM_FPGA10.81_20230907`. A
-`flash restore` of the factory dump reinstalls 10.81, not 16.53. `e120
+`flash restore` of the factory dump reinstalls 10.81, not 16.53. `rxp
 discover` reports the running version and is the only authority for it.
 
-Install: `e120 provision --spec <spec> --firmware <hex> --commit` does both
+Install: `rxp provision --spec <spec> --firmware <hex> --commit` does both
 halves. By hand:
 
 ```
-e120 flash snapshot --dir build/snapshot-<time>     # primary bank + golden bank (block 0x20, never written)
-e120 firmware install <hex> --commit                # SDRAM self-program: blocks 0-2 and 8
-e120 firmware write <hex> --backup <snapshot>/primary-region.bin --from-block 3 --to-block 7 --commit
+rxp flash snapshot --dir build/snapshot-<time>     # primary bank + golden bank (block 0x20, never written)
+rxp firmware install <hex> --commit                # SDRAM self-program: blocks 0-2 and 8
+rxp firmware write <hex> --backup <snapshot>/primary-region.bin --from-block 3 --to-block 7 --commit
 ```
 
 16.53 write-protects blocks 0–2 and 8 from the host page-write path, and its
@@ -73,7 +73,7 @@ itself; blocks 0x00–0x06 and 0x08–0x0A verify exactly. Flashing firmware
 erases block 0x07, so the config and the EEPROM records must be rewritten
 afterwards (`provision` does; by hand, `flash restore-block` then
 `scripts/eeprom-restore.py`), then power-cycle. After a firmware change
-`discover` can report "detected size 1544x128" until `e120 card set-layout`
+`discover` can report "detected size 1544x128" until `rxp card set-layout`
 is re-sent.
 
 Differences between 10.81 and 16.53, measured:

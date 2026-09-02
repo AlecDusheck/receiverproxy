@@ -68,7 +68,7 @@ a missing one; a uniform fill cannot.
 279 bytes; it matches `SetRcvCardTestMode` @ `0x3d54e0` exactly. The enum
 lives in the UI layer; `ScrnTest.dll` yields only `NORMAL`/`RED`-family
 strings with no numeric mapping. On 16.53 the selectors produce visibly
-different displays (`e120 card test-mode <n>`, `e120 card test-sweep`).
+different displays (`rxp card test-mode <n>`, `rxp card test-sweep`).
 
 **What would settle it:** a selector sweep with the wire otherwise quiet,
 the supply current logged and each pattern captured.
@@ -255,9 +255,9 @@ flashing operation.
   firmware redirects host access in that range to a separate parameter
   store, as it does for `0x07F000`.
 
-After `e120 firmware install` (SDRAM self-program, blocks 0x00–0x02 and
-0x08) followed by `e120 firmware write --from-block 3 --to-block 7` of
-16.53, `e120 discover` reports 16.53 ([../rendering.md](../rendering.md)).
+After `rxp firmware install` (SDRAM self-program, blocks 0x00–0x02 and
+0x08) followed by `rxp firmware write --from-block 3 --to-block 7` of
+16.53, `rxp discover` reports 16.53 ([../rendering.md](../rendering.md)).
 
 Ruled out: that the loader skips `0x030000`–`0x07FFFF`. Skipping 320 KB out
 of a single continuous `LSC_PROG_INCR_RTI` of 7562 frames is not
@@ -398,7 +398,7 @@ block RAM data out. If it is test-pattern-vs-data, the select bit
 the netlist.
 
 **What would settle it:** tracing the driver of `Q5@23,18` to the `0x33`
-command path, or a scope on one RGB data line during `e120 card test-mode`.
+command path, or a scope on one RGB data line during `rxp card test-mode`.
 
 ### 4.8 Membership of the blanked top-edge set
 

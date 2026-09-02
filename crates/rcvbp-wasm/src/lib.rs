@@ -68,7 +68,7 @@ pub fn validate_layout(json: &str) -> Result<String, JsError> {
     api::validate_layout(json).map_err(|e| JsError::new(&format!("{e:#}")))
 }
 
-/// One receiver per panel, as `e120 card layout-example` prints it.
+/// One receiver per panel, as `rxp card layout-example` prints it.
 #[wasm_bindgen]
 pub fn layout_example(cols: u32, rows: u32, w: u32, h: u32) -> Result<String, JsError> {
     api::layout_example(cols, rows, w, h).map_err(|e| JsError::new(&format!("{e:#}")))

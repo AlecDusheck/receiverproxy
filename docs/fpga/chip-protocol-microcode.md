@@ -2,7 +2,7 @@
 
 The LE/LAT command encoding the card emits to the driver chips is parameter
 data: it is carried in the 20-byte `SChipControl` block of record 0x01
-(`+0x0C4`), which the host sends on every `e120 config send` and which the
+(`+0x0C4`), which the host sends on every `rxp config send` and which the
 boot image holds. It is not in the microcode ROM, and it is not hard-wired
 per chip in the gateware. This page gives the evidence for both negatives,
 the decode of the block against three open-source driver profiles and the
@@ -453,7 +453,7 @@ rendering configuration.
 ## 7. Reproduction
 
 ```sh
-sh analysis/fpga/scripts/repro.sh /tmp/e120-trellis       # bitstreams -> .config
+sh analysis/fpga/scripts/repro.sh /tmp/rxp-trellis       # bitstreams -> .config
 md5 analysis/fpga/rom_*_decoded.txt                       # §1.1
 python3 analysis/fpga/chip_control_survey.py              # §2 corpus table
 ```

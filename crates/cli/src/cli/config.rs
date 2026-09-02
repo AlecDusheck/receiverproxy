@@ -15,7 +15,7 @@ pub enum Config {
         /// Directory for the outputs (created if missing)
         #[arg(long, default_value = "build")]
         out_dir: String,
-        /// Configuration format, one of `e120 config formats`
+        /// Configuration format, one of `rxp config formats`
         #[arg(long, default_value = "rcvbp")]
         format: String,
     },
@@ -26,7 +26,7 @@ pub enum Config {
         /// Where to write the spec
         #[arg(long, default_value = "spec.toml")]
         out: String,
-        /// Configuration format, one of `e120 config formats` [default: detected from the file]
+        /// Configuration format, one of `rxp config formats` [default: detected from the file]
         #[arg(long)]
         format: Option<String>,
     },

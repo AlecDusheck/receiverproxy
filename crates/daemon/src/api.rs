@@ -115,7 +115,7 @@ where
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields))]
 pub struct ShowImageReq {
     pub path: String,
-    /// `stretch` by default, as `e120 show image`.
+    /// `stretch` by default, as `rxp show image`.
     #[serde(default, deserialize_with = "de_name_opt")]
     pub fit: Option<Fit>,
     pub hold: Option<bool>,
@@ -162,7 +162,7 @@ pub struct SpecReq {
     pub spec_toml: String,
 }
 
-/// The reply of `POST /config/gen`: the files `e120 config gen` writes.
+/// The reply of `POST /config/gen`: the files `rxp config gen` writes.
 #[derive(Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct GenFiles {

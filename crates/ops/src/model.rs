@@ -65,7 +65,7 @@ pub fn bank_bytes(m: &CardModel) -> usize {
     m.memory.bank_bytes as usize
 }
 
-/// `e120 card models`: one line per model, tested first.
+/// `rxp card models`: one line per model, tested first.
 pub fn list(p: &mut dyn Progress) {
     for m in models() {
         p.out(&format!(
@@ -116,7 +116,7 @@ fn embedded_chip(path: &str) -> Result<ChipLibrary> {
     ChipLibrary::parse(text).with_context(|| format!("parse {path}"))
 }
 
-/// `e120 card models --markdown`: the README's Tested matrix. One column per
+/// `rxp card models --markdown`: the README's Tested matrix. One column per
 /// model file, one row per panel a model was driven with, then one row per
 /// driver-chip family among the mined module classes.
 ///
@@ -215,7 +215,7 @@ mod tests {
         let readme = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../README.md")).unwrap();
         let (_, rest) = readme.split_once("<!-- tested -->").expect("<!-- tested --> marker");
         let (table, _) = rest.split_once("<!-- /tested -->").expect("<!-- /tested --> marker");
-        assert_eq!(table.trim(), matrix_markdown().unwrap().trim(), "regenerate with: e120 card models --markdown");
+        assert_eq!(table.trim(), matrix_markdown().unwrap().trim(), "regenerate with: rxp card models --markdown");
     }
 
     #[test]

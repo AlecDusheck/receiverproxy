@@ -98,7 +98,7 @@ pub fn hex(bytes: &[u8], sep: &str) -> String {
 
 /// A non-fatal problem, on stderr in the same shape as an error.
 pub fn warn(p: &mut dyn Progress, msg: impl std::fmt::Display) {
-    p.err(&format!("e120: warning: {msg}"));
+    p.err(&format!("rxp: warning: {msg}"));
 }
 
 pub fn hexdump(p: &mut dyn Progress, data: &[u8]) {

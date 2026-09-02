@@ -9,7 +9,7 @@ sources = 18
 agreement = 1.00
 examples = ["Q2AC40(3364+5368)-W1.rcvbp", "Q2AC40(3264+5368)-V3.4-W1.rcvbp", "Q2AC40(3364+5158)-W1.rcvbp"]
 vendors = ["Colorlight"]
-notes = "the pixel map has 6400 entries; the block-7 image builder packs at most 4096, so `e120 config gen` writes the .rcvbp but not the boot image"
+notes = "the pixel map has 6400 entries; the block-7 image builder packs at most 4096, so `rxp config gen` writes the .rcvbp but not the boot image"
 
 [module]
 width = 160

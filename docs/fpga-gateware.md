@@ -103,7 +103,7 @@ way.
 The factory image on the bench card was `E320_PCB6.0_PWM_FPGA10.81_20230907`,
 identified three ways from the flash dumps: the header date, a per-block
 match of exactly `1.000000` outside the reserved span, and 10.81's uniquely
-different EBR ROM. The card runs 16.53 (`e120 discover` reports the
+different EBR ROM. The card runs 16.53 (`rxp discover` reports the
 version). The analysis targets 16.53; each claim in `docs/fpga/` names the
 image it refers to.
 
@@ -155,7 +155,7 @@ Detail: [version-diff.md](fpga/version-diff.md).
 | the frames are byte-exact against CLTNic.dll and on the wire | the host encoder is not a fault source |
 | `0x014C` arms the drivers; with `+0x02F = 1`, the measured frame order and booting from flash, content renders | the driver protocol is selected by the chip id in the pack, not by a table in the gateware |
 | an all-black frame draws a fixed pattern until the positions `width..2·width` are displaced through the void-line column table | the card emits `2 × width` positions per line for this wiring and fills the upper half from a fixed source; the void-line remap gates it |
-| the physical test button does nothing on this card | test patterns are reached with `e120 card test-mode <n>` |
+| the physical test button does nothing on this card | test patterns are reached with `rxp card test-mode <n>` |
 | on firmware 10.81 the panel changed with no traffic on the wire (mean absolute difference 29–37 levels between photos five seconds apart; 1.6–1.8 on 16.53) | the "per-pixel noise" on 10.81 was a buffer nothing was driving |
 
 The per-hypothesis experiments for the output stage are in

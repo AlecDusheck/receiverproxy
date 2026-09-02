@@ -50,7 +50,7 @@ Pack header sizes, for converting pack offsets to image offsets: type 0x05
 
 ## Generator order
 
-`e120 config gen --spec config/panels/<panel>.toml` builds the image from
+`rxp config gen --spec config/panels/<panel>.toml` builds the image from
 erased flash in this order (`Block7Builder::from_generated`; a later placement
 wins an overlapping page): zero regions, basic pack, data-swap, module
 positions, anti-void counters, void-line columns, mapping, scan table, then

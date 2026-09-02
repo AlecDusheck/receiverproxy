@@ -152,7 +152,7 @@ Which colour those three bytes carry is decided by the caller, not by CLTNic:
 argument, and `fcn.10006540` allocates the buffer as `width*height*4`
 (`0x1000659f`–`0x100065c7`). LEDVISION feeds it GDI/GDI+ 32bpp surfaces,
 whose memory order is B,G,R,A, so the wire order is B,G,R. Inferred from the
-caller's surface format, not fixed in CLTNic. `e120 --order` defaults to
+caller's surface format, not fixed in CLTNic. `rxp --order` defaults to
 `bgr`; measured: `bgr` renders the right colours on the bench panel.
 
 ---
@@ -340,7 +340,7 @@ The card's window is configured from the device side (`CLTDevice` /
   pack index, then 128 entries of 10 bytes carrying left/top/right/bottom as
   big-endian u16 (`GetCardAreaParamPacks` at libCLTDevice `0x38a1c0`, sent by
   `SendRealTimePacks` at `0x37ec00`). A power cycle discards it. Provisioning
-  does not use it; `e120 debug send --type 0200` can emit it by hand
+  does not use it; `rxp debug send --type 0200` can emit it by hand
   ([receiver-identity.md](receiver-identity.md) §6.0);
 * a persisted 42-byte record in the card's EEPROM at address `0x02`
   ([receiver-identity.md](receiver-identity.md)). Measured: with that record
@@ -353,7 +353,7 @@ Host-side as well. `0x10001fa0` stores the index at `0x101b16c8` and
 re-sends. `fcn.10006540` (`0x100065cc`–`0x100065ff`) uses it to render a
 pattern into the local framebuffer (`fcn.10006d00` for 1–4, `fcn.10006f80`
 for 5–9, `fcn.10006e20` for 10–13), which is then sent as ordinary pixel rows.
-LEDVISION never asks the card's built-in generator to draw. `e120 card
+LEDVISION never asks the card's built-in generator to draw. `rxp card
 test-mode <n>` does, over the type-`0x33` frame.
 
 ---

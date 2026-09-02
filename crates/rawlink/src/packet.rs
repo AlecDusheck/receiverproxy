@@ -34,7 +34,7 @@ impl Link {
             if e.raw_os_error() == Some(libc::EPERM) || e.raw_os_error() == Some(libc::EACCES) {
                 bail!(
                     "socket(AF_PACKET): {e} (try: sudo setcap cap_net_raw,cap_net_admin+ep \
-                     $(command -v e120), or run as root)"
+                     $(command -v rxp), or run as root)"
                 );
             }
             return Err(e).context("socket(AF_PACKET)");

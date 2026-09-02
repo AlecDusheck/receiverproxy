@@ -243,7 +243,7 @@ impl Block7Builder {
 }
 
 /// The whole image for a generated config: the raster regions, the chip page
-/// when the spec arms at boot, and the embedded `.rcvbp`. What `e120 config
+/// when the spec arms at boot, and the embedded `.rcvbp`. What `rxp config
 /// gen` writes as `<name>-block7.bin`.
 ///
 /// # Errors

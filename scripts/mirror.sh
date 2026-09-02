@@ -1,5 +1,5 @@
 #!/bin/sh
-# Mirror this machine's screen, or a region of it, onto the panel through `e120 show stream`.
+# Mirror this machine's screen, or a region of it, onto the panel through `rxp show stream`.
 # macOS captures with avfoundation, Linux with x11grab on $DISPLAY.
 #
 # Usage:
@@ -8,7 +8,7 @@
 #   scripts/mirror.sh -c 0,0,640,320       crop x,y,w,h from the top-left first
 #   scripts/mirror.sh -d "Capture screen 1"  another avfoundation device (macOS)
 #   scripts/mirror.sh -d :1                another X display (Linux)
-#   extra arguments are passed to `e120 show stream`
+#   extra arguments are passed to `rxp show stream`
 set -eu
 
 size=128x64
@@ -25,12 +25,12 @@ else
     infmt=
 fi
 
-# The installed e120, else a local build.
+# The installed rxp, else a local build.
 here=$(cd "$(dirname "$0")/.." && pwd)
-if command -v e120 >/dev/null; then e120=e120
-elif [ -x "$here/target/release/e120" ]; then e120=$here/target/release/e120
-elif [ -x "$here/target/debug/e120" ]; then e120=$here/target/debug/e120
-else echo "mirror.sh: e120 not found; cargo install --path crates/cli" >&2; exit 1
+if command -v rxp >/dev/null; then rxp=rxp
+elif [ -x "$here/target/release/rxp" ]; then rxp=$here/target/release/rxp
+elif [ -x "$here/target/debug/rxp" ]; then rxp=$here/target/debug/rxp
+else echo "mirror.sh: rxp not found; cargo install --path crates/cli" >&2; exit 1
 fi
 while getopts 's:f:c:d:h' o; do
     case $o in
@@ -58,4 +58,4 @@ fi
 exec ffmpeg -hide_banner -loglevel error \
     -f "$grab" $infmt -framerate "$fps" -i "$device" \
     -vf "$filter" -fps_mode cfr -r "$fps" -f rawvideo -pix_fmt rgb24 - \
-    | "$e120" show stream --size "$size" --fps "$fps" "$@"
+    | "$rxp" show stream --size "$size" --fps "$fps" "$@"

@@ -60,7 +60,7 @@ pub fn all(
     if snap.firmware.is_some() {
         warn(p, format!(
             "{dir}/primary-region.bin is not restored by this command; host-writable blocks go back with: \
-             e120 firmware write {dir}/primary-region.bin --backup <fresh dump> --from-block 3 --to-block 7 --commit"
+             rxp firmware write {dir}/primary-region.bin --backup <fresh dump> --from-block 3 --to-block 7 --commit"
         ));
     }
     let Some(config) = &snap.config else {
@@ -105,7 +105,7 @@ mod tests {
     use super::*;
 
     fn tmpdir(name: &str) -> String {
-        let d = std::env::temp_dir().join(format!("e120-restore-{name}"));
+        let d = std::env::temp_dir().join(format!("rxp-restore-{name}"));
         std::fs::create_dir_all(&d).unwrap();
         d.to_str().unwrap().to_owned()
     }

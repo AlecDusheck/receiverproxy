@@ -1,22 +1,22 @@
-# e120
+# receiverproxy
 
 ![A Raspberry Pi drives chained Colorlight E120 cards over Ethernet; each card drives part of an LED wall over HUB75 ribbons](docs/readme-header.png)
 
-`e120` is a command-line tool and a web app that drive a Colorlight E120 LED receiving card and its modules over raw Ethernet: they generate and flash the module configuration, then put images, video and live streams on the panel.
+`receiverproxy` is a command-line tool (`rxp`) and a web app that drive a Colorlight E120 LED receiving card and its modules over raw Ethernet: they generate and flash the module configuration, then put images, video and live streams on the panel.
 
 The aim is to drive any LED receiving card and its panels from a computer with an Ethernet port, without a sender card, vendor software or an account.
 
-**Drive receiving cards without a sender card and without vendor software.** `e120` discovers the card, backs up and installs firmware, generates and flashes the configuration from a text file, sets the card's place in a wall, and streams to it. Useful for cards and panels the vendor supports badly or not at all.
+**Drive receiving cards without a sender card and without vendor software.** `rxp` discovers the card, backs up and installs firmware, generates and flashes the configuration from a text file, sets the card's place in a wall, and streams to it. Useful for cards and panels the vendor supports badly or not at all.
 
-The card speaks a layer-2 protocol with fixed MAC addresses and no IP, so `e120` writes whole Ethernet frames itself (BPF on macOS, a packet socket on Linux) and needs no vendor software. It reads and writes the card's flash and EEPROM, with address allowlists that keep configuration writes inside the parameter block and firmware writes on the card's own staging path. It installs FPGA firmware. It generates the receiver configuration (the `.rcvbp` file and the 64 KB boot image the card loads at power-on) from a short TOML panel spec plus a chip library, and ships libraries for common driver chips and module classes mined from 2,381 vendor config files. It shows still images, plays video through ffmpeg, reads raw rgb24 frames from stdin, and serves a unix socket other programs can write frames to. Every command that writes flash or EEPROM prints its plan and stops unless `--commit` is given.
+The card speaks a layer-2 protocol with fixed MAC addresses and no IP, so `rxp` writes whole Ethernet frames itself (BPF on macOS, a packet socket on Linux) and needs no vendor software. It reads and writes the card's flash and EEPROM, with address allowlists that keep configuration writes inside the parameter block and firmware writes on the card's own staging path. It installs FPGA firmware. It generates the receiver configuration (the `.rcvbp` file and the 64 KB boot image the card loads at power-on) from a short TOML panel spec plus a chip library, and ships libraries for common driver chips and module classes mined from 2,381 vendor config files. It shows still images, plays video through ffmpeg, reads raw rgb24 frames from stdin, and serves a unix socket other programs can write frames to. Every command that writes flash or EEPROM prints its plan and stops unless `--commit` is given.
 
 ## Motivation
 
-Colorlight's own software is the only official way to drive its receiving cards, and LEDVISION dropped the ability to send content to a receiving card directly: a sender card or box is required, and the software itself is a large Windows install. `e120` works with zero Colorlight software. A Mac or Linux machine with an Ethernet port talks to the card directly, provisions it from a text file, and plays whatever ffmpeg can decode.
+Colorlight's own software is the only official way to drive its receiving cards, and LEDVISION dropped the ability to send content to a receiving card directly: a sender card or box is required, and the software itself is a large Windows install. `rxp` works with zero Colorlight software. A Mac or Linux machine with an Ethernet port talks to the card directly, provisions it from a text file, and plays whatever ffmpeg can decode.
 
 ## Project status
 
-Tested only on the hardware listed under [Tested](#tested), one card and one module. Other cards and firmware builds may behave differently, and a firmware or flash write to an untested card can leave it unbootable: take `e120 flash snapshot` first and keep the result. If you run this on other hardware, whatever the outcome, open a pull request or an issue with the card model, the module, and what you saw.
+Tested only on the hardware listed under [Tested](#tested), one card and one module. Other cards and firmware builds may behave differently, and a firmware or flash write to an untested card can leave it unbootable: take `rxp flash snapshot` first and keep the result. If you run this on other hardware, whatever the outcome, open a pull request or an issue with the card model, the module, and what you saw.
 
 ## Install
 
@@ -26,11 +26,11 @@ Rust stable via [rustup](https://rustup.rs) (`rust-toolchain.toml` pins the chan
 cargo install --path crates/cli
 ```
 
-`e120` names the project and the command; crates are named for their role (`crates/cli` builds the `e120` binary).
+receiverproxy is the project, `rxp` is the command (`receiverproxy` is the same binary); crates are named for their role (`crates/cli` builds both).
 
-`e120 show video` and `e120 show stream` pipelines need `ffmpeg` on the PATH (`brew install ffmpeg`).
+`rxp show video` and `rxp show stream` pipelines need `ffmpeg` on the PATH (`brew install ffmpeg`).
 
-Raw Ethernet needs privileges. On macOS the BPF devices must be readable and writable; without that `e120` fails with `could not open any /dev/bpf* device ... (try: sudo chmod o+rw /dev/bpf*)`:
+Raw Ethernet needs privileges. On macOS the BPF devices must be readable and writable; without that `rxp` fails with `could not open any /dev/bpf* device ... (try: sudo chmod o+rw /dev/bpf*)`:
 
 ```sh
 sudo chmod o+rw /dev/bpf*    # resets on reboot
@@ -39,7 +39,7 @@ sudo chmod o+rw /dev/bpf*    # resets on reboot
 On Linux the binary needs the raw-socket capabilities (`CAP_NET_ADMIN` because the socket is put in promiscuous mode to see the card's replies), or root; redo after every `cargo install`:
 
 ```sh
-sudo setcap cap_net_raw,cap_net_admin+ep "$(command -v e120)"
+sudo setcap cap_net_raw,cap_net_admin+ep "$(command -v rxp)"
 ```
 
 The card is connected directly to one interface; the default is `en24`, pass `--iface` for another (`eth0`, `enp3s0` and the like on Linux; the link must be up but needs no address). `scripts/mirror.sh` uses `x11grab` on Linux and does not work under Wayland.
@@ -49,7 +49,7 @@ The card is connected directly to one interface; the default is `en24`, pass `--
 ```
 Drive a Colorlight receiving card over raw Ethernet
 
-Usage: e120 [OPTIONS] <COMMAND>
+Usage: rxp [OPTIONS] <COMMAND>
 
 Commands:
   discover    Send a discovery packet and print any card that answers
@@ -58,9 +58,10 @@ Commands:
   show        Put pixels on the panel: images, video, streams, patterns
   config      Generate, inspect and transfer .rcvbp configurations
   flash       Read and write the card's flash, and snapshot or restore it
-  firmware    Install FPGA firmware
+  firmware    List, fetch and install FPGA firmware
   card        Card state held in RAM or EEPROM: layout, screen size, test modes
   debug       Wire diagnostics: listen, hand-built frames, pcap tools
+  ui          Serve the web UI and its JSON API; the printed URL carries the token
   help        Print this message or the help of the given subcommand(s)
 
 Options:
@@ -70,15 +71,15 @@ Options:
       --height <HEIGHT>          Panel height in pixels [default: 64]
       --order <ORDER>            Color order on the wire [default: bgr]
   -b, --brightness <BRIGHTNESS>  Brightness 0-255 (sent in sync frames) [default: 255]
-      --card <NAME>              Card model to work from instead of the one discovery reports (`e120 card models`)
+      --card <NAME>              Card model to work from instead of the one discovery reports (`rxp card models`)
 ```
 
 Find the card; the reply includes its firmware version and the model `config/cards/` gives its id byte:
 
 ```sh
-e120 discover
-e120 card models       # the models in config/cards and how far each is tested
-e120 card probe        # read-only: check the model file's claims against the card, exit 1 on a mismatch
+rxp discover
+rxp card models       # the models in config/cards and how far each is tested
+rxp card probe        # read-only: check the model file's claims against the card, exit 1 on a mismatch
 ```
 
 Flash, firmware and configuration commands take the card's memory map (banks, parameter block, EEPROM mirror, boot-image layout, blocks the firmware guards) from that model; `--card NAME` names one instead of discovering, and `config gen` without `--card` lays the boot image out for the first tested model. `card probe` reads the discovery reply, the head of each firmware bank, the parameter block and the EEPROM mirror and prints one `ok` / `mismatch` / `not checked` line per claim ([docs/cards.md](docs/cards.md)).
@@ -86,67 +87,67 @@ Flash, firmware and configuration commands take the card's memory map (banks, pa
 Provision a card from a panel spec and a firmware image. Without `--commit` it prints the five steps (snapshot, firmware, EEPROM read, config, EEPROM write) and does nothing. Power-cycle the card afterwards; it configures itself from flash.
 
 ```sh
-e120 provision --spec config/panels/p25-128x64-sm16269s.toml \
-    --firmware third-party/firmware/E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex \
+rxp provision --spec config/panels/p25-128x64-sm16269s.toml \
+    --firmware E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex \
     --position 0,0 --commit
 ```
 
 Show an image, scaled to the panel, and keep refreshing until Ctrl-C:
 
 ```sh
-e120 show image picture.png --hold
+rxp show image picture.png --hold
 ```
 
 Play a video in a loop at 30 fps, fitted inside the panel:
 
 ```sh
-e120 show video clip.mp4 --loop --fps 30 --fit contain
+rxp show video clip.mp4 --loop --fps 30 --fit contain
 ```
 
 Pipe frames from ffmpeg. `show stream` reads bare rgb24 frames of `--size` from stdin; a size other than the panel's is resampled with `--fit`:
 
 ```sh
 ffmpeg -i clip.mp4 -vf scale=128:64 -f rawvideo -pix_fmt rgb24 - \
-    | e120 show stream --size 128x64 --fps 30
+    | rxp show stream --size 128x64 --fps 30
 
 ffmpeg -f avfoundation -pixel_format bgr0 -framerate 30 -i "Capture screen 0" \
     -vf scale=128x64:flags=area -fps_mode cfr -r 30 -f rawvideo -pix_fmt rgb24 - \
-    | e120 show stream --size 128x64 --fps 30
+    | rxp show stream --size 128x64 --fps 30
 ```
 
 `scripts/mirror.sh` is the second pipeline as a script: `scripts/mirror.sh -s 128x64 -f 30 -c 0,0,640,320` mirrors a crop of the screen.
 
-Serve a unix socket. One client at a time connects, sends a 12-byte header, then rgb24 frames, and is paced at the header's fps; the panel keeps the last frame between clients. The header is `E120`, version byte `1`, one reserved byte, then width, height and fps as little-endian u16 (`crates/sources/src/raw.rs`).
+Serve a unix socket. One client at a time connects, sends a 12-byte header, then rgb24 frames, and is paced at the header's fps; the panel keeps the last frame between clients. The header is `RXP` and a zero byte, version byte `1`, one reserved byte, then width, height and fps as little-endian u16 (`crates/sources/src/raw.rs`).
 
 ```sh
-e120 show serve --socket /tmp/e120.sock
+rxp show serve                      # --socket PATH; /tmp/receiverproxy.sock by default
 ```
 
 ```python
 import socket, struct
-s = socket.socket(socket.AF_UNIX); s.connect("/tmp/e120.sock")
-s.sendall(struct.pack("<4sBBHHH", b"E120", 1, 0, 128, 64, 30) + bytes(128 * 64 * 3))  # header, then one black frame
+s = socket.socket(socket.AF_UNIX); s.connect("/tmp/receiverproxy.sock")
+s.sendall(struct.pack("<4sBBHHH", b"RXP\0", 1, 0, 128, 64, 30) + bytes(128 * 64 * 3))  # header, then one black frame
 ```
 
 Other things the panel can show:
 
 ```sh
-e120 show fill ff8000 --hold        # solid colour
-e120 show test rgb --hold           # gradient | rows | border | rgb | white
-e120 show blank
-e120 brightness 40
+rxp show fill ff8000 --hold        # solid colour
+rxp show test rgb --hold           # gradient | rows | border | rgb | white
+rxp show blank
+rxp brightness 40
 ```
 
 Configuration without a full provision:
 
 ```sh
-e120 config gen --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
-e120 config formats                                # the formats --format takes; rcvbp today
-e120 config info build/p25-128x64-sm16269s.rcvbp
-e120 config read --out card.rcvbp                  # what the card holds
-e120 config diff card.rcvbp build/p25-128x64-sm16269s.rcvbp
-e120 config import card.rcvbp --out card.toml      # the spec that regenerates a file
-e120 config send --spec config/panels/p25-128x64-sm16269s.toml   # RAM only, no flash
+rxp config gen --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
+rxp config formats                                # the formats --format takes; rcvbp today
+rxp config info build/p25-128x64-sm16269s.rcvbp
+rxp config read --out card.rcvbp                  # what the card holds
+rxp config diff card.rcvbp build/p25-128x64-sm16269s.rcvbp
+rxp config import card.rcvbp --out card.toml      # the spec that regenerates a file
+rxp config send --spec config/panels/p25-128x64-sm16269s.toml   # RAM only, no flash
 ```
 
 `config import` reads record 0x01 field by field, picks the chip library by the file's chip id from the ones under `config/chips/`, fits the wiring knobs to the pixel map, and puts whatever the regenerated file would still differ in on stderr as `not recovered: ...` lines, by name (`meta`, `boot.arm_at_boot` and the phantom-position gate always, since no `.rcvbp` carries them). A `config read` of the card followed by `config import` gives the spec the card is running.
@@ -154,24 +155,27 @@ e120 config send --spec config/panels/p25-128x64-sm16269s.toml   # RAM only, no 
 Flash and firmware. Reads are always safe; writes need `--commit`:
 
 ```sh
-e120 flash snapshot --dir before                   # primary bank + golden bank
-e120 firmware install image.hex --commit
-e120 flash restore --dir before --commit           # configuration back, not firmware
+rxp flash snapshot --dir before                   # primary bank + golden bank
+rxp firmware list                                 # the images in config/firmware.toml and where each is
+rxp firmware install E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex --commit
+rxp flash restore --dir before --commit           # configuration back, not firmware
 ```
 
-`e120 ui` serves the same commands as a web UI and a JSON API on `http://127.0.0.1:7120`; see [Web app](#web-app).
+`config/firmware.toml` lists the five vendor images archived under `third-party/firmware/` with version, board revision, build kind, driver chips, size and sha256. `provision --firmware`, `firmware install` and `firmware write` take a name from it or a path; a name is looked for under `third-party/firmware/` and then in the config directory's `firmware/` cache, and an image that is in the manifest is checked against its sha256 before any write (a mismatch is refused). A path outside the manifest is written as is, with a warning. `rxp firmware fetch NAME` downloads `base_url/NAME` with `curl` into the cache and checks it; the manifest's `base_url` is empty, so `fetch` only reports where the image is expected.
 
-Multi-panel walls: provision each card with its own `--position x,y`, put the same `x,y` on that card's receiver entry in a layout file (`e120 card layout-example` prints a two-card one; panels are placed inside their receiver) and stream it with `e120 show video --layout wall.json`. Every card hears the whole screen and keeps its own window of it.
+`rxp ui` serves the same commands as a web UI and a JSON API on `http://127.0.0.1:7120`; see [Web app](#web-app).
+
+Multi-panel walls: provision each card with its own `--position x,y`, put the same `x,y` on that card's receiver entry in a layout file (`rxp card layout-example` prints a two-card one; panels are placed inside their receiver) and stream it with `rxp show video --layout wall.json`. Every card hears the whole screen and keeps its own window of it.
 
 ## Demos
 
-`e120-demo` (`cargo install --path crates/demos`) is a second binary on the same driver: effects that use what an LED is rather than what an LCD is. `list` prints the names with a line each; `cycle` runs them all in turn; Ctrl-C leaves the panel showing its last frame.
+`rxp-demo` (`cargo install --path crates/demos`) is a second binary on the same driver: effects that use what an LED is rather than what an LCD is. `list` prints the names with a line each; `cycle` runs them all in turn; Ctrl-C leaves the panel showing its last frame.
 
 ```sh
-e120-demo stars
-e120-demo cycle --every 20
-e120-demo list
-e120-demo comet --seconds 30 --brightness 40 --iface en24 --layout wall.json
+rxp-demo stars
+rxp-demo cycle --every 20
+rxp-demo list
+rxp-demo comet --seconds 30 --brightness 40 --iface en24 --layout wall.json
 ```
 
 - `stars`, `fireflies`, `comet`, `fog`: an LED that is off emits nothing, so a single lit pixel, a pixel at a few percent, or a gradient near black sits in real black with no backlight floor.
@@ -191,22 +195,24 @@ e120-demo comet --seconds 30 --brightness 40 --iface en24 --layout wall.json
 - Wall: an editor for the layout JSON, as a drawing and as tables.
 - Cards: discovered cards, brightness, show, provision, firmware, flash snapshot and restore.
 
-The site runs on its own: Gallery, Builder and Wall work in the browser through `rcvbp` and `wall` compiled to WebAssembly (`crates/rcvbp-wasm`), and nothing touches a card. The daemon is optional: `e120 ui` starts `crates/daemon`, which holds the Ethernet link, serves the built site and a JSON API under `/api/v1`, and runs the long operations as jobs, one at a time. With it the Cards screen appears, and the Gallery, Builder and Wall gain their card actions (provision this card, send to card, write to card, show on the wall). Without it the sidebar says so and how to install it.
+The site runs on its own: Gallery, Builder and Wall work in the browser through `rcvbp` and `wall` compiled to WebAssembly (`crates/rcvbp-wasm`), and nothing touches a card. The daemon is optional: `rxp ui` starts `crates/daemon`, which holds the Ethernet link, serves the built site and a JSON API under `/api/v1`, and runs the long operations as jobs, one at a time. With it the Cards screen appears, and the Gallery, Builder and Wall gain their card actions (provision this card, send to card, write to card, show on the wall). Without it the sidebar says so and how to install it.
 
 Build and run (needs [pnpm](https://pnpm.io), the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.127, the version `crates/rcvbp-wasm/Cargo.toml` pins):
 
 ```sh
 web/scripts/build-wasm.sh                 # cargo build -p rcvbp-wasm for wasm32, then wasm-bindgen into web/src/wasm
-cd web && pnpm install && pnpm build      # svelte-check, then vite build into web/dist
-cargo install --path crates/cli      # embeds web/dist; rerun after every pnpm build
-e120 ui                                   # http://127.0.0.1:7120/#token=...; --port, --listen ADDR, --no-open, --token TOKEN, --data-dir DIR, --iface
+cd web && pnpm install && pnpm build:embed   # svelte-check, then the static build into web/build-static
+cargo install --path crates/cli      # embeds web/build-static; rerun after every pnpm build:embed
+rxp ui                                   # http://127.0.0.1:7120/#token=...; --port, --listen ADDR, --no-open, --token TOKEN, --data-dir DIR, --iface
 ```
 
-Every API request needs a token. `e120 ui` generates a random one at start (or takes `--token TOKEN`), prints the URL with it in the fragment and opens that URL; the app keeps the token for the tab and sends it as `X-Token`. A request without it gets 401. The token is what keeps other pages open in the same browser, which can reach loopback too, from driving the panel or writing the card's flash while the daemon runs. The daemon binds 127.0.0.1 unless `--listen ADDR` names another address (`0.0.0.0` for every interface); then the token is what keeps other machines out, and it crosses the network in clear HTTP. Writes keep the CLI's gate: the API returns the plan unless the request carries `commit: true`. The API, the WASM surface and the app are specified in [docs/ui.md](docs/ui.md).
+The same app is the site at [receiverproxy.com](https://receiverproxy.com): `pnpm build` (adapter-cloudflare) and `pnpm deploy` (`wrangler deploy`, `web/wrangler.jsonc`). Its Gallery and Cards pages are prerendered from `config/` at build time; the Builder and Wall run in the browser.
+
+Every API request needs a token. `rxp ui` generates a random one at start (or takes `--token TOKEN`), prints the URL with it in the fragment and opens that URL; the app keeps the token for the tab and sends it as `X-Token`. A request without it gets 401. The token is what keeps other pages open in the same browser, which can reach loopback too, from driving the panel or writing the card's flash while the daemon runs. The daemon binds 127.0.0.1 unless `--listen ADDR` names another address (`0.0.0.0` for every interface); then the token is what keeps other machines out, and it crosses the network in clear HTTP. Writes keep the CLI's gate: the API returns the plan unless the request carries `commit: true`. The API, the WASM surface and the app are specified in [docs/ui.md](docs/ui.md).
 
 ## Tested
 
-The table is generated by `e120 card models --markdown` from `config/cards/*.toml` and the mined module classes; a test keeps it current.
+The table is generated by `rxp card models --markdown` from `config/cards/*.toml` and the mined module classes; a test keeps it current.
 
 <!-- tested -->
 ✅ driven on the bench · ⚠️ configuration generates, never driven · ❌ not supported
@@ -230,7 +236,7 @@ Other E-series cards are ⚠️ because the 16.53 firmware image is itself named
 
 ## Configuration
 
-A panel is one TOML file in `config/panels/`. `e120 config gen` turns it into the `.rcvbp`, the boot image, and a text file saying where each byte came from. The bench panel's spec, shortened:
+A panel is one TOML file in `config/panels/`. `rxp config gen` turns it into the `.rcvbp`, the boot image, and a text file saying where each byte came from. The bench panel's spec, shortened:
 
 ```toml
 name = "p25-128x64-sm16269s"

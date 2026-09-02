@@ -1,6 +1,6 @@
-# e120
+# receiverproxy
 
-Drives a Colorlight E120 LED receiving card over raw Ethernet from a Rust CLI.
+Drives a Colorlight E120 LED receiving card over raw Ethernet from a Rust CLI, `rxp`.
 Read `README.md` for what the tool does and `docs/README.md` for the notes
 behind it; read `docs/retracted-findings.md` before drawing a conclusion from a
 measurement.
@@ -22,7 +22,7 @@ changing the supply.
 - The supply is read and power-cycled through `scripts/psu.sh`; never change
   its voltage or current settings.
 - Vendor software (`third-party/`, `vendor/`) is inspected, never executed.
-- Configure from flash (`e120 provision`); pushing parameters to RAM is for
+- Configure from flash (`rxp provision`); pushing parameters to RAM is for
   experiments and is unreliable across boots.
 - One continuous stream per measurement with a same-content control, averaged
   captures, current read from the supply: `scripts/bench.py`, described in
@@ -30,25 +30,25 @@ changing the supply.
 
 ## Layout
 
-`e120` names the project and the command; crates are named for their role.
+receiverproxy is the project, `rxp` is the command (`receiverproxy` is the same binary); crates are named for their role.
 
 | crate | owns |
 |---|---|
 | `colorlight` | frame builders; byte-exact against the vendor sender, pinned by tests |
 | `rawlink` | raw Ethernet transport (BPF on macOS, AF_PACKET on Linux) and pcap |
 | `panelspec` | the vendor-neutral panel description: `PanelSpec`, the chip library, the loader hook, `config/chips` and `config/panels` embedded (`embedded`) |
-| `receivers` | card models as data: `config/cards/*.toml` embedded, `models()`, `by_id`, `by_name` |
+| `receivers` | card models as data: `config/cards/*.toml` embedded, `models()`, `by_id`, `by_name`; the firmware manifest `config/firmware.toml` (`firmware::manifest`, `image`, sha256 `verify`) |
 | `rcvbp` | the `.rcvbp` format, the boot image, the record generator over a `PanelSpec` |
 | `wall` | wall layout: panels, receivers, rotation |
 | `sources` | frame sources: files via ffmpeg, raw rgb24 from a reader |
 | `driver` | `Wall`: the sink that paces and sends frames |
 | `ops` | the commands as functions (`Ctx` + `Progress` sink), one module per command group; shared by the binary and the daemon |
-| `cli` | the `e120` binary: the clap tree, `Stdio` printing, `e120 ui` |
-| `daemon` | the daemon behind `e120 ui`: the JSON API, jobs, the embedded web app (`docs/ui.md`) |
+| `cli` | the `rxp` binary (`receiverproxy` is the same program, `src/receiverproxy.rs` includes `main.rs`): the clap tree, `Stdio` printing, `rxp ui` |
+| `daemon` | the daemon behind `rxp ui`: the JSON API, jobs, the embedded web app (`docs/ui.md`) |
 | `rcvbp-wasm` | `rcvbp` and `wall` for the browser: generate, inspect, diff, layouts, the embedded `config/` libraries served as `libraries()`; built by `web/scripts/build-wasm.sh` |
-| `demos` | `e120-demo`: effects that use what LEDs physically are; the example of driving a wall from outside the CLI |
+| `demos` | `rxp-demo`: effects that use what LEDs physically are; the example of driving a wall from outside the CLI |
 
-`web/` is the Svelte app (`pnpm build` writes `web/dist`, which `daemon` embeds when it exists at compile time); its contract is `docs/ui.md`.
+`web/` is the SvelteKit app: `pnpm build` is the site (adapter-cloudflare, receiverproxy.com), `pnpm build:embed` writes `web/build-static`, which `daemon` embeds when it exists at compile time; its contract is `docs/ui.md`.
 
 `docs/architecture.md` follows the path from spec to light and says where each
 measured default lives. Keep it true when moving things. Adding a receiving

@@ -71,7 +71,7 @@ wrong-part decode.
 all five images:
 
 ```sh
-sh analysis/fpga/scripts/repro.sh /tmp/e120-trellis
+sh analysis/fpga/scripts/repro.sh /tmp/rxp-trellis
 ```
 
 Resulting `.config` sizes, a sanity check:

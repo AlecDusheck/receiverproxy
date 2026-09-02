@@ -286,7 +286,7 @@ pub trait Codec: Sync {
     /// # Errors
     /// Fails on a spec or library the format cannot hold.
     fn generate(&self, spec: &PanelSpec, chip: &ChipLibrary) -> Result<Encoded>;
-    /// One line per record of `file`, as `e120 config info` lists them.
+    /// One line per record of `file`, as `rxp config info` lists them.
     ///
     /// # Errors
     /// Fails when `file` is not in the format.
@@ -343,7 +343,7 @@ impl Codec for RcvbpCodec {
     }
 }
 
-/// The registered codecs, one per format; `e120 config formats` and the
+/// The registered codecs, one per format; `rxp config formats` and the
 /// site's format list read this.
 #[must_use]
 pub fn codecs() -> &'static [&'static dyn Codec] {

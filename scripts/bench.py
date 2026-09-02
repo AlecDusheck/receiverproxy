@@ -30,16 +30,16 @@ import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-E120 = os.path.join(ROOT, 'target', 'debug', 'e120')
+RXP = os.path.join(ROOT, 'target', 'debug', 'rxp')
 PSU = os.path.join(HERE, 'psu.sh')
-DIR = '/tmp/e120-trials'
+DIR = '/tmp/rxp-trials'
 CROP_FILE = os.path.join(DIR, 'crop.txt')
 W, H = 128, 64
 os.makedirs(DIR, exist_ok=True)
 
 FFMPEG = ['ffmpeg', '-hide_banner', '-loglevel', 'error']
 CAMERA = ['-f', 'avfoundation', '-pixel_format', 'uyvy422', '-framerate', '30',
-          '-video_size', '1920x1080', '-i', os.environ.get('E120_CAMERA', '0')]
+          '-video_size', '1920x1080', '-i', os.environ.get('RXP_CAMERA', '0')]
 
 
 def sh(cmd, check=False, **kw):
@@ -52,13 +52,13 @@ def current():
 
 
 def kill_streams():
-    sh(['pkill', '-f', 'e120 --brightness'])
-    sh(['pkill', '-f', 'e120 -b '])
+    sh(['pkill', '-f', 'rxp --brightness'])
+    sh(['pkill', '-f', 'rxp -b '])
 
 
 def crop():
-    if 'E120_CROP' in os.environ:
-        return os.environ['E120_CROP']
+    if 'RXP_CROP' in os.environ:
+        return os.environ['RXP_CROP']
     try:
         return open(CROP_FILE).read().strip()
     except FileNotFoundError:
@@ -135,7 +135,7 @@ def power(action, minutes=10):
 def wait_for_card(timeout=25):
     t0 = time.time()
     while time.time() - t0 < timeout:
-        out = sh([E120, 'discover']).stdout
+        out = sh([RXP, 'discover']).stdout
         for ln in out.splitlines():
             if 'receiver card' in ln:
                 print(ln.strip())
@@ -151,7 +151,7 @@ def boot(spec, minutes=10, settle=12):
         sys.exit(1)
     # Discovery answers before boot parameters have loaded; packs pushed earlier are lost.
     time.sleep(settle)
-    r = sh([E120, 'config', 'send', '--spec', spec])
+    r = sh([RXP, 'config', 'send', '--spec', spec])
     if r.returncode:
         print(r.stderr.strip(), file=sys.stderr)
     time.sleep(1.5)
@@ -322,10 +322,10 @@ def glitch(name, seconds=4.0):
 def locate():
     """Difference a lit frame against a blanked one; only the panel changes."""
     kill_streams()
-    sh([E120, 'show', 'blank'])
+    sh([RXP, 'show', 'blank'])
     time.sleep(2)
     capture('locate-off', frames=30, quiet=True)
-    subprocess.Popen(f'{E120} --brightness 10 show image {pattern_png("white")} --hold >/dev/null 2>&1', shell=True)
+    subprocess.Popen(f'{RXP} --brightness 10 show image {pattern_png("white")} --hold >/dev/null 2>&1', shell=True)
     time.sleep(3)
     capture('locate-on', frames=30, quiet=True)
     kill_streams()
@@ -364,7 +364,7 @@ def run(args):
     if args.boot:
         boot(args.spec)
     elif args.spec:
-        sh([E120, 'config', 'send', '--spec', args.spec])
+        sh([RXP, 'config', 'send', '--spec', args.spec])
         time.sleep(1.5)
 
     results = []
@@ -383,7 +383,7 @@ def run(args):
         video = f'{DIR}/run.mp4'
         sh(FFMPEG + ['-f', 'concat', '-safe', '0', '-i', lst, '-c', 'copy', '-y', video], check=True)
         kill_streams()
-        subprocess.Popen(f'{E120} --brightness {conds[0][2]} show video {video} --loop --fps 30 >/dev/null 2>&1', shell=True)
+        subprocess.Popen(f'{RXP} --brightness {conds[0][2]} show video {video} --loop --fps 30 >/dev/null 2>&1', shell=True)
         t0 = time.time()
         for k, (label, _, _) in enumerate(conds):
             mid = k * seg + seg * 0.3
@@ -396,7 +396,7 @@ def run(args):
     else:
         for label, png, br in conds:
             kill_streams()
-            subprocess.Popen(f'{E120} --brightness {br} show image {png} --hold >/dev/null 2>&1', shell=True)
+            subprocess.Popen(f'{RXP} --brightness {br} show image {png} --hold >/dev/null 2>&1', shell=True)
             time.sleep(3)
             a = current()
             px, clip = capture(f'run-{label}', frames=args.frames, quiet=True)

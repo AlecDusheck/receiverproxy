@@ -213,7 +213,7 @@ def panel_spec(key, files, chip_path, names, out_dir):
     lib = os.path.relpath(chip_path)
     big = w * h // 2 > 4096
     note = (f'the pixel map has {w * h // 2} entries; the block-7 image builder packs at most 4096, '
-            'so `e120 config gen` writes the .rcvbp but not the boot image') if big else None
+            'so `rxp config gen` writes the .rcvbp but not the boot image') if big else None
     lines = spec_head(slug, len(files), share, [f['name'] for f in files[:3]], note) + [
         '[module]', f'width = {w}', f'height = {h}', f'scan = {scan}', f'line_dir = {line_dir}',
         f'data_groups = {dg}', f'serial_clock = {sck}', '',

@@ -2,7 +2,7 @@
 """Rewrite the card's EEPROM records from the day-one flash dump, one record at a time.
 
 Usage:
-  eeprom-restore.py [--dump card-dumps/primary-region.bin] [--live NOW.bin] [--exe ./target/debug/e120] [--commit]
+  eeprom-restore.py [--dump card-dumps/primary-region.bin] [--live NOW.bin] [--exe ./target/debug/rxp] [--commit]
   Dry run unless --commit. With --live, only records that differ from that block-7 dump are written.
 """
 import argparse
@@ -34,7 +34,7 @@ def main():
     ap.add_argument('--dump', default='card-dumps/primary-region.bin')
     ap.add_argument('--commit', action='store_true')
     ap.add_argument('--live', help='a current block-7 dump; only rewrite records that differ')
-    ap.add_argument('--exe', default='./target/debug/e120')
+    ap.add_argument('--exe', default='./target/debug/rxp')
     a = ap.parse_args()
 
     blob = open(a.dump, 'rb').read()
@@ -70,7 +70,7 @@ def main():
                         '--payload', '00ffff77000000000101000000', '--wait', '0'],
                        capture_output=True)
         print('\nwrote and asked the card to reload; power-cycle and verify with:')
-        print('  e120 flash dump --block 7 --out now.bin && '
+        print('  rxp flash dump --block 7 --out now.bin && '
               'python3 scripts/flash-review.py now.bin')
     else:
         print('\ndry run: nothing sent. Re-run with --commit.')

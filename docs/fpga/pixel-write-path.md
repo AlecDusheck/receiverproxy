@@ -282,7 +282,7 @@ The window is the 42-byte record at EEPROM `0x02`: `startX`, `startY`,
 `endX`, `endY`, big-endian `u16`, end coordinates not sizes
 ([../receiver-identity.md](../receiver-identity.md)). It is not in the
 `.rcvbp`, not in record 0x01 and not in the compiled parameter image; it
-lives in the EEPROM and its flash mirror at `0x07F000`. `e120 provision
+lives in the EEPROM and its flash mirror at `0x07F000`. `rxp provision
 --position x,y` writes it. The pixel-keep rule, row in `[startY, endY)` and
 column in `[startX, endX)`, is inferred from the record's shape and FPP's
 global addressing.
@@ -290,7 +290,7 @@ global addressing.
 Measured (firmware 16.53):
 
 * control area `startX = startY = 0xFFFF`, `endX = 128`, `endY = 64` (the
-  state a block 0x07 erase followed by `e120 card screen-size --set` leaves):
+  state a block 0x07 erase followed by `rxp card screen-size --set` leaves):
   frames are accepted, the received-packet counter advances, the supply
   current changes with the stream, `discover` reports 128x64, nothing
   displays;
@@ -314,7 +314,7 @@ FPP's receiver-layout packet:
 
 `crates/colorlight/src/discovery.rs::set_layout` builds this frame with a
 98-byte payload: header and one 20-byte record. FPP's sibling packet `0x11`
-carries `3 + 64 x 20 = 1283` data bytes, a 64-receiver table. `e120 card
+carries `3 + 64 x 20 = 1283` data bytes, a 64-receiver table. `rxp card
 set-layout` sends the frame on request. `driver` sends it only when
 `Settings::announce_layout` is set, off by default. Measured: the layout frame
 blanks a provisioned card, which takes its control area from EEPROM
@@ -326,7 +326,7 @@ blanks a provisioned card, which takes its control area from EEPROM
 
 | field | contents |
 |---|---|
-| `Data[2..3]` | firmware version major, minor; `e120 discover` prints it |
+| `Data[2..3]` | firmware version major, minor; `rxp discover` prints it |
 | `Data[21..22]` | cabinet width as the card holds it: `endX` (payload 20-21) |
 | `Data[23..24]` | cabinet height: `endY` (payload 22-23) |
 | payload 16-19 | `startX`, `startY` |

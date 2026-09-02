@@ -28,7 +28,7 @@ a 5 Hz strobe (measured on this bench).
 
 The real-time push, in the vendor's order (`crates/cli/src/params.rs`,
 matching `GetParamPacksBasic` @ `0x31f1e0` and `SendRealTimePacks` @
-`0x32cf40`), is 41 packs; `e120 config send` sends it:
+`0x32cf40`), is 41 packs; `rxp config send` sends it:
 
 | order | type | sub | body | content |
 |---|---|---|---|---|
@@ -62,8 +62,8 @@ Type `0x0600`, opcode at payload+3:
 | `0x44` | read |
 | `0x23` | erase whole 64K block |
 | `0x85` | write one 256-byte page |
-| `0x79` | reload parameters without a power cycle (no data); `e120 card reload` |
-| `0x77` | the vendor's post-save reload, with `01 01 01` at payload+8 (inferred); `e120 card reload --full` |
+| `0x79` | reload parameters without a power cycle (no data); `rxp card reload` |
+| `0x77` | the vendor's post-save reload, with `01 01 01` at payload+8 (inferred); `rxp card reload --full` |
 
 Block and page at payload+5/+6, data from payload+8. Only block `0x07`
 (`0x70000`-`0x7FFFF`) carries parameters. Page `0xF0` (`0x7F000`) is the

@@ -1,4 +1,4 @@
-//! `e120-demo`: effects that lean on what an LED is, driven through
+//! `rxp-demo`: effects that lean on what an LED is, driven through
 //! `driver` the way any other program would.
 
 mod effects;
@@ -14,7 +14,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 /// Effects that look better on an LED panel than on an LCD. Ctrl-C leaves
 /// the panel as it is.
 #[derive(Parser)]
-#[command(name = "e120-demo", version)]
+#[command(name = "rxp-demo", version)]
 struct Cli {
     /// Effect name, `list`, or `cycle`
     #[arg(value_name = "EFFECT")]
@@ -31,7 +31,7 @@ struct Cli {
     /// Network interface directly connected to the receiving card
     #[arg(long, default_value = "en24")]
     iface: String,
-    /// Wall layout JSON (`e120 card layout-example`); one 128x64 panel by default
+    /// Wall layout JSON (`rxp card layout-example`); one 128x64 panel by default
     #[arg(long, value_name = "FILE")]
     layout: Option<String>,
     /// Brightness 0-255; effects that pulse do so below it
@@ -69,7 +69,7 @@ fn main() -> Result<()> {
     }
     let Some(entry) = effects::find(&cli.effect) else {
         bail!(
-            "{}: unknown effect; `e120-demo list` names them",
+            "{}: unknown effect; `rxp-demo list` names them",
             cli.effect
         );
     };
@@ -187,17 +187,17 @@ mod tests {
     #[test]
     fn the_command_line_parses_the_documented_forms() {
         let cli =
-            Cli::try_parse_from(["e120-demo", "stars", "--seconds", "5", "--fps", "60"]).unwrap();
+            Cli::try_parse_from(["rxp-demo", "stars", "--seconds", "5", "--fps", "60"]).unwrap();
         assert_eq!(
             (cli.effect.as_str(), cli.seconds, cli.fps),
             ("stars", Some(5.0), Some(60))
         );
-        let cli = Cli::try_parse_from(["e120-demo", "cycle", "--every", "9", "--brightness", "40"])
+        let cli = Cli::try_parse_from(["rxp-demo", "cycle", "--every", "9", "--brightness", "40"])
             .unwrap();
         assert_eq!(
             (cli.every, cli.brightness, cli.iface.as_str()),
             (9, 40, "en24")
         );
-        assert!(Cli::try_parse_from(["e120-demo"]).is_err());
+        assert!(Cli::try_parse_from(["rxp-demo"]).is_err());
     }
 }

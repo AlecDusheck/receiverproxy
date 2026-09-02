@@ -9,7 +9,7 @@ sources = 19
 agreement = 1.00
 examples = ["P1.25+2065+256X128-64S+E320.rcvbp", "P1.25-2065-3660-2020.7.20.rcvbp", "P1.25-2065-3660-2020.7.20.rcvbp"]
 vendors = ["Colorlight"]
-notes = "the pixel map has 8192 entries; the block-7 image builder packs at most 4096, so `e120 config gen` writes the .rcvbp but not the boot image"
+notes = "the pixel map has 8192 entries; the block-7 image builder packs at most 4096, so `rxp config gen` writes the .rcvbp but not the boot image"
 
 [module]
 width = 128

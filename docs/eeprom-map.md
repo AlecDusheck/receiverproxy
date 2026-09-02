@@ -60,7 +60,7 @@ memcpy(buf + 0xe, data, dataLen)     payload[14..] = the data
 
 The type-0x1900 address is masked into a small space. The repository's
 `SCREEN_RECORD_ADDR = 0x0007F000` therefore lands at EEPROM byte 0; measured:
-`e120 card screen-size` returns 256 bytes whose fields line up with the
+`rxp card screen-size` returns 256 bytes whose fields line up with the
 address map below.
 
 The card mirrors the EEPROM to SPI flash at `0x07F000`. Measured: page-
@@ -129,16 +129,16 @@ above 0x100. `colorlight::eeprom::RECORDS` carries the records up to `0xfd`.
 * A write must use a record's own address and length. The card silently
   ignores a write that spans record boundaries; measured: a 16-byte write at
   `0x040` did nothing while the 42-byte write at `0x002` took.
-* Back-to-back writes are dropped. `e120 provision` spaces them 500 ms apart
+* Back-to-back writes are dropped. `rxp provision` spaces them 500 ms apart
   and writes with the broadcast index.
 * Records `0x41`, `0x42` and `0x92` did not take through opcode `0x85` on the
   bench card; they read `0xFF`. The panel renders regardless.
-* `e120 card screen-size --set` reads and writes all 256 bytes from EEPROM 0,
+* `rxp card screen-size --set` reads and writes all 256 bytes from EEPROM 0,
   every record in the table above. Run after a block-0x07 erase it persists
   the `0xFF` it read into `NoInputShowInfo` (0x41), `TurnOnScreenShow`
   (0x42), `SeamEnable` (0x4c) and the control-area offsets; measured, see
   [receiver-identity.md](receiver-identity.md). It refuses a record that
   reads as erased.
-* `e120 provision` and `scripts/eeprom-restore.py` write each record at its
+* `rxp provision` and `scripts/eeprom-restore.py` write each record at its
   own address and length. `scripts/flash-review.py` diffs block 0x07 against
   the factory dump and names each differing run from this map.

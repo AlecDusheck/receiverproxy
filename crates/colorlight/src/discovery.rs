@@ -63,7 +63,7 @@ pub fn upgrade_info() -> Vec<u8> {
     })
 }
 /// Type 0x0805 discovery reply; field offsets follow the community 5A-75B
-/// decode (`e120 discover` reads firmware 16.53 from `ver_major.ver_minor`).
+/// decode (`rxp discover` reads firmware 16.53 from `ver_major.ver_minor`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiscoveryInfo {
     pub card_id: u8,

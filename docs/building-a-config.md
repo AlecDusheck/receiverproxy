@@ -9,19 +9,19 @@ generated sources file names the origin of every placed byte.
 ## Commands and outputs
 
 ```sh
-e120 config gen --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
+rxp config gen --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
 #   build/<name>.rcvbp             the config (17 records, in the vendor's order)
 #   build/<name>-basic-pack.bin    page 0 of the boot image, with its CRC-32
 #   build/<name>-block7.bin        the complete 64 KB boot image
 #   build/<name>-sources.txt       the origin of every placed byte
 
-e120 flash restore-block build/<name>-block7.bin --commit   # page 0xF0 refuses; expected
-e120 card screen-size --set 128x64 --commit
-e120 card reload --full                                    # vendor opcode 0x77 apply; or power-cycle
-e120 config send --spec config/panels/<panel>.toml         # RAM packs only, no flash
+rxp flash restore-block build/<name>-block7.bin --commit   # page 0xF0 refuses; expected
+rxp card screen-size --set 128x64 --commit
+rxp card reload --full                                    # vendor opcode 0x77 apply; or power-cycle
+rxp config send --spec config/panels/<panel>.toml         # RAM packs only, no flash
 ```
 
-`e120 provision --spec <spec> --commit` runs the flash path end to end
+`rxp provision --spec <spec> --commit` runs the flash path end to end
 ([provisioning.md](provisioning.md)). Configure from flash; `config send`
 pushes RAM packs and lands on about one boot in three ([rendering.md](rendering.md)).
 
@@ -103,7 +103,7 @@ the wall geometry: CardScanLen 256, one module, a generated position table.
 
 ## Reading a file back
 
-`e120 config import FILE --out spec.toml` is the generator run backwards
+`rxp config import FILE --out spec.toml` is the generator run backwards
 (`rcvbp::spec::spec_from_rcvbp`): record 0x01 gives `[module]`, `[screen]`,
 `[color]`, `[current]` and `[timing]` field by field; the chip id at
 +0x036/+0x204 picks the library among `config/chips/` (a library a shipped

@@ -11,7 +11,7 @@
 # arms the shut-off. Only toggles the output; never writes voltage or current limits.
 set -uo pipefail
 MAX_MINUTES=10
-state=/tmp/e120-psu
+state=/tmp/rxp-psu
 mkdir -p "$state"
 pidfile="$state/timer.pid"
 deadline="$state/deadline"

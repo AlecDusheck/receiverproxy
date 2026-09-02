@@ -1,4 +1,4 @@
-//! `e120 card probe`: read the card and check every claim in its model file
+//! `rxp card probe`: read the card and check every claim in its model file
 //! that a read can check. Nothing is written; guarded blocks stay
 //! `not checked` because checking them means writing.
 
@@ -271,7 +271,7 @@ pub fn not_checked(m: &CardModel, running: Version) -> Vec<Check> {
     out
 }
 
-/// What `e120 card probe` takes.
+/// What `rxp card probe` takes.
 #[derive(Clone, Debug)]
 pub struct Args<'a> {
     /// Directory for the bytes read, when wanted; nothing is written otherwise.

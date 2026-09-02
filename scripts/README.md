@@ -6,7 +6,7 @@
 |---|---|
 | `bench.py` | power, boot a spec, stream conditions, averaged camera captures, flicker/bands/glitch meters |
 | `psu.sh` | ka3005p supply on/off/status behind a 10-minute dead-man timer |
-| `mirror.sh` | pipe a screen capture into `e120 show stream` |
+| `mirror.sh` | pipe a screen capture into `rxp show stream` |
 
 ## Analysis
 

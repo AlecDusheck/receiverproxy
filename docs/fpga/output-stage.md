@@ -139,7 +139,7 @@ per address, per data group, the card shifts **2 rows × 128 columns = 256
 pixels**, which is exactly OneScanLen. The 5 address lines A–E can express
 1/32; only 4 are needed here.
 
-> **`CardScanLen` was wrong (512) in the seller's installed config**, because
+> **`CardScanLen` was wrong (512) in the config the card arrived with**, because
 > it was compiled for a 2-modules-in-line-dir wall. On a single module the
 > card would shift 512 clocks per address into a 256-pixel chain, a
 > first-order raster corruption. Fixed in the generated config. (HIGH)
@@ -227,7 +227,7 @@ h BE]`. Four direction variants; line_dir 0/1 *compact* dropped tiles, 2/3
 leave *positional* holes.
 
 The vendor emits **all zeros when the tile count exceeds 64**, which is why
-the seller's 256×384 wall (384 tiles) had an all-zero table, and why our
+the reference file's 256×384 wall (384 tiles) had an all-zero table, and why our
 single module gets a real one (count `0x20`, 32 entries). The index byte order
 is MEDIUM.
 
@@ -235,7 +235,7 @@ is MEDIUM.
 
 Record 0x01 carries four 16-byte swap blocks plus a 64-byte lane ramp; our
 generator writes plain identity ramps (`0x00..0x0F`, `0x10..0x3F`,
-`0x40..0x7F`). The seller's file regenerates byte-exactly from that, so
+`0x40..0x7F`). The reference file regenerates byte-exactly from that, so
 identity is at least the vendor tool's output for this module type.
 
 But `docs/rcvbp-format.md` notes that block 0 (`+0x05A..0x069`) was **wholly
@@ -498,13 +498,13 @@ is proven good and everything left is the data path.
 
 **#4: Serial clock mismatch (8 vs the chip default 15).** Plausible, cheap.
 *For:* `config/panels/*.toml` carries `serial_clock = 8`, inherited from the
-seller's wall config; `config/chips/sm16269.toml` gives the vendor default for
+reference file's wall config; `config/chips/sm16269.toml` gives the vendor default for
 this chip as **15**. The pack carries it three times (`+0x09`, `+0x2C`,
 `+0x2E`) and it also feeds the scan-table line time. The chip-custom block at
 record `+0x06A` separately carries the chip's *reset* clock, so a mismatch
 between the two is expressible. A shift clock outside the chip's window
 produces exactly "latches, but wrong bits".
-*Against:* the seller's wall presumably worked at 8 with these modules at some
+*Against:* the reference file's wall presumably worked at 8 with these modules at some
 point (unverified).
 *Experiment:* delete the `serial_clock = 8` line so the chip-library default
 15 is used, regenerate, `send-params`, photograph. One line, RAM-only.
@@ -513,7 +513,7 @@ point (unverified).
 *For:* the two library tables differ materially: `reg 0x07` = `0x44`
 (frequency division 3) vs `0x04` (division 1), `reg 0x0a` = `0x02` vs `0x00`,
 `reg 0xf0` = `0x03` vs `0x00`, and `0x0b`/`0x0c`/`0x11`/`0x1b`/`0x1c`/`0x1f`
-all differ. The seller shipped the `0x14C` table with the sub-variant id
+all differ. The card arrived with the `0x14C` table with the sub-variant id
 *unset* although the silicon is SM16269S. The chip pack is RAM-only, so this
 sweeps freely.
 *Against:* both tables produce the same derived 14-bit grey, and the panel

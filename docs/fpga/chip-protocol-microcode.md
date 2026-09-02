@@ -338,7 +338,7 @@ A = (b & 0xC0) ? 2 : (b >> 5) + 1 ;  u = (b>>2)&1 ; v = b&3 ; n = (b>>3)&3
 level = ceil( trunc(128 · 2ⁿ) / A + (v + 10u + 12) + 1 )
 ```
 
-and for the seller's file (`reg07 = 0x04`, sub-id `0x0000`) that is exactly
+and for the reference file (`reg07 = 0x04`, sub-id `0x0000`) that is exactly
 **151 = 0x97**. Our generated config has the same `reg07` and the same sub-id,
 so **`0x0097` is correct and self-consistent for what we send. This field is
 not the fault.**
@@ -473,7 +473,7 @@ vendor actually uses for 16169-family modules is `0x002F` (+ sub `0x008A`).**
   never touch the row pointer.
 
 *Against:* the bench has `0x014C` responding and `0x0214` dark, so `0x14C` is
-at least *a* live id; and the seller's wall presumably worked on `0x14C` at
+at least *a* live id; and the reference file's wall presumably worked on `0x14C` at
 some point (unverified).
 *Experiment (one line, RAM only, and the cheapest decisive test left):*
 point the panel config at the 0x002F identity (tried 2026-09-01: it does not arm the SM16269S; the id is MBI5153,

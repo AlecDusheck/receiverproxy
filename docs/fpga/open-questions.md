@@ -129,7 +129,7 @@ CRC-32.
 ### 1.4 Is the data-swap / lane map identity correct for 1/16 on this module?
 
 **Not resolved.** Our generator writes identity ramps and the
-seller's file regenerates byte-exactly from that, but `docs/rcvbp-format.md`
+reference file regenerates byte-exactly from that, but `docs/rcvbp-format.md`
 records that swap block 0 was **wholly reordered** between 32S and 64S
 variants of the same module, so it is scan-dependent.
 
@@ -141,7 +141,7 @@ eliminated.
 ### 1.5 Is the serial clock 8 or 15?
 
 **Not resolved.** `config/panels/*.toml` carries 8 (inherited from the
-seller's wall config); `config/chips/sm16269.toml` gives the vendor default
+reference file's wall config); `config/chips/sm16269.toml` gives the vendor default
 for this chip as 15. The pack carries the value three times (`+0x09`, `+0x2C`,
 `+0x2E`) and it also feeds the scan-table line time.
 

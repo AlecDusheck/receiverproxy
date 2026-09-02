@@ -14,8 +14,7 @@ use rcvbp::image;
 use std::time::Duration;
 
 /// Image offsets of the second halves of the void-line and anti-void tables,
-/// and of the void-line table itself, which `e120_rcvbp::image` does not name.
-const VOID_LINE_OFFSET: usize = 0x1000;
+/// which `e120_rcvbp::image` does not name.
 const VOID_LINE_HIGH_OFFSET: usize = 0x6800;
 const ANTI_VOID_HIGH_OFFSET: usize = 0x7000;
 
@@ -25,7 +24,6 @@ struct Pack<'a> {
     sub: u8,
     header: usize,
     body: &'a [u8],
-    what: &'a str,
 }
 
 impl Pack<'_> {
@@ -43,6 +41,7 @@ impl Pack<'_> {
 
 /// Push the real-time parameter packs for a panel spec, in the vendor's
 /// order. RAM only: no flash, no reboot.
+#[rustfmt::skip] // one pack per line reads as the vendor's send table
 pub fn send_params(cli: &Cli, spec_path: &str, chip_only: bool, gap_ms: u64) -> Result<()> {
     let spec = rcvbp::spec::PanelSpec::load(spec_path)?;
     let g = spec.generate()?;
@@ -52,14 +51,9 @@ pub fn send_params(cli: &Cli, spec_path: &str, chip_only: bool, gap_ms: u64) -> 
     // Addressed-register chips get their table as the chip pack. A
     // non-addressed chip carries its configuration inside the basic pack's
     // chip-custom block and has no record 0x84 to send.
-    match g.rcvbp.records.iter().find(|r| r.rtype[1] == 0x84) {
-        Some(r) => {
-            let chip = r.payload.clone();
-            Pack { kind: 0x05, sub: protocol::params::SUB_CHIP, header: 4, body: &chip, what: "chip registers" }
-                .send(&mut dev, gap)?;
-            println!("chip-register pack");
-        }
-        None => println!("no chip-register pack: this chip is configured through the basic pack"),
+    if let Some(r) = g.rcvbp.find_by_id(0x84) {
+        Pack { kind: 0x05, sub: protocol::params::SUB_CHIP, header: 4, body: &r.payload }
+            .send(&mut dev, gap)?;
     }
     if chip_only {
         return Ok(());
@@ -67,53 +61,35 @@ pub fn send_params(cli: &Cli, spec_path: &str, chip_only: bool, gap_ms: u64) -> 
 
     // The rest of the raster state comes from the same regions the boot image
     // carries, so the card gets in RAM exactly what it would boot with.
-    let (img, _, _) = image::Block7Builder::from_generated(&spec, &g)?.finish();
+    let img = image::Block7Builder::from_generated(&spec, &g)?.finish().image;
 
     let mut packs: Vec<Pack> = vec![
         Pack { kind: 0x05, sub: protocol::params::SUB_DATA_SWAP, header: 4,
-               body: &img[image::DATA_SWAP_OFFSET..image::DATA_SWAP_OFFSET + 0x100], what: "data swap" },
-        Pack { kind: 0x05, sub: protocol::params::SUB_BASIC, header: 4,
-               body: &g.basic_pack, what: "basic parameters" },
-        Pack { kind: 0x10, sub: 0, header: 4, body: &img[0x0100..0x0500], what: "void table" },
-        Pack { kind: 0x17, sub: 0, header: 5, body: &img[0x0600..0x0900], what: "module positions" },
+               body: &img[image::DATA_SWAP_OFFSET..image::DATA_SWAP_OFFSET + 0x100] },
+        Pack { kind: 0x05, sub: protocol::params::SUB_BASIC, header: 4, body: &g.basic_pack },
+        Pack { kind: 0x10, sub: 0, header: 4, body: &img[0x0100..0x0500] }, // void table
+        Pack { kind: 0x17, sub: 0, header: 5, body: &img[0x0600..0x0900] }, // module positions
     ];
     // Pixel sequence: the mapping table, sliced into 16 packs of 0x300.
     for k in 0..16 {
         let at = image::MAPPING_OFFSET + k * 0x300;
-        packs.push(Pack { kind: 0x03, sub: k as u8, header: 4,
-                          body: &img[at..at + 0x300], what: "pixel sequence" });
+        packs.push(Pack { kind: 0x03, sub: k as u8, header: 4, body: &img[at..at + 0x300] });
     }
     // Void-line and anti-void tables each split across two image regions
     // (docs/compiled-image-format.md); the packs follow that split.
     for k in 0..4usize {
-        let at = if k < 2 { VOID_LINE_OFFSET + k * 0x400 } else { VOID_LINE_HIGH_OFFSET + (k - 2) * 0x400 };
-        packs.push(Pack { kind: 0x1F, sub: k as u8, header: 8,
-                          body: &img[at..at + 0x400], what: "void line" });
+        let at = if k < 2 { image::VOID_LINE_OFFSET + k * 0x400 } else { VOID_LINE_HIGH_OFFSET + (k - 2) * 0x400 };
+        packs.push(Pack { kind: 0x1F, sub: k as u8, header: 8, body: &img[at..at + 0x400] });
     }
     for k in 0..8usize {
         let at = if k < 4 { image::ANTI_VOID_OFFSET + k * 0x400 } else { ANTI_VOID_HIGH_OFFSET + (k - 4) * 0x400 };
-        packs.push(Pack { kind: 0x32, sub: k as u8, header: 8,
-                          body: &img[at..at + 0x400], what: "anti-void line" });
+        packs.push(Pack { kind: 0x32, sub: k as u8, header: 8, body: &img[at..at + 0x400] });
     }
     packs.push(Pack { kind: 0x18, sub: 0, header: 4,
-                      body: &img[image::SCAN_TABLE_OFFSET..image::SCAN_TABLE_OFFSET + 0x400],
-                      what: "scan table" });
+                      body: &img[image::SCAN_TABLE_OFFSET..image::SCAN_TABLE_OFFSET + 0x400] });
 
-    let mut counts: Vec<(&str, usize)> = Vec::new();
     for p in &packs {
         p.send(&mut dev, gap)?;
-        match counts.last_mut() {
-            Some((what, n)) if *what == p.what => *n += 1,
-            _ => counts.push((p.what, 1)),
-        }
     }
-    for (what, n) in counts {
-        if n == 1 {
-            println!("{what} pack");
-        } else {
-            println!("{what}: {n} packs");
-        }
-    }
-    println!("sent {} real-time packs for {}", packs.len() + 1, spec.name);
     Ok(())
 }

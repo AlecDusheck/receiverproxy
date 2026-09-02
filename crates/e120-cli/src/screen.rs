@@ -2,11 +2,11 @@
 //! address that the page-addressed frames cannot reach. A block erase clears
 //! it and a firmware write never restores it, so it is read and set by value.
 
-use crate::util::{hexdump, is_card_frame, open};
+use crate::util::{await_reply, open};
 use crate::{protocol, Cli};
 use anyhow::{Context, Result};
-use e120_net::bpf;
-use std::time::{Duration, Instant};
+use e120_net::Bpf;
+use std::time::Duration;
 
 /// Byte offsets of the geometry fields within the record.
 const WIDTH: usize = 6;
@@ -16,7 +16,7 @@ const HEIGHT: usize = 8;
 ///
 /// # Errors
 /// Fails if the card does not answer.
-pub fn read(dev: &mut bpf::Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
+pub fn read(dev: &mut Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
     // The card answers the unrestricted linear read here; the guarded
     // screen-record read frame goes unanswered because of its length field.
     dev.send(&protocol::read_flash_linear(
@@ -24,20 +24,13 @@ pub fn read(dev: &mut bpf::Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
         protocol::SCREEN_RECORD_ADDR,
         protocol::SCREEN_RECORD_LEN as u32,
     ))?;
-    let deadline = Instant::now() + Duration::from_secs(wait);
-    while Instant::now() < deadline {
-        for f in dev.recv()? {
-            if !is_card_frame(&f) {
-                continue;
-            }
-            // Linear reads answer with a different type than the page-addressed
-            // reads, so take any reply long enough to hold a record.
-            if f.len() >= 15 + protocol::SCREEN_RECORD_LEN {
-                return Ok(f[15..15 + protocol::SCREEN_RECORD_LEN].to_vec());
-            }
-        }
-    }
-    anyhow::bail!("the card did not return its screen-size record within {wait}s")
+    // Linear reads answer with a different type than the page-addressed
+    // reads, so take any reply long enough to hold a record.
+    await_reply(dev, Duration::from_secs(wait), |f| {
+        f.get(15..15 + protocol::SCREEN_RECORD_LEN)
+            .map(<[u8]>::to_vec)
+    })?
+    .with_context(|| format!("no screen-size record from the card within {wait}s"))
 }
 
 /// Offsets of the receiver's control area within the record: the rectangle
@@ -51,9 +44,8 @@ const START_Y: usize = 4;
 /// so an erased read must never be written back (docs/retracted-findings.md).
 #[must_use]
 pub fn looks_erased(record: &[u8]) -> bool {
-    let empty_window = |o: usize| {
-        matches!((record.get(o), record.get(o + 1)), (Some(0xFF), Some(0xFF)))
-    };
+    let empty_window =
+        |o: usize| matches!((record.get(o), record.get(o + 1)), (Some(0xFF), Some(0xFF)));
     empty_window(START_X)
         || empty_window(START_Y)
         || record.iter().fold(0, |n, &b| n + usize::from(b == 0xFF)) > record.len() / 2
@@ -62,10 +54,13 @@ pub fn looks_erased(record: &[u8]) -> bool {
 /// Geometry encoded in a record.
 #[must_use]
 pub fn geometry(record: &[u8]) -> Option<(u16, u16)> {
-    Some((
-        u16::from_be_bytes([*record.get(WIDTH)?, *record.get(WIDTH + 1)?]),
-        u16::from_be_bytes([*record.get(HEIGHT)?, *record.get(HEIGHT + 1)?]),
-    ))
+    let be16 = |o| {
+        record
+            .get(o..o + 2)
+            .and_then(|s| s.try_into().ok())
+            .map(u16::from_be_bytes)
+    };
+    Some((be16(WIDTH)?, be16(HEIGHT)?))
 }
 
 /// Show the record, and optionally set the geometry it carries.
@@ -82,32 +77,27 @@ pub fn screen_size(
     let mut dev = open(cli)?;
     let record = read(&mut dev, index, wait)?;
     let (w, h) = geometry(&record).context("the record is too short to hold a geometry")?;
-    println!("screen-size record at 0x{:06x}:", protocol::SCREEN_RECORD_ADDR);
-    println!("  geometry {w}x{h}");
-    hexdump(&record[..32]);
 
     let Some((nw, nh)) = set else {
+        println!("{w}x{h}");
         return Ok(());
     };
     if (nw, nh) == (w, h) {
-        println!("\nalready {nw}x{nh}; nothing to write");
+        println!("{w}x{h}");
         return Ok(());
     }
     if looks_erased(&record) {
         let sx = u16::from_be_bytes([record[START_X], record[START_X + 1]]);
         let sy = u16::from_be_bytes([record[START_Y], record[START_Y + 1]]);
         anyhow::bail!(
-            "refusing to write: the card's EEPROM record reads as erased \
-             (control area starts at {sx},{sy}). Writing it back would persist \
-             0xFF across every record in it — the control area, calibration \
-             flags, card name and seam settings (docs/eeprom-map.md). Restore \
-             it from the day-one dump first:\n  \
+            "EEPROM record reads as erased (control area starts at {sx},{sy}); \
+             writing it back would persist 0xFF across every record in it \
+             (docs/eeprom-map.md); restore it first: \
              python3 scripts/eeprom-restore.py --commit"
         );
     }
-    println!("\nsetting geometry to {nw}x{nh}");
     if !commit {
-        println!("dry run: nothing written. Re-run with --commit.");
+        println!("{w}x{h} -> {nw}x{nh} (dry run; add --commit)");
         return Ok(());
     }
 
@@ -123,11 +113,11 @@ pub fn screen_size(
 
     let after = read(&mut dev, index, wait)?;
     match geometry(&after) {
-        Some((aw, ah)) if (aw, ah) == (nw, nh) => println!("verified: the card reports {aw}x{ah}"),
+        Some((aw, ah)) if (aw, ah) == (nw, nh) => println!("{aw}x{ah}"),
         Some((aw, ah)) => anyhow::bail!("wrote {nw}x{nh} but the card reads back {aw}x{ah}"),
         None => anyhow::bail!("the card returned an unreadable record"),
     }
-    println!("power-cycle the card for it to take effect");
+    eprintln!("power-cycle the card to apply");
     Ok(())
 }
 

@@ -6,7 +6,7 @@
 //! the second EtherType byte; shifting data by one turns the panel into a 5 Hz
 //! strobe.
 
-use super::frame;
+use super::{write_header, HEADER_LEN};
 
 /// Max pixels per row packet (FPP's CL_MAX_PIXL_PER_PACKET, hard-coded in the vendor DLL).
 pub const MAX_PIXELS_PER_PACKET: usize = 497;
@@ -16,25 +16,29 @@ pub const MAX_PIXELS_PER_PACKET: usize = 497;
 /// Latches the previously sent row data onto the panel and carries the master
 /// brightness at frame offset 35 and three channel gains at 38..41. Callers
 /// send three per refresh (`docs/rendering-recipe.md`).
-pub fn sync(brightness: u8) -> Vec<u8> {
-    let mut p = [0u8; 98];
-    p[21] = brightness;
-    p[22] = 0x05;
+#[must_use]
+pub fn sync(brightness: u8) -> [u8; 112] {
+    let mut f = [0u8; 112];
+    write_header(&mut f, [0x01, 0x07]);
+    f[35] = brightness;
+    f[36] = 0x05;
     // The vendor derives the three gains from separate bytes of its brightness
     // block; that derivation is unresolved (docs/pixel-protocol.md §2.2), so
     // they follow the master value.
-    p[24..27].fill(brightness);
-    frame([0x01, 0x07], &p)
+    f[38..41].fill(brightness);
+    f
 }
 
 /// Brightness frame: wire type 0x0A, data = [b, b, b, 0xFF] starting at frame
 /// offset 13 (so the first copy of b is the second EtherType byte).
-pub fn brightness(b: u8) -> Vec<u8> {
-    let mut p = [0u8; 63];
-    p[0] = b;
-    p[1] = b;
-    p[2] = 0xff;
-    frame([0x0a, b], &p)
+#[must_use]
+pub fn brightness(b: u8) -> [u8; 77] {
+    let mut f = [0u8; 77];
+    write_header(&mut f, [0x0a, b]);
+    f[14] = b;
+    f[15] = b;
+    f[16] = 0xff;
+    f
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -44,38 +48,61 @@ pub enum ColorOrder {
     Grb,
 }
 
-impl std::str::FromStr for ColorOrder {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "rgb" => Ok(Self::Rgb),
-            "bgr" => Ok(Self::Bgr),
-            "grb" => Ok(Self::Grb),
-            _ => Err(format!("unknown color order {s:?} (rgb|bgr|grb)")),
+impl ColorOrder {
+    const NAMES: [(&'static str, Self); 3] = [("rgb", Self::Rgb), ("bgr", Self::Bgr), ("grb", Self::Grb)];
+
+    /// Index into an `[r, g, b]` pixel for each wire channel.
+    const fn permutation(self) -> [usize; 3] {
+        match self {
+            Self::Rgb => [0, 1, 2],
+            Self::Bgr => [2, 1, 0],
+            Self::Grb => [1, 0, 2],
         }
     }
 }
 
+impl std::str::FromStr for ColorOrder {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::NAMES
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case(s))
+            .map(|&(_, order)| order)
+            .ok_or_else(|| format!("unknown color order {s:?} (rgb|bgr|grb)"))
+    }
+}
+
+/// Bytes between the frame start and the first pixel of a row packet.
+const ROW_PIXELS_AT: usize = HEADER_LEN + 7;
+
 /// Pixel row frame: wire type 0x55, then data at offset 13:
 /// [row MSB, row LSB, offs MSB, offs LSB, count MSB, count LSB, 0x08, 0x88,
 /// pixels...]
+#[must_use]
 pub fn pixel_row(row: u16, pixel_offset: u16, rgb: &[[u8; 3]], order: ColorOrder) -> Vec<u8> {
+    let mut f = Vec::new();
+    pixel_row_into(&mut f, row, pixel_offset, rgb, order);
+    f
+}
+
+/// [`pixel_row`] written into a reused buffer, so a refresh loop allocates
+/// nothing per packet. `buf` is cleared first.
+pub fn pixel_row_into(buf: &mut Vec<u8>, row: u16, pixel_offset: u16, rgb: &[[u8; 3]], order: ColorOrder) {
     let count = rgb.len() as u16;
-    let mut p = Vec::with_capacity(7 + rgb.len() * 3);
-    p.push((row & 0xff) as u8);
-    p.extend_from_slice(&pixel_offset.to_be_bytes());
-    p.extend_from_slice(&count.to_be_bytes());
-    p.push(0x08);
-    p.push(0x88);
-    for px in rgb {
-        let [r, g, b] = *px;
-        match order {
-            ColorOrder::Rgb => p.extend_from_slice(&[r, g, b]),
-            ColorOrder::Bgr => p.extend_from_slice(&[b, g, r]),
-            ColorOrder::Grb => p.extend_from_slice(&[g, r, b]),
-        }
+    buf.clear();
+    buf.resize(ROW_PIXELS_AT + rgb.len() * 3, 0);
+    write_header(buf, [0x55, (row >> 8) as u8]);
+    buf[14] = (row & 0xff) as u8;
+    buf[15..17].copy_from_slice(&pixel_offset.to_be_bytes());
+    buf[17..19].copy_from_slice(&count.to_be_bytes());
+    buf[19] = 0x08;
+    buf[20] = 0x88;
+    let [a, b, c] = order.permutation();
+    for (dst, px) in buf[ROW_PIXELS_AT..].chunks_exact_mut(3).zip(rgb) {
+        dst[0] = px[a];
+        dst[1] = px[b];
+        dst[2] = px[c];
     }
-    frame([0x55, (row >> 8) as u8], &p)
 }
 
 #[cfg(test)]
@@ -102,6 +129,19 @@ mod tests {
         assert_eq!(&bgr[21..24], &[3, 2, 1]);
         let grb = pixel_row(0, 0, &px, ColorOrder::Grb);
         assert_eq!(&grb[21..24], &[2, 1, 3]);
+    }
+
+    #[test]
+    fn a_reused_buffer_gives_the_same_frame() {
+        let px: Vec<[u8; 3]> = (0..MAX_PIXELS_PER_PACKET as u16)
+            .map(|i| [i as u8, (i >> 3) as u8, !(i as u8)])
+            .collect();
+        let mut buf = vec![0xeeu8; 4096];
+        for order in [ColorOrder::Rgb, ColorOrder::Bgr, ColorOrder::Grb] {
+            pixel_row_into(&mut buf, 0x0203, 497, &px, order);
+            assert_eq!(buf, pixel_row(0x0203, 497, &px, order));
+            assert_eq!(buf.len(), 21 + 3 * MAX_PIXELS_PER_PACKET);
+        }
     }
 
     #[test]

@@ -22,9 +22,11 @@ pub mod record01;
 pub mod spec;
 
 use anyhow::{bail, Context, Result};
+use std::borrow::Cow;
 use std::io::{Read, Write};
+use std::path::Path;
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Record {
     /// Offset of the record within the decompressed blob.
     pub offset: usize,
@@ -46,51 +48,59 @@ impl Record {
     pub fn type_u16(&self) -> u16 {
         u16::from_be_bytes(self.rtype)
     }
+
+    /// The record's identity: its id byte alone. The container marker byte
+    /// before it is not part of it — the vendor parser takes only the id and
+    /// ignores the marker.
+    #[must_use]
+    pub fn id(&self) -> u8 {
+        self.rtype[1]
+    }
+
     /// True when the record carries no actual settings (empty table).
     pub fn is_empty_table(&self) -> bool {
         self.payload.iter().all(|&b| b == 0)
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rcvbp {
     pub version: u32,
     pub records: Vec<Record>,
 }
 
 impl Rcvbp {
-    pub fn load(path: &str) -> Result<Self> {
-        let d = std::fs::read(path).with_context(|| format!("read {path}"))?;
-        Self::from_bytes(&d).with_context(|| format!("parse {path}"))
+    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        let d = std::fs::read(path).with_context(|| format!("read {}", path.display()))?;
+        Self::from_bytes(&d).with_context(|| format!("parse {}", path.display()))
     }
 
     pub fn from_bytes(d: &[u8]) -> Result<Self> {
         if d.len() < 32 {
             bail!("too short to be a .rcvbp");
         }
-        let version = le_u32(d,0x10)?;
+        let version = le_u32(d, 0x10)?;
 
         // Two variants exist in the wild, distinguished by their 16-byte
         // signature: the newer one zlib-compresses the record stream, the
         // older one stores it inline right after the version field and ends
-        // with a 4-byte trailer.
-        let (blob, compressed) = if d[0..4] == SIG_COMPRESSED {
-            let raw_len = le_u32(d,0x18)? as usize;
-            let mut blob = Vec::with_capacity(raw_len);
+        // with a 4-byte trailer. Both end with a 4-byte CRC trailer; only the
+        // legacy one carries it inside the record stream (the compressed
+        // trailer sits outside the inflated blob), hence the slack.
+        let (blob, slack): (Cow<[u8]>, usize) = if d[0..4] == SIG_COMPRESSED {
+            let raw_len = le_u32(d, 0x18)? as usize;
+            let mut blob = Vec::with_capacity(raw_len.min(1 << 20));
             flate2::read::ZlibDecoder::new(&d[0x20..])
                 .read_to_end(&mut blob)
                 .context("inflate rcvbp payload")?;
             if blob.len() != raw_len {
                 bail!("inflated {} bytes but header says {raw_len}", blob.len());
             }
-            (blob, true)
+            (Cow::Owned(blob), 0)
         } else {
-            (d[0x14..].to_vec(), false)
+            (Cow::Borrowed(&d[0x14..]), 4)
         };
-
-        // Both variants end with a 4-byte CRC trailer; only the legacy one
-        // carries it inside the record stream (the compressed trailer sits
-        // outside the inflated blob).
-        let slack = if compressed { 0 } else { 4 };
         let records = parse_records(&blob, slack)?;
         Ok(Self { version, records })
     }
@@ -121,12 +131,17 @@ impl Rcvbp {
         Some((r.payload[0], r.payload[1]))
     }
 
-    /// The main parameter record, whatever container marker it carries.
-    ///
-    /// The marker byte is not part of the record identity — the vendor parser
-    /// takes only the id byte and ignores it — so match on the id alone.
+    /// The first record with this id byte, whatever container marker it
+    /// carries (see [`Record::id`]).
+    #[must_use]
+    pub fn find_by_id(&self, id: u8) -> Option<&Record> {
+        self.records.iter().find(|r| r.id() == id)
+    }
+
+    /// The main parameter record.
+    #[must_use]
     pub fn record_01(&self) -> Option<&Record> {
-        self.records.iter().find(|r| r.rtype[1] == 0x01)
+        self.find_by_id(0x01)
     }
 
     /// Scan denominator, held literally (16, 32 or 64) at record 0x01 +0x020.
@@ -168,7 +183,8 @@ impl Rcvbp {
     /// # Errors
     /// Fails if a record is too large for the 16-bit length field.
     pub fn to_blob(&self) -> Result<Vec<u8>> {
-        let mut out = Vec::new();
+        let len = self.records.iter().map(|r| r.payload.len() + 4).sum();
+        let mut out = Vec::with_capacity(len);
         for r in &self.records {
             let size: u16 = r
                 .payload
@@ -215,10 +231,38 @@ impl Rcvbp {
     ///
     /// # Errors
     /// Fails if serialisation or the write fails.
-    pub fn save(&self, path: &str) -> Result<()> {
+    pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
+        let path = path.as_ref();
         let bytes = self.to_file_bytes()?;
-        std::fs::write(path, &bytes).with_context(|| format!("write {path}"))?;
+        std::fs::write(path, &bytes).with_context(|| format!("write {}", path.display()))?;
         Ok(())
+    }
+}
+
+/// Table-driven CRC-32 over the reflected polynomial 0xEDB88320, shared by
+/// the file trailer and the basic pack (which differ only in init/final xor).
+mod crc32 {
+    const TABLE: [u32; 256] = {
+        let mut t = [0u32; 256];
+        let mut i = 0;
+        while i < 256 {
+            let mut c = i as u32;
+            let mut k = 0;
+            while k < 8 {
+                c = if c & 1 == 1 { (c >> 1) ^ 0xEDB8_8320 } else { c >> 1 };
+                k += 1;
+            }
+            t[i] = c;
+            i += 1;
+        }
+        t
+    };
+
+    pub fn update(mut crc: u32, data: &[u8]) -> u32 {
+        for &b in data {
+            crc = TABLE[((crc ^ u32::from(b)) & 0xff) as usize] ^ (crc >> 8);
+        }
+        crc
     }
 }
 
@@ -229,19 +273,7 @@ impl Rcvbp {
 /// final inversion, which is why it does not match a stock CRC-32.
 #[must_use]
 pub fn trailer_crc(data: &[u8]) -> u32 {
-    let mut crc: u32 = 0;
-    for &byte in data {
-        let mut c = (crc ^ u32::from(byte)) & 0xff;
-        for _ in 0..8 {
-            c = if c & 1 == 1 {
-                (c >> 1) ^ 0xedb8_8320
-            } else {
-                c >> 1
-            };
-        }
-        crc = (crc >> 8) ^ c;
-    }
-    crc
+    crc32::update(0, data)
 }
 
 /// Full 16-byte signature of the compressed variant, as written by the vendor
@@ -296,6 +328,10 @@ fn le_u32(d: &[u8], off: usize) -> Result<u32> {
 mod tests {
     use super::*;
 
+    fn identities(records: &[Record]) -> Vec<(u16, &[u8])> {
+        records.iter().map(|r| (r.type_u16(), r.payload.as_slice())).collect()
+    }
+
     fn sample() -> Rcvbp {
         Rcvbp {
             version: 4,
@@ -312,11 +348,8 @@ mod tests {
         let f = sample();
         let blob = f.to_blob().unwrap();
         let parsed = parse_records(&blob, 0).unwrap();
-        assert_eq!(parsed.len(), f.records.len());
-        for (a, b) in parsed.iter().zip(&f.records) {
-            assert_eq!(a.type_u16(), b.type_u16());
-            assert_eq!(a.payload, b.payload);
-        }
+        // `offset` differs between built and parsed records, so compare the rest.
+        assert_eq!(identities(&parsed), identities(&f.records));
     }
 
     #[test]
@@ -357,17 +390,23 @@ mod tests {
         let dir = std::env::temp_dir().join("e120-rcvbp-test");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("round-trip.rcvbp");
-        let path = path.to_str().unwrap();
-        std::fs::write(path, &bytes).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
 
-        let back = Rcvbp::load(path).unwrap();
+        let back = Rcvbp::load(&path).unwrap();
         assert_eq!(back.version, 4);
-        assert_eq!(back.records.len(), f.records.len());
-        for (a, b) in back.records.iter().zip(&f.records) {
-            assert_eq!(a.type_u16(), b.type_u16());
-            assert_eq!(a.payload, b.payload);
-        }
-        std::fs::remove_file(path).ok();
+        assert_eq!(identities(&back.records), identities(&f.records));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn a_legacy_file_is_parsed_from_its_inline_record_stream() {
+        let f = sample();
+        let mut bytes = vec![0u8; 0x14];
+        bytes[0x10..0x14].copy_from_slice(&4u32.to_le_bytes());
+        bytes.extend_from_slice(&f.to_blob().unwrap());
+        bytes.extend_from_slice(&[0; 4]);
+        let back = Rcvbp::from_bytes(&bytes).unwrap();
+        assert_eq!(identities(&back.records), identities(&f.records));
     }
 }
 
@@ -387,6 +426,26 @@ mod crc_tests {
         let (body, tail) = d.split_at(d.len() - 4);
         assert_eq!(trailer_crc(body), expected);
         assert_eq!(tail, &expected.to_le_bytes());
+    }
+
+    /// The reference loop the table replaced.
+    fn bit_serial_crc(data: &[u8]) -> u32 {
+        let mut crc: u32 = 0;
+        for &byte in data {
+            let mut c = (crc ^ u32::from(byte)) & 0xff;
+            for _ in 0..8 {
+                c = if c & 1 == 1 { (c >> 1) ^ 0xedb8_8320 } else { c >> 1 };
+            }
+            crc = (crc >> 8) ^ c;
+        }
+        crc
+    }
+
+    #[test]
+    fn the_table_matches_the_bit_serial_loop() {
+        let data: Vec<u8> = (0..4096u32).map(|i| (i * 7 + i / 3) as u8).collect();
+        assert_eq!(trailer_crc(&data), bit_serial_crc(&data));
+        assert_eq!(trailer_crc(&[]), 0);
     }
 
     #[test]

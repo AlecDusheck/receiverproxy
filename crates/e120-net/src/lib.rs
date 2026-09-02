@@ -3,8 +3,8 @@
 //! Deliberately protocol-agnostic — it moves opaque Ethernet frames so that
 //! the Colorlight protocol itself lives entirely in `e120-proto`.
 
-pub mod bpf;
-pub mod pcap;
+mod bpf;
+mod pcap;
 
-pub use bpf::Bpf;
-pub use pcap::{parse_pcap, read_pcap, PcapPacket};
+pub use bpf::{Bpf, Records};
+pub use pcap::{parse_pcap, read_pcap, Packets, Pcap, PcapPacket};

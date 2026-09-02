@@ -7,9 +7,10 @@
 //! [`BROADCAST`]; opcode `0x85` writes, `0x87` commits the EEPROM to its flash
 //! mirror.
 
-use super::{frame, BROADCAST};
+use super::{command, frame_with, indexed, BROADCAST};
 
 /// One EEPROM record: address, length, name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Record {
     pub addr: u16,
     pub len: u16,
@@ -60,58 +61,88 @@ pub const RECORDS: &[Record] = &[
     Record { addr: 0x0fd, len: 1, name: "screen-shake param" },
 ];
 
+/// The corners of the 42-byte control-area record: the cabinet's rectangle in
+/// the whole screen, stored as `startX, startY, endX, endY` (end exclusive).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ControlArea {
+    pub start_x: u16,
+    pub start_y: u16,
+    pub end_x: u16,
+    pub end_y: u16,
+}
+
+impl ControlArea {
+    /// A cabinet at `(x, y)`, `w` by `h` pixels.
+    #[must_use]
+    pub const fn for_cabinet(x: u16, y: u16, w: u16, h: u16) -> Self {
+        Self { start_x: x, start_y: y, end_x: x + w, end_y: y + h }
+    }
+
+    /// The record: the four corners big-endian, a reserved word, then a zero
+    /// blob (the factory value).
+    #[must_use]
+    pub fn to_record(self) -> [u8; 42] {
+        let mut r = [0u8; 42];
+        r[0..2].copy_from_slice(&self.start_x.to_be_bytes());
+        r[2..4].copy_from_slice(&self.start_y.to_be_bytes());
+        r[4..6].copy_from_slice(&self.end_x.to_be_bytes());
+        r[6..8].copy_from_slice(&self.end_y.to_be_bytes());
+        r
+    }
+
+    /// Decode a control-area record.
+    #[must_use]
+    pub fn parse(r: &[u8]) -> Option<Self> {
+        if r.len() < 8 {
+            return None;
+        }
+        let u = |i: usize| u16::from_be_bytes([r[i], r[i + 1]]);
+        Some(Self { start_x: u(0), start_y: u(2), end_x: u(4), end_y: u(6) })
+    }
+}
+
 /// The 42-byte control-area record for a cabinet at `(x, y)` in the whole
-/// screen, `w` by `h` pixels: `startX, startY, endX, endY` big-endian, a
-/// reserved word, then a zero blob (the factory value).
+/// screen, `w` by `h` pixels: [`ControlArea::for_cabinet`] as bytes.
 #[must_use]
 pub fn control_area(x: u16, y: u16, w: u16, h: u16) -> [u8; 42] {
-    let mut r = [0u8; 42];
-    r[0..2].copy_from_slice(&x.to_be_bytes());
-    r[2..4].copy_from_slice(&y.to_be_bytes());
-    r[4..6].copy_from_slice(&(x + w).to_be_bytes());
-    r[6..8].copy_from_slice(&(y + h).to_be_bytes());
-    r
+    ControlArea::for_cabinet(x, y, w, h).to_record()
 }
 
 /// Decode a control-area record: `(startX, startY, endX, endY)`.
 #[must_use]
 pub fn parse_control_area(r: &[u8]) -> Option<(u16, u16, u16, u16)> {
-    if r.len() < 8 {
-        return None;
-    }
-    let u = |i: usize| u16::from_be_bytes([r[i], r[i + 1]]);
-    Some((u(0), u(2), u(4), u(6)))
+    ControlArea::parse(r).map(|a| (a.start_x, a.start_y, a.end_x, a.end_y))
 }
 
-fn payload(opcode: u8, addr: u32, data: &[u8]) -> Vec<u8> {
+/// A type-0x1900 record frame: `[4..8]` address, `[8..12]` length, data at 12.
+fn record_frame(opcode: u8, addr: u32, data: &[u8]) -> Vec<u8> {
     // Payload length is max(0x80, len + 0x12), as the vendor builds it.
     let n = (data.len() + 0x12).max(0x80);
-    let mut p = vec![0u8; n];
-    p[1..3].copy_from_slice(&BROADCAST.to_be_bytes());
-    p[3] = opcode;
-    p[4..8].copy_from_slice(&addr.to_be_bytes());
-    p[8..12].copy_from_slice(&(data.len() as u32).to_be_bytes());
-    p[12..12 + data.len()].copy_from_slice(data);
-    p
+    frame_with([0x19, 0x00], n, |p| {
+        indexed(p, BROADCAST, opcode);
+        p[4..8].copy_from_slice(&addr.to_be_bytes());
+        p[8..12].copy_from_slice(&(data.len() as u32).to_be_bytes());
+        p[12..12 + data.len()].copy_from_slice(data);
+    })
 }
 
 /// Write one record. `data.len()` must be the record's own length.
 #[must_use]
 pub fn write(addr: u16, data: &[u8]) -> Vec<u8> {
-    frame([0x19, 0x00], &payload(0x85, u32::from(addr), data))
+    record_frame(0x85, u32::from(addr), data)
 }
 
 /// Commit the EEPROM to its flash mirror (`SaveEepromFlash`).
 #[must_use]
 pub fn save() -> Vec<u8> {
-    frame([0x19, 0x00], &payload(0x87, 0, &[]))
+    record_frame(0x87, 0, &[])
 }
 
 /// `ReLoadLocalParam` as the vendor sends it after an EEPROM save: opcode
-/// 0x77, flags `01 01 00` (the flash-save reloads live in `discovery`).
+/// 0x77, flags `01 01 00` (the flash-save reloads are `discovery::reload_params*`).
 #[must_use]
 pub fn reload() -> Vec<u8> {
-    crate::discovery::command(BROADCAST, 0x77, &[0x01, 0x01, 0x00])
+    command(BROADCAST, 0x77, &[0x01, 0x01, 0x00])
 }
 
 #[cfg(test)]
@@ -125,6 +156,14 @@ mod tests {
         assert_eq!(parse_control_area(&r), Some((0, 0, 128, 64)));
         let r = control_area(128, 64, 128, 64);
         assert_eq!(parse_control_area(&r), Some((128, 64, 256, 128)));
+    }
+
+    #[test]
+    fn control_area_round_trips_through_its_corners() {
+        let area = ControlArea::for_cabinet(128, 64, 128, 64);
+        assert_eq!(area, ControlArea { start_x: 128, start_y: 64, end_x: 256, end_y: 128 });
+        assert_eq!(ControlArea::parse(&area.to_record()), Some(area));
+        assert_eq!(ControlArea::parse(&[0; 7]), None);
     }
 
     #[test]

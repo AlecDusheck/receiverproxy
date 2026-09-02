@@ -19,6 +19,8 @@ pub use generate::{generate, Generated};
 use crate::chips::ChipLibrary;
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
+use std::collections::BTreeMap;
+use std::path::Path;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -42,8 +44,8 @@ pub struct PanelSpec {
     /// reported in the provenance. Carries experiments and also measured
     /// single-byte settings the field dictionary has not named — the bench
     /// spec's `+0x02F = 1` lives here and nothing displays without it.
-    #[serde(default)]
-    pub record01_overrides: std::collections::BTreeMap<String, u8>,
+    #[serde(default, deserialize_with = "crate::chips::record01_offsets")]
+    pub record01_overrides: BTreeMap<usize, u8>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -205,9 +207,10 @@ impl PanelSpec {
     ///
     /// # Errors
     /// Fails on a missing or malformed file.
-    pub fn load(path: &str) -> Result<Self> {
-        let text = std::fs::read_to_string(path).with_context(|| format!("read {path}"))?;
-        toml::from_str(&text).with_context(|| format!("parse {path}"))
+    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+        toml::from_str(&text).with_context(|| format!("parse {}", path.display()))
     }
 
     /// Generate the config and basic pack (chip library path relative to the

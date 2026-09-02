@@ -3,9 +3,9 @@ mod config;
 mod display;
 mod flash;
 mod params;
+mod provision;
 mod restore;
 mod screen;
-mod provision;
 mod upgrade;
 mod util;
 
@@ -18,11 +18,12 @@ use flash::{
 use params::send_params;
 use util::{open, parse_color};
 
-use anyhow::Result;
-use clap::{Parser, Subcommand};
+use anyhow::{Context, Result};
+use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 use e120_proto as protocol;
 use e120_rcvbp as rcvbp;
 use protocol::ColorOrder;
+use std::process::ExitCode;
 use std::time::Duration;
 
 #[derive(Parser)]
@@ -31,54 +32,67 @@ use std::time::Duration;
     about = "Drive a Colorlight receiving card over raw Ethernet"
 )]
 struct Cli {
+    // display_order puts the globals after each subcommand's own options.
     /// Network interface directly connected to the receiving card
-    #[arg(short, long, global = true, default_value = "en24")]
+    #[arg(short, long, global = true, display_order = 1000, default_value = "en24")]
     iface: String,
 
     /// Panel width in pixels
-    #[arg(long, global = true, default_value_t = 128)]
+    #[arg(long, global = true, display_order = 1001, default_value_t = 128)]
     width: u16,
 
     /// Panel height in pixels
-    #[arg(long, global = true, default_value_t = 64)]
+    #[arg(long, global = true, display_order = 1002, default_value_t = 64)]
     height: u16,
 
     /// Color order on the wire
-    #[arg(long, global = true, default_value = "bgr")]
+    #[arg(long, global = true, display_order = 1003, default_value = "bgr")]
     order: ColorOrder,
 
     /// Brightness 0-255 (sent in sync frames)
-    #[arg(short, long, global = true, default_value_t = 255)]
+    #[arg(short, long, global = true, display_order = 1004, default_value_t = 255)]
     brightness: u8,
 
     #[command(subcommand)]
     cmd: Cmd,
 }
 
-/// Parse a `WIDTHxHEIGHT` geometry argument.
-fn parse_geometry(s: &str) -> Result<(u16, u16), String> {
-    let (w, h) = s
-        .split_once(['x', 'X'])
-        .ok_or_else(|| format!("expected WIDTHxHEIGHT, got {s:?}"))?;
-    let parse = |v: &str, what: &str| {
+/// Parse two `u16`s split by one of `seps`; `what` names the expected form.
+fn parse_pair(s: &str, seps: &[char], what: &str) -> Result<(u16, u16), String> {
+    let (a, b) = s
+        .split_once(seps)
+        .ok_or_else(|| format!("expected {what}, got {s:?}"))?;
+    let parse = |v: &str| {
         v.trim()
             .parse::<u16>()
             .map_err(|e| format!("{what} in {s:?}: {e}"))
     };
-    Ok((parse(w, "width")?, parse(h, "height")?))
+    Ok((parse(a)?, parse(b)?))
+}
+
+/// Parse a `WIDTHxHEIGHT` geometry argument.
+fn parse_geometry(s: &str) -> Result<(u16, u16), String> {
+    parse_pair(s, &['x', 'X'], "WIDTHxHEIGHT")
+}
+
+/// Parse an `x,y` position argument.
+fn parse_position(s: &str) -> Result<(u16, u16), String> {
+    parse_pair(s, &[','], "x,y")
 }
 
 #[derive(Subcommand)]
 enum UpgradeWhat {
-    /// Ask the card what image it expects and how it can be upgraded
+    /// Report the image the card expects and its upgrade capabilities
     Info {
+        /// Seconds to wait for the reply
         #[arg(long, default_value_t = 4)]
         wait: u64,
     },
-    /// Install a firmware image via the card's own SDRAM staging
+    /// Install a firmware image through the card's SDRAM staging
     Install {
+        /// The .hex bitstream to install
         image: String,
-        /// Actually send it. Without this it only reports what it would do.
+        /// Send it; without this only the plan is printed
         #[arg(long)]
         commit: bool,
         /// Target the golden backup instead of the primary image
@@ -87,9 +101,10 @@ enum UpgradeWhat {
         /// Seconds to wait for the card to finish programming
         #[arg(long, default_value_t = 120)]
         timeout: u64,
-        /// Microseconds between upload chunks. Too fast and the card drops them.
+        /// Microseconds between upload chunks; too fast and the card drops them
         #[arg(long, default_value_t = 3000)]
         chunk_delay_us: u64,
+        /// Seconds to wait for each reply
         #[arg(long, default_value_t = 4)]
         wait: u64,
     },
@@ -99,12 +114,16 @@ enum UpgradeWhat {
 enum RestoreWhat {
     /// Restore the configuration and screen record from a snapshot
     All {
+        /// Snapshot directory
         #[arg(long, default_value = "snapshot")]
         dir: String,
+        /// Write it; without this only the plan is printed
         #[arg(long)]
         commit: bool,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
+        /// Seconds to wait for each reply
         #[arg(long, default_value_t = 3)]
         wait: u64,
     },
@@ -118,8 +137,9 @@ enum Cmd {
         #[arg(long, default_value_t = 3)]
         wait: u64,
     },
-    /// Passively dump frames seen on the interface (debugging)
+    /// Dump every frame seen on the interface
     Listen {
+        /// Seconds to listen
         #[arg(long, default_value_t = 10)]
         wait: u64,
         /// Also show frames we transmit, to confirm they reach the wire
@@ -127,15 +147,20 @@ enum Cmd {
         include_ours: bool,
     },
     /// Set panel brightness (0-255)
-    Brightness { value: u8 },
+    Brightness {
+        /// 0-255
+        value: u8,
+    },
     /// Fill the panel with a solid color, e.g. `fill ff0000` or `fill 255 0 0`
     Fill {
+        /// RRGGBB hex, or three 0-255 values
+        #[arg(required = true)]
         color: Vec<String>,
         /// Keep refreshing until Ctrl-C, so a meter can settle on the draw
         #[arg(long)]
         hold: bool,
     },
-    /// Send pieces of a refresh with explicit pacing (diagnosis)
+    /// Send parts of a refresh with explicit pacing
     Probe {
         /// Rows to send, starting at 0
         #[arg(long, default_value_t = 64)]
@@ -164,6 +189,7 @@ enum Cmd {
     },
     /// Display an image file (scaled to panel size)
     Image {
+        /// Any image format the `image` crate reads
         path: String,
         /// Keep refreshing until Ctrl-C
         #[arg(long)]
@@ -178,20 +204,21 @@ enum Cmd {
         #[arg(long)]
         firmware: Option<String>,
         /// Cabinet position in the whole screen, "x,y" in pixels
-        #[arg(long, default_value = "0,0")]
-        position: String,
-        /// Where to keep the pre-provisioning snapshot (default build/snapshot-<time>)
+        #[arg(long, default_value = "0,0", value_parser = parse_position)]
+        position: (u16, u16),
+        /// Directory for the pre-provisioning snapshot [default: build/snapshot-<time>]
         #[arg(long)]
         snapshot_dir: Option<String>,
-        /// Actually write. Without this it only reports the plan
+        /// Write it; without this only the plan is printed
         #[arg(long)]
         commit: bool,
+        /// Seconds to wait for each reply
         #[arg(long, default_value_t = 3)]
         wait: u64,
     },
     /// Blank the panel
     Blank,
-    /// Read the card's stored configuration into a .rcvbp file (read-only)
+    /// Save the card's stored configuration as a .rcvbp file
     ReadConfig {
         /// Where to write the recovered .rcvbp
         #[arg(long, default_value = "card-config.rcvbp")]
@@ -213,35 +240,41 @@ enum Cmd {
     FlashFirmware {
         /// The .hex bitstream to install
         image: String,
-        /// A prior dump of the primary bank, required as a recovery path
+        /// A prior dump of the primary bank, kept as the recovery path
         #[arg(long)]
         backup: String,
-        /// Actually write. Without this it only reports what it would do.
+        /// Write it; without this only the plan is printed
         #[arg(long)]
         commit: bool,
-        /// First 64KB block to write. Lets a partial image be repaired.
+        /// First 64KB block to write, so a partial image can be repaired
         #[arg(long, default_value_t = 0x00)]
         from_block: u8,
-        /// One past the last block to write.
+        /// One past the last block to write
         #[arg(long, default_value_t = 0x0b)]
         to_block: u8,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
+        /// Seconds to wait for each reply
         #[arg(long, default_value_t = 3)]
         wait: u64,
     },
-    /// Scan every 64KB flash block for known signatures (read-only)
+    /// List the 64KB flash blocks that hold data and what they look like
     ScanFlash {
+        /// First block to scan
         #[arg(long, default_value_t = 0)]
         first: u8,
+        /// Last block to scan
         #[arg(long, default_value_t = 255)]
         last: u8,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
+        /// Seconds to wait for each reply
         #[arg(long, default_value_t = 1)]
         wait: u64,
     },
-    /// Send a hand-built frame and show any reply (experimentation)
+    /// Send a hand-built frame and print any reply
     RawSend {
         /// Two type bytes, hex, e.g. 1900
         #[arg(long)]
@@ -259,8 +292,9 @@ enum Cmd {
         #[arg(long, default_value_t = 64)]
         show: usize,
     },
-    /// Dump an arbitrary flash range, including firmware (read-only)
+    /// Dump a flash address range, firmware included, to a file
     DumpRange {
+        /// Output file
         #[arg(long, default_value = "flash.bin")]
         out: String,
         /// Start address, hex
@@ -269,13 +303,16 @@ enum Cmd {
         /// Bytes to read, hex
         #[arg(long, default_value = "100000")]
         len: String,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
+        /// Seconds to wait for each reply
         #[arg(long, default_value_t = 2)]
         wait: u64,
     },
-    /// Dump one or more 64KB flash blocks from the card (read-only)
+    /// Dump one or more 64KB flash blocks to a file
     DumpFlash {
+        /// Output file
         #[arg(long, default_value = "block07.bin")]
         out: String,
         /// First 64KB block; 0x07 holds parameters, 0x00 onward holds firmware
@@ -284,8 +321,10 @@ enum Cmd {
         /// How many consecutive blocks to read
         #[arg(long, default_value_t = 1)]
         blocks: u16,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
+        /// Seconds to wait for each reply
         #[arg(long, default_value_t = 2)]
         wait: u64,
     },
@@ -293,14 +332,16 @@ enum Cmd {
     WriteConfig {
         /// The .rcvbp to install
         config: String,
-        /// Actually write. Without this it only reports what it would do.
+        /// Write it; without this only the plan is printed
         #[arg(long)]
         commit: bool,
         /// Where to save the pre-write backup of the whole block
         #[arg(long, default_value = "block07-backup.bin")]
         backup: String,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
+        /// Seconds to wait for each reply
         #[arg(long, default_value_t = 2)]
         wait: u64,
     },
@@ -308,6 +349,7 @@ enum Cmd {
     Play {
         /// File path or URL
         input: String,
+        /// Frames per second
         #[arg(long, default_value_t = 30)]
         fps: u32,
         /// stretch | contain | cover
@@ -325,8 +367,10 @@ enum Cmd {
         /// rgb | border | rows | gradient | white
         #[arg(default_value = "rgb")]
         name: String,
+        /// Keep refreshing until Ctrl-C
         #[arg(long)]
         hold: bool,
+        /// Wall layout JSON; defaults to a single panel of --width x --height
         #[arg(long)]
         layout: Option<String>,
     },
@@ -334,10 +378,13 @@ enum Cmd {
     LayoutExample,
     /// Tell the card its own size and the size of the whole screen
     SetLayout {
+        /// Panel width in pixels
         #[arg(long, default_value_t = 128)]
         panel_width: u16,
+        /// Panel height in pixels
         #[arg(long, default_value_t = 64)]
         panel_height: u16,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
     },
@@ -353,67 +400,80 @@ enum Cmd {
         #[arg(long, default_value_t = 8)]
         gap_ms: u64,
     },
-    /// Run the card's built-in test pattern (needs no pixel data from us)
+    /// Select the card's built-in test pattern (needs no pixel data)
     TestMode {
         /// Pattern selector; 0 is normal/off
         pattern: u8,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
     },
-    /// Sweep every test pattern, pausing on each
+    /// Step through the card's test patterns, pausing on each
     TestSweep {
+        /// Patterns to step through, starting at 0
         #[arg(long, default_value_t = 16)]
         count: u8,
+        /// Seconds to pause on each
         #[arg(long, default_value_t = 2)]
         secs: u64,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
     },
-    /// Ask the card to reload parameters from flash
+    /// Ask the card to reload its parameters from flash
     ReloadParams {
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
-        /// Use the vendor's post-save frame (opcode 0x77, all three classes)
-        /// instead of the bare 0x79 reload
+        /// Send the vendor's post-save frame (opcode 0x77, all three classes) instead of the bare 0x79 reload
         #[arg(long)]
         full: bool,
     },
-    /// Show, and optionally set, the card's screen-size record
+    /// Print, and optionally set, the card's screen-size record
     ScreenSize {
         /// New geometry as WIDTHxHEIGHT, e.g. 128x64
         #[arg(long, value_parser = parse_geometry)]
         set: Option<(u16, u16)>,
+        /// Write it; without this only the plan is printed
         #[arg(long)]
         commit: bool,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
+        /// Seconds to wait for each reply
         #[arg(long, default_value_t = 3)]
         wait: u64,
     },
-    /// Capture everything we know how to restore into a directory
+    /// Save the primary and golden firmware banks into a directory
     Snapshot {
+        /// Output directory (created if missing)
         #[arg(long, default_value = "snapshot")]
         dir: String,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
+        /// Seconds to wait for each reply
         #[arg(long, default_value_t = 3)]
         wait: u64,
     },
-    /// Install firmware the way the card supports
+    /// Install firmware through the card's own upgrade path
     Upgrade {
         #[command(subcommand)]
         what: UpgradeWhat,
     },
-    /// Put the card back the way it was
+    /// Put the card back from a snapshot
     Restore {
         #[command(subcommand)]
         what: RestoreWhat,
     },
-    /// Restore a previously dumped 64KB block back to the card
+    /// Write a previously dumped 64KB block image back to the parameter block
     RestoreFlash {
+        /// The 65536-byte block image
         image: String,
+        /// Write it; without this only the plan is printed
         #[arg(long)]
         commit: bool,
+        /// Receiver index on the chain
         #[arg(long, default_value_t = 0)]
         index: u16,
     },
@@ -445,9 +505,15 @@ enum Cmd {
         out_dir: String,
     },
     /// Compare two .rcvbp files record by record
-    ConfigDiff { a: String, b: String },
-    /// Inspect a .rcvbp receiver-parameter file
+    ConfigDiff {
+        /// First .rcvbp
+        a: String,
+        /// Second .rcvbp
+        b: String,
+    },
+    /// List the records in a .rcvbp receiver-parameter file
     Rcvbp {
+        /// The .rcvbp to list
         path: String,
         /// Hexdump each record's payload (non-empty ones)
         #[arg(long)]
@@ -455,6 +521,7 @@ enum Cmd {
     },
     /// Summarize Colorlight packet types in a pcap capture
     PcapSummary {
+        /// Classic pcap capture (pcapng is rejected)
         path: String,
         /// Show full hexdumps of non-pixel packets
         #[arg(long)]
@@ -462,8 +529,9 @@ enum Cmd {
     },
     /// Replay sender->card frames from a pcap capture
     Replay {
+        /// Classic pcap capture (pcapng is rejected)
         path: String,
-        /// Comma-separated packet-type bytes (hex) to replay, e.g. "10,11,1f,26". Default: all non-pixel config types
+        /// Comma-separated packet-type bytes (hex) to replay, e.g. "10,11,1f,26" [default: all non-pixel config types]
         #[arg(long)]
         types: Option<String>,
         /// Delay between frames in microseconds
@@ -475,9 +543,36 @@ enum Cmd {
     },
 }
 
-fn main() -> Result<()> {
-    let cli = Cli::parse();
-    run(&cli)
+/// The subcommand path as typed, e.g. `upgrade install`, for error prefixes.
+fn subcommand_path(m: &clap::ArgMatches) -> String {
+    let mut path = Vec::new();
+    let mut m = m;
+    while let Some((name, sub)) = m.subcommand() {
+        path.push(name);
+        m = sub;
+    }
+    path.join(" ")
+}
+
+#[allow(unsafe_code)] // one libc call, before any thread exists
+fn main() -> ExitCode {
+    // Die quietly when a pipe closes (`e120 rcvbp f | head`), like other unix tools.
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+    let matches = Cli::command().get_matches();
+    let subject = subcommand_path(&matches);
+    let cli = match Cli::from_arg_matches(&matches) {
+        Ok(cli) => cli,
+        Err(e) => e.exit(),
+    };
+    match run(&cli).with_context(|| subject) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("e120: {e:#}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 #[allow(clippy::too_many_lines)]
@@ -502,7 +597,6 @@ fn run(cli: &Cli) -> Result<()> {
             let mut dev = open(cli)?;
             dev.send(&protocol::brightness(*value))?;
             dev.send(&protocol::sync(*value))?;
-            println!("brightness set to {value}");
             Ok(())
         }
         Cmd::Play {
@@ -533,7 +627,6 @@ fn run(cli: &Cli) -> Result<()> {
                 *panel_width,
                 *panel_height,
             ))?;
-            println!("sent layout: {panel_width}x{panel_height}");
             Ok(())
         }
 
@@ -545,21 +638,15 @@ fn run(cli: &Cli) -> Result<()> {
             snapshot_dir,
             commit,
             wait,
-        } => {
-            let (x, y) = position
-                .split_once(',')
-                .and_then(|(a, b)| Some((a.trim().parse().ok()?, b.trim().parse().ok()?)))
-                .ok_or_else(|| anyhow::anyhow!("--position must be x,y"))?;
-            provision::provision(
-                cli,
-                spec,
-                firmware.as_deref(),
-                (x, y),
-                snapshot_dir.as_deref(),
-                *commit,
-                *wait,
-            )
-        }
+        } => provision::provision(
+            cli,
+            spec,
+            firmware.as_deref(),
+            *position,
+            snapshot_dir.as_deref(),
+            *commit,
+            *wait,
+        ),
         Cmd::Upgrade { what } => match what {
             UpgradeWhat::Info { wait } => upgrade::info(cli, *wait),
             UpgradeWhat::Install {
@@ -575,7 +662,15 @@ fn run(cli: &Cli) -> Result<()> {
                 } else {
                     protocol::upgrade::Partition::Primary
                 };
-                upgrade::install(cli, image, *commit, partition, *timeout, *chunk_delay_us, *wait)
+                upgrade::install(
+                    cli,
+                    image,
+                    *commit,
+                    partition,
+                    *timeout,
+                    *chunk_delay_us,
+                    *wait,
+                )
             }
         },
         Cmd::Snapshot { dir, index, wait } => restore::snapshot(cli, dir, *index, *wait),
@@ -661,28 +756,24 @@ fn run(cli: &Cli) -> Result<()> {
         Cmd::TestMode { pattern, index } => {
             let mut dev = open(cli)?;
             dev.send(&protocol::test_mode(*index, *pattern))?;
-            println!("test pattern {pattern} selected");
             Ok(())
         }
         Cmd::TestSweep { count, secs, index } => {
             let mut dev = open(cli)?;
             for pattern in 0..*count {
-                println!("pattern {pattern} (0x{pattern:02x})");
+                println!("pattern {pattern}");
                 dev.send(&protocol::test_mode(*index, pattern))?;
                 std::thread::sleep(Duration::from_secs(*secs));
             }
             dev.send(&protocol::test_mode(*index, 0))?;
-            println!("back to normal");
             Ok(())
         }
         Cmd::ReloadParams { index, full } => {
             let mut dev = open(cli)?;
             if *full {
                 dev.send(&protocol::reload_params_full(*index))?;
-                println!("sent the vendor's full reload (opcode 0x77, all classes)");
             } else {
                 dev.send(&protocol::reload_params(*index))?;
-                println!("asked the card to reload parameters from flash");
             }
             Ok(())
         }

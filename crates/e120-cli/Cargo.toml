@@ -18,6 +18,7 @@ e120-video.workspace = true
 e120-driver.workspace = true
 
 anyhow.workspace = true
+libc.workspace = true
 clap.workspace = true
 image.workspace = true
 serde_json.workspace = true

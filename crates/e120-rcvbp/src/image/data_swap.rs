@@ -11,7 +11,7 @@ use crate::record01::View;
 const DESEAM_PAIRS: [usize; 3] = [0xEA, 0xF0, 0xF6];
 
 #[must_use]
-pub fn body(rec: &View) -> [u8; 256] {
+pub fn body(rec: View<'_>) -> [u8; 256] {
     let mut body = [0u8; 256];
     body[..64].copy_from_slice(rec.swap_ramp());
     for at in DESEAM_PAIRS {

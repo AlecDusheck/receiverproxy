@@ -7,6 +7,12 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 
+# Fat LTO so the per-row frame builders inline into the driver's send loop.
+# `panic` stays at unwind: Drop (the BPF fd) must still run on a panic.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
 [workspace.dependencies]
 e120-proto = { path = "crates/e120-proto" }
 e120-rcvbp = { path = "crates/e120-rcvbp" }

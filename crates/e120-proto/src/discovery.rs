@@ -1,8 +1,9 @@
 //! Discovery, layout, test mode, and the upgrade descriptor query.
 
-use super::frame;
+use super::{command, frame, frame_with, indexed};
 
 /// Discovery request: type 0x0700, 270 zero bytes.
+#[must_use]
 pub fn discovery() -> Vec<u8> {
     frame([0x07, 0x00], &[0u8; 270])
 }
@@ -10,6 +11,7 @@ pub fn discovery() -> Vec<u8> {
 ///
 /// Field positions follow the type 0x02 packet documented by FPP, expressed
 /// here relative to the payload that follows the two type bytes.
+#[must_use]
 pub fn set_layout(
     rcv_index: u16,
     recv_w: u16,
@@ -19,40 +21,32 @@ pub fn set_layout(
     total_w: u16,
     total_h: u16,
 ) -> Vec<u8> {
-    let mut p = [0u8; 98];
-    p[0..2].copy_from_slice(&rcv_index.to_be_bytes());
-    p[6..8].copy_from_slice(&recv_w.to_be_bytes());
-    p[8..10].copy_from_slice(&recv_h.to_be_bytes());
-    p[12..14].copy_from_slice(&x_offset.to_be_bytes());
-    p[14..16].copy_from_slice(&y_offset.to_be_bytes());
-    p[16..18].copy_from_slice(&total_w.to_be_bytes());
-    p[18..20].copy_from_slice(&total_h.to_be_bytes());
-    frame([0x02, 0x00], &p)
+    frame_with([0x02, 0x00], 98, |p| {
+        p[0..2].copy_from_slice(&rcv_index.to_be_bytes());
+        p[6..8].copy_from_slice(&recv_w.to_be_bytes());
+        p[8..10].copy_from_slice(&recv_h.to_be_bytes());
+        p[12..14].copy_from_slice(&x_offset.to_be_bytes());
+        p[14..16].copy_from_slice(&y_offset.to_be_bytes());
+        p[16..18].copy_from_slice(&total_w.to_be_bytes());
+        p[18..20].copy_from_slice(&total_h.to_be_bytes());
+    })
 }
 /// Built-in test-pattern mode (card-generated, RAM only).
+#[must_use]
 pub fn test_mode(rcv_index: u16, pattern: u8) -> Vec<u8> {
-    let mut p = vec![0u8; 0x109];
-    p[0] = 0x00;
-    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
-    p[3] = 0x09;
-    p[4] = pattern;
-    frame([0x33, 0x00], &p)
-}
-/// A type-0x0600 command frame with no data: `[1..3]` receiver index, `[3]`
-/// opcode, flag bytes (if any) at payload offset 0x0a.
-pub(crate) fn command(rcv_index: u16, opcode: u8, flags: &[u8]) -> Vec<u8> {
-    let mut p = [0u8; 126];
-    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
-    p[3] = opcode;
-    p[8..8 + flags.len()].copy_from_slice(flags);
-    frame([0x06, 0x00], &p)
+    frame_with([0x33, 0x00], 0x109, |p| {
+        indexed(p, rcv_index, 0x09);
+        p[4] = pattern;
+    })
 }
 /// Ask the card to reload its parameters from flash (opcode 0x79).
+#[must_use]
 pub fn reload_params(rcv_index: u16) -> Vec<u8> {
     command(rcv_index, 0x79, &[])
 }
 /// The vendor's post-save reload: opcode 0x77, flags `01 01 01` ("all three
 /// parameter classes"). Which of the two reloads the card needs is unmeasured.
+#[must_use]
 pub fn reload_params_full(rcv_index: u16) -> Vec<u8> {
     command(rcv_index, 0x77, &[0x01, 0x01, 0x01])
 }
@@ -61,64 +55,15 @@ pub fn reload_params_full(rcv_index: u16) -> Vec<u8> {
 /// `upgrade::parse_descriptor`.
 #[must_use]
 pub fn upgrade_info() -> Vec<u8> {
-    let mut p = vec![0u8; 270];
-    p[1..4].copy_from_slice(&[0xff, 0xff, 0xff]);
-    p[4] = 0x01;
-    p[6..10].copy_from_slice(&[0x43, 0x57, 0x83, 0x97]);
-    p[10] = 0x09;
-    frame([0x07, 0x00], &p)
-}
-/// What the card reports about its firmware image and recovery options.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct UpgradeInfo {
-    /// Size the bootloader expects the firmware image to be.
-    pub declared_len: u32,
-    pub capabilities: u8,
-}
-impl UpgradeInfo {
-    /// True when the card keeps a golden image it can fall back to.
-    #[must_use]
-    pub const fn has_golden(self) -> bool {
-        self.capabilities & 0b0010 != 0
-    }
-
-    /// True when the card accepts golden-bank upgrades.
-    #[must_use]
-    pub const fn supports_golden_upgrade(self) -> bool {
-        self.capabilities & 0b1000 != 0
-    }
-
-    /// True when the card can stage an image in SDRAM before committing it.
-    #[must_use]
-    pub const fn supports_sdram_staging(self) -> bool {
-        self.capabilities & 0b0001 != 0
-    }
-}
-/// Heuristic decode of the upgrade reply.
-///
-/// Anchors on the `0b 00` of the length and reads the capabilities relative
-/// to it. Prefer `upgrade::parse_descriptor`, the fixed-offset decoder pinned
-/// to a captured reply.
-#[must_use]
-pub fn parse_upgrade_info(reply: &[u8]) -> Option<UpgradeInfo> {
-    for i in 5..reply.len().saturating_sub(2) {
-        if reply[i] != 0x0b || reply[i + 1] != 0x00 {
-            continue;
-        }
-        let declared_len =
-            u32::from(reply[i]) << 16 | u32::from(reply[i + 1]) << 8 | u32::from(reply[i + 2]);
-        // Only 0x0b0000 and 0x0b0080 are plausible image lengths.
-        if declared_len != 0x000b_0000 && declared_len != 0x000b_0080 {
-            continue;
-        }
-        return Some(UpgradeInfo {
-            declared_len,
-            capabilities: reply[i - 5],
-        });
-    }
-    None
+    frame_with([0x07, 0x00], 270, |p| {
+        p[1..4].copy_from_slice(&[0xff, 0xff, 0xff]);
+        p[4] = 0x01;
+        p[6..10].copy_from_slice(&[0x43, 0x57, 0x83, 0x97]);
+        p[10] = 0x09;
+    })
 }
 /// Parsed discovery response (field meanings from community 5A-75B work).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiscoveryInfo {
     pub card_id: u8,
     pub ver_major: u8,
@@ -128,6 +73,7 @@ pub struct DiscoveryInfo {
     pub controller: u8,
     pub raw: Vec<u8>,
 }
+#[must_use]
 pub fn parse_discovery_response(eth_frame: &[u8]) -> Option<DiscoveryInfo> {
     if eth_frame.len() < 14 + 63 {
         return None;
@@ -142,12 +88,12 @@ pub fn parse_discovery_response(eth_frame: &[u8]) -> Option<DiscoveryInfo> {
         ver_minor: p[2],
         cols: u16::from_be_bytes([p[20], p[21]]),
         rows: u16::from_be_bytes([p[22], p[23]]),
-        controller: *p.get(62).unwrap_or(&0),
+        controller: p[62],
         raw: p.to_vec(),
     })
 }
 #[cfg(test)]
-mod upgrade_info_tests {
+mod tests {
     use super::*;
 
     #[test]
@@ -179,37 +125,11 @@ mod upgrade_info_tests {
     }
 
     #[test]
-    fn a_pwm_family_length_is_recognised() {
-        let mut reply = vec![0u8; 64];
-        reply[20] = 0b1010; // capabilities: golden + supports-golden
-        reply[25] = 0x0b;
-        reply[26] = 0x00;
-        reply[27] = 0x00;
-        let info = parse_upgrade_info(&reply).unwrap();
-        assert_eq!(info.declared_len, 0x000b_0000);
-        assert!(info.has_golden());
-        assert!(info.supports_golden_upgrade());
-        assert!(!info.supports_sdram_staging());
-    }
-
-    #[test]
-    fn a_normal_family_length_is_recognised() {
-        let mut reply = vec![0u8; 64];
-        reply[25] = 0x0b;
-        reply[26] = 0x00;
-        reply[27] = 0x80;
-        assert_eq!(
-            parse_upgrade_info(&reply).unwrap().declared_len,
-            0x000b_0080
-        );
-    }
-
-    #[test]
-    fn implausible_lengths_are_ignored() {
-        let mut reply = vec![0u8; 64];
-        reply[25] = 0x0b;
-        reply[26] = 0x00;
-        reply[27] = 0x42; // not a known image length
-        assert!(parse_upgrade_info(&reply).is_none());
+    fn test_mode_frame_matches_the_vendor_layout() {
+        let f = test_mode(2, 0x05);
+        assert_eq!(f.len(), 14 + 0x109);
+        assert_eq!(&f[12..14], &[0x33, 0x00]);
+        assert_eq!(&f[14..19], &[0x00, 0x00, 0x02, 0x09, 0x05]);
+        assert!(f[19..].iter().all(|&b| b == 0));
     }
 }

@@ -6,15 +6,15 @@
 //! a firmware image goes in through `upgrade install` plus `flash-firmware`
 //! (`provision --firmware` does both).
 
-use crate::flash::{read_blocks, write_config};
-use crate::util::open;
+use crate::flash::{read_blocks, read_primary_bank, write_config, BANK_BYTES};
+use crate::util::{open, warn};
 use crate::{protocol, Cli};
 use anyhow::{Context, Result};
 
 /// A saved copy of everything we know how to put back.
 #[derive(Debug)]
 pub struct Snapshot {
-    pub firmware: Option<Vec<u8>>,
+    pub firmware: Option<String>,
     pub config: Option<String>,
 }
 
@@ -24,15 +24,14 @@ pub struct Snapshot {
 /// Fails if a file is present but unreadable or the wrong size.
 pub fn load_snapshot(dir: &str) -> Result<Snapshot> {
     let firmware_path = format!("{dir}/primary-region.bin");
-    let firmware = match std::fs::read(&firmware_path) {
-        Ok(d) => {
-            let span = protocol::FIRMWARE_BLOCKS.len() * 64 * 1024;
+    let firmware = match std::fs::metadata(&firmware_path) {
+        Ok(m) => {
             anyhow::ensure!(
-                d.len() >= span,
-                "{firmware_path} is {} bytes; a primary-bank image needs at least {span}",
-                d.len()
+                m.len() >= BANK_BYTES as u64,
+                "{firmware_path} is {} bytes; a primary-bank image needs at least {BANK_BYTES}",
+                m.len()
             );
-            Some(d)
+            Some(firmware_path)
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => return Err(e).context(firmware_path),
@@ -56,28 +55,23 @@ pub fn load_snapshot(dir: &str) -> Result<Snapshot> {
 /// Fails if the snapshot holds no `config.rcvbp` or the write does not verify.
 pub fn all(cli: &Cli, dir: &str, commit: bool, index: u16, wait: u64) -> Result<()> {
     let snap = load_snapshot(dir)?;
-    println!("restoring from {dir}");
     if snap.firmware.is_some() {
-        println!(
-            "  firmware: primary-region.bin present but NOT restored by this command; \
-             host-writable blocks go back with\n    e120 flash-firmware {dir}/primary-region.bin \
-             --backup <fresh dump> --from-block 3 --to-block 7 --commit"
-        );
+        warn(format!(
+            "{dir}/primary-region.bin is not restored by this command; host-writable blocks go back with: \
+             e120 flash-firmware {dir}/primary-region.bin --backup <fresh dump> --from-block 3 --to-block 7 --commit"
+        ));
     }
     let Some(config) = &snap.config else {
         anyhow::bail!("{dir} holds no config.rcvbp; nothing this command can restore");
     };
-    println!("  config:   {config}");
     if !commit {
-        println!("\ndry run: nothing written. Re-run with --commit.");
+        println!("dry run: {config} -> parameter block (add --commit)");
         return Ok(());
     }
 
     // write_config reads the block off the card and restores the screen record.
     let backup = format!("{dir}/block07-before-restore.bin");
-    write_config(cli, config, true, &backup, None, index, wait)?;
-    println!("\nrestore complete; power-cycle the card");
-    Ok(())
+    write_config(cli, config, true, &backup, None, index, wait)
 }
 
 /// Capture everything we know how to restore into a directory.
@@ -89,26 +83,15 @@ pub fn snapshot(cli: &Cli, dir: &str, index: u16, wait: u64) -> Result<()> {
     let mut dev = open(cli)?;
 
     let blocks = protocol::FIRMWARE_BLOCKS.len() as u16;
-    println!("reading the primary bank ({blocks} blocks)...");
-    let primary = read_blocks(
-        &mut dev,
-        index,
-        protocol::FIRMWARE_BLOCKS.start,
-        blocks,
-        wait,
-    )?;
+    let primary = read_primary_bank(&mut dev, index, wait)?;
     let path = format!("{dir}/primary-region.bin");
     std::fs::write(&path, &primary).with_context(|| format!("write {path}"))?;
-    println!("  {} bytes -> {path}", primary.len());
+    println!("{path}");
 
-    println!("reading the golden bank...");
     let golden = read_blocks(&mut dev, index, protocol::GOLDEN_BLOCK, blocks, wait)?;
     let path = format!("{dir}/golden-bank.bin");
     std::fs::write(&path, &golden).with_context(|| format!("write {path}"))?;
-    println!("  {} bytes -> {path}", golden.len());
-
-    println!("snapshot written to {dir}");
-    println!("capture the configuration too:  e120 read-config --out {dir}/config.rcvbp");
+    println!("{path}");
     Ok(())
 }
 
@@ -142,8 +125,7 @@ mod tests {
     #[test]
     fn a_full_size_image_is_accepted() {
         let d = tmpdir("full");
-        let span = protocol::FIRMWARE_BLOCKS.len() * 64 * 1024;
-        std::fs::write(format!("{d}/primary-region.bin"), vec![0u8; span]).unwrap();
+        std::fs::write(format!("{d}/primary-region.bin"), vec![0u8; BANK_BYTES]).unwrap();
         let snap = load_snapshot(&d).unwrap();
         assert!(snap.firmware.is_some());
         assert!(snap.config.is_none());

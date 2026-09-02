@@ -11,8 +11,8 @@
 //!   and written back one by one with the control area set for this cabinet.
 
 use crate::capture::discover_one;
-use crate::flash::{flash_firmware, read_blocks, restore_flash};
-use crate::util::open;
+use crate::flash::{flash_firmware, read_primary_bank, restore_flash, BANK_BYTES};
+use crate::util::{hex, open};
 use crate::{config, protocol, restore, screen, upgrade, Cli};
 use anyhow::{bail, Context, Result};
 use e120_proto::eeprom;
@@ -29,7 +29,11 @@ fn version_in_name(path: &str) -> Option<(u8, u8)> {
     Some((it.next()?.parse().ok()?, it.next()?.parse().ok()?))
 }
 
-fn wait_for_version(cli: &Cli, want: (u8, u8), timeout: Duration) -> Result<protocol::DiscoveryInfo> {
+fn wait_for_version(
+    cli: &Cli,
+    want: (u8, u8),
+    timeout: Duration,
+) -> Result<protocol::DiscoveryInfo> {
     let deadline = Instant::now() + timeout;
     loop {
         if let Some(info) = discover_one(cli, 2)? {
@@ -38,25 +42,29 @@ fn wait_for_version(cli: &Cli, want: (u8, u8), timeout: Duration) -> Result<prot
             }
         }
         if Instant::now() > deadline {
-            bail!("the card did not come back reporting firmware {}.{}", want.0, want.1);
+            bail!(
+                "the card did not come back reporting firmware {}.{}",
+                want.0,
+                want.1
+            );
         }
         std::thread::sleep(Duration::from_secs(1));
     }
 }
 
+/// Blocks 16.53 write-protects from the host path; only the SDRAM
+/// self-program can write these.
+const HOST_GUARDED_BLOCKS: [u8; 4] = [0, 1, 2, 8];
+
 /// Install `image` into the primary bank through both write paths and
 /// verify the whole bank. Returns true when a power-cycle is needed.
 fn install_firmware(cli: &Cli, image: &str, backup: &str, wait: u64) -> Result<bool> {
     let img = std::fs::read(image).with_context(|| format!("read {image}"))?;
-    let bank = 0xB0000usize;
-    let want = &img[..bank.min(img.len())];
+    let want = &img[..BANK_BYTES.min(img.len())];
 
-    let current = {
-        let mut dev = open(cli)?;
-        read_blocks(&mut dev, 0, protocol::FIRMWARE_BLOCKS.start, protocol::FIRMWARE_BLOCKS.len() as u16, wait)?
-    };
+    let current = read_primary_bank(&mut open(cli)?, 0, wait)?;
     let differing = |bank_bytes: &[u8]| -> Vec<u8> {
-        (0u8..11)
+        protocol::FIRMWARE_BLOCKS
             .filter(|&b| b != protocol::PARAM_BLOCK)
             .filter(|&b| {
                 let s = usize::from(b) * 0x10000;
@@ -66,34 +74,41 @@ fn install_firmware(cli: &Cli, image: &str, backup: &str, wait: u64) -> Result<b
     };
     let before = differing(&current);
     if before.is_empty() {
-        println!("firmware: the bank already holds {image}; nothing to do");
+        eprintln!("firmware: bank already holds {image}");
         return Ok(false);
     }
-    println!("firmware: blocks {before:02x?} differ from {image}");
+    eprintln!("firmware: blocks {} differ", hex(&before, ","));
 
     // The card programs the guarded sectors itself from SDRAM.
-    println!("firmware: SDRAM self-program (the card writes its guarded sectors; do not power off)");
-    upgrade::install(cli, image, true, e120_proto::upgrade::Partition::Primary, 120, 3000, wait)?;
+    eprintln!("firmware: sdram self-program");
+    upgrade::install(
+        cli,
+        image,
+        true,
+        e120_proto::upgrade::Partition::Primary,
+        120,
+        3000,
+        wait,
+    )?;
 
     // The rest goes in through the host path, block by block.
-    let mut dev = open(cli)?;
-    let after_sdram = read_blocks(&mut dev, 0, protocol::FIRMWARE_BLOCKS.start, protocol::FIRMWARE_BLOCKS.len() as u16, wait)?;
-    drop(dev);
-    let mut left = differing(&after_sdram);
-    for b in left.clone() {
-        if [0u8, 1, 2, 8].contains(&b) {
-            continue; // guarded; only the self-program can write these
-        }
-        println!("firmware: host write of block 0x{b:02x}");
+    let after_sdram = read_primary_bank(&mut open(cli)?, 0, wait)?;
+    for &b in differing(&after_sdram)
+        .iter()
+        .filter(|b| !HOST_GUARDED_BLOCKS.contains(b))
+    {
+        eprintln!("firmware: host write 0x{b:02x}");
         flash_firmware(cli, image, backup, true, b..b + 1, 0, wait)?;
     }
-    let mut dev = open(cli)?;
-    let final_bank = read_blocks(&mut dev, 0, protocol::FIRMWARE_BLOCKS.start, protocol::FIRMWARE_BLOCKS.len() as u16, wait)?;
-    left = differing(&final_bank);
+    let final_bank = read_primary_bank(&mut open(cli)?, 0, wait)?;
+    let left = differing(&final_bank);
     if !left.is_empty() {
-        bail!("firmware: blocks {left:02x?} still differ from {image} after both write paths");
+        bail!(
+            "firmware: blocks {} still differ from {image} after both write paths",
+            hex(&left, ",")
+        );
     }
-    println!("firmware: bank verified against {image}");
+    eprintln!("firmware: bank verified");
     Ok(true)
 }
 
@@ -114,81 +129,92 @@ pub fn provision(
     let spec = e120_rcvbp::spec::PanelSpec::load(spec_path)?;
     let (w, h) = (spec.module.width, spec.module.height);
     let Some(info) = discover_one(cli, wait)? else {
-        bail!("no receiver card answered discovery on {}", cli.iface);
+        bail!("no response on {} within {wait}s", cli.iface);
     };
-    println!(
+    eprintln!(
         "card: type 0x{:02x}, firmware {}.{}, reports {}x{}",
         info.card_id, info.ver_major, info.ver_minor, info.cols, info.rows
     );
-    println!("plan: spec {spec_path} ({w}x{h}), cabinet at ({}, {})", position.0, position.1);
-    if let Some(fw) = firmware {
-        match version_in_name(fw) {
-            Some((a, b)) => println!("      firmware {fw} (expects the card to report {a}.{b} afterwards)"),
-            None => bail!("cannot read a version from the firmware file name {fw}"),
+    eprintln!(
+        "plan: spec {spec_path} ({w}x{h}), cabinet at {},{}",
+        position.0, position.1
+    );
+    let want_version = match firmware {
+        Some(fw) => {
+            let (a, b) = version_in_name(fw)
+                .with_context(|| format!("no version in the firmware file name {fw}"))?;
+            eprintln!("plan: firmware {fw}, card to report {a}.{b} afterwards");
+            Some((a, b))
         }
-    }
+        None => None,
+    };
     if !commit {
-        println!("\ndry run: nothing written. Re-run with --commit.");
+        println!("dry run: nothing written (add --commit)");
         return Ok(());
     }
 
     // 1. Snapshot: the only copy of what this card held.
     let snap = snapshot_dir.map_or_else(
-        || format!("build/snapshot-{}", chrono_like_stamp()),
+        || format!("build/snapshot-{}", unix_seconds()),
         ToString::to_string,
     );
-    println!("\n[1/5] snapshot -> {snap}");
+    eprintln!("[1/5] snapshot: {snap}");
     restore::snapshot(cli, &snap, 0, wait)?;
     let backup = format!("{snap}/primary-region.bin");
 
     // 2. Firmware.
-    if let Some(fw) = firmware {
-        println!("\n[2/5] firmware");
+    if let (Some(fw), Some(want)) = (firmware, want_version) {
+        eprintln!("[2/5] firmware: {fw}");
         if install_firmware(cli, fw, &backup, wait)? {
-            let want = version_in_name(fw).unwrap();
-            println!("firmware: power-cycle the card now; waiting for it to report {}.{} ...", want.0, want.1);
+            eprintln!(
+                "firmware: power-cycle the card now; waiting for {}.{}",
+                want.0, want.1
+            );
             let info = wait_for_version(cli, want, Duration::from_mins(10))?;
-            println!("firmware: card is back on {}.{}", info.ver_major, info.ver_minor);
+            eprintln!(
+                "firmware: card back on {}.{}",
+                info.ver_major, info.ver_minor
+            );
             // The card answers discovery before it has finished loading its
             // parameters; flash writes sent before then are unreliable.
             std::thread::sleep(Duration::from_secs(12));
         }
     } else {
-        println!("\n[2/5] firmware: skipped (no --firmware)");
+        eprintln!("[2/5] firmware: skipped (no --firmware)");
     }
 
     // 3. Read the EEPROM records before block 7 wipes their mirror.
-    println!("\n[3/5] eeprom: reading the current records");
+    eprintln!("[3/5] eeprom: reading records");
     let before = {
         let mut dev = open(cli)?;
         screen::read(&mut dev, 0, wait)?
     };
     let erased = screen::looks_erased(&before);
     if erased {
-        println!("eeprom: the record reads as erased; only the control area will be written");
+        eprintln!("eeprom: record reads as erased; only the control area will be written");
     }
 
     // 4. Configuration image.
-    println!("\n[4/5] config: generating from {spec_path}");
+    eprintln!("[4/5] config: {spec_path}");
     let out = format!("{snap}/config");
     config::gen_config(spec_path, &out)?;
     let img = format!("{out}/{}-block7.bin", spec.name);
     restore_flash(cli, &img, true, 0)?;
 
     // 5. EEPROM: every record back, control area set for this cabinet.
-    println!("\n[5/5] eeprom: writing records");
+    eprintln!("[5/5] eeprom: writing records");
     let mut dev = open(cli)?;
     let ca = eeprom::control_area(position.0, position.1, w, h);
     for r in eeprom::RECORDS {
         let (a, n) = (usize::from(r.addr), usize::from(r.len));
-        let data: Vec<u8> = if r.addr == 0x002 {
-            ca.to_vec()
+        let data: &[u8] = if r.addr == 0x002 {
+            &ca
         } else if erased || a + n > before.len() {
             continue;
         } else {
-            before[a..a + n].to_vec()
+            &before[a..a + n]
         };
-        dev.send(&eeprom::write(r.addr, &data))?;
+        dev.send(&eeprom::write(r.addr, data))?;
         // An EEPROM write takes the card milliseconds; back-to-back records
         // are dropped.
         std::thread::sleep(Duration::from_millis(500));
@@ -201,26 +227,34 @@ pub fn provision(
     // Verify.
     let after = screen::read(&mut dev, 0, wait)?;
     match eeprom::parse_control_area(&after[2..]) {
-        Some((x0, y0, x1, y1)) if (x0, y0, x1, y1) == (position.0, position.1, position.0 + w, position.1 + h) => {
-            println!("eeprom: control area verified ({x0},{y0})-({x1},{y1})");
+        Some((x0, y0, x1, y1))
+            if (x0, y0, x1, y1) == (position.0, position.1, position.0 + w, position.1 + h) =>
+        {
+            eprintln!("eeprom: control area verified {x0},{y0}-{x1},{y1}");
         }
         other => bail!("eeprom: control area reads back as {other:?}"),
     }
     drop(dev);
     match discover_one(cli, wait)? {
-        Some(i) if (i.cols, i.rows) == (w, h) => println!("discovery: {}x{} on firmware {}.{}", i.cols, i.rows, i.ver_major, i.ver_minor),
-        Some(i) => println!("discovery: reports {}x{} (expected {w}x{h}); it usually corrects after the power-cycle", i.cols, i.rows),
+        Some(i) if (i.cols, i.rows) == (w, h) => {
+            eprintln!(
+                "discovery: {}x{} on firmware {}.{}",
+                i.cols, i.rows, i.ver_major, i.ver_minor
+            );
+        }
+        Some(i) => eprintln!(
+            "discovery: {}x{} (expected {w}x{h}); usually corrects after the power-cycle",
+            i.cols, i.rows
+        ),
         None => bail!("the card stopped answering discovery"),
     }
 
-    println!("\ndone. Power-cycle the card: it arms from flash and renders whatever you send.");
-    println!("  e120 image picture.png --hold      e120 play video.mp4 --loop");
+    eprintln!("power-cycle the card to apply");
     Ok(())
 }
 
-fn chrono_like_stamp() -> String {
-    let secs = std::time::SystemTime::now()
+fn unix_seconds() -> u64 {
+    std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs());
-    format!("{secs}")
+        .map_or(0, |d| d.as_secs())
 }

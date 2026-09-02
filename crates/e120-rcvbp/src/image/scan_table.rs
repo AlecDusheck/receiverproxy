@@ -51,7 +51,7 @@ struct FieldTable {
 
 /// # Errors
 /// Fails for inputs whose vendor tables are not transcribed.
-pub fn body(rec: &View, card_scan_len: u16) -> Result<[u8; LEN]> {
+pub fn body(rec: View<'_>, card_scan_len: u16) -> Result<[u8; LEN]> {
     let n_seg = rec.segments();
     let style = rec.hr_style();
     if style != 0 || n_seg != 16 {
@@ -111,9 +111,9 @@ fn snap8(x: f32) -> f32 {
 /// `FromSegmentToFrameTime`: levels whose segment count equals nSeg move to
 /// the upper slot half; then each enabled slot gets a snapped bit time.
 fn fill_bit_times(ft: &mut FieldTable, n_seg: u32, min_oe: f32) {
-    for i in 0..LEVELS {
-        if ft.id[i] == n_seg {
-            ft.enable[i] = 0xFFFF_0000;
+    for (id, en) in ft.id.iter().zip(&mut ft.enable) {
+        if *id == n_seg {
+            *en = 0xFFFF_0000;
         }
     }
     for level in (1..GRAY).rev() {

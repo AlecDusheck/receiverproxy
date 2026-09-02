@@ -9,7 +9,7 @@ use crate::record01::{off, View};
 
 const CRC: usize = 0xFC;
 
-pub fn body(spec: &PanelSpec, rec: &View, prov: &mut Vec<String>) -> [u8; 256] {
+pub fn body(spec: &PanelSpec, rec: View<'_>, prov: &mut Vec<String>) -> [u8; 256] {
     let mut b = [0u8; 256];
     let r = rec.bytes();
     let mut put = |at: usize, bytes: &[u8], what: &str| {
@@ -110,7 +110,7 @@ fn head_code(rec_008: u8, dim_hi: u8) -> u8 {
 /// Pack +0x4C..+0x53: the luminance level split by the current percents —
 /// R = floor(V·pR), B = floor((V−R−G)·pB), rest = V−R−G−B, G = floor(V·pG),
 /// emitted as R, B, rest, G. The factory tool floors (this dylib rounds).
-fn current_split(v: u16, rec: &View) -> [u8; 8] {
+fn current_split(v: u16, rec: View<'_>) -> [u8; 8] {
     let pr = rec.f32_le(off::CURRENT_PCT);
     let pg = rec.f32_le(off::CURRENT_PCT + 4);
     let pb = rec.f32_le(off::CURRENT_PCT + 8);
@@ -135,14 +135,7 @@ fn body_crc(body: &[u8; 256]) -> u32 {
     hashed[0x1B] = 0;
     hashed[0xE7] = 0;
     hashed[0xE8] = 0;
-    let mut crc = 0xFFFF_FFFFu32;
-    for &byte in &hashed[..CRC] {
-        crc ^= u32::from(byte);
-        for _ in 0..8 {
-            crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
-        }
-    }
-    !crc
+    !crate::crc32::update(0xFFFF_FFFF, &hashed[..CRC])
 }
 
 #[cfg(test)]

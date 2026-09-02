@@ -1,6 +1,6 @@
 //! Flash access, with allowlists that keep writes where they belong.
 
-use super::frame;
+use super::{frame_with, indexed};
 
 /// Read opcode. A read frame carries no data, so it cannot modify the card
 /// wherever it is pointed.
@@ -52,13 +52,18 @@ pub const FLASH_CHUNK_BYTES: usize = 1024;
 
 /// Card-flash read: type 0x0600, 126-byte payload. Requests 1024 bytes
 /// starting at `page` (a 256-byte page index).
+#[must_use]
 pub fn read_flash(rcv_index: u16, page: u16) -> Vec<u8> {
-    let mut p = [0u8; 126];
-    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
-    p[3] = FLASH_OP_READ;
-    p[4] = 0x01;
-    p[5..7].copy_from_slice(&page.to_be_bytes());
-    frame([0x06, 0x00], &p)
+    paged(rcv_index, FLASH_OP_READ, page)
+}
+
+/// A 0x0600 read or erase: `[4]` = 0x01, `[5..7]` page BE, no data.
+fn paged(rcv_index: u16, opcode: u8, page: u16) -> Vec<u8> {
+    frame_with([0x06, 0x00], 126, |p| {
+        indexed(p, rcv_index, opcode);
+        p[4] = 0x01;
+        p[5..7].copy_from_slice(&page.to_be_bytes());
+    })
 }
 
 /// Unlock or relock the write-protected program region.
@@ -68,10 +73,9 @@ pub fn read_flash(rcv_index: u16, page: u16) -> Vec<u8> {
 /// on failure.
 #[must_use]
 pub fn set_program_writable(rcv_index: u16, writable: bool) -> Vec<u8> {
-    let mut p = [0u8; 126];
-    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
-    p[3] = if writable { 0xff } else { 0x00 };
-    frame([0x23, 0x00], &p)
+    frame_with([0x23, 0x00], 126, |p| {
+        indexed(p, rcv_index, if writable { 0xff } else { 0x00 });
+    })
 }
 
 /// Rejected before anything reaches the wire.
@@ -107,15 +111,38 @@ impl std::fmt::Display for WriteError {
 
 impl std::error::Error for WriteError {}
 
+/// The allowlist for the parameter helpers: [`PARAM_BLOCK`] only.
+fn param_block(block: u8) -> Result<u8, WriteError> {
+    if block == PARAM_BLOCK {
+        Ok(block)
+    } else {
+        Err(WriteError::ForbiddenBlock(block))
+    }
+}
+
+/// The allowlist for the firmware helpers: [`FIRMWARE_BLOCKS`] only.
+fn firmware_block(block: u8) -> Result<u8, WriteError> {
+    if FIRMWARE_BLOCKS.contains(&block) {
+        Ok(block)
+    } else {
+        Err(WriteError::ForbiddenBlock(block))
+    }
+}
+
+fn one_page(data: &[u8]) -> Result<&[u8], WriteError> {
+    if data.len() == FLASH_PAGE_BYTES {
+        Ok(data)
+    } else {
+        Err(WriteError::WrongPageSize(data.len()))
+    }
+}
+
 /// Erase the parameter block (all 64KB; the caller must hold a full copy).
 ///
 /// # Errors
 /// Refuses any block other than [`PARAM_BLOCK`].
 pub fn erase_block(rcv_index: u16, block: u8) -> Result<Vec<u8>, WriteError> {
-    if block != PARAM_BLOCK {
-        return Err(WriteError::ForbiddenBlock(block));
-    }
-    Ok(erase_block_unchecked(rcv_index, block))
+    Ok(erase_block_unchecked(rcv_index, param_block(block)?))
 }
 
 /// Erase a firmware block. Separate from [`erase_block`] so that writing
@@ -124,10 +151,7 @@ pub fn erase_block(rcv_index: u16, block: u8) -> Result<Vec<u8>, WriteError> {
 /// # Errors
 /// Refuses any block outside [`FIRMWARE_BLOCKS`].
 pub fn erase_firmware_block(rcv_index: u16, block: u8) -> Result<Vec<u8>, WriteError> {
-    if !FIRMWARE_BLOCKS.contains(&block) {
-        return Err(WriteError::ForbiddenBlock(block));
-    }
-    Ok(erase_block_unchecked(rcv_index, block))
+    Ok(erase_block_unchecked(rcv_index, firmware_block(block)?))
 }
 
 /// Write one page of a firmware block.
@@ -141,22 +165,11 @@ pub fn write_firmware_page(
     page: u8,
     data: &[u8],
 ) -> Result<Vec<u8>, WriteError> {
-    if !FIRMWARE_BLOCKS.contains(&block) {
-        return Err(WriteError::ForbiddenBlock(block));
-    }
-    if data.len() != FLASH_PAGE_BYTES {
-        return Err(WriteError::WrongPageSize(data.len()));
-    }
-    Ok(write_page_unchecked(rcv_index, block, page, data))
+    Ok(write_page_unchecked(rcv_index, firmware_block(block)?, page, one_page(data)?))
 }
 
 fn erase_block_unchecked(rcv_index: u16, block: u8) -> Vec<u8> {
-    let mut p = [0u8; 126];
-    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
-    p[3] = FLASH_OP_ERASE;
-    p[4] = 0x01;
-    p[5..7].copy_from_slice(&(u16::from(block) << 8).to_be_bytes());
-    frame([0x06, 0x00], &p)
+    paged(rcv_index, FLASH_OP_ERASE, u16::from(block) << 8)
 }
 
 /// Write one 256-byte page within the parameter block.
@@ -165,25 +178,18 @@ fn erase_block_unchecked(rcv_index: u16, block: u8) -> Vec<u8> {
 /// Refuses any block other than [`PARAM_BLOCK`], or a payload that is not
 /// exactly one page.
 pub fn write_page(rcv_index: u16, block: u8, page: u8, data: &[u8]) -> Result<Vec<u8>, WriteError> {
-    if block != PARAM_BLOCK {
-        return Err(WriteError::ForbiddenBlock(block));
-    }
-    if data.len() != FLASH_PAGE_BYTES {
-        return Err(WriteError::WrongPageSize(data.len()));
-    }
-    Ok(write_page_unchecked(rcv_index, block, page, data))
+    Ok(write_page_unchecked(rcv_index, param_block(block)?, page, one_page(data)?))
 }
 
 fn write_page_unchecked(rcv_index: u16, block: u8, page: u8, data: &[u8]) -> Vec<u8> {
     // Mirrors the read frame: [1..3] index, [3] opcode, [4] flag, [5] block,
     // [6] page; the vendor copies data to payload offset 0x0a (index 8).
-    let mut p = vec![0u8; 8 + FLASH_PAGE_BYTES];
-    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
-    p[3] = FLASH_OP_WRITE;
-    p[5] = block;
-    p[6] = page;
-    p[8..].copy_from_slice(data);
-    frame([0x06, 0x00], &p)
+    frame_with([0x06, 0x00], 8 + FLASH_PAGE_BYTES, |p| {
+        indexed(p, rcv_index, FLASH_OP_WRITE);
+        p[5] = block;
+        p[6] = page;
+        p[8..].copy_from_slice(data);
+    })
 }
 
 /// Write the screen-size record back to flash (linear-address frame 0x1900).
@@ -200,25 +206,25 @@ pub fn write_screen_record(rcv_index: u16, addr: u32, data: &[u8]) -> Result<Vec
     if addr < LINEAR_ALLOWED.start || end > LINEAR_ALLOWED.end {
         return Err(WriteError::ForbiddenAddress(addr));
     }
-    let mut p = vec![0u8; 12 + data.len() + 4];
-    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
-    p[3] = FLASH_OP_WRITE;
-    p[4..8].copy_from_slice(&addr.to_be_bytes());
-    p[8..12].copy_from_slice(&(SCREEN_RECORD_LEN as u32).to_be_bytes());
-    p[12..12 + data.len()].copy_from_slice(data);
-    Ok(frame([0x19, 0x00], &p))
+    Ok(linear(rcv_index, FLASH_OP_WRITE, addr, SCREEN_RECORD_LEN as u32, data, 4))
 }
 
 /// Read `len` bytes at any flash address (used to dump firmware and survey
 /// unmapped regions).
 #[must_use]
 pub fn read_flash_linear(rcv_index: u16, addr: u32, len: u32) -> Vec<u8> {
-    let mut p = vec![0u8; 12];
-    p[1..3].copy_from_slice(&rcv_index.to_be_bytes());
-    p[3] = FLASH_OP_READ;
-    p[4..8].copy_from_slice(&addr.to_be_bytes());
-    p[8..12].copy_from_slice(&len.to_be_bytes());
-    frame([0x19, 0x00], &p)
+    linear(rcv_index, FLASH_OP_READ, addr, len, &[], 0)
+}
+
+/// A linear-address 0x1900 frame: `[4..8]` address, `[8..12]` length, data at
+/// 12, then `tail` zero bytes.
+fn linear(rcv_index: u16, opcode: u8, addr: u32, len: u32, data: &[u8], tail: usize) -> Vec<u8> {
+    frame_with([0x19, 0x00], 12 + data.len() + tail, |p| {
+        indexed(p, rcv_index, opcode);
+        p[4..8].copy_from_slice(&addr.to_be_bytes());
+        p[8..12].copy_from_slice(&len.to_be_bytes());
+        p[12..12 + data.len()].copy_from_slice(data);
+    })
 }
 
 /// Extract the flash bytes from a reply frame: Ethernet header, a one-byte

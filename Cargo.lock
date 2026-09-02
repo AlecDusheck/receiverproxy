@@ -175,6 +175,7 @@ dependencies = [
  "e120-rcvbp",
  "e120-video",
  "image",
+ "libc",
  "serde_json",
 ]
 

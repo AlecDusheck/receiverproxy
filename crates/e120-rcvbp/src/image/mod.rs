@@ -20,6 +20,9 @@ pub const BASIC_PACK_OFFSET: usize = 0x0000;
 pub const DATA_SWAP_OFFSET: usize = 0x0500;
 pub const MODULE_POS_OFFSET: usize = 0x0600;
 pub const CHIP_PAGE_OFFSET: usize = 0x0900;
+/// The void-line packs (zeroed for this chip; `send_params` slices them).
+pub const VOID_LINE_OFFSET: usize = 0x1000;
+pub const VOID_LINE_COLUMNS_OFFSET: usize = 0x1400;
 pub const ANTI_VOID_OFFSET: usize = 0x1800;
 pub const MAPPING_OFFSET: usize = 0x3000;
 pub const MAPPING_LEN: usize = 0x3000;
@@ -101,9 +104,8 @@ impl Block7Builder {
     /// interleaved wiring `width..2*width` carry nothing of ours and were
     /// driven with a fixed pattern (docs/black-floor.md).
     pub fn void_line_columns(&mut self, from: u16, to: u16) {
-        for a in from..to {
-            self.img[0x1400 + usize::from(a)] = 0xFF;
-        }
+        let at = VOID_LINE_COLUMNS_OFFSET;
+        self.img[at + usize::from(from)..at + usize::from(to)].fill(0xFF);
         self.notes.push(format!(
             "0x1400: void-line column table, positions {from}..{to} displaced off the chain"
         ));
@@ -128,13 +130,13 @@ impl Block7Builder {
     /// # Errors
     /// Fails if record 0x84 is present but not one page.
     pub fn chip_registers_from(&mut self, cfg: &Rcvbp) -> Result<()> {
-        let Ok(rec) = record(cfg, 0x84) else {
+        let Some(rec) = cfg.find_by_id(0x84) else {
             return Ok(());
         };
-        if rec.len() != 0x100 {
-            bail!("record 0x84 is {} bytes, need 256", rec.len());
+        if rec.payload.len() != 0x100 {
+            bail!("record 0x84 is {} bytes, need 256", rec.payload.len());
         }
-        self.place(CHIP_PAGE_OFFSET, rec, "page 0x09: chip registers");
+        self.place(CHIP_PAGE_OFFSET, &rec.payload, "page 0x09: chip registers");
         Ok(())
     }
 
@@ -143,7 +145,7 @@ impl Block7Builder {
     /// # Errors
     /// Fails on a short record.
     pub fn data_swap_from(&mut self, rec01: &[u8]) -> Result<()> {
-        let body = data_swap::body(&View::new(rec01)?);
+        let body = data_swap::body(View::new(rec01)?);
         self.place(DATA_SWAP_OFFSET, &body, "0x500: data-swap (lane map + deseam 1.0 x3)");
         Ok(())
     }
@@ -153,7 +155,7 @@ impl Block7Builder {
     /// # Errors
     /// Fails on a short record or an unimplemented split layout.
     pub fn module_positions_from(&mut self, rec01: &[u8]) -> Result<()> {
-        let (region, note) = module_pos::region(&View::new(rec01)?)?;
+        let (region, note) = module_pos::region(View::new(rec01)?)?;
         self.place(MODULE_POS_OFFSET, &region, note);
         Ok(())
     }
@@ -178,9 +180,10 @@ impl Block7Builder {
         if body.len() > MAPPING_LEN {
             bail!("mapping record ({} bytes) exceeds its region", body.len());
         }
-        let mut out = vec![0u8; MAPPING_LEN];
-        for (i, e) in body.chunks_exact(3).enumerate() {
-            out[i * 3..i * 3 + 3].copy_from_slice(&[e[0], e[2], e[1]]);
+        let dst = &mut self.img[MAPPING_OFFSET..MAPPING_OFFSET + MAPPING_LEN];
+        dst.fill(0);
+        for (d, e) in dst.chunks_exact_mut(3).zip(body.chunks_exact(3)) {
+            d.copy_from_slice(&[e[0], e[2], e[1]]);
         }
         let note = if body.len() < MAPPING_LEN {
             format!(
@@ -190,7 +193,7 @@ impl Block7Builder {
         } else {
             format!("pages 0x30-0x5f: mapping ({} entries)", body.len() / 3)
         };
-        self.place(MAPPING_OFFSET, &out, note);
+        self.notes.push(note);
         Ok(())
     }
 
@@ -199,7 +202,7 @@ impl Block7Builder {
     /// # Errors
     /// Fails for solver inputs outside the transcribed cases.
     pub fn scan_table_from(&mut self, rec01: &[u8], card_scan_len: u16) -> Result<()> {
-        let table = scan_table::body(&View::new(rec01)?, card_scan_len)?;
+        let table = scan_table::body(View::new(rec01)?, card_scan_len)?;
         self.place(SCAN_TABLE_OFFSET, &table, "0x6000: scan table (bit-time solver)");
         Ok(())
     }
@@ -223,21 +226,34 @@ impl Block7Builder {
 
     /// The image, what was placed, and which pages are no longer erased.
     #[must_use]
-    pub fn finish(self) -> (Vec<u8>, Vec<String>, Vec<u8>) {
-        let changed = (0..=255u8)
-            .filter(|&p| {
-                let at = usize::from(p) * 0x100;
-                self.img[at..at + 0x100].iter().any(|&b| b != 0xFF)
-            })
+    pub fn finish(self) -> Block7 {
+        let changed_pages = self
+            .img
+            .chunks_exact(0x100)
+            .enumerate()
+            .filter(|(_, page)| page.iter().any(|&b| b != 0xFF))
+            .map(|(i, _)| i as u8)
             .collect();
-        (self.img, self.notes, changed)
+        Block7 {
+            image: self.img,
+            notes: self.notes,
+            changed_pages,
+        }
     }
 }
 
+/// A finished block-7 image.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Block7 {
+    pub image: Vec<u8>,
+    /// One line per region placed.
+    pub notes: Vec<String>,
+    /// Pages (256 B) that are no longer erased flash.
+    pub changed_pages: Vec<u8>,
+}
+
 fn record(cfg: &Rcvbp, id: u8) -> Result<&[u8]> {
-    cfg.records
-        .iter()
-        .find(|r| r.rtype[1] == id)
+    cfg.find_by_id(id)
         .map(|r| r.payload.as_slice())
-        .ok_or_else(|| anyhow::anyhow!("config has no record 0x{id:02x}"))
+        .with_context(|| format!("config has no record 0x{id:02x}"))
 }

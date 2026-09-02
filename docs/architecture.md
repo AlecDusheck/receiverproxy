@@ -77,13 +77,13 @@ each placement ([building-a-config.md](building-a-config.md)).
 
 | output | built by | from |
 |---|---|---|
-| record 0x01 (764 B) | `spec/record01.rs` | vendor Reset defaults, spec fields, chip-control block, then chip-library overrides, then `[record01_overrides]` last — this is where `+0x02F = 1` lands |
+| record 0x01 (764 B) | `spec/record01.rs` | vendor Reset defaults, spec fields, chip-control block, then chip-library overrides, then `[record01_overrides]` last — this is where `+0x02F = 1` lands (the `0x..` keys are parsed and range-checked when the TOML loads, `chips.rs::record01_offsets`) |
 | record 0x03 pixel map | `spec/mapping.rs` | geometry + `[mapping]`: `line = row % scan`, `slot = (col/blk)·(groups·blk) + group·blk + col%blk`, `blk = mapping.block` |
 | record 0x84 chip registers | `chips.rs::record_84` | library register order, reg 0x02 = scan−1 |
 | remaining records | `spec/records.rs` | decoded loader defaults, vendor order; 0x84 inserted before 0xcd |
 | `.rcvbp` container | `lib.rs` | 32-byte header, zlib record stream, CRC-32 trailer ([rcvbp-format.md](rcvbp-format.md)) |
 | basic pack (256 B) | `spec/basic_pack.rs` | vendor `GetBasicParam` from record 0x01 + spec, body CRC |
-| block-7 image (64 KB) | `image/mod.rs::Block7Builder` | region by region ([compiled-image-format.md](compiled-image-format.md)) |
+| block-7 image (64 KB) | `image/mod.rs::Block7Builder`, `finish()` → `Block7 { image, notes, changed_pages }` | region by region ([compiled-image-format.md](compiled-image-format.md)); the region offsets are the `image::*_OFFSET` constants |
 
 Block-7 regions, in the order the builder must place them (later placements
 win overlapping pages):
@@ -138,18 +138,25 @@ brightness (0x0A, 77 B)  →  one 0x55 row packet per panel row (64 × 128 px)
 * `e120-proto/src/pixel.rs` builds the three frame kinds byte-exact against
   CLTNic.dll ([pixel-protocol.md](pixel-protocol.md)): `0x55` at offset 12,
   row / x-offset / count as BE u16 at 13/15/17, `08 88` at 19–20, pixels
-  from 21, at most 497 per packet. It sequences nothing.
+  from 21, at most 497 per packet. It sequences nothing. `sync` and
+  `brightness` are fixed-size arrays; `pixel_row_into` fills a caller-owned
+  buffer so a refresh loop need not allocate per packet. Every other builder
+  goes through `frame_with` (one allocation, payload written in place).
 * `e120-driver::Wall::show` is the only content path (`play`, `pattern`,
   `image`, `fill`, `test`, `blank`): it renders an `e120-canvas::Canvas`
   (panels with position, rotation, flip, per receiver) into one framebuffer
-  per receiver, cuts rows, chunks at 497, then applies `Timing` (latch gap,
+  per receiver (framebuffers, row packet buffer, brightness and latch frames
+  are built once in `Wall::with_sink` and reused, so a refresh allocates
+  nothing), cuts rows, chunks at 497, then applies `Timing` (latch gap,
   latch count, row gap; defaults are the measured recipe); `Pacer` keeps the
   fps. `e120-video` supplies frames (ffmpeg rawvideo pipe, test patterns).
   `e120-cli/src/display.rs::wall_settings` builds the `Settings` once, with
   the env-var overrides below.
 * `e120-net::Bpf` is a dumb pipe: one `send` = one wire frame, `recv` returns
-  within the timeout with whatever arrived, promiscuous so card replies to
-  the vendor sender MAC are seen. No protocol knowledge lives there.
+  within the timeout with whatever arrived (frames borrowed from one reused
+  kernel-sized buffer), always promiscuous so card replies to the vendor
+  sender MAC are seen. No protocol knowledge lives there. `read_pcap` yields
+  a `Pcap` whose `packets()` borrow the file bytes the same way.
 
 The card keeps only pixels whose screen coordinates fall inside its EEPROM
 control area, so a multi-panel wall is many cards each provisioned with its
@@ -162,10 +169,10 @@ own `--position` and one `e120 play --layout wall.json` stream.
 | `e120-proto` | frame builders and reply parsers for every packet type; flash/EEPROM/firmware address allowlists | open sockets, sleep, sequence frames |
 | `e120-net` | `/dev/bpf` open/send/recv on Darwin; classic pcap reader | know any Colorlight framing or MAC |
 | `e120-rcvbp` | `.rcvbp` parse/write, record 0x01 view, chip library, spec → records/pack/boot image | touch the network or PSU |
-| `e120-canvas` | RGB8 `Frame`, wall topology, canvas → per-receiver framebuffers | — |
-| `e120-video` | `FrameSource`s: ffmpeg video, `Pattern`s | — |
-| `e120-driver` | `Wall::show` (the measured frame recipe), `Pacer`, layout announce | — |
-| `e120-cli` | the `e120` binary: clap tree, command modules, Block7 assembly order, still-image send path, flash discipline (dry-run/backup/verify), provisioning sequence | hold byte layouts (they belong in proto/rcvbp) |
+| `e120-canvas` | RGB8 `Frame` (bytes private; `row`/`as_bytes` accessors), wall topology, `validate` → `LayoutError`, canvas → per-receiver framebuffers (`render`, or `render_into` reusing them; unrotated panels are row copies) | — |
+| `e120-video` | `VideoSource` (ffmpeg rawvideo pipe, `next_frame` refills a caller-owned `Frame`), `Pattern`s, `Fit`/`Pattern` name parsing | — |
+| `e120-driver` | `Wall::show` (the measured frame recipe), `Pacer`, layout announce; `FrameSink` (`Bpf` in production, a recording `Vec` in tests) so the recipe is pinned offline | — |
+| `e120-cli` | the `e120` binary: clap tree, command modules, Block7 assembly order, still-image send path, flash discipline (dry-run/backup/verify), provisioning sequence. Unix conventions: results only on stdout (a value, a path per line, a table), progress and step lines on stderr, warnings as `e120: warning: …`, errors as `e120: <subcommand>: …` with exit 1 (`main.rs` wraps every command's error in its subcommand path), usage errors exit 2 | hold byte layouts (they belong in proto/rcvbp) |
 | `scripts/` | the bench (`bench.py`, `psu.sh`) and read-only config inspection; EEPROM repair | build pixel frames |
 
 ## Measured defaults and where each lives
@@ -218,7 +225,7 @@ Experiment-only overrides (defaults above are the contract; nothing in
 | change a record 0x01 byte | `[record01_overrides]` in the spec, or `spec/record01.rs` DEFAULTS if it is a vendor default | update the delta test in `factory.rs` |
 | change a boot-image region | `rcvbp/src/image/*`; the order lives in `Block7Builder::from_generated` | `the_factory_image_rebuilds_from_erased_flash…`, `the_bench_spec_displaces_the_phantom_positions` |
 | change the wire format of a frame | `proto/src/pixel.rs` (rows/latch/brightness) or the matching proto module | the byte-pinned proto tests |
-| change frame timing or latch count | `driver/src/lib.rs` `Timing::default()` (and the matching defaults in `cli/src/display.rs::wall_settings`) | `bench.py run`, judge by eye, update rendering-recipe.md |
+| change frame timing or latch count | `driver/src/lib.rs` `Timing::default()` (`cli/src/display.rs::wall_settings` starts from it and applies the env overrides) | `bench.py run`, judge by eye, update rendering-recipe.md |
 | add a content source or pattern | `e120-video` | `e120 pattern` / `play` |
 | add a wall layout feature (rotation, flip) | `e120-canvas` | canvas unit tests; layout JSON is the on-disk format |
 | add a flash or EEPROM operation | builder + allowlist in `e120-proto`, command in `e120-cli`; dry-run without `--commit` | `flash-review.py` after |

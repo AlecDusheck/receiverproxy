@@ -1,12 +1,12 @@
 //! Inspecting, composing and comparing `.rcvbp` configuration files.
 
 use crate::rcvbp;
-use crate::util::hexdump;
+use crate::util::{hex, hexdump, warn};
 use anyhow::{Context, Result};
 use std::fmt::Write as _;
 
 /// Parse a comma-separated list of hex record types.
-pub fn parse_types(s: &str) -> Result<Vec<u16>> {
+fn parse_types(s: &str) -> Result<Vec<u16>> {
     s.split(',')
         .map(str::trim)
         .filter(|t| !t.is_empty())
@@ -25,7 +25,6 @@ pub fn config_build(
     out: &str,
 ) -> Result<()> {
     let mut cfg = rcvbp::Rcvbp::load(base)?;
-    println!("base {base}: {} records", cfg.records.len());
 
     let to_copy = parse_types(copy)?;
     if !to_copy.is_empty() {
@@ -35,39 +34,27 @@ pub fn config_build(
             let rec = src
                 .find(t)
                 .with_context(|| format!("{src_path} has no record 0x{t:04x}"))?;
-            let existed = cfg.find(t).is_some();
             cfg.upsert(t, rec.payload.clone());
-            println!(
-                "  {} record 0x{t:04x} ({} bytes) from {src_path}",
-                if existed { "replaced" } else { "added" },
-                rec.payload.len()
-            );
         }
     }
 
     for t in parse_types(remove)? {
-        println!(
-            "  {} record 0x{t:04x}",
-            if cfg.remove(t) { "removed" } else { "no such" }
-        );
+        if !cfg.remove(t) {
+            warn(format!("{base} has no record 0x{t:04x} to remove"));
+        }
     }
 
     cfg.save(out)?;
-    let written = std::fs::metadata(out)?.len();
-    println!(
-        "wrote {out}: {} records, {written} bytes on disk",
-        cfg.records.len()
-    );
 
     // Read it straight back so a broken file never reaches the card.
     let back = rcvbp::Rcvbp::load(out)?;
     anyhow::ensure!(
         back.records.len() == cfg.records.len(),
-        "verification failed: wrote {} records but read back {}",
+        "{out}: wrote {} records but read back {}",
         cfg.records.len(),
         back.records.len()
     );
-    println!("verified: reparses to {} records", back.records.len());
+    println!("{out}");
     Ok(())
 }
 
@@ -103,9 +90,13 @@ pub fn config_diff(a: &str, b: &str) -> Result<()> {
         if ra.payload == rb.payload {
             continue;
         }
-        let n = ra.payload.len().min(rb.payload.len());
-        let diffs: Vec<usize> = (0..n)
-            .filter(|i| ra.payload[*i] != rb.payload[*i])
+        let diffs: Vec<usize> = ra
+            .payload
+            .iter()
+            .zip(&rb.payload)
+            .enumerate()
+            .filter(|(_, (x, y))| x != y)
+            .map(|(i, _)| i)
             .collect();
         println!(
             "record 0x{t:04x}: {} vs {} bytes, {} differ",
@@ -174,7 +165,7 @@ pub fn rcvbp_info(path: &str, dump: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn describe_record(t: u16, empty: bool) -> &'static str {
+fn describe_record(t: u16, empty: bool) -> &'static str {
     match (t, empty) {
         (_, true) => "(empty table)",
         (0x0a01, _) => "main receiver parameters (geometry, scan, timing)",
@@ -206,7 +197,11 @@ pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
         b.chip_registers_from(&g.rcvbp)?;
     }
     b.rcvbp(&g.rcvbp.to_file_bytes()?)?;
-    let (img, notes, changed) = b.finish();
+    let rcvbp::image::Block7 {
+        image: img,
+        notes,
+        changed_pages: changed,
+    } = b.finish();
     let img_path = format!("{stem}-block7.bin");
     std::fs::write(&img_path, &img).with_context(|| format!("write {img_path}"))?;
 
@@ -221,21 +216,15 @@ pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
         report.push_str(n);
         report.push('\n');
     }
-    let pages: Vec<String> = changed.iter().map(|p| format!("{p:02x}")).collect();
     let _ = writeln!(
         report,
         "pages written: {}: {}",
         changed.len(),
-        pages.join(" ")
+        hex(&changed, " ")
     );
     let report_path = format!("{stem}-provenance.txt");
     std::fs::write(&report_path, &report).with_context(|| format!("write {report_path}"))?;
 
-    println!("generated {}:", spec.name);
-    println!("  {rcvbp_path}");
-    println!("  {pack_path}");
-    println!("  {img_path}   ({} pages differ from base)", changed.len());
-    println!("  {report_path}");
-    println!("install: e120 provision --spec {spec_path} --commit   (or: e120 restore-flash {img_path} --commit)");
+    println!("{rcvbp_path}\n{pack_path}\n{img_path}\n{report_path}");
     Ok(())
 }

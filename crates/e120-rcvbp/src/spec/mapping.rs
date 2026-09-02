@@ -20,8 +20,7 @@ pub fn record(spec: &PanelSpec) -> Vec<u8> {
     let blk = spec.mapping.block.unwrap_or(w).clamp(1, w);
     let mut out = Vec::with_capacity(2 + usize::from(n) * 3);
     out.extend_from_slice(&n.to_le_bytes());
-    for i in 0..n {
-        let (row, col) = (i / w, i % w);
+    for row in 0..h {
         let line = if spec.mapping.reversed_lines {
             scan - 1 - row % scan
         } else {
@@ -32,9 +31,11 @@ pub fn record(spec: &PanelSpec) -> Vec<u8> {
         } else {
             row / scan
         };
-        let slot = (col / blk) * (groups * blk) + group * blk + col % blk;
-        out.push(line as u8);
-        out.extend_from_slice(&slot.to_le_bytes());
+        for col in 0..w {
+            let slot = (col / blk) * (groups * blk) + group * blk + col % blk;
+            out.push(line as u8);
+            out.extend_from_slice(&slot.to_le_bytes());
+        }
     }
     out
 }

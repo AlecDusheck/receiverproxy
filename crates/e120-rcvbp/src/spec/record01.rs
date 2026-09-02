@@ -6,7 +6,7 @@
 use super::PanelSpec;
 use crate::chips::ChipLibrary;
 use crate::record01::{off, LEN};
-use anyhow::{bail, Context, Result};
+use anyhow::Result;
 
 /// Non-zero bytes of a freshly constructed config before any user setting:
 /// (offset, bytes). Ramps and floats are spelled out where the constructor
@@ -143,13 +143,8 @@ pub fn build(spec: &PanelSpec, chip: &ChipLibrary, prov: &mut Vec<String>) -> Re
         put(0x0E0, ex, "chip library chip_custom_ex (SChipCustomEX)");
     }
     put(0x0C4, &chip.chip_control, "chip library chip_control (SChipControl)");
-    for (key, value) in chip.record01_overrides.iter().chain(&spec.record01_overrides) {
-        let at = usize::from_str_radix(key.trim_start_matches("0x"), 16)
-            .with_context(|| format!("bad record01_overrides offset {key:?}"))?;
-        if at >= LEN {
-            bail!("record01_overrides offset {key} is past the record");
-        }
-        put(at, &[*value], "record01_overrides (chip library, then spec)");
+    for (&at, &value) in chip.record01_overrides.iter().chain(&spec.record01_overrides) {
+        put(at, &[value], "record01_overrides (chip library, then spec)");
     }
     Ok(p)
 }

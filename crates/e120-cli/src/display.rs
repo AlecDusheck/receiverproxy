@@ -5,8 +5,7 @@ use crate::util::open;
 use crate::{protocol, Cli};
 use anyhow::{Context, Result};
 use e120_canvas::{Canvas, Frame};
-use e120_video::FrameSource;
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::time::Duration;
 
 /// Load a wall layout, or build a single-panel one from the size flags.
@@ -31,16 +30,18 @@ fn env_or<T: std::str::FromStr>(name: &str, default: T) -> T {
 /// Driver settings from the CLI flags. `E120_LATCHES`, `E120_LATCH_GAP_US`
 /// and `E120_ROW_GAP_US` override the measured timing for experiments.
 pub fn wall_settings(cli: &Cli) -> e120_driver::Settings {
+    let t = e120_driver::Timing::default();
+    let micros = |name, d: Duration| Duration::from_micros(env_or(name, d.as_micros() as u64));
     e120_driver::Settings {
         brightness: cli.brightness,
         color_order: cli.order,
         announce_layout: false,
         timing: e120_driver::Timing {
-            latches: env_or("E120_LATCHES", 3),
-            latch_gap: Duration::from_micros(env_or("E120_LATCH_GAP_US", 500)),
+            latches: env_or("E120_LATCHES", t.latches),
+            latch_gap: micros("E120_LATCH_GAP_US", t.latch_gap),
             // The card's receive FIFO is 1 KB; a gap here is the experiment
             // for a line-rate burst dropping its tail. None was needed.
-            row_gap: Duration::from_micros(env_or("E120_ROW_GAP_US", 0)),
+            row_gap: micros("E120_ROW_GAP_US", t.row_gap),
         },
     }
 }
@@ -60,36 +61,33 @@ pub fn play(
     layout: Option<&str>,
 ) -> Result<()> {
     let canvas = load_canvas(cli, layout)?;
-    let fit = match fit {
-        "stretch" => e120_video::Fit::Stretch,
-        "contain" => e120_video::Fit::Contain,
-        "cover" => e120_video::Fit::Cover,
-        other => anyhow::bail!("unknown fit {other:?} (stretch|contain|cover)"),
-    };
-    println!(
-        "playing {input} on {}x{} at {fps} fps",
-        canvas.width, canvas.height
-    );
+    let fit: e120_video::Fit = fit.parse()?;
 
     let mut source =
         e120_video::VideoSource::open(input, canvas.width, canvas.height, fps, fit, looping)?;
+    let mut frame = Frame::black(canvas.width, canvas.height);
     let mut wall = e120_driver::Wall::open(&cli.iface, canvas, wall_settings(cli))?;
     let mut pacer = e120_driver::Pacer::new(fps);
 
-    while let Some(frame) = source.next_frame()? {
+    let mut stderr = std::io::stderr();
+    let progress = stderr.is_terminal();
+    while source.next_frame(&mut frame)? {
         wall.show(&frame)?;
         pacer.wait();
-        if wall.frames_sent().is_multiple_of(60) {
-            print!(
+        if progress && wall.frames_sent().is_multiple_of(60) {
+            let _ = write!(
+                stderr,
                 "\r{} frames, {:.1} fps",
                 wall.frames_sent(),
                 pacer.achieved_fps()
             );
-            std::io::stdout().flush().ok();
         }
     }
+    if progress {
+        let _ = write!(stderr, "\r");
+    }
     println!(
-        "\rplayed {} frames at {:.1} fps",
+        "{} frames, {:.1} fps",
         wall.frames_sent(),
         pacer.achieved_fps()
     );
@@ -97,14 +95,10 @@ pub fn play(
 }
 
 /// Show one still: three refreshes, or refresh until Ctrl-C when `hold`.
-pub fn show_frame(cli: &Cli, canvas: Canvas, frame: &Frame, hold: bool, what: &str) -> Result<()> {
+pub fn show_frame(cli: &Cli, canvas: Canvas, frame: &Frame, hold: bool) -> Result<()> {
     let mut wall = e120_driver::Wall::open(&cli.iface, canvas, wall_settings(cli))?;
     let period = frame_period();
     if hold {
-        println!(
-            "holding {what}, refreshing every {} ms, Ctrl-C to stop",
-            period.as_millis()
-        );
         loop {
             wall.show(frame)?;
             std::thread::sleep(period);
@@ -115,19 +109,15 @@ pub fn show_frame(cli: &Cli, canvas: Canvas, frame: &Frame, hold: bool, what: &s
         wall.show(frame)?;
         std::thread::sleep(period);
     }
-    println!(
-        "sent {what} ({}x{}, order {:?})",
-        frame.width, frame.height, cli.order
-    );
     Ok(())
 }
 
 /// Draw a built-in pattern.
 pub fn show_pattern(cli: &Cli, name: &str, hold: bool, layout: Option<&str>) -> Result<()> {
     let canvas = load_canvas(cli, layout)?;
-    let pattern: e120_video::Pattern = name.parse().map_err(|e: String| anyhow::anyhow!(e))?;
+    let pattern: e120_video::Pattern = name.parse()?;
     let frame = e120_video::pattern(pattern, canvas.width, canvas.height);
-    show_frame(cli, canvas, &frame, hold, name)
+    show_frame(cli, canvas, &frame, hold)
 }
 
 /// Fill the panel with one colour.
@@ -138,8 +128,7 @@ pub fn show_solid(cli: &Cli, rgb: [u8; 3], hold: bool) -> Result<()> {
         canvas.height,
         rgb.repeat((canvas.width * canvas.height) as usize),
     )?;
-    let what = format!("{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]);
-    show_frame(cli, canvas, &frame, hold, &what)
+    show_frame(cli, canvas, &frame, hold)
 }
 
 /// Display an image file, scaled to the panel.
@@ -154,7 +143,7 @@ pub fn show_image(cli: &Cli, path: &str, hold: bool) -> Result<()> {
         )
         .to_rgb8();
     let frame = Frame::from_rgb(canvas.width, canvas.height, img.into_raw())?;
-    show_frame(cli, canvas, &frame, hold, path)
+    show_frame(cli, canvas, &frame, hold)
 }
 
 /// Send chosen pieces of a refresh with explicit pacing, so a current meter
@@ -184,9 +173,5 @@ pub fn probe(
             std::thread::sleep(Duration::from_millis(33));
         }
     }
-    println!(
-        "probe: {repeat}x {rows} rows, {row_gap_us}us apart, sync {}",
-        if sync_after { "after each pass" } else { "never" }
-    );
     Ok(())
 }

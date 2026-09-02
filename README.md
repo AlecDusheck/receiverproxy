@@ -13,7 +13,7 @@ Ethernet frames via `/dev/bpf`.
 | `e120-net` | Raw Ethernet over BPF, plus a pcap reader. |
 | `e120-rcvbp` | The `.rcvbp` config format (parse/write/CRC), the compiled boot-image builder, and the panel-spec generator. |
 | `e120-canvas` | Wall topology: one image onto any arrangement of panels. |
-| `e120-video` | Frame sources: video via ffmpeg, stills, test patterns. |
+| `e120-video` | Frame sources: video via ffmpeg, test patterns. |
 | `e120-driver` | Joins topology, protocol and transport. |
 | `e120-cli` | The `e120` binary. |
 
@@ -25,6 +25,13 @@ cargo build
 ```
 
 Global options: `--iface en24 --width 128 --height 64 --order bgr --brightness N`.
+
+Output follows unix conventions: commands print only their result on stdout
+(a value, the path of each file written, a table) and nothing on success
+otherwise; progress for long operations goes to stderr; errors are
+`e120: <subcommand>: <reason>` on stderr with exit 1, usage errors exit 2.
+Commands that write to the card print a plan and stop unless `--commit` is
+given.
 
 ## Configuring a panel
 

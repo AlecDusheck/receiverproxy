@@ -17,7 +17,7 @@ const ENTRIES_AT: usize = 0x16;
 
 /// # Errors
 /// Fails for split layouts the builder does not implement.
-pub fn region(rec: &View) -> Result<([u8; LEN], String)> {
+pub fn region(rec: View<'_>) -> Result<([u8; LEN], String)> {
     let mut out = [0u8; LEN];
     let (mw, mh) = rec.grid();
     let (w, h) = (rec.max_width(), rec.max_height());

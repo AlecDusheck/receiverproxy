@@ -7,7 +7,7 @@
 //! configuration and reads back unchanged after a successful upgrade
 //! (`third-party/README.md`, `docs/firmware-16.53-bench-result.md`).
 
-use super::frame;
+use super::{frame_with, indexed};
 
 /// Frame type for every SDRAM staging operation.
 const SDRAM_TYPE: [u8; 2] = [0x1a, 0x00];
@@ -45,16 +45,13 @@ impl Partition {
 fn sdram_frame(sel: u16, op: u8, flag: u8, offset: u32, len: u32, data: &[u8]) -> Vec<u8> {
     // The vendor always allocates room for a full chunk, even when sending none.
     let body = data.len().max(CHUNK);
-    let mut p = vec![0u8; 12 + body];
-    p[1..3].copy_from_slice(&sel.to_be_bytes());
-    p[3] = op;
-    p[4] = flag;
-    p[5] = (offset >> 16) as u8;
-    p[6] = (offset >> 8) as u8;
-    p[7] = offset as u8;
-    p[8..12].copy_from_slice(&len.to_be_bytes());
-    p[12..12 + data.len()].copy_from_slice(data);
-    frame(SDRAM_TYPE, &p)
+    frame_with(SDRAM_TYPE, 12 + body, |p| {
+        indexed(p, sel, op);
+        p[4] = flag;
+        p[5..8].copy_from_slice(&offset.to_be_bytes()[1..]);
+        p[8..12].copy_from_slice(&len.to_be_bytes());
+        p[12..12 + data.len()].copy_from_slice(data);
+    })
 }
 
 /// Upload one 1 KiB chunk of the image into the card's SDRAM.

@@ -167,7 +167,8 @@ def boot(spec, minutes=10, settle=12):
     # Discovery answers before boot parameters have loaded; packs pushed earlier are lost.
     time.sleep(settle)
     r = sh([E120, 'send-params', '--spec', spec])
-    print(r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr.strip())
+    if r.returncode:
+        print(r.stderr.strip(), file=sys.stderr)
     time.sleep(1.5)
     print(f'armed: {current():.3f} A')
 

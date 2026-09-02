@@ -8,7 +8,9 @@ e120 provision --spec config/panels/p25-128x64-sm16269s.toml \
     --position 0,0 --commit
 ```
 
-Without `--commit` it prints the plan. Steps, and why each is the way it is:
+Without `--commit` it prints the plan. With it, each step reports on stderr as
+`[n/5] …` followed by terse `firmware:` / `flash:` / `eeprom:` lines; the
+snapshot paths are the only stdout output. Steps, and why each is the way it is:
 
 | step | what | why |
 |---|---|---|

@@ -1,9 +1,11 @@
 //! Talking to the card directly: discovery, listening, replay, raw frames.
 
-use crate::util::{hexdump, is_card_frame, is_sender_frame, mac, open};
+use crate::util::{
+    await_any_frame, await_reply, hexdump, is_card_frame, is_our_frame, is_sender_frame, mac, open,
+};
 use crate::{protocol, Cli};
 use anyhow::{Context, Result};
-use e120_net::pcap;
+use e120_net::{read_pcap, PcapPacket};
 use std::time::{Duration, Instant};
 
 pub fn parse_hex(s: &str) -> Result<Vec<u8>> {
@@ -44,42 +46,40 @@ pub fn raw_send(
     frame.extend_from_slice(&p);
 
     let mut dev = open(cli)?;
-    println!("sending type {}{:02x}, {} byte frame", ty, 0, frame.len());
     dev.send(&frame)?;
 
-    let deadline = Instant::now() + Duration::from_secs(wait);
     let mut seen = 0;
-    while Instant::now() < deadline {
-        for f in dev.recv()? {
-            if !is_card_frame(&f) {
-                continue;
-            }
-            seen += 1;
-            println!(
-                "reply {seen}: type {:02x}{:02x}, {} bytes",
-                f[12],
-                f[13],
-                f.len()
-            );
-            hexdump(&f[14..f.len().min(14 + show)]);
-            if seen >= 2 {
-                return Ok(());
-            }
-        }
-    }
+    await_reply(&mut dev, Duration::from_secs(wait), |f| {
+        seen += 1;
+        println!(
+            "reply {seen}: type {:02x}{:02x}, {} bytes",
+            f[12],
+            f[13],
+            f.len()
+        );
+        hexdump(&f[14..f.len().min(14 + show)]);
+        (seen >= 2).then_some(())
+    })?;
     if seen == 0 {
         println!("no reply within {wait}s");
     }
     Ok(())
 }
 
+/// A packet's capture time in seconds.
+fn ts(p: &PcapPacket) -> f64 {
+    f64::from(p.ts_sec) + f64::from(p.ts_usec) / 1e6
+}
+
 pub fn pcap_summary(path: &str, dump: bool) -> Result<()> {
-    let pkts = pcap::read_pcap(path)?;
+    let pcap = read_pcap(path)?;
+    let pkts: Vec<_> = pcap.packets().collect();
     println!("{} packets", pkts.len());
+    let t0 = pkts.first().map_or(0.0, ts);
     let mut counts: std::collections::BTreeMap<(bool, u8), (usize, usize)> =
         std::collections::BTreeMap::default();
     for p in &pkts {
-        let d = &p.data;
+        let d = p.data;
         if d.len() < 14 {
             continue;
         }
@@ -94,11 +94,9 @@ pub fn pcap_summary(path: &str, dump: bool) -> Result<()> {
         e.0 += 1;
         e.1 += d.len();
         if dump && ty != 0x55 && ty != 0x01 && ty != 0x0a {
-            let t0 = f64::from(pkts[0].ts_sec) + f64::from(pkts[0].ts_usec) / 1e6;
-            let t = f64::from(p.ts_sec) + f64::from(p.ts_usec) / 1e6 - t0;
             println!(
                 "\n[{:9.4}s] {} type 0x{:02x} len {}",
-                t,
+                ts(p) - t0,
                 if dir_tx { "PC->card" } else { "card->PC" },
                 ty,
                 d.len()
@@ -128,11 +126,11 @@ pub fn replay(cli: &Cli, path: &str, types: Option<&str>, gap_us: u64, all: bool
         ),
         None => None,
     };
-    let pkts = pcap::read_pcap(path)?;
+    let pcap = read_pcap(path)?;
     let mut dev = open(cli)?;
     let mut sent = 0usize;
-    for p in &pkts {
-        let d = &p.data;
+    for p in pcap.packets() {
+        let d = p.data;
         if !is_sender_frame(d) {
             continue;
         }
@@ -156,32 +154,27 @@ pub fn replay(cli: &Cli, path: &str, types: Option<&str>, gap_us: u64, all: bool
 pub fn discover_one(cli: &Cli, wait: u64) -> Result<Option<protocol::DiscoveryInfo>> {
     let mut dev = open(cli)?;
     dev.send(&protocol::discovery())?;
-    let deadline = Instant::now() + Duration::from_secs(wait);
-    while Instant::now() < deadline {
-        for f in dev.recv()? {
-            if let Some(info) = protocol::parse_discovery_response(&f) {
-                return Ok(Some(info));
-            }
-        }
-    }
-    Ok(None)
+    await_any_frame(
+        &mut dev,
+        Duration::from_secs(wait),
+        protocol::parse_discovery_response,
+    )
 }
 
 /// Send one discovery frame and print every reply, and every other frame
 /// seen, until `wait` runs out.
 pub fn discover(cli: &Cli, wait: u64) -> Result<()> {
     let mut dev = open(cli)?;
-    println!("sending discovery on {} ...", cli.iface);
     dev.send(&protocol::discovery())?;
     let deadline = Instant::now() + Duration::from_secs(wait);
     let mut found = 0;
     while Instant::now() < deadline {
         for f in dev.recv()? {
-            // Ignore our own transmissions (BPF loops them back)
-            if f.len() >= 12 && f[6..12] == protocol::SENDER_MAC {
+            // BPF loops our own transmissions back.
+            if is_our_frame(f) {
                 continue;
             }
-            if let Some(info) = protocol::parse_discovery_response(&f) {
+            if let Some(info) = protocol::parse_discovery_response(f) {
                 found += 1;
                 println!(
                     "receiver card #{}: id=0x{:02x} firmware={}.{:02} detected size {}x{}",
@@ -192,35 +185,21 @@ pub fn discover(cli: &Cli, wait: u64) -> Result<()> {
                     info.cols,
                     info.rows
                 );
-                println!("first 64 payload bytes:");
-                hexdump(&info.raw[..info.raw.len().min(64)]);
-            } else if f.len() >= 14 {
-                println!(
-                    "other frame: src {} type {:02x}{:02x} len {}",
-                    mac(&f[6..12]),
-                    f[12],
-                    f[13],
-                    f.len()
-                );
             }
         }
     }
-    if found == 0 {
-        println!("no discovery response received in {wait}s");
-        println!("(check link on {}, and that the card has power)", cli.iface);
-    }
+    anyhow::ensure!(found > 0, "no response on {} within {wait}s", cli.iface);
     Ok(())
 }
 
 pub fn listen(cli: &Cli, wait: u64, include_ours: bool) -> Result<()> {
     let mut dev = open(cli)?;
-    println!("listening on {} for {wait}s ...", cli.iface);
     let deadline = Instant::now() + Duration::from_secs(wait);
     while Instant::now() < deadline {
         for f in dev.recv()? {
             // Our own transmissions are normally noise, but they are the only
             // way to confirm a display frame actually reached the wire.
-            if f.len() < 14 || (!include_ours && f[6..12] == protocol::SENDER_MAC) {
+            if f.len() < 14 || (!include_ours && is_our_frame(f)) {
                 continue;
             }
             println!(

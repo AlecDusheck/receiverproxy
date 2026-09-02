@@ -10,11 +10,9 @@ pub const LEN: usize = 0x1000;
 #[must_use]
 pub fn region() -> [u8; LEN] {
     let mut out = [0u8; LEN];
-    for block in 0..2 {
-        for n in 0..0x400u16 {
-            let at = block * 0x800 + usize::from(n) * 2;
-            out[at..at + 2].copy_from_slice(&(0x2000 + n).to_be_bytes());
-        }
+    for (pair, n) in out[..0x800].chunks_exact_mut(2).zip(0u16..) {
+        pair.copy_from_slice(&(0x2000 + n).to_be_bytes());
     }
+    out.copy_within(..0x800, 0x800);
     out
 }

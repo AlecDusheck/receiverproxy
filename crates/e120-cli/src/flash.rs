@@ -1,10 +1,43 @@
 //! Reading and writing the card's flash: configuration, dumps, and firmware.
 
-use crate::util::{is_card_frame, open};
+use crate::util::{await_reply, contains_lattice_header, has_lattice_header, hex, open, warn};
 use crate::{protocol, rcvbp, Cli};
 use anyhow::{Context, Result};
-use e120_net::bpf;
-use std::time::{Duration, Instant};
+use e120_net::Bpf;
+use std::time::Duration;
+
+/// Record type of the driver-chip register table.
+const CHIP_REGS: u16 = 0x0a84;
+
+/// Bytes in the primary firmware bank.
+pub const BANK_BYTES: usize =
+    (protocol::FIRMWARE_BLOCKS.end - protocol::FIRMWARE_BLOCKS.start) as usize * 0x10000;
+
+/// True when the file carries a driver-chip register table with content.
+fn has_chip_regs(f: &rcvbp::Rcvbp) -> bool {
+    f.find(CHIP_REGS).is_some_and(|r| !r.is_empty_table())
+}
+
+/// Byte offset of a 256-byte page within a firmware-bank image.
+const fn page_offset(block: u8, page: u16) -> usize {
+    (block as usize * 256 + page as usize) * protocol::FLASH_PAGE_BYTES
+}
+
+/// The `i`th 256-byte page of a block image.
+fn page(image: &[u8], i: usize) -> &[u8] {
+    &image[i * protocol::FLASH_PAGE_BYTES..(i + 1) * protocol::FLASH_PAGE_BYTES]
+}
+
+/// Indices of the pages of `after` that differ from `pages`.
+fn mismatched_pages(after: &[u8], pages: &[&[u8]]) -> Vec<usize> {
+    after
+        .chunks(protocol::FLASH_PAGE_BYTES)
+        .zip(pages)
+        .enumerate()
+        .filter(|(_, (a, b))| a != *b)
+        .map(|(i, _)| i)
+        .collect()
+}
 
 /// Read the card's stored configuration out of flash and save it as a
 /// `.rcvbp` file. Only ever sends read-opcode flash frames, which carry no
@@ -27,9 +60,7 @@ pub fn read_config(
 
         // The blob opens with its own total length, so we know when to stop.
         if expected.is_none() && flash.len() >= 4 {
-            let n = u32::from_le_bytes([flash[0], flash[1], flash[2], flash[3]]) as usize;
-            println!("card reports {n} bytes of stored configuration");
-            expected = Some(n);
+            expected = Some(u32::from_le_bytes(flash[..4].try_into()?) as usize);
         }
         if expected.is_some_and(|n| flash.len() >= n) {
             break;
@@ -48,63 +79,37 @@ pub fn read_config(
         .get(4..4 + total)
         .context("card reported more configuration than it returned")?;
     std::fs::write(out, file).with_context(|| format!("write {out}"))?;
-    println!("wrote {} bytes to {out}", file.len());
+    println!("{out}");
 
     match rcvbp::Rcvbp::load(out) {
-        Ok(f) => {
-            println!("parsed: {} records", f.records.len());
-            if let Some((w, _)) = f.geometry() {
-                println!("configured for width {w}");
-            }
-            if let Some(scan) = f.scan() {
-                println!("scan: 1/{scan}");
-            }
-            let has_chip_regs = f.find(0x0a84).is_some_and(|r| !r.is_empty_table());
-            println!(
-                "driver-chip register table: {}",
-                if has_chip_regs {
-                    "present"
-                } else {
-                    "ABSENT - panels with PWM driver ICs will stay dark"
-                }
-            );
-        }
-        Err(e) => println!("saved, but did not parse as .rcvbp: {e}"),
+        Ok(f) if !has_chip_regs(&f) => warn(format!(
+            "{out} has no driver-chip register table; panels with PWM driver ICs will stay dark"
+        )),
+        Ok(_) => {}
+        Err(e) => warn(format!("{out} does not parse as .rcvbp: {e:#}")),
     }
     Ok(())
 }
 
 /// Request one 1024-byte chunk of flash and return it.
-pub fn read_chunk(dev: &mut bpf::Bpf, index: u16, page: u16, wait: u64) -> Result<Vec<u8>> {
+fn read_chunk(dev: &mut Bpf, index: u16, page: u16, wait: u64) -> Result<Vec<u8>> {
     dev.send(&protocol::read_flash(index, page))?;
-    let deadline = Instant::now() + Duration::from_secs(wait);
-    while Instant::now() < deadline {
-        for f in dev.recv()? {
-            if !is_card_frame(&f) {
-                continue;
-            }
-            if let Some(data) = protocol::flash_reply_data(&f) {
-                return Ok(data.to_vec());
-            }
-        }
-    }
-    anyhow::bail!("no reply for page 0x{page:04x} within {wait}s")
+    await_reply(dev, Duration::from_secs(wait), |f| {
+        protocol::flash_reply_data(f).map(<[u8]>::to_vec)
+    })?
+    .with_context(|| format!("no reply for page 0x{page:04x} within {wait}s"))
 }
 
 /// Read the firmware region back and count bytes that differ from `img`.
-fn verify_firmware(dev: &mut bpf::Bpf, index: u16, img: &[u8], wait: u64) -> Result<usize> {
+fn verify_firmware(dev: &mut Bpf, index: u16, img: &[u8], wait: u64) -> Result<usize> {
     let mut bad = 0usize;
     for block in protocol::FIRMWARE_BLOCKS {
         for lo in (0u16..0x100).step_by(protocol::FLASH_PAGES_PER_CHUNK as usize) {
             let page = (u16::from(block) << 8) | lo;
             let got = read_chunk(dev, index, page, wait)?;
-            let off =
-                (usize::from(block) * 256 + usize::from(lo as u8)) * protocol::FLASH_PAGE_BYTES;
-            bad += got
-                .iter()
-                .enumerate()
-                .filter(|(i, g)| **g != img.get(off + i).copied().unwrap_or(0xff))
-                .count();
+            let off = page_offset(block, lo);
+            let want = &img[off..off + got.len()];
+            bad += got.iter().zip(want).filter(|(g, w)| g != w).count();
         }
     }
     Ok(bad)
@@ -124,7 +129,10 @@ fn describe_image(img: &[u8]) {
         .collect();
     for field in ["Design name", "Part", "Date"] {
         if let Some(i) = header.find(field) {
-            println!("  {}", header[i..].split("  ").next().unwrap_or("").trim());
+            eprintln!(
+                "firmware: {}",
+                header[i..].split("  ").next().unwrap_or("").trim()
+            );
         }
     }
 }
@@ -146,7 +154,6 @@ pub fn flash_firmware(
     index: u16,
     wait: u64,
 ) -> Result<()> {
-    const LATTICE: &[u8] = b"Lattice Semiconductor";
     anyhow::ensure!(
         blocks.start < blocks.end
             && protocol::FIRMWARE_BLOCKS.contains(&blocks.start)
@@ -158,10 +165,10 @@ pub fn flash_firmware(
 
     let img = std::fs::read(image).with_context(|| format!("read {image}"))?;
     anyhow::ensure!(
-        img.windows(LATTICE.len()).take(256).any(|w| w == LATTICE),
+        has_lattice_header(&img),
         "{image} does not look like a Lattice bitstream"
     );
-    let span = protocol::FIRMWARE_BLOCKS.len() * 64 * 1024;
+    let span = BANK_BYTES;
     anyhow::ensure!(
         img.len() >= span,
         "{image} is only {} bytes; the primary bank is {span}",
@@ -170,33 +177,24 @@ pub fn flash_firmware(
     // Images carry padding past their declared length. The meaningful content
     // ends with the end marker and CRC just inside the bank, so write exactly
     // one bank's worth and drop the tail.
-    if img.len() > span {
-        println!(
-            "  note: dropping {} bytes of padding past the {span}-byte bank",
-            img.len() - span
-        );
-    }
     let img = &img[..span];
 
     // Refuse to proceed without a local copy of what we are about to replace.
     let old = std::fs::read(backup).with_context(|| format!("read backup {backup}"))?;
     anyhow::ensure!(
-        old.len() >= span && old.windows(LATTICE.len()).take(256).any(|w| w == LATTICE),
+        old.len() >= span && has_lattice_header(&old),
         "{backup} is not a usable dump of the current primary bank"
     );
 
-    println!("installing {image} ({} bytes)", img.len());
-    describe_image(img);
-    println!(
-        "  target: blocks 0x{:02x}..0x{:02x}; golden bank at 0x{:02x} untouched",
+    eprintln!(
+        "firmware: {image} -> blocks 0x{:02x}..0x{:02x}, recovery {backup}",
         blocks.start,
-        blocks.end - 1,
-        protocol::GOLDEN_BLOCK
+        blocks.end - 1
     );
-    println!("  recovery: {backup}");
+    describe_image(img);
 
     if !commit {
-        println!("\ndry run: nothing was written. Re-run with --commit to install.");
+        println!("dry run: nothing written (add --commit)");
         return Ok(());
     }
 
@@ -204,94 +202,68 @@ pub fn flash_firmware(
 
     // The program region is write-protected; without this every erase and
     // write is silently ignored.
-    println!("unlocking the program region");
     dev.send(&protocol::set_program_writable(index, true))?;
     std::thread::sleep(Duration::from_millis(200));
 
     for block in blocks.clone() {
-        println!("erasing block 0x{block:02x}");
+        eprintln!("firmware: erase 0x{block:02x}");
         dev.send(&protocol::erase_firmware_block(index, block)?)?;
         std::thread::sleep(Duration::from_secs(3));
     }
 
-    let mut written = 0usize;
     for block in blocks {
+        eprintln!("firmware: write 0x{block:02x}");
         for page in 0..=0xffu8 {
-            let off = (usize::from(block) * 256 + usize::from(page)) * protocol::FLASH_PAGE_BYTES;
-            let mut buf = [0xffu8; protocol::FLASH_PAGE_BYTES];
-            if off < img.len() {
-                let n = (img.len() - off).min(protocol::FLASH_PAGE_BYTES);
-                buf[..n].copy_from_slice(&img[off..off + n]);
-            }
-            dev.send(&protocol::write_firmware_page(index, block, page, &buf)?)?;
+            let off = page_offset(block, u16::from(page));
+            let data = &img[off..off + protocol::FLASH_PAGE_BYTES];
+            dev.send(&protocol::write_firmware_page(index, block, page, data)?)?;
             std::thread::sleep(Duration::from_millis(6));
-            written += protocol::FLASH_PAGE_BYTES;
         }
-        println!(
-            "  block 0x{block:02x} written ({} KB total)",
-            written / 1024
-        );
     }
 
     // Relock before verifying, so the region is protected even if we stop here.
     dev.send(&protocol::set_program_writable(index, false))?;
-    println!("relocked the program region");
 
-    println!("verifying...");
+    eprintln!("firmware: verify");
     let bad = verify_firmware(&mut dev, index, img, wait)?;
     if bad == 0 {
-        println!("verified: the primary bank matches the image");
+        eprintln!("firmware: bank verified");
     } else {
-        println!("WARNING: {bad} bytes differ after writing");
-        println!(
-            "  the golden bank at 0x{:02x} is untouched, and {backup} can be written back with:",
+        // Not fatal: provision writes one block at a time and verifies the
+        // whole bank itself once every path has run.
+        warn(format!(
+            "{bad} bytes differ after writing; golden bank at 0x{:02x} untouched; \
+             recover with: e120 flash-firmware {backup} --backup {backup} --commit",
             protocol::GOLDEN_BLOCK
-        );
-        println!("  e120 flash-firmware {backup} --backup {backup} --commit");
+        ));
     }
-    println!("\npower-cycle the card to load the new bitstream");
     Ok(())
 }
 
 /// Read page 0 of each block and report what it looks like. Read-only.
 pub fn scan_flash(cli: &Cli, first: u8, last: u8, index: u16, wait: u64) -> Result<()> {
-    const LATTICE: &[u8] = b"Lattice Semiconductor";
     let mut dev = open(cli)?;
-    let mut runs: Vec<(u8, String)> = Vec::new();
     for blk in first..=last {
         let page = u16::from(blk) << 8;
         let Ok(d) = read_chunk(&mut dev, index, page, wait) else {
             continue;
         };
-        let kind = if d.windows(LATTICE.len()).any(|w| w == LATTICE) {
-            "LATTICE BITSTREAM HEADER"
+        if d.iter().all(|&b| b == 0xff) || d.iter().all(|&b| b == 0) {
+            continue; // erased or blank
+        }
+        let kind = if contains_lattice_header(&d) {
+            "lattice bitstream header"
         } else if d.starts_with(&[0x20, 0x20, 0x19, 0xbe]) {
             "rcvbp config"
-        } else if d.iter().all(|&b| b == 0xff) {
-            continue; // erased
-        } else if d.iter().all(|&b| b == 0) {
-            continue; // blank
         } else {
             "data"
         };
         println!(
-            "  block 0x{blk:02x} (0x{:06x}): {kind}  {}",
+            "0x{blk:02x}  0x{:06x}  {kind:<24} {}",
             u32::from(blk) << 16,
-            d.iter()
-                .take(12)
-                .map(|b| format!("{b:02x}"))
-                .collect::<Vec<_>>()
-                .join(" ")
+            hex(&d[..d.len().min(12)], " ")
         );
-        runs.push((blk, kind.to_string()));
     }
-    let heads: Vec<String> = runs
-        .iter()
-        .filter(|(_, k)| k.starts_with("LATTICE"))
-        .map(|(b, _)| format!("0x{b:02x}"))
-        .collect();
-    println!("\nblocks with data: {}", runs.len());
-    println!("bitstream headers found at blocks: {}", heads.join(", "));
     Ok(())
 }
 
@@ -314,48 +286,35 @@ pub fn dump_range(
     let step = protocol::FLASH_PAGE_BYTES as u32;
     let mut addr = start;
     let mut misses = 0u32;
-    let mut first_reply = true;
     while addr < start + len {
         dev.send(&protocol::read_flash_linear(index, addr, step))?;
-        let deadline = Instant::now() + Duration::from_secs(wait);
-        let mut got = false;
-        while Instant::now() < deadline && !got {
-            for f in dev.recv()? {
-                if !is_card_frame(&f) {
-                    continue;
-                }
-                // Linear reads may answer with a different type than the
-                // page-addressed reads, so take any sufficiently long reply.
-                if f.len() < 15 + step as usize {
-                    continue;
-                }
-                if first_reply {
-                    println!("  reply type {:02x}{:02x}, {} bytes", f[12], f[13], f.len());
-                    first_reply = false;
-                }
-                image.extend_from_slice(&f[15..15 + step as usize]);
-                got = true;
-                break;
-            }
-        }
-        if !got {
+        // Linear reads may answer with a different type than the
+        // page-addressed reads, so take any sufficiently long reply.
+        let reply = await_reply(&mut dev, Duration::from_secs(wait), |f| {
+            (f.len() >= 15 + step as usize).then(|| f[15..15 + step as usize].to_vec())
+        })?;
+        if let Some(data) = reply {
+            image.extend_from_slice(&data);
+        } else {
             misses += 1;
             image.extend(std::iter::repeat_n(0xffu8, step as usize));
             if misses > 8 {
-                println!("giving up after {misses} unanswered reads at 0x{addr:08x}");
+                warn(format!(
+                    "giving up after {misses} unanswered reads at 0x{addr:08x}"
+                ));
                 break;
             }
         }
         if (addr - start).is_multiple_of(0x10000) {
-            println!("  0x{addr:08x} ({} KB read)", image.len() / 1024);
+            eprintln!("read 0x{addr:08x}");
         }
         addr += step;
     }
     std::fs::write(out, &image).with_context(|| format!("write {out}"))?;
-    println!(
-        "wrote {} bytes to {out} ({misses} unanswered reads)",
-        image.len()
-    );
+    if misses > 0 {
+        warn(format!("{misses} unanswered reads filled with 0xff"));
+    }
+    println!("{out}");
     Ok(())
 }
 
@@ -371,44 +330,29 @@ pub fn dump_flash(
     let mut dev = open(cli)?;
     let image = read_blocks(&mut dev, index, block, blocks, wait)?;
     std::fs::write(out, &image).with_context(|| format!("write {out}"))?;
-    println!("wrote {} bytes to {out}", image.len());
-
-    // Summarise which pages hold anything, so we can see the layout.
-    let mut runs: Vec<(usize, usize)> = Vec::new();
-    let mut start: Option<usize> = None;
-    for (i, page) in image.chunks(256).enumerate() {
-        let blank = page.iter().all(|&b| b == 0 || b == 0xff);
-        match (blank, start) {
-            (false, None) => start = Some(i),
-            (true, Some(s)) => {
-                runs.push((s, i));
-                start = None;
-            }
-            _ => {}
-        }
-    }
-    if let Some(s) = start {
-        runs.push((s, image.len() / 256));
-    }
-    println!("non-blank page ranges (256-byte pages):");
-    for (a, b) in runs {
-        println!(
-            "  pages 0x{a:02x}..0x{b:02x}  = offsets 0x{:05x}..0x{:05x}",
-            a * 256,
-            b * 256
-        );
-    }
+    println!("{out}");
     Ok(())
 }
 
 /// Offset of the parameter blob within the 64KB parameter block.
-pub const PARAM_OFFSET: usize = 0x8000;
+const PARAM_OFFSET: usize = 0x8000;
 
 /// Largest parameter blob the card will accept.
-pub const PARAM_MAX: usize = 0x6ffc;
+const PARAM_MAX: usize = 0x6ffc;
+
+/// Read the whole primary firmware bank into memory.
+pub fn read_primary_bank(dev: &mut Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
+    read_blocks(
+        dev,
+        index,
+        protocol::FIRMWARE_BLOCKS.start,
+        protocol::FIRMWARE_BLOCKS.len() as u16,
+        wait,
+    )
+}
 
 /// Read the whole parameter block into memory.
-pub fn read_block(dev: &mut bpf::Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
+fn read_block(dev: &mut Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
     read_blocks(dev, index, protocol::PARAM_BLOCK, 1, wait)
 }
 
@@ -416,13 +360,7 @@ pub fn read_block(dev: &mut bpf::Bpf, index: u16, wait: u64) -> Result<Vec<u8>> 
 ///
 /// # Errors
 /// Fails if the card stops answering partway through.
-pub fn read_blocks(
-    dev: &mut bpf::Bpf,
-    index: u16,
-    first: u8,
-    count: u16,
-    wait: u64,
-) -> Result<Vec<u8>> {
+pub fn read_blocks(dev: &mut Bpf, index: u16, first: u8, count: u16, wait: u64) -> Result<Vec<u8>> {
     let mut image = Vec::with_capacity(64 * 1024 * count as usize);
     for b in 0..count {
         let block = first.wrapping_add(b as u8);
@@ -430,7 +368,7 @@ pub fn read_blocks(
             let page = (u16::from(block) << 8) | lo;
             image.extend_from_slice(&read_chunk(dev, index, page, wait)?);
         }
-        println!("  block 0x{block:02x} read, {} KB total", image.len() / 1024);
+        eprintln!("read 0x{block:02x}");
     }
     Ok(image)
 }
@@ -443,7 +381,7 @@ pub fn read_blocks(
 /// still erased, so if a mismatched page holds other data the whole block is
 /// erased and rewritten instead.
 pub fn rewrite_block(
-    dev: &mut bpf::Bpf,
+    dev: &mut Bpf,
     index: u16,
     image: &[u8],
     wait: u64,
@@ -458,24 +396,17 @@ pub fn rewrite_block(
             (0..pages.len()).collect()
         } else {
             let after = read_block(dev, index, wait)?;
-            let bad: Vec<usize> = (0..pages.len())
-                .filter(|i| {
-                    after[i * protocol::FLASH_PAGE_BYTES..(i + 1) * protocol::FLASH_PAGE_BYTES]
-                        != *pages[*i]
-                })
-                .collect();
+            let bad = mismatched_pages(&after, &pages);
             if bad.is_empty() {
-                println!("verified: flash matches what we wrote");
+                eprintln!("flash: block verified");
                 return Ok(());
             }
             // Rewriting only works into still-erased pages.
-            let dirty = bad.iter().any(|i| {
-                after[i * protocol::FLASH_PAGE_BYTES..(i + 1) * protocol::FLASH_PAGE_BYTES]
-                    .iter()
-                    .any(|&b| b != 0xff)
-            });
-            println!(
-                "attempt {attempt}: {} pages need rewriting{}",
+            let dirty = bad
+                .iter()
+                .any(|&i| page(&after, i).iter().any(|&b| b != 0xff));
+            eprintln!(
+                "flash: attempt {attempt}: {} pages to rewrite{}",
                 bad.len(),
                 if dirty { " (re-erasing first)" } else { "" }
             );
@@ -496,40 +427,34 @@ pub fn rewrite_block(
             )?)?;
             std::thread::sleep(Duration::from_millis(8));
             if repair.len() > 32 && n.is_multiple_of(64) {
-                println!("  wrote {n} / {} pages", repair.len());
+                eprintln!("flash: page {n}/{}", repair.len());
             }
         }
     }
     // Some pages sit outside the window the card lets us write. Those are not
     // part of the configuration blob, so report them rather than failing.
     let after = read_block(dev, index, wait)?;
-    let bad: Vec<usize> = (0..pages.len())
-        .filter(|i| {
-            after[i * protocol::FLASH_PAGE_BYTES..(i + 1) * protocol::FLASH_PAGE_BYTES]
-                != *pages[*i]
-        })
-        .collect();
+    let bad = mismatched_pages(&after, &pages);
     let in_config = bad.iter().any(|i| must_verify.contains(i));
     anyhow::ensure!(
         !in_config,
-        "flash did not verify: {} pages differ, including configuration pages",
+        "verify failed: {} pages differ, including configuration pages",
         bad.len()
     );
-    println!(
-        "note: {} page(s) outside the configuration area would not take writes: {}",
+    eprintln!(
+        "flash: configuration pages verified; {} page(s) outside them would not take writes: {}",
         bad.len(),
         bad.iter()
             .map(|i| format!("0x{i:02x}"))
             .collect::<Vec<_>>()
             .join(", ")
     );
-    println!("configuration pages verified");
     Ok(())
 }
 
 /// Erase the parameter block and wait for the chip to finish.
-pub fn erase_and_settle(dev: &mut bpf::Bpf, index: u16) -> Result<()> {
-    println!("erasing block 0x{:02x}...", protocol::PARAM_BLOCK);
+fn erase_and_settle(dev: &mut Bpf, index: u16) -> Result<()> {
+    eprintln!("flash: erase 0x{:02x}", protocol::PARAM_BLOCK);
     dev.send(&protocol::erase_block(index, protocol::PARAM_BLOCK)?)?;
     // Pages written while the erase is still running are silently dropped.
     std::thread::sleep(Duration::from_secs(3));
@@ -553,47 +478,33 @@ pub fn write_config(
     // Refuse to install anything that is not a config we can parse.
     let parsed = rcvbp::Rcvbp::load(config)?;
     let file = std::fs::read(config).with_context(|| format!("read {config}"))?;
-    println!(
-        "{config}: {} records, {} bytes on disk",
-        parsed.records.len(),
-        file.len()
-    );
     anyhow::ensure!(
         file.len() <= PARAM_MAX,
-        "config is {} bytes, over the {PARAM_MAX}-byte limit the card accepts",
+        "{config} is {} bytes, over the {PARAM_MAX}-byte limit the card accepts",
         file.len()
     );
-    let has_chip = parsed.find(0x0a84).is_some_and(|r| !r.is_empty_table());
-    println!(
-        "  driver-chip register table: {}",
-        if has_chip { "present" } else { "absent" }
-    );
+    if !has_chip_regs(&parsed) {
+        warn(format!("{config} has no driver-chip register table"));
+    }
 
     let mut dev = open(cli)?;
     let original = match base_image {
         Some(path) => {
             let img = std::fs::read(path).with_context(|| format!("read {path}"))?;
             anyhow::ensure!(img.len() == 64 * 1024, "{path} must be exactly 65536 bytes");
-            println!("using {path} as the block contents");
             img
         }
         None => {
-            println!("reading current block 0x{:02x}...", protocol::PARAM_BLOCK);
             let img = read_block(&mut dev, index, wait)?;
             std::fs::write(backup, &img).with_context(|| format!("write {backup}"))?;
-            println!("backed up {} bytes to {backup}", img.len());
+            eprintln!("flash: backup {backup}");
             img
         }
     };
 
     // Splice the new parameter blob in, leaving the rest of the block alone.
     let mut image = original.clone();
-    let old_len = u32::from_le_bytes([
-        image[PARAM_OFFSET],
-        image[PARAM_OFFSET + 1],
-        image[PARAM_OFFSET + 2],
-        image[PARAM_OFFSET + 3],
-    ]) as usize;
+    let old_len = u32::from_le_bytes(image[PARAM_OFFSET..PARAM_OFFSET + 4].try_into()?) as usize;
     // The stored length is only meaningful if the block already held a config.
     // When the block comes from a firmware image instead, it is bitstream data
     // and reads as nonsense, so clamp it to the area the card actually uses.
@@ -606,47 +517,46 @@ pub fn write_config(
     image[PARAM_OFFSET + 4..PARAM_OFFSET + 4 + file.len()].copy_from_slice(&file);
 
     let changed = original.iter().zip(&image).filter(|(a, b)| a != b).count();
-    println!(
-        "replacing parameter blob: {old_len} bytes -> {} bytes ({changed} bytes of the block change)",
-        file.len()
+    eprintln!(
+        "flash: parameter blob {old_len} -> {} bytes, {changed} bytes of block 0x{:02x} change",
+        file.len(),
+        protocol::PARAM_BLOCK
     );
 
     if !commit {
-        println!(
-            "
-dry run: nothing was written. Re-run with --commit to install."
-        );
+        println!("dry run: nothing written (add --commit)");
         return Ok(());
     }
 
     // Only the pages holding the configuration blob itself have to verify.
     let first = PARAM_OFFSET / protocol::FLASH_PAGE_BYTES;
     let last = (PARAM_OFFSET + 4 + file.len()).div_ceil(protocol::FLASH_PAGE_BYTES);
-    rewrite_block(&mut dev, index, &image, wait, first..last)
-        .with_context(|| format!("the original block is saved at {backup}; restore it with: e120 restore-flash {backup} --commit"))?;
+    rewrite_block(&mut dev, index, &image, wait, first..last).with_context(|| {
+        format!(
+            "original block saved at {backup}; restore with: e120 restore-flash {backup} --commit"
+        )
+    })?;
 
     // The erase also clears the screen-size record, which only the linear
     // path can rewrite. A firmware image holds bitstream bytes at that
     // offset, not a record, so only a block read off the card is put back.
     let off = protocol::SCREEN_RECORD_ADDR as usize & 0xffff;
     let record = &original[off..off + protocol::SCREEN_RECORD_LEN];
-    if let Some(path) = base_image {
-        println!("note: leaving the screen-size record alone; {path} is a firmware image");
-    } else if record.iter().any(|&b| b != 0xff) {
+    if base_image.is_none() && record.iter().any(|&b| b != 0xff) {
         dev.send(&protocol::write_screen_record(
             index,
             protocol::SCREEN_RECORD_ADDR,
             record,
         )?)?;
         std::thread::sleep(Duration::from_millis(100));
-        println!(
-            "restored the screen-size record ({}x{})",
+        eprintln!(
+            "flash: screen-size record restored ({}x{})",
             u16::from_be_bytes([record[6], record[7]]),
             u16::from_be_bytes([record[8], record[9]])
         );
     }
 
-    println!("power-cycle the card for the new configuration to take effect");
+    eprintln!("power-cycle the card to apply");
     Ok(())
 }
 
@@ -660,13 +570,12 @@ pub fn restore_flash(cli: &Cli, image_path: &str, commit: bool, index: u16) -> R
     );
     if !commit {
         println!(
-            "dry run: would restore {image_path} to block 0x{:02x}. Re-run with --commit.",
+            "dry run: {image_path} -> block 0x{:02x} (add --commit)",
             protocol::PARAM_BLOCK
         );
         return Ok(());
     }
     let mut dev = open(cli)?;
     rewrite_block(&mut dev, index, &image, 2, 0..256)?;
-    println!("restored {image_path}");
     Ok(())
 }

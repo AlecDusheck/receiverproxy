@@ -45,7 +45,7 @@ fn sellers_panel() -> PanelSpec {
     // keeps 12 (measured most; 12-16 render alike, docs/rendering-recipe.md)
     // and sets +0x02F = 1, without which nothing displays.
     spec.module.gray_bits = None;
-    spec.record01_overrides.remove("0x02F");
+    spec.record01_overrides.remove(&0x02F);
     spec.chip.library = "config/chips/sm16169sh.toml".into();
     spec.screen.width = 256;
     spec.screen.height = 384;
@@ -53,7 +53,7 @@ fn sellers_panel() -> PanelSpec {
 }
 
 fn record(cfg: &Rcvbp, id: u8) -> &[u8] {
-    &cfg.records.iter().find(|r| r.rtype[1] == id).unwrap().payload
+    &cfg.find_by_id(id).unwrap().payload
 }
 
 fn differing_pages(a: &[u8], b: &[u8]) -> Vec<u8> {
@@ -74,12 +74,12 @@ fn differing_bytes(a: &[u8], b: &[u8]) -> Vec<usize> {
 fn the_sellers_config_is_regenerated_record_for_record() {
     // Every record the seller's file carries, from defaults + spec alone.
     let g = sellers_panel().generate().unwrap();
-    let seller = Rcvbp::load(&repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
+    let seller = Rcvbp::load(repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
     assert_eq!(g.rcvbp.records.len(), seller.records.len());
     for rec in &seller.records {
-        let ours = record(&g.rcvbp, rec.rtype[1]);
+        let ours = record(&g.rcvbp, rec.id());
         let diffs = differing_bytes(ours, &rec.payload);
-        assert!(diffs.is_empty(), "record 0x{:02x} differs at {diffs:x?}", rec.rtype[1]);
+        assert!(diffs.is_empty(), "record 0x{:02x} differs at {diffs:x?}", rec.id());
     }
 }
 
@@ -93,7 +93,7 @@ fn the_sellers_config_reproduces_the_factory_pack_byte_for_byte() {
 #[test]
 fn our_panel_differs_from_the_sellers_only_where_intended() {
     let ours = our_panel().generate().unwrap();
-    let seller = Rcvbp::load(&repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
+    let seller = Rcvbp::load(repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
     // Record 0x01: one module instead of their 256x384 wall, and nothing else.
     // The secondary chip id at +0x0E9/+0x205 used to differ too; the seller
     // writes none, and claiming one (0x14D) would declare max scan 64 on a
@@ -105,7 +105,7 @@ fn our_panel_differs_from_the_sellers_only_where_intended() {
     // The mapping and the chip registers now agree with theirs exactly.
     assert!(differing_bytes(record(&ours.rcvbp, 0x03), record(&seller, 0x03)).is_empty());
     assert!(differing_bytes(record(&ours.rcvbp, 0x84), record(&seller, 0x84)).is_empty());
-    let seller = Rcvbp::load(&fixture("p25-128x64-fixed.rcvbp")).unwrap();
+    let seller = Rcvbp::load(fixture("p25-128x64-fixed.rcvbp")).unwrap();
     // Secondary parameters: the screen size the vendor mirrors there.
     let d = differing_bytes(record(&ours.rcvbp, 0x8a), record(&seller, 0x8a));
     assert_eq!(d, vec![0x10, 0x11, 0x12, 0x13]);
@@ -144,7 +144,7 @@ fn the_factory_image_rebuilds_from_erased_flash_and_its_own_parts() {
     b.mapping_from(&f.cfg).unwrap();
     b.scan_table_from(rec01, 512).unwrap();
     b.rcvbp(&f.file).unwrap();
-    let (img, _, _) = b.finish();
+    let img = b.finish().image;
     let bad: Vec<u8> = differing_pages(&img, &f.block).into_iter().filter(|&p| p != 0xF0).collect();
     assert!(bad.is_empty(), "pages differing from factory: {bad:02x?}");
 }
@@ -156,8 +156,8 @@ fn the_bench_spec_displaces_the_phantom_positions() {
     // columns are left in place; this is what makes black LEDs-off.
     let spec = our_panel();
     let g = spec.generate().unwrap();
-    let (img, _, _) = Block7Builder::from_generated(&spec, &g).unwrap().finish();
-    let table = &img[0x1400..0x1400 + 0x400];
+    let img = Block7Builder::from_generated(&spec, &g).unwrap().finish().image;
+    let table = &img[image::VOID_LINE_COLUMNS_OFFSET..image::VOID_LINE_COLUMNS_OFFSET + 0x400];
     assert!(table[..128].iter().all(|&b| b == 0), "real columns must stay in place");
     assert!(table[128..256].iter().all(|&b| b == 0xFF), "phantom positions must be displaced");
     assert!(table[256..].iter().all(|&b| b == 0));
@@ -171,8 +171,8 @@ fn the_scan_table_is_invariant_to_the_load_width_for_this_chip() {
     let rec01 = &f.cfg.record_01().unwrap().payload;
     let view = e120_rcvbp::record01::View::new(rec01).unwrap();
     let want = &f.block[image::SCAN_TABLE_OFFSET..image::SCAN_TABLE_OFFSET + 0x400];
-    assert_eq!(&image::scan_table::body(&view, 512).unwrap()[..], want);
-    assert_eq!(&image::scan_table::body(&view, 256).unwrap()[..], want);
+    assert_eq!(&image::scan_table::body(view, 512).unwrap()[..], want);
+    assert_eq!(&image::scan_table::body(view, 256).unwrap()[..], want);
 }
 
 #[test]
@@ -183,7 +183,7 @@ fn a_single_module_screen_gets_a_module_position_table() {
     rec01[0x0C2..0x0C4].copy_from_slice(&64u16.to_le_bytes());
     let mut b = Block7Builder::erased();
     b.module_positions_from(&rec01).unwrap();
-    let (img, _, _) = b.finish();
+    let img = b.finish().image;
     let at = image::MODULE_POS_OFFSET;
     assert_eq!(img[at + 5], 32, "8x4 tiles of 16x16");
     assert_eq!(&img[at + 0x16..at + 0x20], &[0, 7, 0, 0, 0, 0, 0, 16, 0, 16]);
@@ -196,7 +196,7 @@ fn the_default_block_gives_the_vendor_consensus_table() {
     // With no `block` set, each data group takes one contiguous half of the
     // shift chain. That is the majority wiring across the vendor corpus, so it
     // stays the default — but it is not the wiring of the panel on this bench.
-    let donor = Rcvbp::load(&repo("third-party/configs/donor-P2.5-320x160-2153-consensus.rcvbp")).unwrap();
+    let donor = Rcvbp::load(repo("third-party/configs/donor-P2.5-320x160-2153-consensus.rcvbp")).unwrap();
     let mut spec = our_panel();
     spec.mapping.block = None;
     assert_eq!(spec.mapping_record(), *record(&donor, 0x03));
@@ -211,7 +211,7 @@ fn the_sellers_mapping_is_reproduced_by_the_block_knob() {
     // (Earlier this difference was recorded as an unreproducible "outlier",
     // and the contiguous table was flashed to the card instead, which
     // scrambled every column.)
-    let seller = Rcvbp::load(&repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
+    let seller = Rcvbp::load(repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
     assert_eq!(our_panel().mapping_record(), *record(&seller, 0x03));
 }
 

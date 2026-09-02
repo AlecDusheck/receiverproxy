@@ -168,9 +168,10 @@ impl Wall {
             }
         }
 
-        // Latch everything sent so far onto the panels. FPP sends the latch
-        // twice per refresh on firmware v13+; on this card two is borderline
-        // (the picture decays and returns on a ~10 s period) and three holds.
+        // Latch after a short gap (the card otherwise latches before the
+        // last row is stored and that row flickers), three times: two is
+        // borderline on this card, three holds.
+        std::thread::sleep(Duration::from_micros(500));
         for _ in 0..3 {
             self.dev.send(&proto::sync(self.settings.brightness))?;
         }

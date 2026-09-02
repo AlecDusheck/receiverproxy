@@ -338,7 +338,7 @@ enum Cmd {
         #[arg(long, default_value = "contain")]
         fit: String,
         /// Loop forever
-        #[arg(long, name = "loop")]
+        #[arg(long = "loop", alias = "looping")]
         looping: bool,
         /// How to cut frames into row packets: rows|halves|halves-swapped|interleaved
         #[arg(long, default_value = "rows")]

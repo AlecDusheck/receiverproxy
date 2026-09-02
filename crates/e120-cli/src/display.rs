@@ -27,7 +27,10 @@ pub fn wall_settings(cli: &Cli) -> e120_driver::Settings {
         brightness: cli.brightness,
         color_order: cli.order,
         raster: e120_driver::Raster::Rows,
-        announce_layout: true,
+        // The card's control area comes from its EEPROM (provisioning); the
+        // layout frame we could send is an FPP-derived guess and blanks a
+        // correctly provisioned card.
+        announce_layout: false,
     }
 }
 
@@ -197,9 +200,9 @@ pub fn send_frame_as(
     // Rows may be resent before each of the first `writes` latches, so both
     // of a double-buffered driver's pages carry the current frame.
     let writes = std::env::var("E120_WRITES").ok().and_then(|v| v.parse().ok()).unwrap_or(1u32);
-    // Gap between the last row and the latch, so the card has stored the
-    // last row before it latches; E120_LATCH_GAP_US overrides it.
-    let gap = std::env::var("E120_LATCH_GAP_US").ok().and_then(|v| v.parse().ok()).unwrap_or(0u64);
+    // Gap between the last row and the latch: without it the last row
+    // flickers, the card latching before it has stored the final packet.
+    let gap = std::env::var("E120_LATCH_GAP_US").ok().and_then(|v| v.parse().ok()).unwrap_or(500u64);
     if raster == Raster::Rows {
         for i in 0..latches {
             if i < writes {
@@ -247,7 +250,13 @@ fn send_rows(
     h: usize,
     row_base: u16,
 ) -> Result<()> {
+    // Pause between row packets; the card's receive FIFO is 1 KB, so a
+    // line-rate burst can drop its tail. E120_ROW_GAP_US overrides.
+    let row_gap = std::env::var("E120_ROW_GAP_US").ok().and_then(|v| v.parse().ok()).unwrap_or(0u64);
     for row in 0..h {
+        if row_gap > 0 && row > 0 {
+            std::thread::sleep(Duration::from_micros(row_gap));
+        }
         let line = &fb[row * w..(row + 1) * w];
         let mut offset = 0usize;
         for chunk in line.chunks(protocol::MAX_PIXELS_PER_PACKET) {

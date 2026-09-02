@@ -12,6 +12,15 @@ pub enum Firmware {
         /// An image name from `rxp firmware list`
         name: String,
     },
+    /// Rank the manifest for a panel spec and name the image `provision --firmware auto` would install
+    Pick {
+        /// Panel spec, see config/panels/*.toml
+        #[arg(long)]
+        spec: String,
+        /// Candidates to print
+        #[arg(long, default_value_t = 5)]
+        top: usize,
+    },
     /// Report the image the card expects and its upgrade capabilities
     Info {
         /// Seconds to wait for the reply
@@ -76,6 +85,14 @@ pub fn run(ctx: &Ctx, cmd: &Firmware, p: &mut dyn Progress) -> Result<()> {
             Ok(())
         }
         Firmware::Fetch { name } => firmware::fetch(name, p),
+        Firmware::Pick { spec, top } => {
+            let spec = ops::panelspec::PanelSpec::load(spec)?;
+            // The ranking is offline: the card model is `--card`, else the
+            // first tested model.
+            let card = ctx.model.unwrap_or_else(ops::receivers::default_model);
+            firmware::print_pick(&spec, card, *top, p);
+            Ok(())
+        }
         Firmware::Info { wait } => upgrade::info(ctx, *wait, p),
         Firmware::Install {
             image,

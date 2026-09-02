@@ -1,32 +1,34 @@
 # The bench: measurement method, meters and limits
 
-How a measurement on this rig is taken, what each meter reads, where each
-meter fails, and the `scripts/bench.py` commands that implement the method.
-Claims disproved by this method are in
-[retracted-findings.md](retracted-findings.md).
+How a measurement is taken when bringing up a card, what each meter reads,
+where each meter fails, and the `scripts/bench.py` commands that implement
+the method.
 
 ## Rig
 
-| part | detail |
+A rig needs a host with a raw-Ethernet path to the card, a current-reading
+bench supply, and a camera on the panel.
+
+| part | requirement |
 |---|---|
-| host | Mac with an AX88179B adapter on `en24`, raw Ethernet through `/dev/bpf` (`sudo chmod o+rw /dev/bpf*` after every reboot) |
-| card | Colorlight E120, firmware 16.53. `rxp discover` reports the running version |
-| panel | one Eager P2.5-O16S-SMD1415-128x64-E module, 1/16 duty, SM16269S drivers (read off the silicon), on hub J1. Mounted rotated 90 degrees: 64 wide by 128 tall on camera, so a vertical stripe in a photo is a constant-x band on the panel |
-| supply | Korad KA3005P at 5 V, 5.1 A current limit, read over USB by `ka3005p` |
-| camera | 30 fps webcam on the panel, 1920x1080, avfoundation device `RXP_CAMERA` (default `0`) |
+| host | raw Ethernet to the card: `/dev/bpf` on macOS (`sudo chmod o+rw /dev/bpf*` after every reboot), `AF_PACKET` on Linux. `--iface` names the adapter |
+| card | its firmware version read with `rxp discover`; the card is the only authority for it |
+| panel | one module on a hub port. Record how it is mounted: a panel rotated 90 degrees turns a vertical stripe in a photo into a constant-x band on the panel |
+| supply | a supply whose current can be read and logged over USB (`ka3005p` drives a Korad KA3005P) and whose output can be toggled |
+| camera | a webcam on the panel; `avfoundation` device index in `RXP_CAMERA` (default `0`) |
 
 `bench.py` keeps its state in `/tmp/rxp-trials/`: captures (`cap-NAME.jpg`,
 `cap-NAME.rgb`), per-LED crops (`hi-NAME.png`), generated patterns (`pat/`)
-and the panel crop (`crop.txt`; `RXP_CROP` overrides it, built-in default
-`420:750:1060:250`).
+and the panel crop (`crop.txt`; `RXP_CROP` overrides it).
 
-Supply rules: the supply is read and power-cycled, never re-set. `scripts/psu.sh`
-only toggles the output and arms an automatic off on every power-on (default
-and maximum 10 minutes); `psu.sh extend` restarts the timer without a power
-cycle; `psu.sh status` prints the reading and the time left. An armed panel
-showing unmodulated content draws about 4.5 A; at full brightness it rails the
-5.1 A limit and browns out. Brightness stays at or below 40 until content is
-right. Never flash while `ka3005p status` shows `CH1: Cc`.
+Supply rules: the supply is read and power-cycled, never re-set.
+`scripts/psu.sh` only toggles the output and arms an automatic off on every
+power-on (default and maximum 10 minutes); `psu.sh extend` restarts the timer
+without a power cycle; `psu.sh status` prints the reading and the time left.
+Brightness stays at or below 40 until content is right: an armed panel
+showing unmodulated content draws several amps and at full brightness will
+rail a small supply's current limit and brown the card out. Never flash while
+the supply reads constant-current.
 
 Vendor software is inspected, never executed.
 
@@ -34,8 +36,8 @@ Vendor software is inspected, never executed.
 
 1. The supply drifts over tens of seconds. A reading taken right after a
    stream starts runs high, often by more than an amp.
-2. The card has a per-run state toggle. Measured: identical content sent
-   twice gave 3.14, 4.57, 3.14, 4.60 A.
+2. The card has a per-run state toggle: identical content sent twice can
+   differ by more than an amp between the two runs.
 3. The camera auto-exposes and auto-gains. Absolute brightness is not
    comparable between two shots, and at normal panel brightness every LED
    clips to white.
@@ -54,12 +56,13 @@ conditions become segments of one looping stream through `rxp show video
 condition is repeated at the end as the control.
 
 ```
-scripts/bench.py run --spec config/panels/p25-128x64-sm16269s.toml --brightness 20 black white
+scripts/bench.py run --spec config/panels/<panel>.toml --brightness 20 black white
 ```
 
 A gap is a finding only when it clearly exceeds what the control shows
-against itself, and only after the run is repeated. The within-condition
-spread on this rig is 0.033 A.
+against itself, and only after the run is repeated. Establish the rig's own
+within-condition spread from the control before reading anything into a
+difference.
 
 ### Idle test
 
@@ -71,10 +74,11 @@ pkill -f 'rxp --brightness'
 # three photos, five seconds apart, same crop
 ```
 
-Mean absolute difference of 1 to 2 levels is camera noise. 20 to 40 levels
-means the card is rendering a buffer nothing is driving and every experiment
-measures drift. Measured: 29 to 37 levels on firmware 10.81; 1.6 to 1.8 on
-16.53.
+A mean absolute difference of a level or two between the photos is camera
+noise. Tens of levels means the card is rendering a buffer nothing is
+driving, and every experiment on it measures drift rather than content. Some
+firmware builds free-run this way; re-run the idle test after any firmware
+change before trusting a measurement.
 
 ### Positive control
 
@@ -101,16 +105,17 @@ conditions.
 
 | meter | reads | limit |
 |---|---|---|
-| KA3005P current | total panel plus card draw. Measured at the bench brightness, configured from flash: black 0.466 A, boot 0.41 A, white 2.64 A | drifts over tens of seconds; the first seconds of a stream run high; 0.033 A within-condition spread; blind to where on the panel the current goes |
-| averaged webcam capture | structure, geometry, mapping; clip fraction; correlation between captures | the panel multiplexes 1/16, so a single 1/30 s frame is scan phase, not content. `bench.py capture` averages a primed 90-frame window (`tmix=frames=N,select='gte(n,N)'`). Auto-exposure clips LEDs to white above brightness about 20; auto-gain boosts a dark panel; reflections off nearby surfaces enter even a difference image |
-| `bench.py flicker`, `bands`, `glitch` | per-frame brightness series, rolling-shutter band period, band events | 30 fps cannot resolve the panel's flicker: 2.4 % frame to frame against an 8 to 14 % camera reference. Flicker is judged by eye |
+| supply current | total panel plus card draw | drifts over tens of seconds; the first seconds of a stream run high; blind to where on the panel the current goes |
+| averaged webcam capture | structure, geometry, mapping; clip fraction; correlation between captures | a multiplexed panel shows scan phase, not content, in a single 1/30 s frame. `bench.py capture` averages a primed 90-frame window (`tmix=frames=N,select='gte(n,N)'`); an unprimed average is a single frame and reads as scrambled content. Auto-exposure clips LEDs to white above brightness about 20; auto-gain boosts a dark panel; reflections off nearby surfaces enter even a difference image |
+| `bench.py flicker`, `bands`, `glitch` | per-frame brightness series, rolling-shutter band period, band events | a 30 fps camera cannot resolve panel flicker against its own frame-to-frame reference; flicker is judged by eye |
 | `rxp discover` | firmware version, control area end coordinates | reports a healthy size while the control area is erased (`startX = 0xFFFF`); the EEPROM is checked with `scripts/flash-review.py` |
 
 Camera handling: shoot at brightness 6 to 20; locate the panel by differencing
 lit against blanked (`bench.py locate`), taking the brightest connected region
-rather than everything above a threshold; compare structure or same-condition
-differences, never absolute brightness. `capture` counts a pixel as clipped at
-level 250 or above and warns when the clipped fraction exceeds 3 %.
+rather than everything above a threshold, which also finds windows and other
+reflectors; compare structure or same-condition differences, never absolute
+brightness. `capture` counts a pixel as clipped at level 250 or above and
+warns when the clipped fraction exceeds 3 %.
 
 ## `scripts/bench.py` commands
 
@@ -132,14 +137,14 @@ hbands vbands gray-N row-N col-N`, or any PNG path. `--boot` before any
 configuration change starts the card from a known state:
 
 ```
-scripts/bench.py run --boot --spec config/panels/p25-128x64-sm16269s.toml \
+scripts/bench.py run --boot --spec config/panels/<panel>.toml \
     --brightness 40 black white top left
 ```
 
 Config-side scripts are separate and read-only unless `--commit` is given:
-`flash-review.py` (diff block 7 against the factory dump and check the
+`flash-review.py` (diff block 7 against a reference dump and check the
 control area; run after every flash operation), `eeprom-restore.py` (rewrite
-records from the factory dump, one at a time, `--commit`), `mapdump.py`,
+records from a dump, one at a time, `--commit`), `mapdump.py`,
 `mapstruct.py`, `chipregs.py`.
 
 ## Flash and configuration rules
@@ -150,12 +155,12 @@ records from the factory dump, one at a time, `--commit`), `mapdump.py`,
   `rxp provision` does all of it.
 * `rxp flash snapshot` first. It captures the primary region and the golden
   bank; the golden bank at block 0x20 is never written by `firmware write`.
-* `rxp config send` pushes to RAM only and lands on about one boot in three.
-  The mapping is read from flash at boot, so a mapping change needs
-  `flash restore-block` plus a power-cycle.
+* `rxp config send` pushes to RAM only and does not reliably land: the 34
+  packs are unacknowledged. The mapping is read from flash at boot, so a
+  mapping change needs `flash restore-block` plus a power-cycle.
 * EEPROM records are written one at a time, at the record's own address and
   length from [eeprom-map.md](eeprom-map.md); the card silently ignores a
-  write spanning record boundaries. Records `0x041`, `0x042` and `0x092` did
-  not take through opcode `0x85` and remain `0xFF`.
-* `rxp card screen-size --set` refuses a record that reads as erased. Writing
-  an erased record back is what persisted `0xFF` across the control area.
+  write spanning record boundaries.
+* `rxp card screen-size --set` refuses a record that reads as erased.
+  Writing an erased record back persists `0xFF` across the control area and
+  the card then drops every pixel ([receiver-identity.md](receiver-identity.md)).

@@ -34,7 +34,7 @@ precedence.
 |---|---|
 | The protocol in 16.53's ROM | None. The ROM is byte-identical in 16.53, 13.39 (Normal), 9.53 (PWM) and 6.69 (LS0allDA). A block that does not change across the Normal/PWM/LS split cannot encode a chip-specific serial protocol. No LE-tail table, no guard word, no addressed-register structure is present in any build |
 | Runtime protocol selection | By the chip id, as data. The host tool's `ResetChipControl` jump table (indexed by `chipType - 0x10`) emits a 20-byte `SChipControl` descriptor per id into record 0x01 `+0x0C4`. It is all-zero for exactly the non-S-PWM chips and non-zero for every S-PWM chip, and it is the only chip-protocol-shaped payload in the pack. The per-byte semantics in §2.1 are inferred |
-| GCLK | The SM16269 has no GCLK and no OE pin. Pin 21 is RCLK; the datasheet block diagram wires RCLK -> 16-bit counter -> PWM controller, so RCLK is the grey clock and also advances the row. `SChipControl[10..13]` is the card-side "scan cycle level"; the bench value `0x0097` = 151 is what the vendor formula gives for the bench registers (§4.2). Record `+0x031` `SetGClock` never reaches the pack |
+| GCLK | The SM16269 has no GCLK and no OE pin. Pin 21 is RCLK; the datasheet block diagram wires RCLK -> 16-bit counter -> PWM controller, so RCLK is the grey clock and also advances the row. `SChipControl[10..13]` is the card-side "scan cycle level"; the reference value `0x0097` = 151 is what the vendor formula gives for the reference registers (§4.2). Record `+0x031` `SetGClock` never reaches the pack |
 | Data upload | 16-bit words per output channel, MSB first, R/G/B as six parallel lanes, output-major / chip-minor nesting, with a 1-DCLK LE data-latch tail (`SChipControl[5] = 0x01` in every S-PWM profile in the corpus). Inferred from the datasheet and two reference drivers |
 
 Measured on the bench (firmware 16.53, [../rendering.md](../rendering.md)):
@@ -151,7 +151,7 @@ Survey across the 29 corpus files that carry a record 0x01
 | `0x00E5` (3265 / 3264) | 4 files | `1 5 5` | 47 / 89 / 91 | 13 regs, `0x02..0x11` |
 | `0x00BB` (16389) | 3 files | `1 5 6` | 138 / 33 | 32-33 regs, `0x02..0x22` |
 | `0x00C2` (2065) | 2 files | `1 5 6` | 138/138 | 45-46 regs, `0x02..0xF5` |
-| `0x014C` (bench panel) | reference file | `1 5 6` | 151/151 | 33 regs, `0x02..0x22,0xF0` |
+| `0x014C` (reference module) | reference file | `1 5 6` | 151/151 | 33 regs, `0x02..0x22,0xF0` |
 | `0x002F` (MBI5153, sub `0x008A` SM16159) | 5 files, no rec 0x01 | `3 4 8` | 129 / 257 / 513 | none |
 
 Byte 0 is always 0; byte 1 is `0x0E` = 14 in every non-zero block; byte 5 is
@@ -234,9 +234,9 @@ before sending, would settle it.
 
 ---
 
-## 3. The protocol the bench card is told to speak
+## 3. The protocol the card is told to speak
 
-The bench config (`config/chips/sm16269s-factory.toml`; also `sm16269.toml`
+The shipped configuration (`config/chips/sm16269s-factory.toml`; also `sm16269.toml`
 and `sm16169sh.toml`, all `family_id = 0x014C`) sends:
 
 ```
@@ -266,7 +266,7 @@ chip-control tails `2/4/8` and `3/5/7` never arm the SM16269S outputs; only
 `1, 5, 6` renders ([../rendering.md](../rendering.md)).
 
 Register writes land through the SH encoding: the gain register moves supply
-current on this bench, and the panel renders. The part marked SM16269S
+current, and the panel renders. The part marked SM16269S
 behaves as an SH part under this encoding, consistent with the firmware
 being filed `SM16386S_SM16269SH`.
 
@@ -353,8 +353,8 @@ pack. It cannot affect what the card emits.
 ### 4.3 What stops the clock
 
 * An all-zero `SChipControl`, which is what chip ids with no vendor table
-  produce. This is the most economical explanation of "`0x0214` -> panel
-  dark at 0.5 A" (inferred).
+  produce. This is the most economical explanation of "`0x0214` leaves the
+  panel dark" (inferred).
 * The control-group source block RAM `MIB_R25C4/C5 EBR0` starting empty
   (`WID = 1`, not initialised at configuration time;
   [output-stage.md §7.4](output-stage.md#74-the-control-group-source-ram-starts-empty-high)).
@@ -432,21 +432,34 @@ it; two render and decay ([../rendering.md](../rendering.md)).
 
 ---
 
-## 6. Fault candidates for the data path and their status
-
-| candidate | facts | status |
-|---|---|---|
-| `0x014C` is the wrong family entry and `0x002F` (+ sub `0x008A`) is the id for this silicon | every corpus `.rcvbp` whose name carries "16169" uses `0x002F`; none uses `0x14C`. The `0x14C` in the reference file came from a 256x384 wall config. The two ids carry different descriptors (`3, 4, 8` vs `1, 5, 6`). `IsHasGCLKRatioSetting()` is false for `0x14C` and true for `0x2F`; `GetGclkCount()` returns 0 for `0x14C` (the id falls past the table bound) and computes a value for `0x2F` | disproved. `0x002F` is MBI5153 with sub-id SM16159, not an SM16169. Measured: with `chip_control = 00 0e 03 04 08 01 03 00 00 00 00 81 00 81 00 10 00 00 00 00`, serial clock 10, it never arms the SM16269S. The chip library written for it (`sm16169-corpus.toml`) is removed |
-| The SH (addressed-register) encoding is sent to a part that wants the unaddressed one | the SM16269 datasheet publishes one configurable word, the 6-bit current gain (`G5..G0` in bits 5:0), no register map and no address field; the card sends 33 addressed registers | disproved for this silicon. Measured: tails `2/4/8` and `3/5/7` never arm; `1, 5, 6` renders; the gain register moves supply current |
-| Wrong RCLK regime: the chip holds a frame in its 8 K SRAM and self-scans it from RCLK while the card's A-E drive the row select; a rate mismatch shows the same SRAM row on every physical row | consistent with "gain writes work" and "brightness scales current", which never touch the row pointer | not the fault in the rendering configuration: `0x0097` is the vendor's own value for `reg07 = 0x04`, sub-id `0`, and the panel renders with it. Do not sweep bytes 10-13 in isolation |
-| The recompute trap (§4.2) | a register sweep touching `0x07` or the sub-id without recomputing bytes 10-13 manufactures a fault | open as a tooling hazard; `sm16269.toml` ships the inconsistent combination |
-| A second unresolved `SChipControl` field: `[14..15]`, `[16]`, `[18..19]` (bench `00 08 / 02 / 0a 02`) | byte 16 is not written by `ResetChipControl` for chip `0x14C`; the `02` in the reference file comes from a LEDVISION save path outside the reset path | not swept; not required for rendering |
-| Un-flashed corrected config, `CardScanLen`, serial clock, register table, lane map | [output-stage.md §6](output-stage.md#6-reconciling-the-bench-facts) | see that table |
+## 6. Settled points and hazards
 
 On a self-scanning S-PWM part two alignments have to hold: the bytes that
 reach the scan buffer, and the chip's own row pointer against the card's row
 select. Framebuffer correctness cannot fix the second. Both hold in the
 rendering configuration.
+
+* **`0x002F` is not this silicon.** Every corpus `.rcvbp` whose name carries
+  "16169" uses `0x002F` and none uses `0x14C`, but `0x002F` is MBI5153 with
+  sub-id SM16159. Its descriptor (`3, 4, 8`, serial clock 10) never arms an
+  SM16269S. `0x014C` is the entry that does.
+* **The SH encoding is the right one.** The SM16269 datasheet publishes one
+  configurable word, the 6-bit current gain (`G5..G0` in bits 5:0), no
+  register map and no address field, yet the card's 33 addressed register
+  writes land: the gain register moves supply current and the panel renders.
+  Tails `2/4/8` and `3/5/7` never arm; only `1, 5, 6` does.
+* **Do not sweep `SChipControl[10..13]` in isolation.** They are the GCLK /
+  RCLK counts, and `0x0097` is the vendor's own value for `reg07 = 0x04`,
+  sub-id `0`. A rate mismatch here shows the same SRAM row on every physical
+  row while gain writes and brightness still work, so it looks like a
+  framebuffer fault and is not one.
+* **The recompute trap (§4.2).** A register sweep that touches `0x07` or the
+  sub-id without recomputing bytes 10-13 manufactures exactly that fault;
+  `sm16269.toml` ships the inconsistent combination.
+* **Unresolved fields.** `SChipControl[14..15]`, `[16]` and `[18..19]`.
+  Byte 16 is not written by `ResetChipControl` for chip `0x14C`; the `02` in
+  the reference file comes from a LEDVISION save path outside the reset
+  path. Not swept; not required for rendering.
 
 ---
 

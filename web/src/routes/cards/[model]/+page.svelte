@@ -5,11 +5,11 @@
   import TitleRow from "$parts/TitleRow.svelte";
   import SubNav from "$parts/SubNav.svelte";
   import KeyValue, { type Row } from "$parts/KeyValue.svelte";
-  import { REPO } from "$lib/site";
   import { panelTitle } from "$lib/panel";
 
   let { data } = $props();
   const c = $derived(data.card);
+  const href = $derived(`/cards/${encodeURIComponent(c.name.toLowerCase())}`);
   const hex = (n: number, w = 2) => "0x" + n.toString(16).padStart(w, "0");
   const blocks = (bytes: number) => Math.ceil(bytes / c.memory.block_bytes);
 
@@ -18,7 +18,8 @@
       ["name", c.name],
       ["vendor", c.vendor],
       ["family", c.family],
-      ["id", hex(c.id)],
+      // No id byte means discovery cannot pick the model; only --card can.
+      ["id", c.id === undefined ? "none stated" : hex(c.id)],
       ["status", c.status],
       ["file", c.path],
       ["image pattern", c.firmware.image_pattern],
@@ -53,7 +54,7 @@
   const description = $derived(`${c.vendor} ${c.name} receiving card: limits, memory map, firmware images, tested panels.`);
 </script>
 
-<Head title="{c.vendor} {c.name}" {description} path="/cards/{encodeURIComponent(c.name.toLowerCase())}" />
+<Head title="{c.vendor} {c.name}" {description} path={href} />
 
 <TitleRow title="{c.vendor} {c.name}">
   {#snippet action()}
@@ -108,24 +109,18 @@
 
 <section id="firmware">
   <h2>Firmware</h2>
-  <div class="scroll">
-    <table>
-      <thead><tr><th>image</th><th>version</th><th>kind</th><th>pcb</th><th>chips</th><th class="num">size</th><th>sha256</th></tr></thead>
-      <tbody>
-        {#each data.images as i (i.name)}
-          <tr>
-            <td class="mono"><a href={i.location.remote ? i.location.href : `${REPO}/blob/main/${i.location.href}`}>{i.name}</a></td>
-            <td class="mono">{i.version}</td>
-            <td>{i.kind}</td>
-            <td>{i.pcb ?? ""}</td>
-            <td>{i.chips.join(", ")}</td>
-            <td class="num">{i.size}</td>
-            <td class="mono sha">{i.sha256}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
+  <p>
+    <a href="{href}/firmware">{data.images} images</a> in <code>config/firmware.toml</code>, with their versions, board revisions, driver chips and sha256.
+  </p>
+  {#if data.tested.length}
+    <ul>
+      {#each data.tested as t (t.panel)}
+        <li class="mono">{t.firmware}{t.version ? ` (${t.version})` : ""}<span class="caption"> driven with {t.entry ? panelTitle(t.entry) : t.panel}</span></li>
+      {/each}
+    </ul>
+  {:else}
+    <p class="muted">no image has been driven on this model</p>
+  {/if}
 </section>
 
 <style>
@@ -138,8 +133,5 @@
     max-width: 480px;
     height: auto;
     border: 1px solid var(--line);
-  }
-  .sha {
-    font-size: 11px;
   }
 </style>

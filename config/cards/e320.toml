@@ -1,0 +1,94 @@
+# Colorlight E320 receiving card: the card the whole gateware line is named
+# after (third-party/README.md). Never on this bench, and the only model here
+# whose limits rest on reseller pages rather than a vendor PDF.
+
+name = "E320"
+vendor = "Colorlight"
+family = "colorlight"
+# No discovery id byte. No E320 has answered `rxp discover` here and no
+# source publishes the card-type byte, so the field is omitted rather than
+# guessed: `receivers::by_id` will not return this model, and a card whose
+# id byte no file carries is reported as an unknown model. `--card E320`
+# is the only way to select it.
+status = "generates"
+notes = """
+Specification: Colorlight publishes no E320 specification any more. Its \
+downloads page (https://en.colorlightinside.com/service/download/?cat=602) \
+carries E120, E80 and E320Pro only, and the Chinese page \
+(https://www.colorlightinside.com/service/download/?cat=602) carries the \
+newer E80-G2 / E120-G2 / E160-G2 / E320Pro generation. E320Pro is a separate \
+2025 product and is NOT this card. So the limits below are tier-2:
+
+- Control area, Normal 128x1024 / PWM 256x1024 / Shixin 162x1024: \
+https://www.led-card.com/colorlight-e320-receiver-card.html, whose text is \
+the vendor's own overview paragraph with the E320 numbers substituted \
+(compare the E120 PDF's "Overview" and "Basic parameters"). \
+A second reseller, https://www.ledwallcentral.com/ColorLight-E320-receiving-card.htm, \
+agrees on 256x1024.
+- 8 HUB75 ports ("HUB 75 (16 pin) x 8"): \
+https://www.ledwallcentral.com/ColorLight-E320-receiving-card.htm.
+
+Unresolved: the Shixin figure, 162x1024, is the same number the E120 PDF \
+gives for the E120, where every other E320 figure is larger than the E120's; \
+it may be a copy from the E120 sheet. It is not used here (max_height is the \
+PWM figure). Board dimensions conflict between resellers (145.2x91.7x18.4mm \
+vs 150x60x15mm) and are not recorded. No PCB revision and no cascade limit \
+are stated anywhere.
+
+Firmware: Colorlight's "75B E80 75E E120 E320 5-in-1 Series" archive holds \
+one image set for the whole classic family. Its 129 files (config/firmware.toml) \
+are filed by driver chip and build variant only -- Custom Series/<chip>, PWM/<chip>, \
+Regular, SHIXIN, Irregular Display Firmware -- with no folder, file name or \
+bitstream header naming a card model, and every file is the same 721,024-byte \
+LFE5U-25F bitstream. Every build is named E320 whatever card it runs on.
+
+Memory map, guarded blocks and boot-image offsets: copied from \
+config/cards/e120.toml. INFERRED from that shared firmware, not measured on \
+an E320. The addresses were dumped from one E120 (docs/fpga/flash-layout.md); \
+nothing here has been read off an E320, which is why status is "generates".
+"""
+# For a photo and a specification PDF once they are uploaded. Candidates are
+# in the handoff; nothing is filled in until the asset exists.
+image = "cards/e320.jpg"
+image_source = "eager-led.com product photo"
+
+[limits]
+# PWM chips, 256x1024; 1024 is the load along the data line, as on the E120.
+max_width = 1024
+max_height = 256
+hub_ports = 8
+# No source states a cascade length, so `chain` is omitted.
+
+# INFERRED from the shared firmware, not measured on an E320. Every address
+# is the E120's.
+[memory]
+block_bytes = 0x10000
+primary_bank = 0x000000
+bank_bytes = 0x0B0000
+golden_bank = 0x200000
+parameter_block = 0x07
+eeprom_mirror = 0x07F000
+
+[[memory.guarded]]
+from = "16.53"
+blocks = [0x00, 0x01, 0x02, 0x08]
+
+[memory.boot_image]
+basic_pack = 0x0000
+data_swap = 0x0500
+module_positions = 0x0600
+chip_page = 0x0900
+void_line = 0x1000
+void_line_columns = 0x1400
+anti_void = 0x1800
+mapping = 0x3000
+scan_table = 0x6000
+rcvbp = 0x8000
+map_entries = 4096
+rcvbp_max = 0x6FFC
+
+[firmware]
+image_pattern = "E320_PWM_FPGA{version}_*.hex"
+# INFERRED from the shared firmware; the self-program has never been run on
+# an E320.
+sdram_staging = true

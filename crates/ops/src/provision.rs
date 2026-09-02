@@ -105,8 +105,9 @@ fn install_firmware(
 pub struct Args<'a> {
     /// Panel spec file.
     pub spec_path: &'a str,
-    /// Vendor firmware image to install, a `config/firmware.toml` name or a
-    /// path; skipped when absent.
+    /// Vendor firmware image to install: a `config/firmware.toml` name, a
+    /// path, or `auto` for the image the ranking picks for the spec
+    /// (`crate::firmware::pick`); skipped when absent.
     pub firmware: Option<&'a str>,
     /// Cabinet position in the whole screen, in pixels.
     pub position: (u16, u16),
@@ -178,6 +179,18 @@ pub fn provision(ctx: &Ctx, a: &Args, load: Loader, p: &mut dyn Progress) -> Res
         position.0, position.1
     ));
     p.err(&format!("plan: {}", eeprom_target(index)));
+    // `--firmware auto` ranks config/firmware.toml for this spec and this
+    // card and installs the one image the ranking decided (docs/cards.md).
+    let auto = firmware == Some(crate::firmware::AUTO);
+    let firmware = if auto {
+        let ranked = crate::firmware::select(&spec, m);
+        let chosen = crate::firmware::chosen(&ranked, &crate::firmware::chip_name(&spec))?;
+        let (image, why) = (chosen.image, chosen.why());
+        p.err(&format!("firmware: auto -> {} ({why})", image.name));
+        Some(image.name.as_str())
+    } else {
+        firmware
+    };
     let want_version = match firmware {
         Some(fw) => {
             let r = crate::firmware::resolve(fw)?;
@@ -216,18 +229,22 @@ pub fn provision(ctx: &Ctx, a: &Args, load: Loader, p: &mut dyn Progress) -> Res
     check(p)?;
     if let (Some(fw), Some(want)) = (firmware, want_version) {
         p.err(&format!("[2/5] firmware: {fw}"));
-        // The host page writes run under the firmware the card is on now.
-        let guarded = m.memory.guarded_blocks(running);
-        if !guarded.is_empty() {
-            p.err(&format!("firmware: {running} guards blocks {} from host writes", hex(guarded, ",")));
-        }
-        if install_firmware(ctx, fw, &backup, guarded, wait, p)? {
-            p.err(&format!("firmware: power-cycle the card now; waiting for {want}"));
-            let info = wait_for_version(ctx, want, Duration::from_mins(10))?;
-            p.err(&format!("firmware: card back on {}", version_of(&info)));
-            // The card answers discovery before it has finished loading its
-            // parameters; flash writes sent before then are unreliable.
-            std::thread::sleep(Duration::from_secs(12));
+        if auto && running == want {
+            p.err(&format!("firmware: the card already reports {want}; not installed"));
+        } else {
+            // The host page writes run under the firmware the card is on now.
+            let guarded = m.memory.guarded_blocks(running);
+            if !guarded.is_empty() {
+                p.err(&format!("firmware: {running} guards blocks {} from host writes", hex(guarded, ",")));
+            }
+            if install_firmware(ctx, fw, &backup, guarded, wait, p)? {
+                p.err(&format!("firmware: power-cycle the card now; waiting for {want}"));
+                let info = wait_for_version(ctx, want, Duration::from_mins(10))?;
+                p.err(&format!("firmware: card back on {}", version_of(&info)));
+                // The card answers discovery before it has finished loading its
+                // parameters; flash writes sent before then are unreliable.
+                std::thread::sleep(Duration::from_secs(12));
+            }
         }
     } else {
         p.err("[2/5] firmware: skipped (no --firmware)");

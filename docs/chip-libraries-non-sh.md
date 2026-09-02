@@ -125,7 +125,7 @@ everything else equal:
 
 | body offset | `0x00DE` | `0x014C` | `0x0214` | rule |
 |---|---|---|---|---|
-| `+0x08` (grey bits) | `0x0E` | `0x10` | `0x0E` | `pack[0x0C] = GetGrayLevel(); if (IsNeed16BitGrayWhenSend()) pack[0x0C] = 0x10;` at `0x1DFEEF`–`0x1DFF03`. The factory pack on this card (compiled by the card, not by the PC tool) has `0x0E` at this offset for chip `0x14C`, so the card's own compiler does not apply this rule; the generator must not be changed from this row. |
+| `+0x08` (grey bits) | `0x0E` | `0x10` | `0x0E` | `pack[0x0C] = GetGrayLevel(); if (IsNeed16BitGrayWhenSend()) pack[0x0C] = 0x10;` at `0x1DFEEF`–`0x1DFF03`. A factory pack compiled by the card rather than by the PC tool has `0x0E` at this offset for chip `0x14C`, so the card's own compiler does not apply this rule; the generator must not be changed from this row. |
 | `+0x10` | derived from min-OE (`0x1DFF94`–`0x1DFFD1`) | `OBJ+0x83` (`0x1DFFD6`) | `OBJ+0x83` | `IsHighRefreshValid()` gate at `0x1DFF81` |
 | `+0x17` (pack `+0x1B`) | `0xDE` | `0xFE` | `0xFE` | ids < `0x100` use the byte slot; larger ones set the `0xFE` escape (`ResetChipType` `0x1E5130`) |
 | `+0x70..+0x7F` | see §2 | zeros | zeros | `SChipCustom` |
@@ -133,21 +133,21 @@ everything else equal:
 | `+0xE3..+0xE4` (pack `+0xE7`) | `00 00` | `01 4C` | `02 14` | escaped chip id, big-endian |
 | `+0xFC..+0xFF` | — | — | — | CRC-32, computed with `+0x17` and `+0xE3..+0xE4` zeroed, so it moves with everything above |
 
-## 5. Bench results by chip id
+## 5. Behaviour by chip id
 
-Measured on the bench panel (P2.5 128x64, SM16269S drivers, firmware 16.53):
+Measured on the reference module (SM16269S drivers, firmware 16.53):
 
 * `0x14C` arms the drivers and, with the settings in
   [rendering.md](rendering.md), renders.
-* `0x0214` never arms; the panel stays dark at 0.5 A. `IsPWMChip(0x214)` is
+* `0x0214` never arms; the panel stays dark. `IsPWMChip(0x214)` is
   false, so `ResetChipCustom` skips the prologue that sets bit 7 of
   `SChipCustom[0]` ("use self GCK") and the serial-clock bytes, the default
   arm adds nothing, and `ResetChipControl` zeroes its 20 bytes. A config
   declaring `0x0214` ships the driver an all-zero configuration. It is an
   absent chip library, not a tuning problem; no shipped Colorlight build has
   one.
-* `0x0DE` never armed in the configuration measured, which was wrong for
-  this chip: it carried the SH register table for `0x14C` and left
+* `0x0DE` never armed in the one configuration it was tried in, which was
+  wrong for this chip: it carried the SH register table for `0x14C` and left
   `SChipCustom` at the `0x14C` value (`80 0F 00 …`). Byte 2 was therefore
   `0x00`, not `0xE?`, which (a) leaves the three colour config words zero and
   (b) makes `SetGclkNums` take the `n < 2` branch, so `SChipControl[10..13]`
@@ -170,9 +170,9 @@ Measured on the bench panel (P2.5 128x64, SM16269S drivers, firmware 16.53):
 * `GetGrayLevel` for `GetGrayLevelCalType == 31`. The corpus value is 14 in
   56 of 59 files and 13 in 3; the formula is not traced.
 * Whether the card's firmware compiler applies `IsNeed16BitGrayWhenSend` and
-  `IsHighRefreshValid` the way `GetBasicParam` does. The one ground-truth
-  pack on this card says no for the first; the second is not testable with
-  this panel.
+  `IsHighRefreshValid` the way `GetBasicParam` does. The one card-compiled
+  ground-truth pack says no for the first; the second needs a module the
+  high-refresh gate applies to.
 * `SChipGrobalConfig` (record `+0x0EA`): `00 40 00 40 00 40` in 44 of the 59
   SM16169S files and all zeros in the rest. Neither value comes from
   `ResetChipCustom`'s `0x00DE` case. Whole-struct only, as in

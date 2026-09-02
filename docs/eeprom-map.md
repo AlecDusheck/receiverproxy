@@ -131,13 +131,13 @@ above 0x100. `colorlight::eeprom::RECORDS` carries the records up to `0xfd`.
   `0x040` did nothing while the 42-byte write at `0x002` took.
 * Back-to-back writes are dropped. `rxp provision` spaces them 500 ms apart
   and writes with the broadcast index.
-* Records `0x41`, `0x42` and `0x92` did not take through opcode `0x85` on the
-  bench card; they read `0xFF`. The panel renders regardless.
+* Records `0x41`, `0x42` and `0x92` do not take through opcode `0x85`; they
+  read back `0xFF`. The panel renders regardless.
 * `rxp card screen-size --set` reads and writes all 256 bytes from EEPROM 0,
   every record in the table above. Run after a block-0x07 erase it persists
   the `0xFF` it read into `NoInputShowInfo` (0x41), `TurnOnScreenShow`
-  (0x42), `SeamEnable` (0x4c) and the control-area offsets; measured, see
-  [receiver-identity.md](receiver-identity.md). It refuses a record that
+  (0x42), `SeamEnable` (0x4c) and the control-area offsets, and the card then
+  drops every pixel ([receiver-identity.md](receiver-identity.md)). It refuses a record that
   reads as erased.
 * `rxp provision` and `scripts/eeprom-restore.py` write each record at its
   own address and length. `scripts/flash-review.py` diffs block 0x07 against

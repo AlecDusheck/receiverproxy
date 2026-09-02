@@ -109,7 +109,7 @@ enum Cmd {
         /// Panel spec, see config/panels/*.toml
         #[arg(long)]
         spec: String,
-        /// Firmware image to install, a name from config/firmware.toml or a path (skipped when absent)
+        /// Firmware image to install: a name from config/firmware.toml, a path, or "auto" for the image `rxp firmware pick` chooses (skipped when absent)
         #[arg(long)]
         firmware: Option<String>,
         /// Cabinet position in the whole screen, "x,y" in pixels

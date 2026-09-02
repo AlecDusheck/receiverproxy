@@ -42,8 +42,9 @@ const START_Y: usize = 4;
 /// True when the record has been erased rather than programmed.
 ///
 /// The write path sends all 256 bytes, i.e. every EEPROM record
-/// (docs/eeprom-map.md), so an erased read must never be written back
-/// (docs/retracted-findings.md).
+/// (docs/eeprom-map.md), so an erased read must never be written back: it
+/// would persist `0xFF` across the control area and the card would drop
+/// every pixel (docs/receiver-identity.md).
 #[must_use]
 pub fn looks_erased(record: &[u8]) -> bool {
     let empty_window =

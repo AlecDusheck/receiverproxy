@@ -344,7 +344,7 @@ the window is empty.
 |---|---|
 | brightness (`0x0A`) and latch (`0x0107`) act on the panel | yes; neither carries coordinates, so neither is windowed |
 | streaming shifts supply current and the RX FIFOs churn | yes; frames are received and the latch frames fire |
-| all-black and all-white draw the same current | yes; every write is discarded and the bank keeps its power-on contents. Measured interleaved: black and white differ by 0.001 A against a within-condition spread of 0.033 A. A 0.15 A white-over-black difference from two sequential readings does not exist; it is drift ([../retracted-findings.md](../retracted-findings.md)) |
+| all-black and all-white draw the same current | yes; every write is discarded and the bank keeps its power-on contents. The two conditions must be metered interleaved against a same-content control: sequential readings drift by more than the difference being looked for ([../bench.md](../bench.md)) |
 | the stored configuration is byte-identical to the reference `.rcvbp` | yes; the control area is outside the `.rcvbp`, so a correct configuration and an empty window coexist |
 | four host raster layouts all fail | yes; reordering rows cannot help when every row index is rejected |
 

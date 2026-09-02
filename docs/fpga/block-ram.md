@@ -162,13 +162,13 @@ Decode trap: EBR bel pins are not set-arc sinks; they hang off ordinary CIB
 J-pins by fixed connections. A naive set-arc trace finds no EBR
 connections.
 
-## 5. Memory arithmetic for the bench
+## 5. Memory arithmetic
 
 * 53 × 18 Kbit = 954 Kbit ≈ 119 KB on-chip, out of 1 008 Kbit. The design
   uses nearly all of it.
-* A 128 × 64 panel at 8 bits per colour is 128·64·24 = 192 Kbit ≈ 11 EBRs,
+* For scale, a 128 × 64 panel at 8 bits per colour is 128·64·24 = 192 Kbit ≈ 11 EBRs,
   about a fifth of what is instantiated. Two or three full frames would fit.
-  At the panel's native 14-bit grey it is 128·64·42 = 336 Kbit ≈ 19 EBRs,
+  At 14-bit grey it is 128·64·42 = 336 Kbit ≈ 19 EBRs,
   still inside.
 * There is no external DRAM. No `DQSBUF`, `DDRDLL` or `DLLDEL` configuration
   exists anywhere in any of the five images, and the left/right edges have

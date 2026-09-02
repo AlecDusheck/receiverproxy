@@ -194,7 +194,7 @@ Bits 2, 8, 9, 25 and 27: not resolved.
 * Flag word #1 bits 2, 8, 9, 25, 27: not resolved.
 * Payload +0x02F is not in the table: its meaning is not resolved. The value
   1 is the vendor `Reset()` default and the value in 961 of 1146 corpus
-  files; measured: with it cleared nothing displays on the bench panel
+  files; with it cleared nothing displays on the reference module
   (see [rendering.md](rendering.md)).
 * The meanings marked inferred (+0x026, +0x0C4, +0x247, +0x24C) have not been
-  exercised on the bench.
+  exercised on hardware.

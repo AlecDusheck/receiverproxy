@@ -33,7 +33,7 @@ subject elsewhere.
 | [block-ram.md](block-ram.md) | The one initialised BRAM: location, size, contents, the 21-bit opcode+immediate decode, what it is and is not, and every other block RAM's mode and width. |
 | [pixel-write-path.md](pixel-write-path.md) | What a type-`0x55` pixel frame meets inside the card: the decode trap for EBR pins, the two Ethernet receive FIFOs (one per PHY, the design's only clock-domain crossings), the two banked destination memories, why the packet decode is not recoverable by any LUT-constant method, and the windowing the vendor's and FPP's senders imply. |
 | [parameter-path.md](parameter-path.md) | All three transports (live Ethernet, flash writes, boot read), the 41-pack real-time push, the 256-byte basic pack, what is shipped precomputed and what is derived, and every constant searched for with FOUND / NOT FOUND / NEVER SEARCHED. |
-| [output-stage.md](output-stage.md) | HUB75E connector and signal set, what the SM16269 family requires, the S-PWM structure, scan handling and the OneScanLen/CardScanLen arithmetic, the scan table (its all-zero bit times are normal), the pixel mapping, the output stage in the netlist (96 RGB pins, the global blank and 2:1 source select, counter vs BRAM), and the hypotheses that preceded the bench result. |
+| [output-stage.md](output-stage.md) | HUB75E connector and signal set, what the SM16269 family requires, the S-PWM structure, scan handling and the OneScanLen/CardScanLen arithmetic, the scan table (its all-zero bit times are normal), the pixel mapping, the output stage in the netlist (96 RGB pins, the global blank and 2:1 source select, counter vs BRAM), and the hypotheses that preceded the measured result. |
 | [version-diff.md](version-diff.md) | 16.53 vs 10.81 vs 9.53 vs 13.39 vs 6.69 at the decoded level, what separates the PWM / Normal / LS families, and why the version numbers are not one sequence. |
 | [chip-protocol-microcode.md](chip-protocol-microcode.md) | Where the driver-chip serial protocol lives. The microcode ROM is not it (bit-identical across the Normal/LS/PWM split, none of the protocol constants in it); 16.53 added no output-stage logic; the 20-byte `SChipControl` block is a per-chip serial-protocol descriptor (pre-activation / register / data-latch / VSYNC LE tail lengths and two GCLK/RCLK-per-row counts), cross-checked against the vendor's 29-file corpus and three open-source driver profiles. SM16269 datasheet facts: no OE, no GCLK; pin 21 is RCLK and is the grey clock. |
 | [chip-id.md](chip-id.md) | The driver-chip id: how it reaches the card, the vendor chip table, what was searched and ruled out, why the negative is credible but not absolute, the refuted lead, and what to send. |
@@ -53,7 +53,7 @@ subject elsewhere.
 ## Raw artefacts
 
 Pages cite artefacts under `analysis/fpga/` (pin tables, EBR maps, LUT
-histograms, decode scripts) and the bench card's flash dumps under
+histograms, decode scripts) and the card's flash dumps under
 `card-dumps/`. The `analysis/fpga/` tree is not kept in the repository; the
 findings are in the pages, and [decode-method.md](decode-method.md) says how
 to regenerate the artefacts. `card-dumps/` holds `primary-region.bin`,

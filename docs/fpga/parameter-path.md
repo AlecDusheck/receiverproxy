@@ -50,8 +50,8 @@ firmware >= 13; the measured default for this card is brightness, rows, a
 There is no acknowledgement, no status word and no commit frame for
 real-time packs (two full searches of the SDK found none). They take effect
 on receipt; the only feedback is the panel and the supply current. Pushed
-after boot, the packs all land on about one boot in three (measured); the
-flash path below is the reliable one.
+after boot, the packs do not all reliably land; the flash path below is the
+reliable one.
 
 ### 1.2 Flash writes
 
@@ -199,9 +199,9 @@ never compared". The surviving hypothesis is a BRAM or LUT-RAM register file
 loaded by the packet parser and compared data-vs-data, which matches the
 design's 117 CCU2 XNOR comparators (inferred).
 
-The bench shows the gateware branches on the chip id (measured: `0x014C`
-arms the outputs, `0x0214` leaves the panel dark at 0.5 A; see
-[../rendering.md](../rendering.md)). The LUT-level negative is a search
+Measurement shows the gateware branches on the chip id: `0x014C` arms the
+outputs and `0x0214` leaves the panel dark
+([../rendering.md](../rendering.md)). The LUT-level negative is a search
 limitation, not a property of the design.
 
 ### Parameter store location

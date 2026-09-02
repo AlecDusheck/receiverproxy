@@ -1,9 +1,8 @@
 # receiverproxy
 
 Drives a Colorlight E120 LED receiving card over raw Ethernet from a Rust CLI, `rxp`.
-Read `README.md` for what the tool does and `docs/README.md` for the notes
-behind it; read `docs/retracted-findings.md` before drawing a conclusion from a
-measurement.
+Read `README.md` for what the tool does and `docs/README.md` for the
+reference behind it.
 
 ## Hardware on the bench
 

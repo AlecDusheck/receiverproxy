@@ -87,9 +87,9 @@ cell. The counts are measured; that the PWM builds moved that logic into the
 fabric is inferred. The 96 IO registers map onto the 96 RGB data pads
 ([output-stage.md](output-stage.md)).
 
-This IO-register difference is the candidate explanation for the bench
-result that the panel is completely dead on Normal 13.39 (measured: 0.44 A)
-and responds on the PWM builds. Nothing was traced from those 96 IO registers
+This IO-register difference is the candidate explanation for the measured
+result that an SM16269S panel is completely dead on Normal 13.39 and
+responds on the PWM builds. Nothing was traced from those 96 IO registers
 to a specific panel signal, so it is not proof.
 
 13.39 has the fewest EBRs (49) and the lowest DFF count (11 279) of the five.
@@ -171,8 +171,8 @@ control register 0.
 
 * Which build is right for an SM16269S panel, from the decode alone. 16.53
   is the only published image whose name mentions the SM16269 family, and the
-  bench shows PWM builds respond where Normal does not, but nothing in the
-  decode identifies a driver-chip protocol. On the bench, 16.53 renders
+  measurements show PWM builds respond where Normal does not, but nothing in
+  the decode identifies a driver-chip protocol. 16.53 renders
   ([../rendering.md](../rendering.md)).
 * What the LS0allDA family is. Only the name and the resource profile are
   known.

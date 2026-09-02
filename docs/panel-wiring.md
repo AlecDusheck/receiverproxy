@@ -96,7 +96,7 @@ reproduces the reference file record for record from TOML alone, with no
 donor file. Pinned by `the_reference_config_is_regenerated_record_for_record`
 in `crates/rcvbp/tests/factory.rs`. The one intended difference is
 screen size: the reference file is compiled for a 256x384 wall of twelve
-modules; the bench spec has one.
+modules; the spec in `config/panels` describes one.
 
 ## Dependencies
 

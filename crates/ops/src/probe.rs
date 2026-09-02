@@ -102,11 +102,25 @@ impl Report {
 pub fn check_discovery(m: &CardModel, info: &DiscoveryInfo) -> Vec<Check> {
     let l = &m.limits;
     vec![
-        Check::of(
-            "discovery id",
-            info.card_id == m.id,
-            format!("0x{:02x}", m.id),
-            format!("0x{:02x}", info.card_id),
+        // A model file with no sourced id byte has nothing to compare.
+        m.id.map_or_else(
+            || {
+                Check::unchecked(
+                    "discovery id",
+                    format!(
+                        "{} states no id byte; the card answers 0x{:02x}",
+                        m.name, info.card_id
+                    ),
+                )
+            },
+            |id| {
+                Check::of(
+                    "discovery id",
+                    info.card_id == id,
+                    format!("0x{id:02x}"),
+                    format!("0x{:02x}", info.card_id),
+                )
+            },
         ),
         Check::of(
             "reported size within limits",

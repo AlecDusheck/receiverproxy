@@ -252,6 +252,15 @@ function runs on that file, so the sources report names a real path.
 
 `POST /firmware/install` body `{ path: string, commit?: boolean, golden?: boolean, timeout?: number, chunk_delay_us?: number, wait?: number }` → `{ id }` (job `firmware/install`). Defaults as `rxp firmware install`; `path` is a `config/firmware.toml` name or a path, resolved and sha256-checked as the CLI does it.
 
+`POST /firmware/pick` body `{ spec_toml: string }` → `FirmwarePick`: the
+manifest ranked for that spec, best first, each candidate with its `score`
+and `reasons`, plus `chosen` (the image `provision --firmware auto` would
+install) or `refused` (the refusal text, the same one the CLI prints). The
+card model is the `card` setting, else the last discovered card's, else the
+first tested model. Offline: no link, no discovery, no gate.
+`ProvisionReq.firmware_path` takes `"auto"` for the same choice
+([provisioning.md](provisioning.md), [cards.md](cards.md)).
+
 `GET /card/screen-size?index=0&wait=3` → `{ width: number, height: number }`.
 `PUT /card/screen-size` body `{ width: number, height: number, commit?: boolean, index?: number, wait?: number }` → `GatedOutcome & { width, height }` (the values read back).
 
@@ -461,7 +470,8 @@ web/
       panels/[name]/      `/panels/<name>`, one prerendered page per spec (`entries`), the one-line summary under the title, the photo and the maker's links (product page, specification) when [meta] has them, sections Download, Module, Wiring, Timing, TOML: the download buttons named by file (WASM, on click), customize, provision (daemon), the spec as key-value blocks (the chip's vendor and datasheet from its library), the TOML
       gallery/, gallery/[name]/  the old addresses: prerendered 301 redirects to /panels (Cloudflare `_redirects`; a refresh page in the static build)
       cards/              `/cards`, prerendered from config/cards/*.toml: photo, model, vendor, family, id, limits, status, panels tested
-      cards/[model]/      `/cards/<name>`, sections Photo and identity, Limits, Memory map, Tested panels, Firmware (the manifest as a table, each image name a download link)
+      cards/[model]/      `/cards/<name>`, sections Photo and identity, Limits, Memory map, Tested panels, Firmware (the image count, the tested images, a link to the firmware page)
+      cards/[model]/firmware/  `/cards/<name>/firmware`, one prerendered page per model: the whole manifest as a table (name, version, pcb, kind, chips, size, sha256, download) with the kind, chip and text filters
       builder/            `/builder` (+layout.ts: `ssr = false` for the sub-pages too): +page.svelte (the two panes, generate, the card actions), BuilderForm.svelte; import/ (`/builder/import`: the drop target, the unresolved list, customize); inspect/ (`/builder/inspect`: BuilderTools.svelte, inspect and diff)
       wall/               `/wall` (+layout.ts: `ssr = false`): +page.svelte (the grid form WallForm.svelte, the drawing WallDrawing.svelte, the selected card WallCard.svelte with its provision line, import, save to the daemon); layout/ (`/wall/layout`: WallTables.svelte, the same document as tables, add and remove rows, import)
       control/            `/control` (+layout.ts: `ssr = false`): the discovered cards (a row selects `app.card`) and brightness; show/, provision/, firmware/, flash/, card/: one page per action group, each headed by parts/ControlHead.svelte (title, sibling links, the selected card; the install command without the daemon); job.ts (start and follow a job, the dry-run test)

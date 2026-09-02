@@ -1,5 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { cards, firmware, imageLocation, panels } from "$lib/server/config";
+import { cards, firmware, panels } from "$lib/server/config";
 
 export const prerender = true;
 
@@ -17,6 +17,7 @@ export function load({ params }) {
       const p = specs.find((s) => s.path === t.panel);
       return { ...t, entry: p ? { name: p.name, meta: p.meta, module: p.module, chip: p.chip } : null, version: fw.images.find((i) => i.name === t.firmware)?.version ?? null };
     }),
-    images: fw.images.map((i) => ({ ...i, location: imageLocation(fw, i) })),
+    // The whole manifest is its own page; the card page shows the count.
+    images: fw.images.length,
   };
 }

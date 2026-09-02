@@ -2,9 +2,9 @@
 
 use crate::api::{
     Brightness, Card, Cards, ConfigRead, ConfigReadReq, ConfigSendReq, ConfigWriteReq, DiscoverReq,
-    FirmwareReq, GenFileSet, GenFiles, Health, ProvisionReq, ReloadReq, RestoreReq,
-    ScreenSizeQuery, ScreenSizeReq, SetLayoutReq, Settings, ShowFillReq, ShowImageReq,
-    ShowPatternReq, ShowVideoReq, Size, SizeOutcome, SnapshotReq, SpecReq, Started,
+    FirmwareCandidate, FirmwarePick, FirmwareReq, GenFileSet, GenFiles, Health, ProvisionReq,
+    ReloadReq, RestoreReq, ScreenSizeQuery, ScreenSizeReq, SetLayoutReq, Settings, ShowFillReq,
+    ShowImageReq, ShowPatternReq, ShowVideoReq, Size, SizeOutcome, SnapshotReq, SpecReq, Started,
     TestModeReq,
 };
 use crate::assets;
@@ -50,6 +50,7 @@ pub fn router(state: Shared) -> Router {
         .route("/flash/snapshot", post(flash_snapshot))
         .route("/flash/restore", post(flash_restore))
         .route("/firmware/install", post(firmware_install))
+        .route("/firmware/pick", post(firmware_pick))
         .route(
             "/card/screen-size",
             get(get_screen_size).put(put_screen_size),
@@ -593,6 +594,40 @@ async fn firmware_install(
         },
     )?;
     Ok(Json(Started { id }))
+}
+
+/// The manifest ranked for a spec: offline, no link, no card needed. The
+/// card model is the `card` setting or the last discovered one, else the
+/// first tested model.
+async fn firmware_pick(
+    State(state): State<Shared>,
+    Body(r): Body<SpecReq>,
+) -> ApiResult<Json<FirmwarePick>> {
+    let spec = parse_spec("firmware pick", &r.spec_toml)?;
+    let card = state.ctx().model.unwrap_or_else(receivers::default_model);
+    let ranked = ops::firmware::select(&spec, card);
+    let chip = ops::firmware::chip_name(&spec);
+    let decided = ops::firmware::chosen(&ranked, &chip);
+    Ok(Json(FirmwarePick {
+        chosen: decided.as_ref().ok().map(|c| c.image.name.clone()),
+        refused: decided.err().map(|e| format!("{e:#}")),
+        chip,
+        card: card.name.clone(),
+        candidates: ranked
+            .iter()
+            .map(|c| FirmwareCandidate {
+                name: c.image.name.clone(),
+                version: c.image.version.to_string(),
+                pcb: c.image.pcb.clone(),
+                kind: c.image.kind.clone(),
+                chips: c.image.chips.clone(),
+                size: c.image.size,
+                sha256: c.image.sha256.clone(),
+                score: c.score,
+                reasons: c.reasons.clone(),
+            })
+            .collect(),
+    }))
 }
 
 // --- card -------------------------------------------------------------------

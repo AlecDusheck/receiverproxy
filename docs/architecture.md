@@ -1,9 +1,8 @@
 # Architecture
 
 The path from a panel description to light, and which part of the repo owns
-each step. The measurements behind every value are in
-[rendering.md](rendering.md), the verified negatives in
-[retracted-findings.md](retracted-findings.md), and the measurement method in
+each step. The settings behind every value are in
+[rendering.md](rendering.md) and the measurement method in
 [bench.md](bench.md).
 
 ## The pipeline
@@ -108,7 +107,7 @@ Tests in `crates/rcvbp/tests/factory.rs` pin all of this: the
 reference `.rcvbp` regenerates record for record, the factory basic pack
 and block-7 image regenerate byte for byte from the factory flash dump
 (`card-dumps/primary-region.bin`, kept outside the repo; the tests skip
-without it), and the bench spec differs from the reference record 0x01 at
+without it), and the shipped panel spec differs from the reference file's record 0x01 at
 exactly `[0x023, 0x02F, 0x0C0..0x0C3]`.
 
 ### 2. Card provisioning (`rxp provision`, `ops/src/provision.rs`)
@@ -212,16 +211,16 @@ Every default below is measured; the measurements are in
 | `+0x02F` | 1 | `config/panels/…toml [record01_overrides]`, applied last in `spec/record01.rs` | `factory.rs` delta list `[0x023, 0x02F, 0x0C0..]` |
 | grey depth | 12 (12–16 render alike) | `[module] gray_bits` | same delta list (`0x023`) |
 | mapping block | 64 | `[mapping] block` | `the_reference_mapping_is_reproduced_by_the_block_knob` |
-| phantom-position gate | on | `[mapping] gate_phantom_positions` default true, `panelspec`; `Block7Builder::void_line_columns` | bench current only (black 0.466 A) |
+| phantom-position gate | on | `[mapping] gate_phantom_positions` default true, `panelspec`; `Block7Builder::void_line_columns` | supply current at black only |
 | arm at boot | true | `[boot] arm_at_boot` → chip page 0x0900 | none |
-| frame order | brightness → rows → 500 µs → 3 latches | `driver/src/lib.rs` `Timing::default()`; `display.rs::wall_settings` reads the env overrides | `settings_default_to_the_measured_recipe`; latch count and gap judged by eye on the bench |
+| frame order | brightness → rows → 500 µs → 3 latches | `driver/src/lib.rs` `Timing::default()`; `display.rs::wall_settings` reads the env overrides | `settings_default_to_the_measured_recipe` |
 | raster | `rows` | the only layout `Wall::show` cuts (one 0x55 packet per panel row) | none |
 | layout announce | off | `Settings::default()` and `display.rs::wall_settings` (the frame blanks a provisioned card) | `settings_default_to_the_measured_recipe` |
 | colour order | `bgr` | `main.rs` `--order` default; driver `Settings` | `colour_order_reorders_the_channels` |
 | pixels per packet | 497 | `colorlight/src/pixel.rs MAX_PIXELS_PER_PACKET` | `pixel_rows_follow_the_fpp_layout` |
 | firmware | 16.53, installed via SDRAM + host blocks 3–7 | `third-party/firmware/…16.53…hex`, its sha256 in `config/firmware.toml`, `provision.rs::install_firmware` | `rxp discover` reports it |
 | EEPROM control area | `(0,0,128,64)` | `--position`, `eeprom::control_area` | `scripts/flash-review.py` |
-| brightness ceiling | ≤ 40 until content is right | operator rule (bench.md) | PSU current |
+| brightness ceiling | ≤ 40 until content is right | operator rule (bench.md) | supply current |
 
 Experiment-only overrides (defaults above are the contract; nothing in
 `scripts/` sets them): `RXP_LATCHES`, `RXP_LATCH_GAP_US`, `RXP_ROW_GAP_US`,
@@ -233,10 +232,10 @@ Experiment-only overrides (defaults above are the contract; nothing in
 |---|---|
 | `scripts/psu.sh on/off/status/extend` | every power action. Arms a 10-minute auto-off; never writes voltage or current. |
 | `scripts/bench.py boot` | before any configuration experiment: power-cycle, wait for discovery, settle 12 s, `config send`. |
-| `scripts/bench.py run` | every A/B: one looping 30 fps stream of all conditions plus a same-content control, primed-average camera captures at 30 % into each segment, PSU current per condition. `--restart` streams each condition through `rxp show image --hold` for per-condition brightness. |
-| `scripts/bench.py locate / capture / compare / tile` | set the crop once per rig, take a single averaged photo, diff two, tile a set. Captures must stay primed averages: the panel is 1/16 multiplexed and a single frame is scan phase, not content. |
-| `scripts/flash-review.py <dump>` | after every flash operation: diff block 7 against the factory dump run by run, and check the EEPROM control area is not `0xFFFF`. |
-| `scripts/eeprom-restore.py` | the control area or another EEPROM record is erased and re-provisioning is not wanted: rewrites records from the factory dump one at a time (`--commit`). `rxp provision` does the same natively. |
+| `scripts/bench.py run` | every A/B: one looping 30 fps stream of all conditions plus a same-content control, primed-average camera captures at 30 % into each segment, supply current per condition. `--restart` streams each condition through `rxp show image --hold` for per-condition brightness. |
+| `scripts/bench.py locate / capture / compare / tile` | set the crop once per rig, take a single averaged photo, diff two, tile a set. Captures must stay primed averages: a multiplexed panel gives scan phase, not content, in a single frame. |
+| `scripts/flash-review.py <dump>` | after every flash operation: diff block 7 against a reference dump run by run, and check the EEPROM control area is not `0xFFFF`. |
+| `scripts/eeprom-restore.py` | the control area or another EEPROM record is erased and re-provisioning is not wanted: rewrites records from a dump one at a time (`--commit`). `rxp provision` does the same natively. |
 | `scripts/mapdump.py / mapstruct.py / chipregs.py` | compare two `.rcvbp` files as geometry (record 0x03) or as register tables (0x84); read-only. |
 | `rxp discover`, `rxp debug listen / send / replay / pcap` | wire diagnostics; `discover` is also the firmware-version check. |
 
@@ -257,4 +256,4 @@ Experiment-only overrides (defaults above are the contract; nothing in
 | add a wall layout feature (rotation, flip) | `wall` | canvas unit tests; layout JSON is the on-disk format |
 | add a flash or EEPROM operation | builder + allowlist in `colorlight`, command in `ops`, clap in `cli`, route in `daemon` when the UI needs it; dry-run without `--commit` | `flash-review.py` after |
 | change how the card is found or replies are read | `rawlink` (transport) or `colorlight/src/discovery.rs` (parsing) | `rxp discover` |
-| run an experiment | `bench.py run` with the env overrides above, never by editing a default | record the result in rendering.md or retracted-findings.md |
+| run an experiment | `bench.py run` with the env overrides above, never by editing a default | record a setting that changed in rendering.md |

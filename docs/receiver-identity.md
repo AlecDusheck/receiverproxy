@@ -7,8 +7,7 @@ With the record erased (`startX = startY = 0xFFFF`) the card drops every
 pixel while reporting a healthy 128x64 to `rxp discover`.
 
 Source: static analysis of `libCLTDevice.1.dylib` (iSet 7 macOS build, C++
-symbols intact) and the bench card's flash dumps. Addresses are in that
-binary.
+symbols intact) and E120 flash dumps. Addresses are in that binary.
 
 ---
 
@@ -260,8 +259,8 @@ rxp debug send --type 1900 --pad 126 --payload 00000085000000410000000100
 rxp debug send --type 1900 --pad 126 --payload 00000085000000420000000100
 ```
 
-Neither takes through opcode `0x85` on the bench card; both read
-`0xFF`. The panel renders regardless.
+Neither takes through opcode `0x85`; both read back `0xFF`. The panel
+renders regardless.
 
 ### 6.6 Read without writing
 

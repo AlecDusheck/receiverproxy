@@ -232,6 +232,8 @@ pub struct ConfigSendReq {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields))]
 pub struct ProvisionReq {
     pub spec_toml: String,
+    /// A `config/firmware.toml` name, a path, or `auto` for the image
+    /// `POST /firmware/pick` chooses.
     pub firmware_path: Option<String>,
     pub position: (u16, u16),
     /// The card's position in the Ethernet chain; absent, the EEPROM frames
@@ -275,6 +277,42 @@ pub struct FirmwareReq {
     pub chunk_delay_us: Option<u64>,
     /// Seconds; 4 by default.
     pub wait: Option<u64>,
+}
+
+/// One image of the `POST /firmware/pick` ranking (`ops::firmware::select`).
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields))]
+pub struct FirmwareCandidate {
+    pub name: String,
+    pub version: String,
+    /// The board revision in the name; absent when it carries none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pcb: Option<String>,
+    pub kind: String,
+    pub chips: Vec<String>,
+    pub size: u64,
+    pub sha256: String,
+    pub score: u32,
+    pub reasons: Vec<String>,
+}
+
+/// The reply of `POST /firmware/pick`: the whole ranking, and either the
+/// image it decided on or why it refused.
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields))]
+pub struct FirmwarePick {
+    /// The spec's chip, as the ranking read it from the chip library.
+    pub chip: String,
+    /// The card model the ranking used.
+    pub card: String,
+    /// The image `provision --firmware auto` would install; null when the
+    /// ranking refused.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chosen: Option<String>,
+    /// The refusal text; null when one was chosen.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refused: Option<String>,
+    pub candidates: Vec<FirmwareCandidate>,
 }
 
 /// The query of `GET /card/screen-size`.

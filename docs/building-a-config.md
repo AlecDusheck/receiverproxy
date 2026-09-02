@@ -49,9 +49,9 @@ vendor's loader does. The gray depth is derived from registers 0x07 and 0x03
 
 | library | contents |
 |---|---|
-| `sm16269s-factory.toml` | family `0x14C`, no sub-id, the register table read out of the reference file. The library the bench panel renders with |
+| `sm16269s-factory.toml` | family `0x14C`, no sub-id, the register table read out of the reference file. The library the reference module renders with |
 | `sm16169sh.toml` | the same table with the reference file's reg 0x07 value |
-| `sm16269.toml` | `0x14C` with sub-id `0x14D` and the vendor tool's "Default Parameter" table. `0x14D` is the vendor's SM16380SH id, not an SM16269 variant; this table renders worse on the bench panel ([chip-control-block.md](chip-control-block.md) section 7, [rendering.md](rendering.md)) |
+| `sm16269.toml` | `0x14C` with sub-id `0x14D` and the vendor tool's "Default Parameter" table. `0x14D` is the vendor's SM16380SH id, not an SM16269 variant; this table renders worse on the reference module ([chip-control-block.md](chip-control-block.md) section 7, [rendering.md](rendering.md)) |
 | `sm16169s-vendor.toml`, `sm16269s-vendor-0x214.toml` | non-SH parts, see below |
 
 Non-SH parts such as SM16169S (`0x00DE`) have no register table and no
@@ -89,7 +89,7 @@ Tests in `crates/rcvbp/tests/factory.rs`:
 The factory pack and image tests need the card's factory flash dump, which is
 kept outside the repository; they skip without it.
 
-## The reference config and the bench panel
+## The reference config and the reference module
 
 `third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp` is compiled for
 a 256x384 wall (2x6 of these modules). Its screen size, module count and
@@ -115,7 +115,7 @@ reversed groups then not, top-down lines then reversed, the way
 `scripts/corpus-mine.py` `fit_map` does. The recovered spec is then
 generated and compared with the file: a difference at +0x02F or +0x043
 becomes a `[record01_overrides]` entry, any other difference is reported by
-record and offset as `not recovered`. The bench spec survives the trip
+record and offset as `not recovered`. The reference spec survives the trip
 byte for byte and the reference file imports as the spec
 `crates/rcvbp/tests/factory.rs` describes (`the_bench_spec_survives_a_round_trip_through_its_file`,
 `the_reference_config_imports_as_the_spec_that_regenerates_it`).

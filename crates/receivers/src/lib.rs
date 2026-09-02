@@ -23,8 +23,12 @@ pub struct CardModel {
     pub vendor: String,
     /// The protocol family: `colorlight` is the only one implemented.
     pub family: String,
-    /// The card-type byte in the discovery reply.
-    pub id: u8,
+    /// The card-type byte in the discovery reply. Absent when no card of the
+    /// model has been seen and no source states it: `by_id` then never
+    /// returns the model, and a reply carrying an unlisted byte is reported
+    /// as an unknown model rather than resolved to some other file.
+    #[serde(default)]
+    pub id: Option<u8>,
     pub status: Status,
     #[serde(default)]
     pub notes: String,
@@ -271,10 +275,11 @@ pub fn models() -> &'static [CardModel] {
     MODELS.get_or_init(parse_all)
 }
 
-/// The model whose discovery id byte is `id`.
+/// The model whose discovery id byte is `id`; `None` when no file carries
+/// it. A model file without an `id` matches nothing.
 #[must_use]
 pub fn by_id(id: u8) -> Option<&'static CardModel> {
-    models().iter().find(|m| m.id == id)
+    models().iter().find(|m| m.id == Some(id))
 }
 
 /// The model called `name`, case-insensitively.
@@ -300,7 +305,7 @@ mod tests {
         assert!(!all.is_empty());
         for (i, m) in all.iter().enumerate() {
             assert!(
-                all[..i].iter().all(|o| o.id != m.id),
+                m.id.is_none() || all[..i].iter().all(|o| o.id != m.id),
                 "{}: id shared",
                 m.name
             );
@@ -329,6 +334,38 @@ mod tests {
             assert_eq!(m.status == Status::Tested, !m.tested.is_empty(), "{}: status and tested disagree", m.name);
             for t in &m.tested {
                 assert!(t.image().is_some(), "{}: tested firmware {} is not in config/firmware.toml", m.name, t.firmware);
+            }
+        }
+    }
+
+    /// Every model file says where its numbers came from, and only a model
+    /// driven on a bench carries `[[tested]]`.
+    #[test]
+    fn every_model_cites_a_source_and_only_tested_models_list_panels() {
+        for m in models() {
+            assert!(!m.notes.trim().is_empty(), "{}: no source note", m.name);
+            assert!(
+                m.notes.contains("http") || m.datasheet.is_some(),
+                "{}: the note names no source URL and there is no datasheet",
+                m.name
+            );
+            assert_eq!(
+                m.status == Status::Tested,
+                !m.tested.is_empty(),
+                "{}: only a tested model carries [[tested]]",
+                m.name
+            );
+        }
+    }
+
+    /// An id byte no file carries resolves to nothing rather than to the
+    /// first model.
+    #[test]
+    fn an_unlisted_id_resolves_to_no_model() {
+        assert!(by_id(0x03).is_none());
+        for m in models() {
+            if let Some(id) = m.id {
+                assert!(std::ptr::eq(by_id(id).unwrap(), m), "{}: id lookup", m.name);
             }
         }
     }

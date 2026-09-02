@@ -3,8 +3,12 @@
 How a receiving card is described to `rxp`, how the description is checked
 against the card, how a new card or panel is brought up on the bench, and
 what a second vendor needs. The E120 is the worked example throughout:
-`config/cards/e120.toml` is the only model file, and the values quoted here
-are its.
+`config/cards/e120.toml` is the only model file with a card behind it, and
+the values quoted here are its. `e80.toml` and `e320.toml` describe the two
+other classic Colorlight cards; their limits come from the vendor
+specifications and everything under `[memory]` is copied from the E120 on
+the evidence that the family shares one firmware archive, so both are
+`generates` and their notes say which line rests on what.
 
 ## 1. The model file
 
@@ -20,9 +24,9 @@ is required unless marked optional.
 | `name` | what `--card` takes, matched without regard to case (`E120`) |
 | `vendor` | the maker, as printed by `rxp card models` (`Colorlight`) |
 | `family` | the protocol family; `colorlight` is the only one implemented (section 4) |
-| `id` | the first byte of the discovery reply; `rxp discover` prints it as `id=0x64` |
+| `id` | optional: the first byte of the discovery reply; `rxp discover` prints it as `id=0x64`. Omit it when no card of the model has been seen and no source states it — `by_id` then never returns the model, `rxp card models` prints `id=?`, and a reply carrying an unlisted byte is reported as an unknown model rather than resolved to some other file. `--card NAME` is the only way to select such a model |
 | `status` | `tested` (driven on a bench), `generates` (configurations build, never driven), `unsupported` |
-| `notes` | optional free text shown nowhere but the file |
+| `notes` | where the values came from, with source URLs; shown on the card's page. Required: a test refuses a model file without one |
 | `image` | optional: a photo for the web app's Cards pages, relative to `web/static` (`cards/e120.jpg`) |
 | `image_source` | optional: where the photo came from, shown as its caption (`eager-led.com product photo`) |
 | `[[tested]]` | one entry per panel driven on a bench with this card; a `tested` card has at least one, the others none |
@@ -57,17 +61,53 @@ is required unless marked optional.
 | `firmware.image_pattern` | the vendor's image file names with `{version}` for `major.minor` (`E320_PWM_FPGA{version}_*.hex`); `provision --firmware` reads the version it must wait for from the file name through this |
 | `firmware.sdram_staging` | true when the card stages an image in SDRAM and programs the guarded blocks itself (type 0x1a00) |
 
-Where the values come from: the id byte from `rxp discover`; the limits and
-port count from the vendor specification; the banks, the parameter block and
-the mirror from a flash dump (`rxp flash dump-range`, then `rxp flash
+Where the values come from, and `notes` has to say so per model: the id byte
+from `rxp discover`; the limits and port count from the vendor
+specification; the banks, the parameter block and the mirror from a flash dump (`rxp flash dump-range`, then `rxp flash
 scan` to see where the bitstream headers and the `.rcvbp` signature sit);
 the guarded blocks from a firmware install that leaves blocks differing
 after the host path ([provisioning.md](provisioning.md)); the boot-image
 offsets from the vendor tool's image writer ([compiled-image-format.md](compiled-image-format.md)),
 or from a block dump when the card was configured by the vendor tool. The
 `receivers` tests refuse a parameter block outside the primary bank, a golden
-bank inside it, a shared id or name, and a `tested` status without a
-`[[tested]]` entry.
+bank inside it, a shared id or name, a model file with no source note, and a
+`[[tested]]` entry on anything but a `tested` model. A model file that copies
+another card's memory map instead of measuring it has to say so in `notes`
+and stay `generates`.
+
+### Choosing a firmware image
+
+`rxp provision --firmware auto` and `rxp firmware pick --spec SPEC` rank
+`config/firmware.toml` for a panel spec on a card model
+(`ops::firmware::select`). The rules, heaviest first:
+
+1. **The model's `[[tested]]` entries.** An entry whose `panel` is this spec
+   and whose `firmware` is this image wins outright: it is the one
+   combination that has been driven. This is why a new model records its
+   tested image the moment the panel renders from flash — until it does, the
+   ranking has only the chip to go on.
+2. **The chip.** The spec's chip library name without its parenthetical
+   (`config/chips/*.toml` `name`: `SM16269S (factory values)` is `SM16269S`)
+   against the image's `chips` list, ignoring case and allowing the vendor's
+   suffix forms — `SM16269S` matches `SM16269SH` and `ICN2263` matches
+   `ICN2263ALL`, but `ICN2263` does not match `ICND2263`: the prefix and the
+   digits must be identical and only a trailing letter group may differ.
+3. **The build kind against the chip class.** The class comes from the
+   library's shape, not its name: a library with `order`/`registers`
+   (addressed S-PWM registers) or a `chip_custom` block (non-addressed
+   S-PWM) is an S-PWM part and wants a `PWM` build; a library with neither
+   is a plain shift register and wants a `Normal` one. A build named for one
+   chip family (`LS0allDA`, `LS9937`, `DP3263`, `DS`) is not a candidate for
+   any other chip: it is ranked only when rule 2 matched its chip list.
+4. **Version, then the `yyyymmdd` in the file name**, as the tie-break.
+   `config/cards/*.toml` records no board revision, so nothing matches the
+   manifest's `pcb`; add one to the model file before ranking on it.
+
+`pick` installs only what rule 1 or rule 2 decided, and refuses two images
+that rank alike. Every shipped chip library carries either a register table
+or a `chip_custom` block, the mined `MBI5124` included, so rule 3 today
+prefers a `PWM` build for every spec in `config/panels`; the `Normal` side of
+it is pinned by a unit test, not by a file.
 
 The boot-image offsets are the same for every card that runs the E320
 gateware line; a card whose vendor tool writes a different image needs
@@ -119,7 +159,7 @@ screen size against the embedded record 0x01; the mirror programmed, with
 its control area. The guarded blocks stay `not checked`: proving a block
 is write-protected means writing to it. The checker is a pure function over
 the bytes read (`ops::probe::check_block`), unit-tested against the image
-`rxp config gen` builds for the bench spec.
+`rxp config gen` builds for the reference spec.
 
 On a card configured by the vendor tool the chip page and the embedded
 file reflect that tool's version: the older tool leaves the chip page
@@ -160,7 +200,7 @@ shows constant-current.
    configures itself from flash.
    `rxp card probe` afterwards should read all `ok`, and
    `scripts/flash-review.py` names every run of block 7 that differs from
-   the reference dump.
+   the card's own pre-provisioning dump.
 6. **Capture.** `scripts/bench.py locate` once per rig to find the panel in
    frame, then `scripts/bench.py run --boot --spec ... --brightness 20 black
    white top left` for the first look: one looping stream, every condition
@@ -172,16 +212,17 @@ shows constant-current.
    control shows against itself, and only after the run is repeated.
 8. **Adjust.** Change one spec field, or one `record01_overrides` byte, per
    run; rerun from step 5 (`flash restore-block` plus a power-cycle when only
-   the boot image changed, `rxp config send` for a RAM-only try that lands
-   on about one boot in three). Record the value, the run and its readings
-   in [rendering.md](rendering.md); record what did not work in
-   [retracted-findings.md](retracted-findings.md).
+   the boot image changed, `rxp config send` for a RAM-only try, which does
+   not reliably land). A setting the panel turns out to need, and what goes
+   wrong without it, belongs in [rendering.md](rendering.md).
 
 When the panel renders from flash after a power-cycle, the model file
 gains a `[[tested]]` entry naming the spec and the firmware, `status`
 becomes `tested`, and `rxp card models --markdown` regenerates the README's
 matrix (a unit test fails until it is pasted between the `<!-- tested -->`
-markers).
+markers). Record the image even when it is the one the card arrived on: it
+is rule 1 of the firmware ranking above, the only rule that knows the pair
+was driven rather than inferred from a file name.
 
 ## 4. Adding a vendor
 

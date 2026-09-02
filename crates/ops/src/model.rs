@@ -68,9 +68,16 @@ pub fn bank_bytes(m: &CardModel) -> usize {
 /// `rxp card models`: one line per model, tested first.
 pub fn list(p: &mut dyn Progress) {
     for m in models() {
+        // A model file with no sourced id byte prints `id=?`; discovery
+        // cannot pick it, `--card NAME` is the only way in.
+        let id = m.id.map_or_else(|| "?   ".to_owned(), |b| format!("0x{b:02x}"));
+        // `Status`'s Display writes straight to the formatter, so pad the
+        // string rather than the value.
         p.out(&format!(
-            "{:<8} id=0x{:02x}  {:<11} {}",
-            m.name, m.id, m.status, m.vendor
+            "{:<8} id={id}  {:<11} {}",
+            m.name,
+            m.status.to_string(),
+            m.vendor
         ));
     }
 }
@@ -84,11 +91,11 @@ const fn symbol(s: Status) -> &'static str {
     }
 }
 
-/// Columns the model files do not carry: the other cards of the implemented
-/// family share its protocol and firmware naming but none has been tried,
-/// and no other vendor's protocol is implemented.
+/// Columns the model files do not carry: the rest of Colorlight's classic
+/// family shares the E320 gateware line and the same firmware archive but
+/// has no model file, and no other vendor's protocol is implemented.
 const OTHER_COLUMNS: [(&str, Status); 2] = [
-    ("other Colorlight E-series", Status::Generates),
+    ("Colorlight 5A-75B · 5A-75E", Status::Generates),
     ("Linsn · Novastar · Huidu", Status::Unsupported),
 ];
 
@@ -222,11 +229,12 @@ mod tests {
     fn the_matrix_has_one_column_per_model_and_the_tested_panel_first() {
         let s = matrix_markdown().unwrap();
         let lines: Vec<&str> = s.lines().collect();
-        assert_eq!(lines[2], "| panel (driver chip) | Colorlight E120 | other Colorlight E-series | Linsn · Novastar · Huidu |");
-        assert_eq!(lines[3], "|---|:---:|:---:|:---:|");
-        assert_eq!(lines[4], "| 128x64 1/16, SM16269S (`config/panels/p25-128x64-sm16269s.toml`) | ✅ | ⚠️ | ❌ |");
+        assert_eq!(lines[2], "| panel (driver chip) | Colorlight E120 | Colorlight E320 | Colorlight E80 | Colorlight 5A-75B · 5A-75E | Linsn · Novastar · Huidu |");
+        assert_eq!(lines[3], "|---|:---:|:---:|:---:|:---:|:---:|");
+        // Only the E120 is ✅: the other model files generate, never driven.
+        assert_eq!(lines[4], "| 128x64 1/16, SM16269S (`config/panels/p25-128x64-sm16269s.toml`) | ✅ | ⚠️ | ⚠️ | ⚠️ | ❌ |");
         assert!(lines[5].starts_with("| DP5525 | ⚠️ |"), "{}", lines[5]);
-        assert!(s.contains("| ICN2038S · ICN2053 · ICN2055 · ICN2065 · ICND2163 | ⚠️ | ⚠️ | ❌ |"), "{s}");
+        assert!(s.contains("| ICN2038S · ICN2053 · ICN2055 · ICN2065 · ICND2163 | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ❌ |"), "{s}");
         assert_eq!(family("ICND2163"), "ICN");
         assert_eq!(family("SM16380"), "SM");
     }

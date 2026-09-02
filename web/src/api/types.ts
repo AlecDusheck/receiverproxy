@@ -172,6 +172,10 @@ export type ConfigSendReq = {
 };
 export type ProvisionReq = {
   spec_toml: string;
+  /**
+   * A `config/firmware.toml` name, a path, or `auto` for the image
+   * `POST /firmware/pick` chooses.
+   */
   firmware_path?: string;
   position: [number, number];
   /**
@@ -213,6 +217,40 @@ export type FirmwareReq = {
    * Seconds; 4 by default.
    */
   wait?: number;
+};
+export type FirmwareCandidate = {
+  name: string;
+  version: string;
+  /**
+   * The board revision in the name; absent when it carries none.
+   */
+  pcb?: string;
+  kind: string;
+  chips: Array<string>;
+  size: number;
+  sha256: string;
+  score: number;
+  reasons: Array<string>;
+};
+export type FirmwarePick = {
+  /**
+   * The spec's chip, as the ranking read it from the chip library.
+   */
+  chip: string;
+  /**
+   * The card model the ranking used.
+   */
+  card: string;
+  /**
+   * The image `provision --firmware auto` would install; null when the
+   * ranking refused.
+   */
+  chosen?: string;
+  /**
+   * The refusal text; null when one was chosen.
+   */
+  refused?: string;
+  candidates: Array<FirmwareCandidate>;
 };
 export type ScreenSizeQuery = {
   index?: number;

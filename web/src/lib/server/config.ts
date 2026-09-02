@@ -105,7 +105,8 @@ export type Card = {
   name: string;
   vendor: string;
   family: string;
-  id: number;
+  /** The discovery reply's card-type byte; absent when the model file states none. */
+  id?: number;
   status: string;
   notes?: string;
   /** A photo under web/static, `cards/e120.jpg`, and where it came from. */
@@ -140,7 +141,6 @@ export function cards(repo = root()): Card[] {
       name: str(t.name),
       vendor: str(t.vendor),
       family: str(t.family),
-      id: num(t.id),
       status: str(t.status),
       tested: (Array.isArray(t.tested) ? t.tested : []).map((x) => ({ panel: str(table(x).panel), firmware: str(table(x).firmware) })),
       limits: { max_width: num(lim.max_width), max_height: num(lim.max_height), hub_ports: num(lim.hub_ports) },
@@ -161,6 +161,7 @@ export function cards(repo = root()): Card[] {
       },
       firmware: { image_pattern: str(fw.image_pattern), sdram_staging: fw.sdram_staging === true },
     };
+    if (typeof t.id === "number") card.id = t.id;
     if (typeof t.notes === "string") card.notes = t.notes;
     if (typeof t.image === "string") card.image = t.image;
     if (typeof t.image_source === "string") card.image_source = t.image_source;

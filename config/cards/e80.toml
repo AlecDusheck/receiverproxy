@@ -1,0 +1,85 @@
+# Colorlight E80 receiving card. Never on this bench: the limits below come
+# from the vendor specification, the flash layout is the E120's, carried over
+# on the evidence that the two run the same gateware (see `notes`).
+
+name = "E80"
+vendor = "Colorlight"
+family = "colorlight"
+# No discovery id byte. No E80 has answered `rxp discover` here and no
+# source publishes the card-type byte, so the field is omitted rather than
+# guessed: `receivers::by_id` will not return this model, and a card whose
+# id byte no file carries is reported as an unknown model. `--card E80`
+# is the only way to select it.
+status = "generates"
+notes = """
+Specification: the vendor's own E80 Specification V4.2.1, linked from \
+https://en.colorlightinside.com/service/download/?cat=602 and served at \
+https://support.colorlightinside.com/uploads/E80SpecificationV4.2.1_1677659301.pdf \
+(the host answers 403 without a Referer from the download page). Control \
+area, HUB75 port count and the two gigabit RJ45 ports are read from it; \
+it states no cascade limit and no PCB revision.
+
+Firmware: Colorlight's "75B E80 75E E120 E320 5-in-1 Series" archive holds \
+one image set for the whole classic family. Its 129 files (config/firmware.toml) \
+are filed by driver chip and build variant only -- Custom Series/<chip>, PWM/<chip>, \
+Regular, SHIXIN, Irregular Display Firmware -- with no folder, file name or \
+bitstream header naming a card model, and every file is the same 721,024-byte \
+LFE5U-25F bitstream. Colorlight's own download page groups the two cards as \
+one entry, "E120/E80". So the E80 runs the E120's images.
+
+Memory map, guarded blocks and boot-image offsets: copied from \
+config/cards/e120.toml. INFERRED from that shared firmware, not measured on \
+an E80. The addresses were dumped from one E120 (docs/fpga/flash-layout.md); \
+nothing here has been read off an E80, which is why status is "generates".
+"""
+# For a photo and the specification PDF once they are uploaded. Candidates
+# are in the handoff; nothing is filled in until the asset exists.
+image = "cards/e80.jpg"
+image_source = "eager-led.com product photo"
+datasheet = "https://assets.receiverproxy.com/datasheets/cards/colorlight-e80.pdf"
+
+[limits]
+# E80 Specification V4.2.1, "Control Area": Normal chips 64x1024, PWM chips
+# 128x1024, Shixin chips 81x1024. The PWM figure is the largest, as on the
+# E120; 1024 is the load along the data line.
+max_width = 1024
+max_height = 128
+# "HUB pins: HUB75 Interface, J1~J8 connected to display modules."
+hub_ports = 8
+# Two RJ45 ports at 1Gb/s, either usable as in or out; the specification
+# states no cascade length, so `chain` is omitted.
+
+# INFERRED from the shared firmware, not measured on an E80. Every address
+# is the E120's.
+[memory]
+block_bytes = 0x10000
+primary_bank = 0x000000
+bank_bytes = 0x0B0000
+golden_bank = 0x200000
+parameter_block = 0x07
+eeprom_mirror = 0x07F000
+
+[[memory.guarded]]
+from = "16.53"
+blocks = [0x00, 0x01, 0x02, 0x08]
+
+[memory.boot_image]
+basic_pack = 0x0000
+data_swap = 0x0500
+module_positions = 0x0600
+chip_page = 0x0900
+void_line = 0x1000
+void_line_columns = 0x1400
+anti_void = 0x1800
+mapping = 0x3000
+scan_table = 0x6000
+rcvbp = 0x8000
+map_entries = 4096
+rcvbp_max = 0x6FFC
+
+[firmware]
+# The archive names every build after the E320 whatever card it runs on.
+image_pattern = "E320_PWM_FPGA{version}_*.hex"
+# INFERRED from the shared firmware; the self-program has never been run on
+# an E80.
+sdram_staging = true

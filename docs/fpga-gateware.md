@@ -100,12 +100,13 @@ way.
 
 ## Firmware images
 
-The factory image on the bench card was `E320_PCB6.0_PWM_FPGA10.81_20230907`,
-identified three ways from the flash dumps: the header date, a per-block
-match of exactly `1.000000` outside the reserved span, and 10.81's uniquely
-different EBR ROM. The card runs 16.53 (`rxp discover` reports the
-version). The analysis targets 16.53; each claim in `docs/fpga/` names the
-image it refers to.
+An E120's factory image is `E320_PCB6.0_PWM_FPGA10.81_20230907`, identified
+three ways from a flash dump: the header date, a per-block match of exactly
+`1.000000` outside the reserved span, and 10.81's uniquely different EBR ROM.
+A `flash restore` of a factory dump therefore reinstalls 10.81, whatever the
+card ran before; `rxp discover` reports the running version and is the only
+authority for it. The analysis targets 16.53; each claim in `docs/fpga/`
+names the image it refers to.
 
 Detail: [flash-layout.md](fpga/flash-layout.md).
 
@@ -138,8 +139,8 @@ split. Only phases and logic change.
 The family split is PWM vs Normal/LS, visible as IO-cell register usage:
 `IOLOGIC*.MODE = IREG_OREG` appears 96 times in Normal 13.39 and LS 6.69 but
 only 10 times in the three PWM builds. 96 = 32 serial RGB groups × 3 colour
-lines, the E120 spec's "32 groups of serial RGB data". Measured: the panel is
-dead on Normal 13.39 (0.44 A) and responds on PWM builds.
+lines, the E120 spec's "32 groups of serial RGB data". Measured: an SM16269S panel
+is dead on Normal 13.39 and responds on PWM builds.
 
 Version numbers are not one sequence: 10.81 is dated after 13.39.
 
@@ -147,21 +148,20 @@ Detail: [version-diff.md](fpga/version-diff.md).
 
 ---
 
-## Bench facts and what they establish
+## Measured behaviour and what it establishes
 
 | fact | what it establishes |
 |---|---|
-| dead on Normal 13.39 (0.44 A), responds on PWM builds | SM16269S is a PWM-class self-scanning driver and only PWM gateware speaks its protocol; 16.53 is the build |
+| dead on Normal 13.39, responds on PWM builds | SM16269S is a PWM-class self-scanning driver and only PWM gateware speaks its protocol; 16.53 is the build |
 | the frames are byte-exact against CLTNic.dll and on the wire | the host encoder is not a fault source |
 | `0x014C` arms the drivers; with `+0x02F = 1`, the measured frame order and booting from flash, content renders | the driver protocol is selected by the chip id in the pack, not by a table in the gateware |
 | an all-black frame draws a fixed pattern until the positions `width..2·width` are displaced through the void-line column table | the card emits `2 × width` positions per line for this wiring and fills the upper half from a fixed source; the void-line remap gates it |
-| the physical test button does nothing on this card | test patterns are reached with `rxp card test-mode <n>` |
-| on firmware 10.81 the panel changed with no traffic on the wire (mean absolute difference 29–37 levels between photos five seconds apart; 1.6–1.8 on 16.53) | the "per-pixel noise" on 10.81 was a buffer nothing was driving |
+| the physical test button does nothing when pressed | test patterns are reached over the wire with `rxp card test-mode <n>`, and the card's built-in generator is inert on 10.81 |
+| on firmware 10.81 the panel changes with no traffic on the wire; on 16.53 it holds still | what 10.81 shows is a buffer nothing is driving, so no before/after comparison on 10.81 means anything |
 
-The per-hypothesis experiments for the output stage are in
-[output-stage.md §6](fpga/output-stage.md#6-reconciling-the-bench-facts);
-read them against [rendering.md](rendering.md) and
-[retracted-findings.md](retracted-findings.md).
+What the output stage's behaviour establishes is in
+[output-stage.md §6](fpga/output-stage.md#6-measured-behaviour); read it
+against [rendering.md](rendering.md).
 
 ## Unresolved
 

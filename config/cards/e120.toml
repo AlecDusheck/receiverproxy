@@ -10,7 +10,20 @@ family = "colorlight"
 # First byte of the 0x0805 discovery reply; `rxp discover` prints it as id=0x64.
 id = 0x64
 status = "tested"
-notes = "Gateware builds are named E320: one line for the whole classic family (third-party/README.md)."
+notes = """
+Specification: E120 Specification V1.1.0, held at \
+third-party/datasheets/Colorlight_E120_Receiving_Card_Specification.pdf and \
+published at \
+https://support.colorlightinside.com/uploads/E120_Receiving_Card_Specification_V1.1.0_1763194995.pdf, \
+linked from https://en.colorlightinside.com/service/download/?cat=602 (the \
+host answers 403 without a Referer from that page). The published copy is a \
+later typesetting of the same V1.1.0, not the same bytes; the control area, \
+the HUB75 J1~J12 count and the two gigabit RJ45 ports read the same in both.
+
+Gateware builds are named E320: one line for the whole classic family \
+(third-party/README.md). Every address in [memory] was dumped from this card \
+(docs/fpga/flash-layout.md), not inferred.
+"""
 # The photo the web app shows, under web/static.
 image = "cards/e120.jpg"
 image_source = "eager-led.com product photo"

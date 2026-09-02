@@ -23,7 +23,7 @@
           <td><a href={href(c.name)}>{c.name}</a></td>
           <td>{c.vendor}</td>
           <td class="mono">{c.family}</td>
-          <td class="mono">{hex(c.id)}</td>
+          <td class="mono">{c.id === undefined ? "—" : hex(c.id)}</td>
           <td class="num">{c.limits.max_width}</td>
           <td class="num">{c.limits.max_height}</td>
           <td class="num">{c.limits.hub_ports}</td>

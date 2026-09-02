@@ -64,9 +64,9 @@ result. How the id reaches the card and what it selects is in
   Reference configuration: `reg07 = 0x44` gives `g = 128`; `reg03 = 0x3F`
   gives `m = 64`; `total = 8192`, 14-bit. This matches basic-pack
   `+0x08 = 0x0E` in the reference file and the Eager module datasheet's
-  "Gray Grade: 14 bits" and "Refresh Frequency >= 3840 Hz". The bench spec
-  declares `gray_bits = 12`; measured from flash, 12 to 16 render identically
-  ([../rendering.md](../rendering.md)).
+  "Gray Grade: 14 bits" and "Refresh Frequency >= 3840 Hz". The spec in
+  `config/panels` declares `gray_bits = 12`; from flash, 12 to 16 render
+  identically on this chip ([../rendering.md](../rendering.md)).
 
 ### Register field meanings
 
@@ -101,7 +101,7 @@ reading is inferred.
 
 The driver's serial protocol is described to the card by the 20-byte
 `SChipControl` block of record 0x01 (`+0x0C4`), whose accessor is
-`SetGclkNumsOfChipControlByChipCustom`. Value for the bench configuration,
+`SetGclkNumsOfChipControlByChipCustom`. Value for the reference configuration,
 identical in both chip libraries:
 
 ```
@@ -189,9 +189,10 @@ the bucket for that segment, and for each `(level, value)` entry drive the
 corresponding grey plane / OE window; with zero values the window
 degenerates and the chip's internal S-PWM supplies the modulation.
 
-The bench spec pairs a 12-bit grey byte with the 14-level table. Measured:
-the vendor's own 12-level table raises black from 0.75 A to 0.90 A; the
-14-level table stays ([../rendering.md](../rendering.md)).
+The generated image pairs a 12-bit grey byte with the 14-level table.
+Substituting the vendor's own 12-level table raises the black current rather
+than lowering it, so the 14-level table stays
+([../rendering.md](../rendering.md)).
 
 ## 4. Pixel mapping and module positions
 
@@ -220,8 +221,8 @@ serial slots)".
 
 | `blk` | slot formula | where it holds |
 |---|---|---|
-| `W` = 128 (generator default) | `group * W + col`; each data group one contiguous 128-slot run | the vendor corpus consensus: byte-exact against the 34-config consensus for 128x64 @ 1/16, and 1039 of 1517 corpus tables from geometry alone. Measured: flashed to the bench module it scrambles every column |
-| 64 (bench spec) | the chain alternates between the two row-halves every 64 columns | the bench module ([../panel-wiring.md](../panel-wiring.md)); the reference file's record 0x03 regenerates byte for byte. Pinned by `the_reference_mapping_is_reproduced_by_the_block_knob` in `crates/rcvbp/tests/factory.rs` |
+| `W` = 128 (generator default) | `group * W + col`; each data group one contiguous 128-slot run | the vendor corpus consensus: byte-exact against the 34-config consensus for 128x64 @ 1/16, and 1039 of 1517 corpus tables from geometry alone. It scrambles every column on a module whose halves alternate |
+| 64 | the chain alternates between the two row-halves every 64 columns | the reference module ([../panel-wiring.md](../panel-wiring.md)); the reference file's record 0x03 regenerates byte for byte. Pinned by `the_reference_mapping_is_reproduced_by_the_block_knob` in `crates/rcvbp/tests/factory.rs` |
 
 `reversed_groups` (234 of 241 two-group vendor configs) means the last
 row-group is shifted out first, the standard consequence of a chain that
@@ -276,12 +277,10 @@ same module, so it is scan-dependent. Whether identity is the correct block
   because the per-line data rate is far lower when the chip does the PWM. §7.1
   confirms the 96 sites are the RGB data pins.
 
-<a id="6-reconciling-the-bench-facts"></a>
 ## 6. Measured behaviour
 
-Method: [../bench.md](../bench.md). Disproved readings:
-[../retracted-findings.md](../retracted-findings.md). The settings that make
-the panel render, each with its measurement: [../rendering.md](../rendering.md).
+Method: [../bench.md](../bench.md). The settings that make the panel render:
+[../rendering.md](../rendering.md).
 
 ### Measurements and what each establishes
 
@@ -289,35 +288,44 @@ the panel render, each with its measurement: [../rendering.md](../rendering.md).
 |---|---|
 | The `test_mode()` frame (`crates/colorlight/src/discovery.rs`) matches `CReceiverOP::SetRcvCardTestMode` @ `0x3d54e0`: type `33 00`, `0x09` at payload+5, selector at payload+6, 279-byte frame | the host's test-mode command is byte-correct |
 | On 10.81 all nine test selectors give flat current and indistinguishable output; on 16.53 the selectors give visibly different displays (`rxp card test-mode <n>`, `rxp card test-sweep`) | the built-in generator is inert on 10.81 only. The generator bypasses the host, so a fault visible in test mode is at or below the card's raster stage |
-| The physical test button (E120 spec item 5: four monochrome fields plus scan patterns) does nothing when pressed | it is not a diagnostic on this card; the generator is reached over the wire |
+| The physical test button (E120 spec item 5: four monochrome fields plus scan patterns) does nothing when pressed | it is not a diagnostic; the generator is reached over the wire |
 | Pixel frames are byte-exact FPP and verifiably on the wire | the host encoder is not a fault source |
 | Brightness scales supply current | the card receives and parses the frames, the scan engine runs, OE/current modulation is under control, the driver chips are powered, armed and sinking current |
-| Dead on Normal 13.39, 0.44 A; responds on PWM builds | SM16269S is a PWM-class (S-PWM, self-scanning, register-configured) driver and only PWM-family gateware speaks its protocol. A Normal build emits a plain shift-register waveform with card-generated bit-plane OE modulation; an S-PWM chip that never receives its register writes stays in its power-on state. 16.53 is the build |
-| Chip id `0x014C`: per-pixel noise at 2.8-4 A with the inherited configuration; renders with the settings in rendering.md. `0x0214`: dark at 0.5 A | the card acts on the chip id or on the id-selected descriptor bytes (`SChipControl`, record 0x84); no id comparator is found in the LUT netlist ([chip-id.md](chip-id.md)). `0x014C` (vendor name SM16169SH) is the id 16.53 arms the SM16269S outputs for; `0x0214` (SM16269S's own id) is a dead id in every vendor build and produces an all-zero `SChipControl` and no register table |
-| Per-pixel noise under a uniform white fill at `0x014C`, on 10.81 | the serial chain loads, the latch fires, the PWM engines run, the current sinks work. The content shown is not host content: on 10.81 the panel changes with no traffic on the wire (idle test, mean absolute difference 29-37 levels between photos five seconds apart; 1.6-1.8 on 16.53) |
-| The EEPROM screen-size record at flash `0x7F000` reads 128x64 (`… 00 80 00 40 …`) while the inherited config was compiled for a 256x384 wall | the card's two notions of its own size disagreed in the inherited state |
-| With the EEPROM control area erased (`startX = startY = 0xFFFF`) frames are accepted, the packet counter advances, current changes, nothing displays, and `discover` still reports 128x64 | the card windows its own rectangle from the control area; `0x55` row frames carry an absolute row index and pixel offset ([../receiver-identity.md](../receiver-identity.md)) |
+| An SM16269S panel is dead on Normal 13.39 and responds on PWM builds | SM16269S is a PWM-class (S-PWM, self-scanning, register-configured) driver and only PWM-family gateware speaks its protocol. A Normal build emits a plain shift-register waveform with card-generated bit-plane OE modulation; an S-PWM chip that never receives its register writes stays in its power-on state. 16.53 is the build |
+| Chip id `0x014C` renders with the settings in rendering.md and drives the outputs even under a wrong configuration; `0x0214` leaves the panel dark | the card acts on the chip id or on the id-selected descriptor bytes (`SChipControl`, record 0x84); no id comparator is found in the LUT netlist ([chip-id.md](chip-id.md)). `0x014C` (vendor name SM16169SH) is the id 16.53 arms the SM16269S outputs for; `0x0214` (SM16269S's own id) is a dead id in every vendor build and produces an all-zero `SChipControl` and no register table |
+| Per-pixel structure under a uniform white fill at `0x014C` | the serial chain loads, the latch fires, the PWM engines run, the current sinks work. On 10.81 the content shown is not host content: the panel changes with no traffic on the wire ([../bench.md](../bench.md), idle test) |
+| The EEPROM screen-size record at flash `0x7F000` can read a different size from the one the stored configuration was compiled for | the card's two notions of its own size are independent and can disagree |
+| With the EEPROM control area erased (`startX = startY = 0xFFFF`) frames are accepted, the packet counter advances, current changes, nothing displays, and `discover` still reports a healthy size | the card windows its own rectangle from the control area; `0x55` row frames carry an absolute row index and pixel offset ([../receiver-identity.md](../receiver-identity.md)) |
 
 `0x014D` is SM16380SH in the vendor name tables, not an SM16269 sub-variant
 ([../chip-control-block.md §7](../chip-control-block.md#7-chip-names)).
 
-The card-side hardware is not at fault, and the panel is not unpowered or
-mis-ribboned: measured, 2.8-4 A with per-pixel structure at `0x014C`, and
-rendering from flash on 16.53.
+### Diagnostic notes
 
-### Fault candidates and their status
-
-| candidate | facts | status |
-|---|---|---|
-| Content not landing in the buffer the scan engine reads (geometry/window mismatch) | the control area record is the window; erased, every pixel is dropped. A single lit pixel at (0,0) separates addressing from ordering: a scrambled raster and a missing raster look identical under a fill and different under one pixel | resolved: `rxp provision --position 0,0` writes the control area; the panel renders |
-| Measurements taken with the uncorrected config (`CardScanLen` 512, wrong serial clock, wrong module positions, single latch) | `CardScanLen` 512 alone is a guaranteed raster corruption on one module | resolved: results from the corrected config flashed and booted are in rendering.md |
-| Test-pattern "failure" caused by a concurrent `rxp show fill --hold` streamer overwriting the framebuffer during the sweep | a card-internal pattern written into the framebuffer would be overwritten by the streamer; the `0x0107` latch frames come from the streamer | superseded: on 10.81 the generator is inert with the wire quiet; on 16.53 it works. Sweep method: `pkill -f rxp`, confirm no frames on the wire, then `rxp card test-sweep` with the supply logged |
-| Serial clock 8 (reference file) vs 15 (chip default) | the pack carries it at `+0x09`, `+0x2C`, `+0x2E` and it feeds the scan-table line time; the chip-custom block at `+0x06A` separately carries the chip's reset clock. The panel renders at 8 | not swept |
-| Register table wrong for this silicon | the two libraries differ: `reg 0x07` = `0x44` (frequency division 3) vs `0x04` (division 1), `reg 0x0a` = `0x02` vs `0x00`, `reg 0xf0` = `0x03` vs `0x00`, and `0x0b`/`0x0c`/`0x11`/`0x1b`/`0x1c`/`0x1f` differ; both derive 14-bit grey. Changing `reg 0x07` requires recomputing `SChipControl[10..13]` ([chip-protocol-microcode.md §4.2](chip-protocol-microcode.md#42-the-count-is-a-pack-field)) | measured: the reference table (`sm16269s-factory.toml`) renders; the vendor default set (`sm16269.toml`) renders worse; the LEDSetting 2.2.6 set saturates the panel; a register-by-register sweep changes nothing at black |
-| Data-swap / lane-map identity wrong for 1/16 | large search space, no consensus data | not resolved; renders with identity |
-| minOE / all-zero scan-table bit times | vendor norm: 24 of 29 modern-format configs, byte-identical to the factory image | ruled out |
-| Card-side hardware fault in the HUB75 output stage | 2.8-4 A with per-pixel structure at `0x014C` | ruled out |
-| The black floor: an all-black frame draws about 24 % of white's LED current as a fixed pattern | the card emits `2 x width` positions per line for this wiring; positions `width..2*width` carry no host pixels | resolved: gated through the void-line column table ([../rendering.md](../rendering.md#the-black-floor)) |
+* A single lit pixel at (0,0) separates addressing from ordering: a
+  scrambled raster and a missing raster look identical under a fill and
+  different under one pixel.
+* `CardScanLen` set for more modules than are attached is on its own a
+  guaranteed raster corruption.
+* The card's built-in generator is reached with `rxp card test-sweep`, but
+  only with the wire quiet: a concurrent streamer's frames overwrite the
+  framebuffer the generator writes into, and its `0x0107` latch frames keep
+  firing. Kill every streamer and confirm no frames on the wire first.
+* Two register tables for this chip both derive 14-bit grey but differ at
+  `reg 0x07` (`0x44`, frequency division 3, against `0x04`, division 1),
+  `reg 0x0a`, `reg 0xf0` and `0x0b`/`0x0c`/`0x11`/`0x1b`/`0x1c`/`0x1f`.
+  Changing `reg 0x07` requires recomputing `SChipControl[10..13]`
+  ([chip-protocol-microcode.md §4.2](chip-protocol-microcode.md#42-the-count-is-a-pack-field)).
+* All-zero scan-table bit times with minOE are the vendor norm: 24 of 29
+  modern-format configs, and byte-identical to the factory image.
+* The data-swap and lane-map identities for 1/16 are not resolved; the
+  search space is large and there is no consensus data. The panel renders
+  with the identity mapping.
+* An all-black frame that leaves a fixed lit pattern is the black floor:
+  the card emits `2 x width` positions per line for an interleaved wiring
+  and positions `width..2*width` carry no host pixels. It is gated through
+  the void-line column table
+  ([../rendering.md](../rendering.md#the-black-floor)).
 
 ## 7. The output stage in the netlist
 
@@ -416,7 +424,8 @@ and CE tied on 72. In the PWM builds only 10 do. Details in
 * Whether the FPGA drives HUB75 directly or through buffers. All banks are
   3.3 V, so every FPGA IO is 3.3 V; the board has driver ICs visible in the
   vendor photo, and the bitstream says nothing about the far side of a pad.
-* The on-wire waveform. Not measured; this bench has a supply and a webcam.
+* The on-wire waveform. Not measured; it needs a logic analyser or a scope
+  on the HUB75 header, which a supply and a camera cannot substitute for.
 * OE polarity, and whether OE free-runs as the grey clock. `IsChipHasOE`,
   `Is8nsOeEnable`, `Get8nsOeEnableInfo`, `GetMinOE`, `HR_SetMinOE` exist in
   the vendor SDK and bottom out in a chip-library sub-object not resolvable

@@ -153,7 +153,7 @@ argument, and `fcn.10006540` allocates the buffer as `width*height*4`
 (`0x1000659f`–`0x100065c7`). LEDVISION feeds it GDI/GDI+ 32bpp surfaces,
 whose memory order is B,G,R,A, so the wire order is B,G,R. Inferred from the
 caller's surface format, not fixed in CLTNic. `rxp --order` defaults to
-`bgr`; measured: `bgr` renders the right colours on the bench panel.
+`bgr`, which renders the right colours on the reference module.
 
 ---
 
@@ -241,9 +241,8 @@ The gains are linear: no gamma, no offset. At neutral colour temperature all
 three equal `Mb`, which is what `pixel::sync(b)` sends (`gains = [b; 3]`).
 `pow` is used only for the type-`0x0A` frame's bytes 13–15 (§2.3).
 
-The gain bytes are live: measured on the bench panel, a gain sweep of
-0/4/12/40/120 with all-black content changed the supply current
-0.47/0.71/0.75/0.86/1.08 A while the black floor was present
+The gain bytes are live: with the black floor present, a gain sweep against
+all-black content scales the supply current monotonically with the gain
 ([rendering.md](rendering.md)).
 
 ### 2.3 The brightness frame (type 0x0A, 77 bytes)
@@ -415,10 +414,7 @@ Full vendor burst for one frame at brightness 0xFF:
 
 The row bytes are what Colorlight sends, and CLTNic has no product branch
 (§3). A layout with the payload starting at frame offset 14 (406-byte rows)
-is wrong: measured, it turns the panel into a 5 Hz strobe. The white-versus-
-black current difference (3.1 A → 4.4 A) that once suggested that layout was
-the card's per-run state toggle, read without a same-content control
-([retracted-findings.md](retracted-findings.md)).
+is wrong: measured, it turns the panel into a 5 Hz strobe.
 
 The sequence differs from the vendor's, not the bytes. The vendor sends
 latch, brightness, rows, back to back, latching the previous burst. Measured

@@ -67,9 +67,9 @@ test("the E120 model file reads whole", () => {
   assert.equal(e120!.firmware.sdram_staging, true);
 });
 
-test("the firmware manifest lists five images and locates them at base_url", () => {
+test("the firmware manifest lists every archived image and locates them at base_url", () => {
   const fw = firmware(repo);
-  assert.equal(fw.images.length, 5);
+  assert.equal(fw.images.length, 129);
   assert.equal(fw.base_url, "https://assets.receiverproxy.com");
   const first = fw.images[0]!;
   assert.equal(first.version, "16.53");

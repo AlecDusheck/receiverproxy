@@ -48,6 +48,7 @@ fn render() -> String {
         Health, DiscoverReq, Cards, Settings, Brightness, ShowImageReq, ShowVideoReq,
         ShowPatternReq, ShowFillReq, SpecReq, GenFileSet, GenFiles, ConfigReadReq, ConfigRead,
         ConfigWriteReq, ConfigSendReq, ProvisionReq, SnapshotReq, RestoreReq, FirmwareReq,
+        FirmwareCandidate, FirmwarePick,
         ScreenSizeQuery, Size, ScreenSizeReq, SizeOutcome, ReloadReq, TestModeReq, SetLayoutReq,
         // section 3: the WASM surface
         Status, Origin, Meta, EntryModule, EntryChip, Entry, Format, GenFile, Generated, Imported, Record01,

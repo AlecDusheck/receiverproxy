@@ -6,7 +6,7 @@ table. This page gives the address map, the mapping from a vendor `.hex` to
 flash addresses, the identity of the installed image, and the state of the
 `0x07F000` page.
 
-Evidence: three flash dumps of the bench card (`card-dumps/`), the five vendor
+Evidence: three flash dumps of the card (`card-dumps/`), the five vendor
 `.hex` images in `third-party/firmware/`, and a frame-CRC checker validated
 against all five images. Regenerable artefacts (not kept in the repository;
 see [decode-method.md](decode-method.md)): `analysis/fpga/flash-layout.txt`,
@@ -153,9 +153,10 @@ card's own firmware. The host writes the page through the linear frame type
 A "read always returns `0xFF`" artefact is ruled out: the same read path
 returned the data above at `0x7F000` in `primary-region.bin`.
 
-Erasing block 0x07 clears the mirror and, with it, the EEPROM control area
-(measured: `startX = startY = 0xFFFF` after an erase followed by a 256-byte
-screen-size write; see [../retracted-findings.md](../retracted-findings.md)).
+Erasing block 0x07 clears the mirror and, with it, the EEPROM control area:
+a 256-byte screen-size write over an erased mirror persists
+`startX = startY = 0xFFFF` and the card then drops every pixel
+([../receiver-identity.md](../receiver-identity.md)).
 
 ## 7. Failing frame CRCs
 

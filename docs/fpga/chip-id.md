@@ -77,22 +77,22 @@ family and is not a protocol family.
 
 ## 3. Measured behaviour by id
 
-Bench panel: P2.5 128x64, SM16269S drivers, firmware 16.53, method in
+Reference module: P2.5 128x64, SM16269S drivers, firmware 16.53, method in
 [../bench.md](../bench.md).
 
 | id sent | vendor name | measured |
 |---|---|---|
-| `0x014C` | SM16169SH/SL | with the settings in [../rendering.md](../rendering.md): renders. With the inherited configuration (before those settings): per-pixel noise, 2.8-4 A |
-| `0x0214` | SM16269S | panel dark, 0.5 A. The pack a `0x0214` declaration produces carries an all-zero `SChipControl` and no register table |
-| `0x00DE` | SM16169S | never arms, in the configuration measured (that configuration kept the `0x14C` register table and `SChipCustom`; the corrected form, `config/chips/sm16169s-vendor.toml`, is not measured) |
+| `0x014C` | SM16169SH/SL | renders with the settings in [../rendering.md](../rendering.md); under a wrong configuration it still drives the outputs, with per-pixel structure |
+| `0x0214` | SM16269S | panel dark. The pack a `0x0214` declaration produces carries an all-zero `SChipControl` and no register table |
+| `0x00DE` | SM16169S | never armed in the one configuration it was tried in (that configuration kept the `0x14C` register table and `SChipCustom`; the corrected form, `config/chips/sm16169s-vendor.toml`, is not measured) |
 | `0x002F` | MBI5153 (sub `0x008A`, SM16159) | never arms |
 
 Under `0x014C`, chip-control tails `2/4/8` and `3/5/7` never arm; only the SH
 pattern `1,5,6` renders ([../rendering.md](../rendering.md)).
 
-Per-pixel noise at `0x014C` is not a failure signature: the serial chain
-loads, the latch fires, the PWM engines run and the current sinks work. A dark
-panel at 0.5 A means the drivers were never armed.
+Per-pixel structure at `0x014C` is not a failure signature: the serial chain
+loads, the latch fires, the PWM engines run and the current sinks work. A
+dark panel means the drivers were never armed.
 
 Two mechanisms are consistent with the table and are not separated by it: the
 card branches on the id itself, or the card acts on the id-selected descriptor
@@ -169,7 +169,7 @@ Readings consistent with the netlist, not separated by it:
   indistinguishable from ordinary logic.
 * Only a 2-4 bit field of the id is used, below the detection floor.
 
-The bench result in §3 (`0x014C` arms, `0x0214` does not) shows the card's
+The measured result in §3 (`0x014C` arms, `0x0214` does not) shows the card's
 behaviour does depend on the id-selected content, so the LUT-level negative is
 a search limitation, not a property of the design.
 

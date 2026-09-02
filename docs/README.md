@@ -1,8 +1,10 @@
 # Documentation
 
 Reference for the Colorlight E120 receiving card, its formats, its protocol,
-its gateware, and the `rxp` tool that drives it. Bench hardware: one E120
-(firmware 16.53) driving one P2.5 128x64 SM16269S module.
+its gateware, and the `rxp` tool that drives it. The reference module
+throughout is a P2.5 128x64 SM16269S panel on an E120 running firmware
+16.53: the one card-and-panel pair whose values have been driven and
+measured.
 
 CLAUDE.md: orientation for contributors ([../CLAUDE.md](../CLAUDE.md)).
 
@@ -12,8 +14,8 @@ CLAUDE.md: orientation for contributors ([../CLAUDE.md](../CLAUDE.md)).
 |---|---|
 | [architecture.md](architecture.md) | spec to boot image to card to frames; which crate owns each step; where each measured default lives |
 | [provisioning.md](provisioning.md) | `rxp provision`: snapshot, firmware, configuration, EEPROM, verify; multi-panel positioning |
-| [rendering.md](rendering.md) | every setting that affects the picture, its value, what pins it, the effect of other values |
-| [bench.md](bench.md) | the rig, the measurement method, the meters and their limits, `scripts/bench.py` |
+| [rendering.md](rendering.md) | what a working configuration needs: every setting that affects the picture, its value, what it does, what goes wrong when it is wrong |
+| [bench.md](bench.md) | bringing up a card: the rig, the one-run-with-control method, the meters and their limits, `scripts/bench.py` |
 | [building-a-config.md](building-a-config.md) | the TOML panel spec, the chip library, `rxp config gen` |
 | [cards.md](cards.md) | adding a receiving card: the model file field by field, `rxp card probe`, the bench loop for a new card or panel, adding a vendor through the `Protocol` and `Codec` traits |
 | [ui.md](ui.md) | the web UI, `rxp ui` and its JSON API, the WASM module: the contract they are built against |
@@ -49,9 +51,3 @@ CLAUDE.md: orientation for contributors ([../CLAUDE.md](../CLAUDE.md)).
 |---|---|
 | [fpga-gateware.md](fpga-gateware.md) | the ECP5 bitstream in two pages |
 | [fpga/README.md](fpga/README.md) | index of the gateware analysis: bitstream, flash, pinout, block RAM, pixel path, output stage, unresolved points |
-
-## Verified negatives
-
-| doc | what |
-|---|---|
-| [retracted-findings.md](retracted-findings.md) | claims about this card and panel that measurement disproves |

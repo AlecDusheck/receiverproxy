@@ -56,8 +56,8 @@ Bytes 10–13 of the block in the boot image are therefore recomputed at
 pack-build time and need not match what the `.rcvbp` stores. The generator in
 this repository (`crates/rcvbp/src/spec/basic_pack.rs`, `put(0x91, …)`)
 copies the record bytes verbatim. That is correct only while the record's own
-bytes 10–13 equal what the vendor would compute; for the bench config they do
-(§2).
+bytes 10–13 equal what the vendor would compute; for the reference
+configuration they do (§2).
 
 ## 1. Per-byte table for `SChipControl`
 
@@ -284,8 +284,8 @@ their meaning is not resolved. What is known:
   they are not inert like `+0x030`/`+0x031`.
 * `+0x02F` selects whether the panel displays at all. Measured: with the
   reference file's `0` nothing displays; with `1` (the vendor default) the
-  panel renders ([rendering.md](rendering.md)). The bench spec sets it to `1`
-  via `[record01_overrides]`.
+  panel renders ([rendering.md](rendering.md)). The reference spec sets it
+  to `1` via `[record01_overrides]`.
 * `OBJ+0xB8` sits inside the scan/output member cluster (`0xB5` scan method,
   `0xB6` split, `0xB7` (loader forces 0), `0xB8` unknown, `0xB9`
   data-group/output code, `0xBB`, `0xBC`, `0xBD` 8 ns OE), and in the pack it
@@ -403,7 +403,7 @@ SM16159, a different chip family. Its `SChipControl`, `SChipCustom` and
   RGB bit order, OE polarity: not in the configuration at all. They are in
   the FPGA bitstream, selected by chip id.
 
-## 9. Values that are correct for the bench config
+## 9. Values that are correct for the reference configuration
 
 * `SChipControl` bytes 10–13 = `00 97 00 97` (`reg 0x07 = 0x04`, sub-id `0`);
   the vendor computes the same 151.

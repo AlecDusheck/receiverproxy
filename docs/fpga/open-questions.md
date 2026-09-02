@@ -57,7 +57,7 @@ EBR-to-EBR dataflow search also fails: depth 3 finds zero edges chip-wide
 **What would settle it:** forward netlist recovery of what consumes
 `DOA*`/`DOB*` of `EBR@39,37` and `EBR@42,37`, a localised search in
 `x 38..46, y 30..45`, the one region of the die whose function is certain.
-On the bench, a single lit pixel at (0,0) separates a scrambled raster from
+On hardware, a single lit pixel at (0,0) separates a scrambled raster from
 a missing one; a uniform fill cannot.
 
 ### 1.2 The test-pattern selector byte
@@ -107,7 +107,7 @@ wholly reordered between 32S and 64S variants of the same module, so it is
 scan-dependent.
 
 **What would settle it:** a vendor `.rcvbp` for a 1/16 128×64 module of this
-family with a non-identity block 0, or bisecting the block on the bench.
+family with a non-identity block 0, or bisecting the block on hardware.
 
 ### 1.5 The serial clock: 8 or 15
 
@@ -125,8 +125,7 @@ swept.
 
 **Not known:** what the byte controls.
 
-**Known:** with `+0x02F = 0`, the value the card arrived with, nothing
-displays; with `1` the panel renders. `1` is the vendor `Reset()` default and
+**Known:** with `+0x02F = 0` nothing displays; with `1` the panel renders. `1` is the vendor `Reset()` default and
 the value in 961 of 1146 corpus files
 ([../rendering.md](../rendering.md)).
 

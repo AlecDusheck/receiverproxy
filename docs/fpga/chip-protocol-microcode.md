@@ -236,7 +236,7 @@ different next moves.
 
 `0x00DE` (SM16169S) and `0x002F` do not appear with a record 0x01 in the
 corpus; `0x002F`'s block comes from
-`config/chips/sm16169-corpus.toml` (`P3.91-64x64-16S-16169+2012-HL4.0-8.63-E80`).
+the identity the `P3.91-64x64-16S-16169+2012-HL4.0-8.63-E80` corpus file carries (a chip library for it, `sm16169-corpus.toml`, was tried and removed: the id is MBI5153, not SM16169, and it never arms this panel — see docs/chip-control-block.md).
 
 ---
 
@@ -476,7 +476,7 @@ vendor actually uses for 16169-family modules is `0x002F` (+ sub `0x008A`).**
 at least *a* live id; and the seller's wall presumably worked on `0x14C` at
 some point (unverified).
 *Experiment — one line, RAM only, and it is the cheapest decisive test left:*
-point the panel config at `config/chips/sm16169-corpus.toml` (id `0x002F`,
+point the panel config at the 0x002F identity (tried 2026-09-01: it does not arm the SM16269S; the id is MBI5153 —
 sub `0x008A`, `chip_control = 00 0e 03 04 08 01 03 00 00 00 00 81 00 81 00 10
 00 00 00 00`, serial clock 10), `send-params`, photograph. Then, since that
 profile ships **without** a register record in the corpus, repeat with record

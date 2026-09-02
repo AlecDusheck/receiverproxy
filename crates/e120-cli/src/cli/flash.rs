@@ -1,7 +1,7 @@
-use crate::flash::{dump_flash, dump_range, restore_flash, scan_flash};
-use crate::{restore, Cli};
 use anyhow::Result;
 use clap::Subcommand;
+use e120_commands::flash::{dump_flash, dump_range, restore_flash, scan_flash};
+use e120_commands::{restore, Ctx, Progress};
 
 #[derive(Subcommand)]
 pub enum Flash {
@@ -96,7 +96,7 @@ pub enum Flash {
     },
 }
 
-pub fn run(cli: &Cli, cmd: &Flash) -> Result<()> {
+pub fn run(ctx: &Ctx, cmd: &Flash, p: &mut dyn Progress) -> Result<()> {
     match cmd {
         Flash::Dump {
             out,
@@ -104,31 +104,31 @@ pub fn run(cli: &Cli, cmd: &Flash) -> Result<()> {
             blocks,
             index,
             wait,
-        } => dump_flash(cli, *block, *blocks, *index, *wait, out),
+        } => dump_flash(ctx, *block, *blocks, *index, *wait, out, p),
         Flash::DumpRange {
             out,
             start,
             len,
             index,
             wait,
-        } => dump_range(cli, start, len, *index, *wait, out),
+        } => dump_range(ctx, start, len, *index, *wait, out, p),
         Flash::Scan {
             first,
             last,
             index,
             wait,
-        } => scan_flash(cli, *first, *last, *index, *wait),
+        } => scan_flash(ctx, *first, *last, *index, *wait, p),
         Flash::RestoreBlock {
             image,
             commit,
             index,
-        } => restore_flash(cli, image, *commit, *index),
-        Flash::Snapshot { dir, index, wait } => restore::snapshot(cli, dir, *index, *wait),
+        } => restore_flash(ctx, image, *commit, *index, p),
+        Flash::Snapshot { dir, index, wait } => restore::snapshot(ctx, dir, *index, *wait, p),
         Flash::Restore {
             dir,
             commit,
             index,
             wait,
-        } => restore::all(cli, dir, *commit, *index, *wait),
+        } => restore::all(ctx, dir, *commit, *index, *wait, p),
     }
 }

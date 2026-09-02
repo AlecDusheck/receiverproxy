@@ -32,7 +32,7 @@ flowchart LR
     PACK["basic pack (256 B)<br/>spec/basic_pack.rs"]
     IMG["block-7 boot image<br/>image/*"]
   end
-  subgraph cli [e120-cli]
+  subgraph cli [e120-commands, behind e120-cli and e120-server]
     GEN["config gen"]
     PROV["provision"]
     SP["config send (RAM only)"]
@@ -109,7 +109,7 @@ and block-7 image regenerate byte for byte from the factory flash dump
 without it), and the bench spec differs from the reference record 0x01 at
 exactly `[0x023, 0x02F, 0x0C0..0x0C3]`.
 
-### 2. Card provisioning (`e120 provision`, `e120-cli/src/provision.rs`)
+### 2. Card provisioning (`e120 provision`, `e120-commands/src/provision.rs`)
 
 One command, dry-run without `--commit` ([provisioning.md](provisioning.md)):
 
@@ -128,7 +128,7 @@ from firmware and the golden bank. Writing block 7 wipes the EEPROM mirror,
 which is why the record set is read before and rewritten after. Power-cycle
 afterwards; the card arms from flash.
 
-### 3. Frames (`e120-proto`, `e120-driver`, `e120-cli`)
+### 3. Frames (`e120-proto`, `e120-driver`, `e120-commands`)
 
 Per refresh, in this order:
 
@@ -155,7 +155,7 @@ brightness (0x0A, 77 B)  →  one 0x55 row packet per panel row (64 × 128 px)
   applies `Timing` (latch gap, latch count, row gap; defaults are the
   measured recipe); `Pacer` keeps the fps. `e120-video` supplies frames
   (ffmpeg rawvideo pipe, test patterns).
-  `e120-cli/src/display.rs::wall_settings` builds the `Settings` once, with
+  `e120-commands/src/display.rs::wall_settings` builds the `Settings` once, with
   the env-var overrides below.
 * `e120-net::Link` is a dumb pipe: one `send` = one wire frame, `recv` returns
   within the timeout with whatever arrived (frames borrowed from one reused
@@ -170,7 +170,7 @@ own `--position`, the same position on its receiver entry in the layout, and
 one `e120 show video --layout wall.json` stream.
 
 Other processes feed the same `Wall`/`Pacer` loop through `e120-video::raw`
-(`e120-cli/src/ingest.rs`). `e120 show stream --size WxH --fps N` reads bare
+(`e120-commands/src/ingest.rs`). `e120 show stream --size WxH --fps N` reads bare
 rgb24 frames from stdin, as `ffmpeg -f rawvideo -pix_fmt rgb24 -` writes
 them (`scripts/mirror.sh` is one such pipe); `e120 show serve --socket PATH`
 binds a unix socket and takes one client at a time, each starting with the
@@ -190,7 +190,9 @@ and leaves the panel as it is.
 | `e120-canvas` | RGB8 `Frame` (bytes private; `row`/`as_bytes` accessors), wall topology (receivers carry the screen position they were provisioned with), `validate` → `LayoutError`, canvas → one screen framebuffer (`render`, or `render_into` reusing it; unrotated panels are row copies) | none |
 | `e120-video` | `FrameSource` (`next_frame` refills a caller-owned `Frame`): `VideoSource` (ffmpeg rawvideo pipe) and `raw::RawSource` (rgb24 from any `Read`); `raw::Header`/`raw::Writer` for socket clients; `Pattern`s, `Fit`/`Pattern` name parsing | none |
 | `e120-driver` | `Wall::show` (the measured frame recipe), `show_rows` (the same recipe over a band of screen rows; the card keeps the rest), `set_brightness` / `set_gains` (rebuild the cached brightness and latch frames), `Pacer`, layout announce; `FrameSink` (`Link` in production, a recording `Vec` in tests) so the recipe is pinned offline | none |
-| `e120-cli` | the `e120` binary: clap tree (`main.rs` holds the top-level commands, `cli/` one enum per group), command modules, Block7 assembly order, still-image send path, flash discipline (dry-run/backup/verify), provisioning sequence. Unix conventions: results only on stdout (a value, a path per line, a table), progress and step lines on stderr, warnings as `e120: warning: …`, errors as `e120: <subcommand>: …` with exit 1 (`main.rs` wraps every command's error in its subcommand path), usage errors exit 2 | hold byte layouts (they belong in proto/rcvbp) |
+| `e120-commands` | every command as a function taking `&Ctx` (the former global flags) and `&mut dyn Progress` (where its lines go: `out` is stdout, `err` is stderr, `cancelled` is polled between steps): still-image send path, flash discipline (dry-run/backup/verify), provisioning sequence, chip-library loading through a caller-supplied `Loader` | print, open a browser, hold byte layouts (they belong in proto/rcvbp) |
+| `e120-cli` | the `e120` binary: clap tree (`main.rs` holds the top-level commands, `cli/` one enum per group), the `Stdio` sink, `e120 ui`. Unix conventions: results only on stdout (a value, a path per line, a table), progress and step lines on stderr, warnings as `e120: warning: …`, errors as `e120: <subcommand>: …` with exit 1 (`main.rs` wraps every command's error in its subcommand path), usage errors exit 2 | implement a command itself |
+| `e120-server` | the daemon `e120 ui` starts: the JSON API of [ui.md](ui.md) on 127.0.0.1, one link owner (a job or a command; 409 otherwise), jobs with SSE progress, the embedded `web/dist` | open the link outside a job or command |
 | `e120-demos` | the `e120-demo` binary: effects behind one `Effect` trait (`step` draws, `refresh` names the gain, per-channel cast and rows to send, `fps` the rate), a registry `list`/`cycle` read, its own PRNG and value noise; reaches the panel only through `e120_driver::{Wall, Pacer}` like any third-party program | know packet layouts, open the link itself, allocate per frame |
 | `scripts/` | the bench (`bench.py`, `psu.sh`) and read-only config inspection; EEPROM repair | build pixel frames |
 
@@ -246,6 +248,6 @@ Experiment-only overrides (defaults above are the contract; nothing in
 | change frame timing or latch count | `driver/src/lib.rs` `Timing::default()` (`cli/src/display.rs::wall_settings` starts from it and applies the env overrides) | `bench.py run`, judge by eye, update rendering.md |
 | add a content source or pattern | `e120-video` (implement `FrameSource`) | `e120 show pattern` / `video` / `stream` |
 | add a wall layout feature (rotation, flip) | `e120-canvas` | canvas unit tests; layout JSON is the on-disk format |
-| add a flash or EEPROM operation | builder + allowlist in `e120-proto`, command in `e120-cli`; dry-run without `--commit` | `flash-review.py` after |
+| add a flash or EEPROM operation | builder + allowlist in `e120-proto`, command in `e120-commands`, clap in `e120-cli`, route in `e120-server` when the UI needs it; dry-run without `--commit` | `flash-review.py` after |
 | change how the card is found or replies are read | `e120-net` (transport) or `proto/discovery.rs` (parsing) | `e120 discover` |
 | run an experiment | `bench.py run` with the env overrides above, never by editing a default | record the result in rendering.md or retracted-findings.md |

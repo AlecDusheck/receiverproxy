@@ -1,0 +1,33 @@
+[package]
+name = "e120-server"
+description = "The e120 daemon behind `e120 ui`: the JSON API and the web UI on 127.0.0.1"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+e120-commands.workspace = true
+e120-canvas.workspace = true
+e120-proto.workspace = true
+e120-rcvbp.workspace = true
+e120-video.workspace = true
+
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+image.workspace = true
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "multipart", "query", "tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-stream = "0.1"
+tower-http = { version = "0.6", features = ["cors"] }
+include_dir = "0.7"
+base64 = "0.22"
+dirs = "6"
+mime_guess = "2"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[lints]
+workspace = true

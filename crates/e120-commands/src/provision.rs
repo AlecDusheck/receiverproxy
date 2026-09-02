@@ -10,7 +10,7 @@
 use crate::capture::discover_one;
 use crate::flash::{flash_firmware, read_primary_bank, restore_flash, BANK_BYTES};
 use crate::util::{hex, open};
-use crate::{config, protocol, restore, screen, upgrade, Cli};
+use crate::{check, config, protocol, restore, screen, upgrade, Ctx, Loader, Progress};
 use anyhow::{bail, Context, Result};
 use e120_proto::eeprom;
 use std::time::{Duration, Instant};
@@ -27,13 +27,13 @@ fn version_in_name(path: &str) -> Option<(u8, u8)> {
 }
 
 fn wait_for_version(
-    cli: &Cli,
+    ctx: &Ctx,
     want: (u8, u8),
     timeout: Duration,
 ) -> Result<protocol::DiscoveryInfo> {
     let deadline = Instant::now() + timeout;
     loop {
-        if let Some(info) = discover_one(cli, 2)? {
+        if let Some(info) = discover_one(ctx, 2)? {
             if (info.ver_major, info.ver_minor) == want {
                 return Ok(info);
             }
@@ -55,11 +55,17 @@ const HOST_GUARDED_BLOCKS: [u8; 4] = [0, 1, 2, 8];
 
 /// Install `image` into the primary bank through both write paths and
 /// verify the whole bank. Returns true when a power-cycle is needed.
-fn install_firmware(cli: &Cli, image: &str, backup: &str, wait: u64) -> Result<bool> {
+fn install_firmware(
+    ctx: &Ctx,
+    image: &str,
+    backup: &str,
+    wait: u64,
+    p: &mut dyn Progress,
+) -> Result<bool> {
     let img = std::fs::read(image).with_context(|| format!("read {image}"))?;
     let want = &img[..BANK_BYTES.min(img.len())];
 
-    let current = read_primary_bank(&mut open(cli)?, 0, wait)?;
+    let current = read_primary_bank(&mut open(ctx)?, 0, wait, p)?;
     let differing = |bank_bytes: &[u8]| -> Vec<u8> {
         protocol::FIRMWARE_BLOCKS
             .filter(|&b| b != protocol::PARAM_BLOCK)
@@ -71,33 +77,34 @@ fn install_firmware(cli: &Cli, image: &str, backup: &str, wait: u64) -> Result<b
     };
     let before = differing(&current);
     if before.is_empty() {
-        eprintln!("firmware: bank already holds {image}");
+        p.err(&format!("firmware: bank already holds {image}"));
         return Ok(false);
     }
-    eprintln!("firmware: blocks {} differ", hex(&before, ","));
+    p.err(&format!("firmware: blocks {} differ", hex(&before, ",")));
 
     // The card programs the guarded sectors itself from SDRAM.
-    eprintln!("firmware: sdram self-program");
+    p.err("firmware: sdram self-program");
     upgrade::install(
-        cli,
+        ctx,
         image,
         true,
         e120_proto::upgrade::Partition::Primary,
         120,
         3000,
         wait,
+        p,
     )?;
 
     // The rest goes in through the host path, block by block.
-    let after_sdram = read_primary_bank(&mut open(cli)?, 0, wait)?;
+    let after_sdram = read_primary_bank(&mut open(ctx)?, 0, wait, p)?;
     for &b in differing(&after_sdram)
         .iter()
         .filter(|b| !HOST_GUARDED_BLOCKS.contains(b))
     {
-        eprintln!("firmware: host write 0x{b:02x}");
-        flash_firmware(cli, image, backup, true, b..b + 1, 0, wait)?;
+        p.err(&format!("firmware: host write 0x{b:02x}"));
+        flash_firmware(ctx, image, backup, true, b..b + 1, 0, wait, p)?;
     }
-    let final_bank = read_primary_bank(&mut open(cli)?, 0, wait)?;
+    let final_bank = read_primary_bank(&mut open(ctx)?, 0, wait, p)?;
     let left = differing(&final_bank);
     if !left.is_empty() {
         bail!(
@@ -105,102 +112,128 @@ fn install_firmware(cli: &Cli, image: &str, backup: &str, wait: u64) -> Result<b
             hex(&left, ",")
         );
     }
-    eprintln!("firmware: bank verified");
+    p.err("firmware: bank verified");
     Ok(true)
 }
 
+/// What `e120 provision` takes.
+#[derive(Clone, Debug)]
+pub struct Args<'a> {
+    /// Panel spec file.
+    pub spec_path: &'a str,
+    /// Vendor firmware image to install; skipped when absent.
+    pub firmware: Option<&'a str>,
+    /// Cabinet position in the whole screen, in pixels.
+    pub position: (u16, u16),
+    /// Directory for the pre-provisioning snapshot; `build/snapshot-<time>`
+    /// when absent.
+    pub snapshot_dir: Option<&'a str>,
+    /// Write it; without this only the plan is printed.
+    pub commit: bool,
+    /// Seconds to wait for each reply.
+    pub wait: u64,
+}
+
 /// Provision a card: snapshot, firmware, configuration, EEPROM, verify.
+/// Cancellation is honoured between the five steps.
 ///
 /// # Errors
 /// Fails at the first step whose result cannot be verified.
 #[allow(clippy::too_many_lines)]
-pub fn provision(
-    cli: &Cli,
-    spec_path: &str,
-    firmware: Option<&str>,
-    position: (u16, u16),
-    snapshot_dir: Option<&str>,
-    commit: bool,
-    wait: u64,
-) -> Result<()> {
+pub fn provision(ctx: &Ctx, a: &Args, load: Loader, p: &mut dyn Progress) -> Result<()> {
+    let Args {
+        spec_path,
+        firmware,
+        position,
+        snapshot_dir,
+        commit,
+        wait,
+    } = *a;
     let spec = e120_rcvbp::spec::PanelSpec::load(spec_path)?;
     let (w, h) = (spec.module.width, spec.module.height);
-    let Some(info) = discover_one(cli, wait)? else {
-        bail!("no response on {} within {wait}s", cli.iface);
+    let Some(info) = discover_one(ctx, wait)? else {
+        bail!("no response on {} within {wait}s", ctx.iface);
     };
-    eprintln!(
+    p.err(&format!(
         "card: type 0x{:02x}, firmware {}.{}, reports {}x{}",
         info.card_id, info.ver_major, info.ver_minor, info.cols, info.rows
-    );
-    eprintln!(
+    ));
+    p.err(&format!(
         "plan: spec {spec_path} ({w}x{h}), cabinet at {},{}",
         position.0, position.1
-    );
+    ));
     let want_version = match firmware {
         Some(fw) => {
             let (a, b) = version_in_name(fw)
                 .with_context(|| format!("no version in the firmware file name {fw}"))?;
-            eprintln!("plan: firmware {fw}, card to report {a}.{b} afterwards");
+            p.err(&format!(
+                "plan: firmware {fw}, card to report {a}.{b} afterwards"
+            ));
             Some((a, b))
         }
         None => None,
     };
     if !commit {
-        println!("dry run: nothing written (add --commit)");
+        p.out("dry run: nothing written (add --commit)");
         return Ok(());
     }
 
     // 1. Snapshot: the only copy of what this card held.
+    check(p)?;
     let snap = snapshot_dir.map_or_else(
         || format!("build/snapshot-{}", unix_seconds()),
         ToString::to_string,
     );
-    eprintln!("[1/5] snapshot: {snap}");
-    restore::snapshot(cli, &snap, 0, wait)?;
+    p.err(&format!("[1/5] snapshot: {snap}"));
+    restore::snapshot(ctx, &snap, 0, wait, p)?;
     let backup = format!("{snap}/primary-region.bin");
 
     // 2. Firmware.
+    check(p)?;
     if let (Some(fw), Some(want)) = (firmware, want_version) {
-        eprintln!("[2/5] firmware: {fw}");
-        if install_firmware(cli, fw, &backup, wait)? {
-            eprintln!(
+        p.err(&format!("[2/5] firmware: {fw}"));
+        if install_firmware(ctx, fw, &backup, wait, p)? {
+            p.err(&format!(
                 "firmware: power-cycle the card now; waiting for {}.{}",
                 want.0, want.1
-            );
-            let info = wait_for_version(cli, want, Duration::from_mins(10))?;
-            eprintln!(
+            ));
+            let info = wait_for_version(ctx, want, Duration::from_mins(10))?;
+            p.err(&format!(
                 "firmware: card back on {}.{}",
                 info.ver_major, info.ver_minor
-            );
+            ));
             // The card answers discovery before it has finished loading its
             // parameters; flash writes sent before then are unreliable.
             std::thread::sleep(Duration::from_secs(12));
         }
     } else {
-        eprintln!("[2/5] firmware: skipped (no --firmware)");
+        p.err("[2/5] firmware: skipped (no --firmware)");
     }
 
     // 3. Read the EEPROM records before block 7 wipes their mirror.
-    eprintln!("[3/5] eeprom: reading records");
+    check(p)?;
+    p.err("[3/5] eeprom: reading records");
     let before = {
-        let mut dev = open(cli)?;
+        let mut dev = open(ctx)?;
         screen::read(&mut dev, 0, wait)?
     };
     let erased = screen::looks_erased(&before);
     if erased {
-        eprintln!("eeprom: record reads as erased; only the control area will be written");
+        p.err("eeprom: record reads as erased; only the control area will be written");
     }
 
     // 4. Configuration image.
-    eprintln!("[4/5] config: {spec_path}");
+    check(p)?;
+    p.err(&format!("[4/5] config: {spec_path}"));
     let out = format!("{snap}/config");
-    config::gen_config(spec_path, &out)?;
+    config::gen_config(spec_path, &out, load, p)?;
     let img = format!("{out}/{}-block7.bin", spec.name);
-    restore_flash(cli, &img, true, 0)?;
+    restore_flash(ctx, &img, true, 0, p)?;
 
     // 5. EEPROM: every record back, control area set for this cabinet.
-    eprintln!("[5/5] eeprom: writing records");
-    let mut dev = open(cli)?;
+    check(p)?;
+    p.err("[5/5] eeprom: writing records");
+    let mut dev = open(ctx)?;
     let ca = eeprom::control_area(position.0, position.1, w, h);
     for r in eeprom::RECORDS {
         let (a, n) = (usize::from(r.addr), usize::from(r.len));
@@ -227,26 +260,28 @@ pub fn provision(
         Some((x0, y0, x1, y1))
             if (x0, y0, x1, y1) == (position.0, position.1, position.0 + w, position.1 + h) =>
         {
-            eprintln!("eeprom: control area verified {x0},{y0}-{x1},{y1}");
+            p.err(&format!(
+                "eeprom: control area verified {x0},{y0}-{x1},{y1}"
+            ));
         }
         other => bail!("eeprom: control area reads back as {other:?}"),
     }
     drop(dev);
-    match discover_one(cli, wait)? {
+    match discover_one(ctx, wait)? {
         Some(i) if (i.cols, i.rows) == (w, h) => {
-            eprintln!(
+            p.err(&format!(
                 "discovery: {}x{} on firmware {}.{}",
                 i.cols, i.rows, i.ver_major, i.ver_minor
-            );
+            ));
         }
-        Some(i) => eprintln!(
+        Some(i) => p.err(&format!(
             "discovery: {}x{} (expected {w}x{h}); usually corrects after the power-cycle",
             i.cols, i.rows
-        ),
+        )),
         None => bail!("the card stopped answering discovery"),
     }
 
-    eprintln!("power-cycle the card to apply");
+    p.err("power-cycle the card to apply");
     Ok(())
 }
 

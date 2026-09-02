@@ -20,6 +20,8 @@ e120-net = { path = "crates/e120-net" }
 e120-canvas = { path = "crates/e120-canvas" }
 e120-video = { path = "crates/e120-video" }
 e120-driver = { path = "crates/e120-driver" }
+e120-commands = { path = "crates/e120-commands" }
+e120-server = { path = "crates/e120-server" }
 
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }

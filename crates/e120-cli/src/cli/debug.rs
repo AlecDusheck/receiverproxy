@@ -1,9 +1,9 @@
-use crate::capture::{listen, pcap_summary, raw_send, replay};
-use crate::display::probe;
-use crate::util::parse_color;
-use crate::Cli;
 use anyhow::Result;
 use clap::Subcommand;
+use e120_commands::capture::{listen, pcap_summary, raw_send, replay};
+use e120_commands::display::probe;
+use e120_commands::util::parse_color;
+use e120_commands::{Ctx, Progress};
 
 #[derive(Subcommand)]
 pub enum Debug {
@@ -76,16 +76,16 @@ pub enum Debug {
     },
 }
 
-pub fn run(cli: &Cli, cmd: &Debug) -> Result<()> {
+pub fn run(ctx: &Ctx, cmd: &Debug, p: &mut dyn Progress) -> Result<()> {
     match cmd {
-        Debug::Listen { wait, include_ours } => listen(cli, *wait, *include_ours),
+        Debug::Listen { wait, include_ours } => listen(ctx, *wait, *include_ours, p),
         Debug::Send {
             r#type,
             payload,
             pad,
             wait,
             show,
-        } => raw_send(cli, r#type, payload, *pad, *wait, *show),
+        } => raw_send(ctx, r#type, payload, *pad, *wait, *show, p),
         Debug::Probe {
             rows,
             row_gap_us,
@@ -94,14 +94,14 @@ pub fn run(cli: &Cli, cmd: &Debug) -> Result<()> {
             color,
         } => {
             let rgb = parse_color(std::slice::from_ref(color))?;
-            probe(cli, *rows, *row_gap_us, *sync, *repeat, rgb)
+            probe(ctx, *rows, *row_gap_us, *sync, *repeat, rgb)
         }
-        Debug::Pcap { path, dump } => pcap_summary(path, *dump),
+        Debug::Pcap { path, dump } => pcap_summary(path, *dump, p),
         Debug::Replay {
             path,
             types,
             gap_us,
             all,
-        } => replay(cli, path, types.as_deref(), *gap_us, *all),
+        } => replay(ctx, path, types.as_deref(), *gap_us, *all, p),
     }
 }

@@ -1,23 +1,10 @@
-mod capture;
 mod cli;
-mod config;
-mod display;
-mod flash;
-mod ingest;
-mod params;
-mod provision;
-mod restore;
-mod screen;
-mod upgrade;
-mod util;
 
 use anyhow::{Context, Result};
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
-use e120_proto as protocol;
-use e120_rcvbp as rcvbp;
+use e120_commands::{capture, display, protocol, provision, Ctx, Progress, Stdio};
 use protocol::ColorOrder;
 use std::process::ExitCode;
-use util::open;
 
 #[derive(Parser)]
 #[command(
@@ -60,6 +47,18 @@ struct Cli {
 
     #[command(subcommand)]
     cmd: Cmd,
+}
+
+impl Cli {
+    fn ctx(&self) -> Ctx {
+        Ctx {
+            iface: self.iface.clone(),
+            width: self.width,
+            height: self.height,
+            order: self.order,
+            brightness: self.brightness,
+        }
+    }
 }
 
 /// Parse two `u16`s split by one of `seps`; `what` names the expected form.
@@ -137,6 +136,21 @@ enum Cmd {
     /// Wire diagnostics: listen, hand-built frames, pcap tools
     #[command(subcommand)]
     Debug(cli::debug::Debug),
+    /// Serve the web UI and its JSON API on 127.0.0.1
+    Ui {
+        /// TCP port on 127.0.0.1
+        #[arg(long, default_value_t = 7120)]
+        port: u16,
+        /// Do not open the browser
+        #[arg(long)]
+        no_open: bool,
+        /// Require this value in an X-Token header on every API request
+        #[arg(long)]
+        token: Option<String>,
+        /// Where settings, the wall layout, backups and snapshots are kept [default: the OS config dir, e120/]
+        #[arg(long)]
+        data_dir: Option<String>,
+    },
 }
 
 /// The subcommand path as typed, e.g. `firmware install`, for error prefixes.
@@ -158,11 +172,13 @@ fn main() -> ExitCode {
     }
     let matches = Cli::command().get_matches();
     let subject = subcommand_path(&matches);
+    // `--iface` typed on the command line beats the daemon's saved setting.
+    let iface_given = matches.value_source("iface") == Some(clap::parser::ValueSource::CommandLine);
     let cli = match Cli::from_arg_matches(&matches) {
         Ok(cli) => cli,
         Err(e) => e.exit(),
     };
-    match run(&cli).with_context(|| subject) {
+    match run(&cli, iface_given).with_context(|| subject) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("e120: {e:#}");
@@ -171,15 +187,20 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(cli: &Cli) -> Result<()> {
+fn run(cli: &Cli, iface_given: bool) -> Result<()> {
+    let ctx = cli.ctx();
+    let p: &mut dyn Progress = &mut Stdio;
     match &cli.cmd {
-        Cmd::Discover { wait } => capture::discover(cli, *wait),
-        Cmd::Brightness { value } => {
-            let mut dev = open(cli)?;
-            dev.send(&protocol::brightness(*value))?;
-            dev.send(&protocol::sync(*value))?;
+        Cmd::Discover { wait } => {
+            let found = capture::discover(&ctx, *wait, p)?;
+            anyhow::ensure!(
+                !found.is_empty(),
+                "no response on {} within {wait}s",
+                ctx.iface
+            );
             Ok(())
         }
+        Cmd::Brightness { value } => display::brightness(&ctx, *value),
         Cmd::Provision {
             spec,
             firmware,
@@ -188,19 +209,35 @@ fn run(cli: &Cli) -> Result<()> {
             commit,
             wait,
         } => provision::provision(
-            cli,
-            spec,
-            firmware.as_deref(),
-            *position,
-            snapshot_dir.as_deref(),
-            *commit,
-            *wait,
+            &ctx,
+            &provision::Args {
+                spec_path: spec,
+                firmware: firmware.as_deref(),
+                position: *position,
+                snapshot_dir: snapshot_dir.as_deref(),
+                commit: *commit,
+                wait: *wait,
+            },
+            &e120_commands::read_library,
+            p,
         ),
-        Cmd::Show(c) => cli::show::run(cli, c),
-        Cmd::Config(c) => cli::config::run(cli, c),
-        Cmd::Flash(c) => cli::flash::run(cli, c),
-        Cmd::Firmware(c) => cli::firmware::run(cli, c),
-        Cmd::Card(c) => cli::card::run(cli, c),
-        Cmd::Debug(c) => cli::debug::run(cli, c),
+        Cmd::Show(c) => cli::show::run(&ctx, c, p),
+        Cmd::Config(c) => cli::config::run(&ctx, c, p),
+        Cmd::Flash(c) => cli::flash::run(&ctx, c, p),
+        Cmd::Firmware(c) => cli::firmware::run(&ctx, c, p),
+        Cmd::Card(c) => cli::card::run(&ctx, c, p),
+        Cmd::Debug(c) => cli::debug::run(&ctx, c, p),
+        Cmd::Ui {
+            port,
+            no_open,
+            token,
+            data_dir,
+        } => e120_server::run(e120_server::Options {
+            port: *port,
+            open: !*no_open,
+            token: token.clone(),
+            iface: iface_given.then(|| ctx.iface.clone()),
+            data_dir: data_dir.as_deref().map(Into::into),
+        }),
     }
 }

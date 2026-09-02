@@ -1,6 +1,6 @@
 //! Small helpers shared across the command modules.
 
-use crate::{protocol, Cli};
+use crate::{protocol, Ctx, Progress};
 use anyhow::{Context, Result};
 use e120_net::Link;
 use std::fmt::Write as _;
@@ -24,8 +24,12 @@ pub fn is_our_frame(d: &[u8]) -> bool {
     d.len() >= 12 && d[6..12] == protocol::SENDER_MAC
 }
 
-pub fn open(cli: &Cli) -> Result<Link> {
-    Link::open(&cli.iface, RECV_TIMEOUT)
+/// Open the raw link on the context's interface.
+///
+/// # Errors
+/// Fails if the interface cannot be opened.
+pub fn open(ctx: &Ctx) -> Result<Link> {
+    Link::open(&ctx.iface, RECV_TIMEOUT)
 }
 
 /// Poll `dev` until `wait` runs out or `pick` accepts a frame from the card.
@@ -93,13 +97,13 @@ pub fn hex(bytes: &[u8], sep: &str) -> String {
 }
 
 /// A non-fatal problem, on stderr in the same shape as an error.
-pub fn warn(msg: impl std::fmt::Display) {
-    eprintln!("e120: warning: {msg}");
+pub fn warn(p: &mut dyn Progress, msg: impl std::fmt::Display) {
+    p.err(&format!("e120: warning: {msg}"));
 }
 
-pub fn hexdump(data: &[u8]) {
+pub fn hexdump(p: &mut dyn Progress, data: &[u8]) {
     for (i, chunk) in data.chunks(16).enumerate() {
-        println!("  {:04x}: {}", i * 16, hex(chunk, " "));
+        p.out(&format!("  {:04x}: {}", i * 16, hex(chunk, " ")));
     }
 }
 

@@ -4,7 +4,7 @@
 
 use crate::display::{load_canvas, wall_settings};
 use crate::util::warn;
-use crate::Cli;
+use crate::{Ctx, Progress};
 use anyhow::{Context, Result};
 use e120_canvas::{Canvas, Frame};
 use e120_video::raw::{Header, RawSource};
@@ -24,13 +24,14 @@ const READ_TIMEOUT: Duration = Duration::from_millis(250);
 /// Show raw rgb24 frames read from stdin, `size` pixels each (the canvas
 /// size when `None`), at `fps`.
 pub fn stream(
-    cli: &Cli,
+    ctx: &Ctx,
     size: Option<(u16, u16)>,
     fps: u32,
     fit: &str,
     layout: Option<&str>,
+    p: &mut dyn Progress,
 ) -> Result<()> {
-    let canvas = load_canvas(cli, layout)?;
+    let canvas = load_canvas(ctx, layout)?;
     let fit: Fit = fit.parse()?;
     let (w, h) = size.map_or((canvas.width, canvas.height), |(w, h)| {
         (u32::from(w), u32::from(h))
@@ -38,7 +39,7 @@ pub fn stream(
     anyhow::ensure!(w > 0 && h > 0, "size must be at least 1x1");
 
     let mut source = RawSource::new(io::stdin().lock(), w, h);
-    let mut wall = e120_driver::Wall::open(&cli.iface, canvas.clone(), wall_settings(cli))?;
+    let mut wall = e120_driver::Wall::open(&ctx.iface, canvas.clone(), wall_settings(ctx))?;
     let mut pacer = e120_driver::Pacer::new(fps);
     let mut src = Frame::black(w, h);
     let mut out = Frame::black(canvas.width, canvas.height);
@@ -49,11 +50,11 @@ pub fn stream(
         wall.show(fitted(&src, fit, &canvas, &mut out))?;
         pacer.wait();
     }
-    println!(
+    p.out(&format!(
         "{} frames, {:.1} fps",
         wall.frames_sent(),
         pacer.achieved_fps()
-    );
+    ));
     Ok(())
 }
 
@@ -62,16 +63,22 @@ pub fn stream(
 /// Each client sends a [`Header`] then frames, paced at the header's fps. The
 /// panel keeps the last frame between clients. Ctrl-C removes the socket and
 /// exits.
-pub fn serve(cli: &Cli, path: &str, fit: &str, layout: Option<&str>) -> Result<()> {
-    let canvas = load_canvas(cli, layout)?;
+pub fn serve(
+    ctx: &Ctx,
+    path: &str,
+    fit: &str,
+    layout: Option<&str>,
+    p: &mut dyn Progress,
+) -> Result<()> {
+    let canvas = load_canvas(ctx, layout)?;
     let fit: Fit = fit.parse()?;
     let socket = SocketFile::bind(Path::new(path))?;
     socket.listener.set_nonblocking(true)?;
     install_stop_handler();
 
-    let mut wall = e120_driver::Wall::open(&cli.iface, canvas.clone(), wall_settings(cli))?;
+    let mut wall = e120_driver::Wall::open(&ctx.iface, canvas.clone(), wall_settings(ctx))?;
     let mut out = Frame::black(canvas.width, canvas.height);
-    eprintln!("listening on {path}");
+    p.err(&format!("listening on {path}"));
     while !STOP.load(Ordering::Relaxed) {
         let stream = match socket.listener.accept() {
             Ok((stream, _)) => stream,
@@ -85,8 +92,8 @@ pub fn serve(cli: &Cli, path: &str, fit: &str, layout: Option<&str>) -> Result<(
         // BSD accept() hands out the listener's non-blocking flag.
         stream.set_nonblocking(false)?;
         stream.set_read_timeout(Some(READ_TIMEOUT))?;
-        if let Err(e) = serve_client(stream, &mut wall, &canvas, fit, &mut out) {
-            warn(format!("client: {e:#}"));
+        if let Err(e) = serve_client(stream, &mut wall, &canvas, fit, &mut out, p) {
+            warn(p, format!("client: {e:#}"));
         }
     }
     drop(socket);
@@ -100,12 +107,13 @@ fn serve_client(
     canvas: &Canvas,
     fit: Fit,
     out: &mut Frame,
+    p: &mut dyn Progress,
 ) -> Result<()> {
     let header = Header::read(&mut stream).context("read stream header")?;
-    eprintln!(
+    p.err(&format!(
         "client: {}x{} at {} fps",
         header.width, header.height, header.fps
-    );
+    ));
     let (w, h) = (u32::from(header.width), u32::from(header.height));
     let mut source = RawSource::new(stream, w, h);
     let mut pacer = e120_driver::Pacer::new(u32::from(header.fps));
@@ -125,7 +133,7 @@ fn serve_client(
             Err(e) => return Err(e).context("read frame"),
         }
     }
-    eprintln!("client: gone after {} frames", wall.frames_sent());
+    p.err(&format!("client: gone after {} frames", wall.frames_sent()));
     Ok(())
 }
 
@@ -277,7 +285,7 @@ mod tests {
 
     /// Microseconds to resample a 1920x1080 source onto a fifty-card
     /// 1280x320 wall. Run with
-    /// `cargo test --release -p e120-cli -- --ignored --nocapture`.
+    /// `cargo test --release -p e120-commands -- --ignored --nocapture`.
     #[test]
     #[ignore = "timing; run in release with --nocapture"]
     fn fit_into_time_for_fifty_cards() {

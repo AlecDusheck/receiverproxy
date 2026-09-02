@@ -2,10 +2,11 @@
 //! address that the page-addressed frames cannot reach.
 //!
 //! A block erase clears it and a firmware write never restores it, so it is
-//! read and set by value.
+//! read and set by value. The other `card` commands, one frame each, are
+//! here too.
 
 use crate::util::{await_reply, open};
-use crate::{protocol, Cli};
+use crate::{protocol, Ctx, Progress};
 use anyhow::{Context, Result};
 use e120_net::Link;
 use std::time::Duration;
@@ -67,28 +68,30 @@ pub fn geometry(record: &[u8]) -> Option<(u16, u16)> {
     Some((be16(WIDTH)?, be16(HEIGHT)?))
 }
 
-/// Show the record, and optionally set the geometry it carries.
+/// Show the record, and optionally set the geometry it carries. Returns the
+/// geometry the card holds when the command finishes.
 ///
 /// # Errors
 /// Fails if the card does not answer or the write is refused.
 pub fn screen_size(
-    cli: &Cli,
+    ctx: &Ctx,
     set: Option<(u16, u16)>,
     commit: bool,
     index: u16,
     wait: u64,
-) -> Result<()> {
-    let mut dev = open(cli)?;
+    p: &mut dyn Progress,
+) -> Result<(u16, u16)> {
+    let mut dev = open(ctx)?;
     let record = read(&mut dev, index, wait)?;
     let (w, h) = geometry(&record).context("the record is too short to hold a geometry")?;
 
     let Some((nw, nh)) = set else {
-        println!("{w}x{h}");
-        return Ok(());
+        p.out(&format!("{w}x{h}"));
+        return Ok((w, h));
     };
     if (nw, nh) == (w, h) {
-        println!("{w}x{h}");
-        return Ok(());
+        p.out(&format!("{w}x{h}"));
+        return Ok((w, h));
     }
     if looks_erased(&record) {
         let sx = u16::from_be_bytes([record[START_X], record[START_X + 1]]);
@@ -101,8 +104,8 @@ pub fn screen_size(
         );
     }
     if !commit {
-        println!("{w}x{h} -> {nw}x{nh} (dry run; add --commit)");
-        return Ok(());
+        p.out(&format!("{w}x{h} -> {nw}x{nh} (dry run; add --commit)"));
+        return Ok((w, h));
     }
 
     let mut updated = record;
@@ -116,12 +119,73 @@ pub fn screen_size(
     std::thread::sleep(Duration::from_millis(200));
 
     let after = read(&mut dev, index, wait)?;
-    match geometry(&after) {
-        Some((aw, ah)) if (aw, ah) == (nw, nh) => println!("{aw}x{ah}"),
+    let got = match geometry(&after) {
+        Some((aw, ah)) if (aw, ah) == (nw, nh) => {
+            p.out(&format!("{aw}x{ah}"));
+            (aw, ah)
+        }
         Some((aw, ah)) => anyhow::bail!("wrote {nw}x{nh} but the card reads back {aw}x{ah}"),
         None => anyhow::bail!("the card returned an unreadable record"),
+    };
+    p.err("power-cycle the card to apply");
+    Ok(got)
+}
+
+/// Ask the card to reload its parameters from flash; `full` sends the
+/// vendor's post-save frame instead of the bare reload.
+///
+/// # Errors
+/// Fails if the link cannot be opened.
+pub fn reload(ctx: &Ctx, index: u16, full: bool) -> Result<()> {
+    let mut dev = open(ctx)?;
+    if full {
+        dev.send(&protocol::reload_params_full(index))?;
+    } else {
+        dev.send(&protocol::reload_params(index))?;
     }
-    eprintln!("power-cycle the card to apply");
+    Ok(())
+}
+
+/// Select the card's built-in test pattern; 0 is off.
+///
+/// # Errors
+/// Fails if the link cannot be opened.
+pub fn test_mode(ctx: &Ctx, index: u16, pattern: u8) -> Result<()> {
+    let mut dev = open(ctx)?;
+    dev.send(&protocol::test_mode(index, pattern))?;
+    Ok(())
+}
+
+/// Step through the card's test patterns, pausing on each, then switch off.
+///
+/// # Errors
+/// Fails if the link cannot be opened.
+pub fn test_sweep(ctx: &Ctx, count: u8, secs: u64, index: u16, p: &mut dyn Progress) -> Result<()> {
+    let mut dev = open(ctx)?;
+    for pattern in 0..count {
+        p.out(&format!("pattern {pattern}"));
+        dev.send(&protocol::test_mode(index, pattern))?;
+        std::thread::sleep(Duration::from_secs(secs));
+    }
+    dev.send(&protocol::test_mode(index, 0))?;
+    Ok(())
+}
+
+/// Tell the card its own size and the size of the whole screen.
+///
+/// # Errors
+/// Fails if the link cannot be opened.
+pub fn set_layout(ctx: &Ctx, index: u16, panel_width: u16, panel_height: u16) -> Result<()> {
+    let mut dev = open(ctx)?;
+    dev.send(&protocol::set_layout(
+        index,
+        panel_width,
+        panel_height,
+        0,
+        0,
+        panel_width,
+        panel_height,
+    ))?;
     Ok(())
 }
 

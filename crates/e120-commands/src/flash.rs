@@ -1,7 +1,7 @@
 //! Reading and writing the card's flash: configuration, dumps, and firmware.
 
 use crate::util::{await_reply, contains_lattice_header, has_lattice_header, hex, open, warn};
-use crate::{protocol, rcvbp, Cli};
+use crate::{check, protocol, rcvbp, Ctx, Progress};
 use anyhow::{Context, Result};
 use e120_net::Link;
 use std::time::Duration;
@@ -39,18 +39,17 @@ fn mismatched_pages(after: &[u8], pages: &[&[u8]]) -> Vec<usize> {
         .collect()
 }
 
-/// Read the card's stored configuration out of flash and save it as a
-/// `.rcvbp` file. Only ever sends read-opcode flash frames, which carry no
-/// data of their own and so cannot modify the card.
+/// Read the card's stored configuration out of flash and return the `.rcvbp`
+/// file bytes. Only ever sends read-opcode flash frames, which carry no data
+/// of their own and so cannot modify the card.
 pub fn read_config(
-    cli: &Cli,
+    ctx: &Ctx,
     index: u16,
     page: u16,
     max_chunks: u16,
     wait: u64,
-    out: &str,
-) -> Result<()> {
-    let mut dev = open(cli)?;
+) -> Result<Vec<u8>> {
+    let mut dev = open(ctx)?;
     let mut flash: Vec<u8> = Vec::new();
     let mut expected: Option<usize> = None;
 
@@ -78,15 +77,24 @@ pub fn read_config(
     let file = flash
         .get(4..4 + total)
         .context("card reported more configuration than it returned")?;
+    Ok(file.to_vec())
+}
+
+/// Save what [`read_config`] returned as `out`, print the path, and warn
+/// when the file will not drive PWM chips or does not parse.
+pub fn save_config(file: &[u8], out: &str, p: &mut dyn Progress) -> Result<()> {
     std::fs::write(out, file).with_context(|| format!("write {out}"))?;
-    println!("{out}");
+    p.out(out);
 
     match rcvbp::Rcvbp::load(out) {
-        Ok(f) if !has_chip_regs(&f) => warn(format!(
+        Ok(f) if !has_chip_regs(&f) => warn(
+            p,
+            format!(
             "{out} has no driver-chip register table; panels with PWM driver ICs will stay dark"
-        )),
+        ),
+        ),
         Ok(_) => {}
-        Err(e) => warn(format!("{out} does not parse as .rcvbp: {e:#}")),
+        Err(e) => warn(p, format!("{out} does not parse as .rcvbp: {e:#}")),
     }
     Ok(())
 }
@@ -116,7 +124,7 @@ fn verify_firmware(dev: &mut Link, index: u16, img: &[u8], wait: u64) -> Result<
 }
 
 /// Print the human-readable fields Lattice puts in a bitstream's header.
-fn describe_image(img: &[u8]) {
+fn describe_image(img: &[u8], p: &mut dyn Progress) {
     let header: String = img[..200.min(img.len())]
         .iter()
         .map(|&b| {
@@ -129,10 +137,10 @@ fn describe_image(img: &[u8]) {
         .collect();
     for field in ["Design name", "Part", "Date"] {
         if let Some(i) = header.find(field) {
-            eprintln!(
+            p.err(&format!(
                 "firmware: {}",
                 header[i..].split("  ").next().unwrap_or("").trim()
-            );
+            ));
         }
     }
 }
@@ -145,14 +153,16 @@ fn describe_image(img: &[u8]) {
 ///
 /// `blocks` limits the write to part of the bank, so a partially-programmed
 /// image can be repaired without disturbing what is already correct.
+#[allow(clippy::too_many_arguments)]
 pub fn flash_firmware(
-    cli: &Cli,
+    ctx: &Ctx,
     image: &str,
     backup: &str,
     commit: bool,
     blocks: std::ops::Range<u8>,
     index: u16,
     wait: u64,
+    p: &mut dyn Progress,
 ) -> Result<()> {
     anyhow::ensure!(
         blocks.start < blocks.end
@@ -184,19 +194,19 @@ pub fn flash_firmware(
         "{backup} is not a usable dump of the current primary bank"
     );
 
-    eprintln!(
+    p.err(&format!(
         "firmware: {image} -> blocks 0x{:02x}..0x{:02x}, recovery {backup}",
         blocks.start,
         blocks.end - 1
-    );
-    describe_image(img);
+    ));
+    describe_image(img, p);
 
     if !commit {
-        println!("dry run: nothing written (add --commit)");
+        p.out("dry run: nothing written (add --commit)");
         return Ok(());
     }
 
-    let mut dev = open(cli)?;
+    let mut dev = open(ctx)?;
 
     // The program region is write-protected; without this every erase and
     // write is silently ignored.
@@ -204,13 +214,13 @@ pub fn flash_firmware(
     std::thread::sleep(Duration::from_millis(200));
 
     for block in blocks.clone() {
-        eprintln!("firmware: erase 0x{block:02x}");
+        p.err(&format!("firmware: erase 0x{block:02x}"));
         dev.send(&protocol::erase_firmware_block(index, block)?)?;
         std::thread::sleep(Duration::from_secs(3));
     }
 
     for block in blocks {
-        eprintln!("firmware: write 0x{block:02x}");
+        p.err(&format!("firmware: write 0x{block:02x}"));
         for page in 0..=0xffu8 {
             let off = page_offset(block, u16::from(page));
             let data = &img[off..off + protocol::FLASH_PAGE_BYTES];
@@ -222,25 +232,35 @@ pub fn flash_firmware(
     // Relock before verifying, so the region is protected even if we stop here.
     dev.send(&protocol::set_program_writable(index, false))?;
 
-    eprintln!("firmware: verify");
+    p.err("firmware: verify");
     let bad = verify_firmware(&mut dev, index, img, wait)?;
     if bad == 0 {
-        eprintln!("firmware: bank verified");
+        p.err("firmware: bank verified");
     } else {
         // Not fatal: provision writes one block at a time and verifies the
         // whole bank itself once every path has run.
-        warn(format!(
-            "{bad} bytes differ after writing; golden bank at 0x{:02x} untouched; \
+        warn(
+            p,
+            format!(
+                "{bad} bytes differ after writing; golden bank at 0x{:02x} untouched; \
              recover with: e120 firmware write {backup} --backup {backup} --commit",
-            protocol::GOLDEN_BLOCK
-        ));
+                protocol::GOLDEN_BLOCK
+            ),
+        );
     }
     Ok(())
 }
 
 /// Read page 0 of each block and report what it looks like. Read-only.
-pub fn scan_flash(cli: &Cli, first: u8, last: u8, index: u16, wait: u64) -> Result<()> {
-    let mut dev = open(cli)?;
+pub fn scan_flash(
+    ctx: &Ctx,
+    first: u8,
+    last: u8,
+    index: u16,
+    wait: u64,
+    p: &mut dyn Progress,
+) -> Result<()> {
+    let mut dev = open(ctx)?;
     for blk in first..=last {
         let page = u16::from(blk) << 8;
         let Ok(d) = read_chunk(&mut dev, index, page, wait) else {
@@ -256,27 +276,28 @@ pub fn scan_flash(cli: &Cli, first: u8, last: u8, index: u16, wait: u64) -> Resu
         } else {
             "data"
         };
-        println!(
+        p.out(&format!(
             "0x{blk:02x}  0x{:06x}  {kind:<24} {}",
             u32::from(blk) << 16,
             hex(&d[..d.len().min(12)], " ")
-        );
+        ));
     }
     Ok(())
 }
 
 /// Dump an arbitrary flash range using linear addressing. Read-only.
 pub fn dump_range(
-    cli: &Cli,
+    ctx: &Ctx,
     start: &str,
     len: &str,
     index: u16,
     wait: u64,
     out: &str,
+    p: &mut dyn Progress,
 ) -> Result<()> {
     let start = u32::from_str_radix(start.trim_start_matches("0x"), 16).context("bad --start")?;
     let len = u32::from_str_radix(len.trim_start_matches("0x"), 16).context("bad --len")?;
-    let mut dev = open(cli)?;
+    let mut dev = open(ctx)?;
     let mut image = Vec::with_capacity(len as usize);
 
     // The card answers linear reads one 256-byte page at a time; asking for
@@ -297,38 +318,40 @@ pub fn dump_range(
             misses += 1;
             image.extend(std::iter::repeat_n(0xffu8, step as usize));
             if misses > 8 {
-                warn(format!(
-                    "giving up after {misses} unanswered reads at 0x{addr:08x}"
-                ));
+                warn(
+                    p,
+                    format!("giving up after {misses} unanswered reads at 0x{addr:08x}"),
+                );
                 break;
             }
         }
         if (addr - start).is_multiple_of(0x10000) {
-            eprintln!("read 0x{addr:08x}");
+            p.err(&format!("read 0x{addr:08x}"));
         }
         addr += step;
     }
     std::fs::write(out, &image).with_context(|| format!("write {out}"))?;
     if misses > 0 {
-        warn(format!("{misses} unanswered reads filled with 0xff"));
+        warn(p, format!("{misses} unanswered reads filled with 0xff"));
     }
-    println!("{out}");
+    p.out(out);
     Ok(())
 }
 
 /// Dump an entire 64KB flash block. Read-only.
 pub fn dump_flash(
-    cli: &Cli,
+    ctx: &Ctx,
     block: u8,
     blocks: u16,
     index: u16,
     wait: u64,
     out: &str,
+    p: &mut dyn Progress,
 ) -> Result<()> {
-    let mut dev = open(cli)?;
-    let image = read_blocks(&mut dev, index, block, blocks, wait)?;
+    let mut dev = open(ctx)?;
+    let image = read_blocks(&mut dev, index, block, blocks, wait, p)?;
     std::fs::write(out, &image).with_context(|| format!("write {out}"))?;
-    println!("{out}");
+    p.out(out);
     Ok(())
 }
 
@@ -339,34 +362,49 @@ const PARAM_OFFSET: usize = 0x8000;
 const PARAM_MAX: usize = 0x6ffc;
 
 /// Read the whole primary firmware bank into memory.
-pub fn read_primary_bank(dev: &mut Link, index: u16, wait: u64) -> Result<Vec<u8>> {
+pub fn read_primary_bank(
+    dev: &mut Link,
+    index: u16,
+    wait: u64,
+    p: &mut dyn Progress,
+) -> Result<Vec<u8>> {
     read_blocks(
         dev,
         index,
         protocol::FIRMWARE_BLOCKS.start,
         protocol::FIRMWARE_BLOCKS.len() as u16,
         wait,
+        p,
     )
 }
 
 /// Read the whole parameter block into memory.
-fn read_block(dev: &mut Link, index: u16, wait: u64) -> Result<Vec<u8>> {
-    read_blocks(dev, index, protocol::PARAM_BLOCK, 1, wait)
+fn read_block(dev: &mut Link, index: u16, wait: u64, p: &mut dyn Progress) -> Result<Vec<u8>> {
+    read_blocks(dev, index, protocol::PARAM_BLOCK, 1, wait, p)
 }
 
-/// Read `count` consecutive 64KB blocks starting at `first`.
+/// Read `count` consecutive 64KB blocks starting at `first`; stops between
+/// blocks when cancelled.
 ///
 /// # Errors
 /// Fails if the card stops answering partway through.
-pub fn read_blocks(dev: &mut Link, index: u16, first: u8, count: u16, wait: u64) -> Result<Vec<u8>> {
+pub fn read_blocks(
+    dev: &mut Link,
+    index: u16,
+    first: u8,
+    count: u16,
+    wait: u64,
+    p: &mut dyn Progress,
+) -> Result<Vec<u8>> {
     let mut image = Vec::with_capacity(64 * 1024 * count as usize);
     for b in 0..count {
+        check(p)?;
         let block = first.wrapping_add(b as u8);
         for lo in (0u16..0x100).step_by(protocol::FLASH_PAGES_PER_CHUNK as usize) {
             let page = (u16::from(block) << 8) | lo;
             image.extend_from_slice(&read_chunk(dev, index, page, wait)?);
         }
-        eprintln!("read 0x{block:02x}");
+        p.err(&format!("read 0x{block:02x}"));
     }
     Ok(image)
 }
@@ -381,31 +419,32 @@ pub fn rewrite_block(
     image: &[u8],
     wait: u64,
     must_verify: std::ops::Range<usize>,
+    p: &mut dyn Progress,
 ) -> Result<()> {
     anyhow::ensure!(image.len() == 64 * 1024, "image must be exactly 64KB");
     let pages: Vec<&[u8]> = image.chunks(protocol::FLASH_PAGE_BYTES).collect();
 
     for attempt in 1..=4 {
         let repair: Vec<usize> = if attempt == 1 {
-            erase_and_settle(dev, index)?;
+            erase_and_settle(dev, index, p)?;
             (0..pages.len()).collect()
         } else {
-            let after = read_block(dev, index, wait)?;
+            let after = read_block(dev, index, wait, p)?;
             let bad = mismatched_pages(&after, &pages);
             if bad.is_empty() {
-                eprintln!("flash: block verified");
+                p.err("flash: block verified");
                 return Ok(());
             }
             let dirty = bad
                 .iter()
                 .any(|&i| page(&after, i).iter().any(|&b| b != 0xff));
-            eprintln!(
+            p.err(&format!(
                 "flash: attempt {attempt}: {} pages to rewrite{}",
                 bad.len(),
                 if dirty { " (re-erasing first)" } else { "" }
-            );
+            ));
             if dirty {
-                erase_and_settle(dev, index)?;
+                erase_and_settle(dev, index, p)?;
                 (0..pages.len()).collect()
             } else {
                 bad
@@ -421,13 +460,13 @@ pub fn rewrite_block(
             )?)?;
             std::thread::sleep(Duration::from_millis(8));
             if repair.len() > 32 && n.is_multiple_of(64) {
-                eprintln!("flash: page {n}/{}", repair.len());
+                p.err(&format!("flash: page {n}/{}", repair.len()));
             }
         }
     }
     // Some pages sit outside the window the card lets us write. Those are not
     // part of the configuration blob, so report them rather than failing.
-    let after = read_block(dev, index, wait)?;
+    let after = read_block(dev, index, wait, p)?;
     let bad = mismatched_pages(&after, &pages);
     let in_config = bad.iter().any(|i| must_verify.contains(i));
     anyhow::ensure!(
@@ -435,20 +474,20 @@ pub fn rewrite_block(
         "verify failed: {} pages differ, including configuration pages",
         bad.len()
     );
-    eprintln!(
+    p.err(&format!(
         "flash: configuration pages verified; {} page(s) outside them would not take writes: {}",
         bad.len(),
         bad.iter()
             .map(|i| format!("0x{i:02x}"))
             .collect::<Vec<_>>()
             .join(", ")
-    );
+    ));
     Ok(())
 }
 
 /// Erase the parameter block and wait for the chip to finish.
-fn erase_and_settle(dev: &mut Link, index: u16) -> Result<()> {
-    eprintln!("flash: erase 0x{:02x}", protocol::PARAM_BLOCK);
+fn erase_and_settle(dev: &mut Link, index: u16, p: &mut dyn Progress) -> Result<()> {
+    p.err(&format!("flash: erase 0x{:02x}", protocol::PARAM_BLOCK));
     dev.send(&protocol::erase_block(index, protocol::PARAM_BLOCK)?)?;
     // Pages written while the erase is still running are silently dropped.
     std::thread::sleep(Duration::from_secs(3));
@@ -460,14 +499,16 @@ fn erase_and_settle(dev: &mut Link, index: u16) -> Result<()> {
 /// The erase covers the whole 64KB block, so the block is read first, only the
 /// parameter region is replaced, and everything else is written back byte for
 /// byte. A backup of the original block is always saved before any write.
+#[allow(clippy::too_many_arguments)]
 pub fn write_config(
-    cli: &Cli,
+    ctx: &Ctx,
     config: &str,
     commit: bool,
     backup: &str,
     base_image: Option<&str>,
     index: u16,
     wait: u64,
+    p: &mut dyn Progress,
 ) -> Result<()> {
     let parsed = rcvbp::Rcvbp::load(config)?;
     let file = std::fs::read(config).with_context(|| format!("read {config}"))?;
@@ -477,10 +518,10 @@ pub fn write_config(
         file.len()
     );
     if !has_chip_regs(&parsed) {
-        warn(format!("{config} has no driver-chip register table"));
+        warn(p, format!("{config} has no driver-chip register table"));
     }
 
-    let mut dev = open(cli)?;
+    let mut dev = open(ctx)?;
     let original = match base_image {
         Some(path) => {
             let img = std::fs::read(path).with_context(|| format!("read {path}"))?;
@@ -488,9 +529,9 @@ pub fn write_config(
             img
         }
         None => {
-            let img = read_block(&mut dev, index, wait)?;
+            let img = read_block(&mut dev, index, wait, p)?;
             std::fs::write(backup, &img).with_context(|| format!("write {backup}"))?;
-            eprintln!("flash: backup {backup}");
+            p.err(&format!("flash: backup {backup}"));
             img
         }
     };
@@ -508,21 +549,21 @@ pub fn write_config(
     image[PARAM_OFFSET + 4..PARAM_OFFSET + 4 + file.len()].copy_from_slice(&file);
 
     let changed = original.iter().zip(&image).filter(|(a, b)| a != b).count();
-    eprintln!(
+    p.err(&format!(
         "flash: parameter blob {old_len} -> {} bytes, {changed} bytes of block 0x{:02x} change",
         file.len(),
         protocol::PARAM_BLOCK
-    );
+    ));
 
     if !commit {
-        println!("dry run: nothing written (add --commit)");
+        p.out("dry run: nothing written (add --commit)");
         return Ok(());
     }
 
     // Only the pages holding the configuration blob itself have to verify.
     let first = PARAM_OFFSET / protocol::FLASH_PAGE_BYTES;
     let last = (PARAM_OFFSET + 4 + file.len()).div_ceil(protocol::FLASH_PAGE_BYTES);
-    rewrite_block(&mut dev, index, &image, wait, first..last).with_context(|| {
+    rewrite_block(&mut dev, index, &image, wait, first..last, p).with_context(|| {
         format!(
             "original block saved at {backup}; restore with: e120 flash restore-block {backup} --commit"
         )
@@ -540,19 +581,25 @@ pub fn write_config(
             record,
         )?)?;
         std::thread::sleep(Duration::from_millis(100));
-        eprintln!(
+        p.err(&format!(
             "flash: screen-size record restored ({}x{})",
             u16::from_be_bytes([record[6], record[7]]),
             u16::from_be_bytes([record[8], record[9]])
-        );
+        ));
     }
 
-    eprintln!("power-cycle the card to apply");
+    p.err("power-cycle the card to apply");
     Ok(())
 }
 
 /// Write a previously dumped block image back to the card, for recovery.
-pub fn restore_flash(cli: &Cli, image_path: &str, commit: bool, index: u16) -> Result<()> {
+pub fn restore_flash(
+    ctx: &Ctx,
+    image_path: &str,
+    commit: bool,
+    index: u16,
+    p: &mut dyn Progress,
+) -> Result<()> {
     let image = std::fs::read(image_path).with_context(|| format!("read {image_path}"))?;
     anyhow::ensure!(
         image.len() == 64 * 1024,
@@ -560,13 +607,13 @@ pub fn restore_flash(cli: &Cli, image_path: &str, commit: bool, index: u16) -> R
         image.len()
     );
     if !commit {
-        println!(
+        p.out(&format!(
             "dry run: {image_path} -> block 0x{:02x} (add --commit)",
             protocol::PARAM_BLOCK
-        );
+        ));
         return Ok(());
     }
-    let mut dev = open(cli)?;
-    rewrite_block(&mut dev, index, &image, 2, 0..256)?;
+    let mut dev = open(ctx)?;
+    rewrite_block(&mut dev, index, &image, 2, 0..256, p)?;
     Ok(())
 }

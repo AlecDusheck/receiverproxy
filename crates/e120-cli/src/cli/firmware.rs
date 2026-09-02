@@ -1,7 +1,7 @@
-use crate::flash::flash_firmware;
-use crate::{protocol, upgrade, Cli};
 use anyhow::Result;
 use clap::Subcommand;
+use e120_commands::flash::flash_firmware;
+use e120_commands::{protocol, upgrade, Ctx, Progress};
 
 #[derive(Subcommand)]
 pub enum Firmware {
@@ -56,9 +56,9 @@ pub enum Firmware {
     },
 }
 
-pub fn run(cli: &Cli, cmd: &Firmware) -> Result<()> {
+pub fn run(ctx: &Ctx, cmd: &Firmware, p: &mut dyn Progress) -> Result<()> {
     match cmd {
-        Firmware::Info { wait } => upgrade::info(cli, *wait),
+        Firmware::Info { wait } => upgrade::info(ctx, *wait, p),
         Firmware::Install {
             image,
             commit,
@@ -73,13 +73,14 @@ pub fn run(cli: &Cli, cmd: &Firmware) -> Result<()> {
                 protocol::upgrade::Partition::Primary
             };
             upgrade::install(
-                cli,
+                ctx,
                 image,
                 *commit,
                 partition,
                 *timeout,
                 *chunk_delay_us,
                 *wait,
+                p,
             )
         }
         Firmware::Write {
@@ -91,13 +92,14 @@ pub fn run(cli: &Cli, cmd: &Firmware) -> Result<()> {
             index,
             wait,
         } => flash_firmware(
-            cli,
+            ctx,
             image,
             backup,
             *commit,
             *from_block..*to_block,
             *index,
             *wait,
+            p,
         ),
     }
 }

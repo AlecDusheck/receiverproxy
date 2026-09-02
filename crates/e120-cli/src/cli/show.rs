@@ -1,8 +1,9 @@
-use crate::display::{play, show_image, show_pattern, show_solid};
-use crate::util::parse_color;
-use crate::{ingest, parse_geometry, Cli};
+use crate::parse_geometry;
 use anyhow::Result;
 use clap::Subcommand;
+use e120_commands::display::{play, show_image, show_pattern, show_solid};
+use e120_commands::util::parse_color;
+use e120_commands::{ingest, Ctx, Progress};
 
 #[derive(Subcommand)]
 pub enum Show {
@@ -92,30 +93,32 @@ pub enum Show {
     Blank,
 }
 
-pub fn run(cli: &Cli, cmd: &Show) -> Result<()> {
+pub fn run(ctx: &Ctx, cmd: &Show, p: &mut dyn Progress) -> Result<()> {
     match cmd {
-        Show::Image { path, hold } => show_image(cli, path, *hold),
+        Show::Image { path, hold } => show_image(ctx, path, *hold, p),
         Show::Video {
             input,
             fps,
             fit,
             looping,
             layout,
-        } => play(cli, input, *fps, fit, *looping, layout.as_deref()),
+        } => play(ctx, input, *fps, fit, *looping, layout.as_deref(), p),
         Show::Stream {
             size,
             fps,
             fit,
             layout,
-        } => ingest::stream(cli, *size, *fps, fit, layout.as_deref()),
+        } => ingest::stream(ctx, *size, *fps, fit, layout.as_deref(), p),
         Show::Serve {
             socket,
             fit,
             layout,
-        } => ingest::serve(cli, socket, fit, layout.as_deref()),
-        Show::Fill { color, hold } => show_solid(cli, parse_color(color)?, *hold),
-        Show::Pattern { name, hold, layout } => show_pattern(cli, name, *hold, layout.as_deref()),
-        Show::Test { pattern, hold } => show_pattern(cli, pattern, *hold, None),
-        Show::Blank => show_solid(cli, [0, 0, 0], false),
+        } => ingest::serve(ctx, socket, fit, layout.as_deref(), p),
+        Show::Fill { color, hold } => show_solid(ctx, parse_color(color)?, *hold, p),
+        Show::Pattern { name, hold, layout } => {
+            show_pattern(ctx, name, *hold, layout.as_deref(), p)
+        }
+        Show::Test { pattern, hold } => show_pattern(ctx, pattern, *hold, None, p),
+        Show::Blank => show_solid(ctx, [0, 0, 0], false, p),
     }
 }

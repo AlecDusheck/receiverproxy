@@ -5,10 +5,11 @@
 //! sending only the three type-0x05 packs leaves them as the card booted.
 
 use crate::util::open;
-use crate::{protocol, rcvbp, Cli};
+use crate::{protocol, rcvbp, Ctx, Loader};
 use anyhow::Result;
 use e120_net::Link;
 use rcvbp::image;
+use rcvbp::spec::{Generated, PanelSpec};
 use std::time::Duration;
 
 /// Image offsets of the second halves of the void-line and anti-void tables,
@@ -37,14 +38,25 @@ impl Pack<'_> {
     }
 }
 
-/// Push the real-time parameter packs for a panel spec, in the vendor's
+/// Push the real-time parameter packs for a panel spec file, in the vendor's
 /// order. RAM only: no flash, no reboot.
+pub fn send_params(
+    ctx: &Ctx,
+    spec_path: &str,
+    chip_only: bool,
+    gap_ms: u64,
+    load: Loader,
+) -> Result<()> {
+    let spec = PanelSpec::load(spec_path)?;
+    let g = spec.generate_with(&spec.chip_library(load)?)?;
+    send_generated(ctx, &spec, &g, chip_only, gap_ms)
+}
+
+/// [`send_params`] for a spec already generated.
 #[rustfmt::skip] // one pack per line reads as the vendor's send table
-pub fn send_params(cli: &Cli, spec_path: &str, chip_only: bool, gap_ms: u64) -> Result<()> {
-    let spec = rcvbp::spec::PanelSpec::load(spec_path)?;
-    let g = spec.generate()?;
+pub fn send_generated(ctx: &Ctx, spec: &PanelSpec, g: &Generated, chip_only: bool, gap_ms: u64) -> Result<()> {
     let gap = Duration::from_millis(gap_ms);
-    let mut dev = open(cli)?;
+    let mut dev = open(ctx)?;
 
     // Addressed-register chips get their table as the chip pack. A
     // non-addressed chip carries its configuration inside the basic pack's
@@ -59,7 +71,7 @@ pub fn send_params(cli: &Cli, spec_path: &str, chip_only: bool, gap_ms: u64) -> 
 
     // The rest of the raster state comes from the same regions the boot image
     // carries, so the card gets in RAM exactly what it would boot with.
-    let img = image::Block7Builder::from_generated(&spec, &g)?.finish().image;
+    let img = image::Block7Builder::from_generated(spec, g)?.finish().image;
 
     let mut packs: Vec<Pack> = vec![
         Pack { kind: 0x05, sub: protocol::params::SUB_DATA_SWAP, header: 4,
@@ -86,8 +98,8 @@ pub fn send_params(cli: &Cli, spec_path: &str, chip_only: bool, gap_ms: u64) -> 
     packs.push(Pack { kind: 0x18, sub: 0, header: 4,
                       body: &img[image::SCAN_TABLE_OFFSET..image::SCAN_TABLE_OFFSET + 0x400] });
 
-    for p in &packs {
-        p.send(&mut dev, gap)?;
+    for pk in &packs {
+        pk.send(&mut dev, gap)?;
     }
     Ok(())
 }

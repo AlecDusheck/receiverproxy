@@ -1,9 +1,9 @@
-use crate::config::{config_build, config_diff, gen_config, rcvbp_info};
-use crate::flash::{read_config, write_config};
-use crate::params::send_params;
-use crate::{protocol, Cli};
 use anyhow::Result;
 use clap::Subcommand;
+use e120_commands::config::{config_build, config_diff, gen_config, rcvbp_info};
+use e120_commands::flash::{read_config, save_config, write_config};
+use e120_commands::params::send_params;
+use e120_commands::{protocol, read_library, Ctx, Progress};
 
 #[derive(Subcommand)]
 pub enum Config {
@@ -98,36 +98,39 @@ pub enum Config {
     },
 }
 
-pub fn run(cli: &Cli, cmd: &Config) -> Result<()> {
+pub fn run(ctx: &Ctx, cmd: &Config, p: &mut dyn Progress) -> Result<()> {
     match cmd {
-        Config::Gen { spec, out_dir } => gen_config(spec, out_dir),
+        Config::Gen { spec, out_dir } => gen_config(spec, out_dir, &read_library, p).map(drop),
         Config::Build {
             base,
             copy_from,
             copy,
             remove,
             out,
-        } => config_build(base, copy_from.as_deref(), copy, remove, out),
-        Config::Diff { a, b } => config_diff(a, b),
-        Config::Info { path, dump } => rcvbp_info(path, *dump),
+        } => config_build(base, copy_from.as_deref(), copy, remove, out, p),
+        Config::Diff { a, b } => config_diff(a, b, p),
+        Config::Info { path, dump } => rcvbp_info(path, *dump, p),
         Config::Read {
             out,
             index,
             page,
             max_chunks,
             wait,
-        } => read_config(cli, *index, *page, *max_chunks, *wait, out),
+        } => {
+            let file = read_config(ctx, *index, *page, *max_chunks, *wait)?;
+            save_config(&file, out, p)
+        }
         Config::Write {
             config,
             commit,
             backup,
             index,
             wait,
-        } => write_config(cli, config, *commit, backup, None, *index, *wait),
+        } => write_config(ctx, config, *commit, backup, None, *index, *wait, p),
         Config::Send {
             spec,
             chip_only,
             gap_ms,
-        } => send_params(cli, spec, *chip_only, *gap_ms),
+        } => send_params(ctx, spec, *chip_only, *gap_ms, &read_library),
     }
 }

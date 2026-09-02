@@ -8,7 +8,7 @@
 
 use crate::flash::{read_blocks, read_primary_bank, write_config, BANK_BYTES};
 use crate::util::{open, warn};
-use crate::{protocol, Cli};
+use crate::{protocol, Ctx, Progress};
 use anyhow::{Context, Result};
 
 /// A saved copy of everything we know how to put back.
@@ -53,10 +53,17 @@ pub fn load_snapshot(dir: &str) -> Result<Snapshot> {
 ///
 /// # Errors
 /// Fails if the snapshot holds no `config.rcvbp` or the write does not verify.
-pub fn all(cli: &Cli, dir: &str, commit: bool, index: u16, wait: u64) -> Result<()> {
+pub fn all(
+    ctx: &Ctx,
+    dir: &str,
+    commit: bool,
+    index: u16,
+    wait: u64,
+    p: &mut dyn Progress,
+) -> Result<()> {
     let snap = load_snapshot(dir)?;
     if snap.firmware.is_some() {
-        warn(format!(
+        warn(p, format!(
             "{dir}/primary-region.bin is not restored by this command; host-writable blocks go back with: \
              e120 firmware write {dir}/primary-region.bin --backup <fresh dump> --from-block 3 --to-block 7 --commit"
         ));
@@ -65,33 +72,35 @@ pub fn all(cli: &Cli, dir: &str, commit: bool, index: u16, wait: u64) -> Result<
         anyhow::bail!("{dir} holds no config.rcvbp; nothing this command can restore");
     };
     if !commit {
-        println!("dry run: {config} -> parameter block (add --commit)");
+        p.out(&format!(
+            "dry run: {config} -> parameter block (add --commit)"
+        ));
         return Ok(());
     }
 
     // write_config reads the block off the card and restores the screen record.
     let backup = format!("{dir}/block07-before-restore.bin");
-    write_config(cli, config, true, &backup, None, index, wait)
+    write_config(ctx, config, true, &backup, None, index, wait, p)
 }
 
 /// Capture everything we know how to restore into a directory.
 ///
 /// # Errors
 /// Fails if the card does not answer or the files cannot be written.
-pub fn snapshot(cli: &Cli, dir: &str, index: u16, wait: u64) -> Result<()> {
+pub fn snapshot(ctx: &Ctx, dir: &str, index: u16, wait: u64, p: &mut dyn Progress) -> Result<()> {
     std::fs::create_dir_all(dir).with_context(|| format!("create {dir}"))?;
-    let mut dev = open(cli)?;
+    let mut dev = open(ctx)?;
 
     let blocks = protocol::FIRMWARE_BLOCKS.len() as u16;
-    let primary = read_primary_bank(&mut dev, index, wait)?;
+    let primary = read_primary_bank(&mut dev, index, wait, p)?;
     let path = format!("{dir}/primary-region.bin");
     std::fs::write(&path, &primary).with_context(|| format!("write {path}"))?;
-    println!("{path}");
+    p.out(&path);
 
-    let golden = read_blocks(&mut dev, index, protocol::GOLDEN_BLOCK, blocks, wait)?;
+    let golden = read_blocks(&mut dev, index, protocol::GOLDEN_BLOCK, blocks, wait, p)?;
     let path = format!("{dir}/golden-bank.bin");
     std::fs::write(&path, &golden).with_context(|| format!("write {path}"))?;
-    println!("{path}");
+    p.out(&path);
     Ok(())
 }
 

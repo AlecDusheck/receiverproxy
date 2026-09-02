@@ -1,8 +1,7 @@
-use crate::util::open;
-use crate::{parse_geometry, protocol, screen, Cli};
+use crate::parse_geometry;
 use anyhow::Result;
 use clap::Subcommand;
-use std::time::Duration;
+use e120_commands::{screen, Ctx, Progress};
 
 #[derive(Subcommand)]
 pub enum Card {
@@ -66,59 +65,26 @@ pub enum Card {
     LayoutExample,
 }
 
-pub fn run(cli: &Cli, cmd: &Card) -> Result<()> {
+pub fn run(ctx: &Ctx, cmd: &Card, p: &mut dyn Progress) -> Result<()> {
     match cmd {
         Card::ScreenSize {
             set,
             commit,
             index,
             wait,
-        } => screen::screen_size(cli, *set, *commit, *index, *wait),
-        Card::Reload { index, full } => {
-            let mut dev = open(cli)?;
-            if *full {
-                dev.send(&protocol::reload_params_full(*index))?;
-            } else {
-                dev.send(&protocol::reload_params(*index))?;
-            }
-            Ok(())
-        }
-        Card::TestMode { pattern, index } => {
-            let mut dev = open(cli)?;
-            dev.send(&protocol::test_mode(*index, *pattern))?;
-            Ok(())
-        }
-        Card::TestSweep { count, secs, index } => {
-            let mut dev = open(cli)?;
-            for pattern in 0..*count {
-                println!("pattern {pattern}");
-                dev.send(&protocol::test_mode(*index, pattern))?;
-                std::thread::sleep(Duration::from_secs(*secs));
-            }
-            dev.send(&protocol::test_mode(*index, 0))?;
-            Ok(())
-        }
+        } => screen::screen_size(ctx, *set, *commit, *index, *wait, p).map(drop),
+        Card::Reload { index, full } => screen::reload(ctx, *index, *full),
+        Card::TestMode { pattern, index } => screen::test_mode(ctx, *index, *pattern),
+        Card::TestSweep { count, secs, index } => screen::test_sweep(ctx, *count, *secs, *index, p),
         Card::SetLayout {
             panel_width,
             panel_height,
             index,
-        } => {
-            let mut dev = open(cli)?;
-            dev.send(&protocol::set_layout(
-                *index,
-                *panel_width,
-                *panel_height,
-                0,
-                0,
-                *panel_width,
-                *panel_height,
-            ))?;
-            Ok(())
-        }
+        } => screen::set_layout(ctx, *index, *panel_width, *panel_height),
         Card::LayoutExample => {
             // Two cards side by side; each receiver's x,y is its --position.
             let canvas = e120_canvas::Canvas::cards(128, 64, 2, 1);
-            println!("{}", serde_json::to_string_pretty(&canvas)?);
+            p.out(&serde_json::to_string_pretty(&canvas)?);
             Ok(())
         }
     }

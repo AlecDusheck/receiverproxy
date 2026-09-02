@@ -10,17 +10,13 @@ name = "e120"
 path = "src/main.rs"
 
 [dependencies]
-e120-proto.workspace = true
-e120-rcvbp.workspace = true
-e120-net.workspace = true
+e120-commands.workspace = true
+e120-server.workspace = true
 e120-canvas.workspace = true
-e120-video.workspace = true
-e120-driver.workspace = true
 
 anyhow.workspace = true
 libc.workspace = true
 clap.workspace = true
-image.workspace = true
 serde_json.workspace = true
 
 [lints]

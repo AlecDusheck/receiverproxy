@@ -2,7 +2,7 @@
 
 Drive a Colorlight E120 LED receiving card and its modules over raw Ethernet: generate and flash the module configuration yourself, then put images, video and live streams on the panel.
 
-This is not only a player. `e120` covers the whole life of a card with no vendor software at all: discovering it, backing up and installing firmware, generating the receiver configuration from a text file, flashing it, setting the card's place in a wall, and then streaming to it. If you have a receiving card and panels the vendor no longer supports, or supports only through a sender box and a Windows install, this is the way to set them up and use them from a Mac or a Linux machine.
+**Drive receiving cards without a sender card and without vendor software.** `e120` discovers the card, backs up and installs firmware, generates and flashes the configuration from a text file, sets the card's place in a wall, and streams to it. Useful for cards and panels the vendor supports badly or not at all.
 
 The card speaks a layer-2 protocol with fixed MAC addresses and no IP, so `e120` writes whole Ethernet frames itself (BPF on macOS, a packet socket on Linux) and needs no vendor software. It reads and writes the card's flash and EEPROM, with address allowlists that keep configuration writes inside the parameter block and firmware writes on the card's own staging path. It installs FPGA firmware. It generates the receiver configuration (the `.rcvbp` file and the 64 KB boot image the card loads at power-on) from a short TOML panel spec plus a chip library, and ships libraries for common driver chips and module classes mined from 2,381 vendor config files. It shows still images, plays video through ffmpeg, reads raw rgb24 frames from stdin, and serves a unix socket other programs can write frames to. Every command that writes flash or EEPROM prints its plan and stops unless `--commit` is given.
 
@@ -232,3 +232,7 @@ How the generator derives each record, and its limits, is in [docs/building-a-co
 ## Hardware
 
 Developed against one Colorlight E120 receiving card running firmware 16.53 (`E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex`), one P2.5 128x64 SMD1415 module, 1/16 scan, with SM16269S driver chips, on macOS. Linux is supported through a packet socket and builds and lints for that target, but has not been run against the card.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

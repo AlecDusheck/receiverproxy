@@ -48,7 +48,7 @@ flash in this order (`Block7Builder::from_generated`, later placements win
 overlapping pages): zero regions, basic pack, data-swap, module positions,
 anti-void counters, void-line columns, mapping, scan table, then the chip
 page (if `boot.arm_at_boot`) and the embedded `.rcvbp`. Every byte comes from
-the spec, the chip library or a decoded formula; the provenance file names
+the spec, the chip library or a decoded formula; the sources file names
 the source of each placement.
 
 ## Corrections to earlier readings

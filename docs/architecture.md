@@ -72,7 +72,7 @@ flowchart LR
 Input is `config/panels/<panel>.toml` (`PanelSpec`, `spec/mod.rs`) plus the
 chip library it names (`config/chips/*.toml`, `chips.rs`). No donor file is
 read; every output byte is a vendor default, a spec field, a chip-library
-value or a documented literal, and `Generated.provenance` names the source of
+value or a documented literal, and `Generated.sources` names the source of
 each placement ([building-a-config.md](building-a-config.md)).
 
 | output | built by | from |

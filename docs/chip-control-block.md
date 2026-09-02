@@ -369,7 +369,7 @@ for us.
 
 ## 8. What is NOT resolved
 
-* `SChipControl` bytes 0–6, 9, 14–15, 16, 18–19: provenance pinned to the exact
+* `SChipControl` bytes 0–6, 9, 14–15, 16, 18–19: source pinned to the exact
   instruction, **meaning unknown**. The struct is only ever copied whole; no
   field accessor, no name, no arithmetic on individual bytes for our chip.
 * `SChipControl` byte 16 = `0x02` in our file: `ResetChipControl` never writes it

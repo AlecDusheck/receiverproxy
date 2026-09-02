@@ -3,7 +3,7 @@
 A panel is described once in `config/panels/<panel>.toml`; everything the
 card consumes is generated from it and a chip library entry. Nothing is
 copied from a donor file: every output byte is a vendor default, a spec
-field, a chip-library value, or a documented literal, and the provenance
+field, a chip-library value, or a documented literal, and the sources
 file names the source of each placement.
 
 ```sh
@@ -11,7 +11,7 @@ e120 config gen --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
 #   build/<name>.rcvbp             the config (17 records, the vendor's order)
 #   build/<name>-basic-pack.bin    page 0 of the boot image (with its CRC-32)
 #   build/<name>-block7.bin        the complete 64 KB boot image
-#   build/<name>-provenance.txt    the source of every placed byte
+#   build/<name>-sources.txt       where every placed byte came from
 
 e120 flash restore-block build/<name>-block7.bin --commit   # page 0xF0 refusing is expected
 e120 card screen-size --set 128x64 --commit
@@ -77,7 +77,7 @@ with the sub-variant id unset, although the silicon is SM16269S.
 ## Limits
 
 * Eleven record-0x01 bytes and a few small-record bytes are literals whose
-  meaning is unresolved (provenance known); they are the reference file's values.
+  meaning is unresolved (source known); they are the reference file's values.
 * The scan-table solver is transcribed for the default style, 16 segments,
   14-bit gray; other gray depths need their hand-coded vendor blocks.
 * Module-position generation covers the plain grid (split segment 1).

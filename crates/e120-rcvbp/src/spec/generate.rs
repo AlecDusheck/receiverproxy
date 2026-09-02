@@ -12,7 +12,7 @@ pub struct Generated {
     pub rcvbp: Rcvbp,
     pub basic_pack: [u8; 256],
     /// One line per byte range placed, with its source.
-    pub provenance: Vec<String>,
+    pub sources: Vec<String>,
 }
 
 /// # Errors
@@ -41,6 +41,6 @@ pub fn generate(spec: &PanelSpec, chip: &ChipLibrary) -> Result<Generated> {
     Ok(Generated {
         rcvbp,
         basic_pack,
-        provenance: prov,
+        sources: prov,
     })
 }

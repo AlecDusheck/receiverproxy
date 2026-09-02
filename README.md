@@ -166,7 +166,7 @@ The ⚠️ rows are the 87 module classes in `config/panels/mined/`; other E-ser
 
 ## Configuration
 
-A panel is described once in `config/panels/<panel>.toml`; `e120 config gen` produces the `.rcvbp`, the boot image and a provenance file naming the source of every byte. The spec that has driven the bench panel, shortened:
+A panel is one TOML file in `config/panels/`. `e120 config gen` turns it into the `.rcvbp`, the boot image, and a text file saying where each byte came from. The bench panel's spec, shortened:
 
 ```toml
 name = "p25-128x64-sm16269s"

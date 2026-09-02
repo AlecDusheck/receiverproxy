@@ -90,7 +90,7 @@ GetBasicParam output offset (pack = body offset + 4).
 | 0x24C | 1 | GetDeadPixelsCurrentGain (vt+0x418) | | 0xFD | medium |
 | 0x277-0x2FB | — | constructor constants: `01 01`, zeros, `01 00 01 00`, `01 00`, then a 120-byte zero tail never read | — | high |
 
-Offsets not listed above are either constants (see the constructor), provenance-
+Offsets not listed above are either constants (see the constructor), source-
 known-but-meaning-unresolved members, or explicitly NOT RESOLVED; the
 per-byte survey behind this page was not kept in the repo.
 

@@ -179,7 +179,7 @@ fn describe_record(t: u16, empty: bool) -> &'static str {
 }
 
 /// Generate a panel's configuration from a TOML spec: the `.rcvbp`, the
-/// basic-pack body, the compiled block-7 boot image, and a provenance list
+/// basic-pack body, the compiled block-7 boot image, and a list of where each byte came from
 /// naming the source of every placed byte.
 pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
     let spec = rcvbp::spec::PanelSpec::load(spec_path)?;
@@ -206,8 +206,8 @@ pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
     std::fs::write(&img_path, &img).with_context(|| format!("write {img_path}"))?;
 
     let mut report = String::new();
-    let _ = writeln!(report, "spec: {spec_path}\n\n# record and pack provenance");
-    for line in &g.provenance {
+    let _ = writeln!(report, "spec: {spec_path}\n\n# record and pack sources");
+    for line in &g.sources {
         report.push_str(line);
         report.push('\n');
     }
@@ -222,7 +222,7 @@ pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
         changed.len(),
         hex(&changed, " ")
     );
-    let report_path = format!("{stem}-provenance.txt");
+    let report_path = format!("{stem}-sources.txt");
     std::fs::write(&report_path, &report).with_context(|| format!("write {report_path}"))?;
 
     println!("{rcvbp_path}\n{pack_path}\n{img_path}\n{report_path}");

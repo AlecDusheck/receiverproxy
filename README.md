@@ -148,6 +148,25 @@ e120 flash restore --dir before --commit           # configuration back, not fir
 
 Multi-panel walls: provision each card with its own `--position x,y`, put the same `x,y` on that card's receiver entry in a layout file (`e120 card layout-example` prints a two-card one; panels are placed inside their receiver) and stream it with `e120 show video --layout wall.json`. Every card hears the whole screen and keeps its own window of it.
 
+## Demos
+
+`e120-demo` (`cargo install --path crates/e120-demos`) is a second binary on the same driver: effects that use what an LED is rather than what an LCD is. `list` prints the names with a line each; `cycle` runs them all in turn; Ctrl-C leaves the panel showing its last frame.
+
+```sh
+e120-demo stars
+e120-demo cycle --every 20
+e120-demo list
+e120-demo comet --seconds 30 --brightness 40 --iface en24 --layout wall.json
+```
+
+- `stars`, `fireflies`, `comet`, `fog`: an LED that is off emits nothing, so a single lit pixel, a pixel at a few percent, or a gradient near black sits in real black with no backlight floor.
+- `lightning`, `pulse`, `cast`: the whole panel goes from black to full and back within one refresh, and the latch frame's gain and per-channel gain bytes change brightness or colour balance without a pixel being resent.
+- `primaries`, `fire`: each pixel is three narrow-band emitters, so red at a low level stays red and pure R, G and B discs overlap into additive white.
+- `life`, `sand`, `rain`: each pixel is a physical light, so a grid of discrete cells reads as one.
+- `scanner`: a bright row then a column sweeping at 240 fps, sending only the rows that changed; a phone camera's rolling shutter slices the sweep into bands the eye does not see.
+
+`--fps` defaults to 30, or 240 where an effect asks (`comet`, `scanner`); the card's own scan sets what the panel can follow. Row-only updates apply to the default single panel; with `--layout` every frame is sent whole. Whether the per-channel gain bytes change anything on the card has not been measured.
+
 ## Tested
 
 ✅ driven on the bench · ⚠️ configuration generates, never driven · ❌ not supported

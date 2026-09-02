@@ -18,13 +18,20 @@ pub const MAX_PIXELS_PER_PACKET: usize = 497;
 /// starts the display, two decay into noise, three hold (`docs/rendering.md`).
 #[must_use]
 pub fn sync(brightness: u8) -> [u8; 112] {
+    // The vendor derives the three gains from its brightness block by an
+    // unresolved rule (docs/pixel-protocol.md §2.2); they follow the master here.
+    sync_gains(brightness, [brightness; 3])
+}
+
+/// [`sync`] with the three channel gains at 38..41 given separately, in the
+/// order the vendor writes its brightness block.
+#[must_use]
+pub fn sync_gains(brightness: u8, gains: [u8; 3]) -> [u8; 112] {
     let mut f = [0u8; 112];
     write_header(&mut f, [0x01, 0x07]);
     f[35] = brightness;
     f[36] = 0x05;
-    // The vendor derives the three gains from its brightness block by an
-    // unresolved rule (docs/pixel-protocol.md §2.2); they follow the master here.
-    f[38..41].fill(brightness);
+    f[38..41].copy_from_slice(&gains);
     f
 }
 
@@ -156,6 +163,16 @@ mod tests {
         assert_eq!(f[35], 0x7f);
         assert_eq!(f[36], 0x05);
         assert_eq!(&f[38..41], &[0x7f; 3]);
+    }
+
+    #[test]
+    fn sync_gains_differ_from_sync_only_at_the_gain_bytes() {
+        let f = sync_gains(0x7f, [10, 20, 30]);
+        let plain = sync(0x7f);
+        assert_eq!(&f[38..41], &[10, 20, 30]);
+        assert_eq!(&f[..38], &plain[..38]);
+        assert_eq!(&f[41..], &plain[41..]);
+        assert_eq!(sync_gains(0x40, [0x40; 3]), sync(0x40));
     }
 
     #[test]

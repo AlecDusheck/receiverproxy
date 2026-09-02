@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 use e120_canvas::{Canvas, Frame};
 use e120_net::Link;
 use e120_proto as proto;
+use std::ops::Range;
 use std::time::{Duration, Instant};
 
 /// How long `recv` may block; only replies to the layout frame are ever read.
@@ -136,6 +137,26 @@ impl<S: FrameSink> Wall<S> {
         self.frames_sent
     }
 
+    #[must_use]
+    pub const fn settings(&self) -> &Settings {
+        &self.settings
+    }
+
+    /// Change the brightness every later refresh carries. Nothing is sent
+    /// here; the cached brightness and latch frames are rebuilt.
+    pub fn set_brightness(&mut self, brightness: u8) {
+        self.set_gains(brightness, [brightness; 3]);
+    }
+
+    /// [`set_brightness`](Self::set_brightness) with the latch frame's three
+    /// channel gains given separately (`proto::sync_gains`); the brightness
+    /// frame carries only the master.
+    pub fn set_gains(&mut self, brightness: u8, gains: [u8; 3]) {
+        self.settings.brightness = brightness;
+        self.brightness_frame = proto::brightness(brightness);
+        self.sync_frame = proto::sync_gains(brightness, gains);
+    }
+
     /// Tell every receiver its own window and the size of the whole wall.
     /// The `as u16` casts are lossless: sizes were checked in `with_sink`.
     ///
@@ -171,6 +192,19 @@ impl<S: FrameSink> Wall<S> {
     /// # Errors
     /// Fails if a frame cannot be sent.
     pub fn show(&mut self, frame: &Frame) -> Result<()> {
+        let all = 0..self.canvas.height;
+        self.show_rows(frame, all)
+    }
+
+    /// [`show`](Self::show) sending only the screen rows in `rows` (clipped
+    /// to the screen) between the brightness frame and the latches. Rows are
+    /// addressed and the card keeps its frame memory, so the rest of the
+    /// picture stays as last sent; an empty range sends brightness and
+    /// latches alone. The card's own scan bounds how fast a band can change.
+    ///
+    /// # Errors
+    /// Fails if a frame cannot be sent.
+    pub fn show_rows(&mut self, frame: &Frame, rows: Range<u32>) -> Result<()> {
         if self.settings.announce_layout && !self.announced {
             self.announce_layout()?;
         }
@@ -180,12 +214,14 @@ impl<S: FrameSink> Wall<S> {
         self.dev.send(&self.brightness_frame)?;
 
         self.canvas.render_into(frame, &mut self.screen);
-        for (y, row) in self.screen.rows().enumerate() {
-            if y > 0 && !timing.row_gap.is_zero() {
+        let height = self.screen.height;
+        for (i, y) in (rows.start.min(height)..rows.end.min(height)).enumerate() {
+            if i > 0 && !timing.row_gap.is_zero() {
                 std::thread::sleep(timing.row_gap);
             }
-            for (i, chunk) in row.chunks(proto::MAX_PIXELS_PER_PACKET).enumerate() {
-                let offset = i * proto::MAX_PIXELS_PER_PACKET;
+            let row = self.screen.row(y);
+            for (j, chunk) in row.chunks(proto::MAX_PIXELS_PER_PACKET).enumerate() {
+                let offset = j * proto::MAX_PIXELS_PER_PACKET;
                 proto::pixel_row_into(&mut self.packet, y as u16, offset as u16, chunk, color_order);
                 self.dev.send(&self.packet)?;
             }
@@ -403,6 +439,69 @@ mod tests {
             }
             assert!(refresh[5..].iter().all(|f| f[12] == 0x01));
         }
+    }
+
+    #[test]
+    fn show_rows_sends_only_that_band_between_brightness_and_latches() {
+        let settings = quick();
+        let mut wall = Wall::with_sink(Vec::new(), Canvas::single(128, 64), settings).unwrap();
+        let frame = gradient(128, 64);
+        wall.show_rows(&frame, 10..13).unwrap();
+        let sent = &wall.dev;
+
+        assert_eq!(sent.len(), 1 + 3 + 3);
+        assert_eq!(sent[0], proto::brightness(255));
+        for (f, y) in sent[1..4].iter().zip(10u16..) {
+            assert_eq!(be16(f, 13), y, "row");
+            assert_eq!(f, &proto::pixel_row(y, 0, frame.row(u32::from(y)), settings.color_order));
+        }
+        assert!(sent[4..].iter().all(|f| f == &proto::sync(255)));
+        assert_eq!(wall.frames_sent(), 1);
+
+        // Clipped to the screen; an empty band still latches.
+        wall.dev.clear();
+        wall.show_rows(&frame, 60..100).unwrap();
+        assert_eq!(wall.dev.len(), 1 + 4 + 3);
+        assert_eq!(be16(&wall.dev[4], 13), 63);
+        wall.dev.clear();
+        wall.show_rows(&frame, 0..0).unwrap();
+        assert_eq!(wall.dev.len(), 1 + 3);
+        assert_eq!(wall.frames_sent(), 3);
+    }
+
+    #[test]
+    fn show_is_show_rows_over_the_whole_screen() {
+        let frame = gradient(1000, 2);
+        let mut whole = Wall::with_sink(Vec::new(), Canvas::single(1000, 2), quick()).unwrap();
+        let mut band = Wall::with_sink(Vec::new(), Canvas::single(1000, 2), quick()).unwrap();
+        whole.show(&frame).unwrap();
+        band.show_rows(&frame, 0..2).unwrap();
+        assert_eq!(whole.dev, band.dev);
+    }
+
+    #[test]
+    fn set_brightness_rebuilds_the_brightness_and_latch_frames() {
+        let mut wall = Wall::with_sink(Vec::new(), Canvas::single(8, 1), quick()).unwrap();
+        let frame = gradient(8, 1);
+        wall.show(&frame).unwrap();
+        wall.set_brightness(40);
+        assert_eq!(wall.settings().brightness, 40);
+        wall.show(&frame).unwrap();
+        wall.set_gains(40, [10, 20, 30]);
+        wall.show(&frame).unwrap();
+        let sent = &wall.dev;
+
+        // Three refreshes of brightness + 1 row + 3 latches.
+        assert_eq!(sent.len(), 3 * 5);
+        assert_eq!(sent[0], proto::brightness(255));
+        assert_eq!(sent[2], proto::sync(255));
+        assert_eq!(sent[5], proto::brightness(40));
+        assert_eq!(&sent[5][13..17], &[40, 40, 40, 0xff]);
+        assert!(sent[7..10].iter().all(|f| f == &proto::sync(40)));
+        assert_eq!(sent[10], proto::brightness(40));
+        assert!(sent[12..15].iter().all(|f| f == &proto::sync_gains(40, [10, 20, 30])));
+        assert_eq!(&sent[12][38..41], &[10, 20, 30]);
+        assert_eq!(sent[6], sent[11], "the row packet does not carry brightness");
     }
 
     #[test]

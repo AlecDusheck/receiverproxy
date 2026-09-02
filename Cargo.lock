@@ -181,6 +181,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "e120-demos"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "e120-canvas",
+ "e120-driver",
+ "serde_json",
+]
+
+[[package]]
 name = "e120-driver"
 version = "0.1.0"
 dependencies = [

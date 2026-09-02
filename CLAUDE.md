@@ -39,6 +39,7 @@ changing the supply.
 | `e120-video` | frame sources: files via ffmpeg, raw rgb24 from a reader |
 | `e120-driver` | `Wall`: the sink that paces and sends frames |
 | `e120-cli` | the `e120` binary, one module per command group |
+| `e120-demos` | `e120-demo`: effects that use what LEDs physically are; the example of driving a wall from outside the CLI |
 
 `docs/architecture.md` follows the path from spec to light and says where each
 measured default lives. Keep it true when moving things.

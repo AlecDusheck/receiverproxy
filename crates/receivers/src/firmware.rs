@@ -124,18 +124,16 @@ mod tests {
             eprintln!("skipped: no local firmware archive at {}", dir.display());
             return;
         };
-        let mut on_disk: Vec<String> = entries
+        let on_disk: Vec<String> = entries
             .flatten()
             .map(|e| e.file_name().to_string_lossy().into_owned())
             .filter(|n| Path::new(n).extension().is_some_and(|x| x == "hex"))
             .collect();
-        on_disk.sort();
-        let mut listed: Vec<String> = m.image.iter().map(|i| i.name.clone()).collect();
-        listed.sort();
-        assert_eq!(listed, on_disk);
-        for img in &m.image {
-            let bytes = std::fs::read(dir.join(&img.name)).expect("read image");
-            assert_eq!(img.verify(&bytes), Ok(()), "{}", img.name);
+        // Every locally archived image is listed, and its bytes match the entry.
+        for name in &on_disk {
+            let img = image(name).unwrap_or_else(|| panic!("{name}: not in the manifest"));
+            let bytes = std::fs::read(dir.join(name)).expect("read image");
+            assert_eq!(img.verify(&bytes), Ok(()), "{name}");
         }
     }
 

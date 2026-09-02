@@ -59,3 +59,1243 @@ kind = "LS0allDA"
 chips = []
 size = 721024
 sha256 = "a8022e04fbcf11b34e6e8dc640ebcaf561cea2ec286a74ae37ec5b45979eb47f"
+
+[[image]]
+name = "E320_PCB6.1_DP3263_FPGA6.77_20230830_force1G.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_DP3263_FPGA6.77_20230830_force1G.hex"
+version = "6.77"
+pcb = "6.1"
+kind = "DP3263"
+chips = []
+size = 721024
+sha256 = "309d105087f71eeda9f20e720f84d44f4888920aadcab4892b777a3b932fba61"
+
+[[image]]
+name = "E320_PCB6.0_DS_FPGA10.38_20220810_invroute_serial_smartset.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_DS_FPGA10.38_20220810_invroute_serial_smartset.hex"
+version = "10.38"
+pcb = "6.0"
+kind = "DS"
+chips = []
+size = 721024
+sha256 = "6e72b246060697a010afe5c84d087aa642205997f3b411c919698c1eed0f7193"
+
+[[image]]
+name = "E320_PCB6.1_LS0allD5_FPGA6.51_20210430_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allD5_FPGA6.51_20210430_ENCRYPTION.hex"
+version = "6.51"
+pcb = "6.1"
+kind = "LS0allD5"
+chips = []
+size = 721024
+sha256 = "f4dbb0b31f8d1043c6f558661a610e2a1365479bbb2a6e6adfd198cf90c7c917"
+
+[[image]]
+name = "E320_PCB6.1_LS0allD8_FPGA6.67_20220729.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allD8_FPGA6.67_20220729.hex"
+version = "6.67"
+pcb = "6.1"
+kind = "LS0allD8"
+chips = []
+size = 721024
+sha256 = "f1d13f6028b6dcf8276a27889758c32dcbadc52d63bad02cff119ba738086fc7"
+
+[[image]]
+name = "E320_PCB6.1_LS0allD8_FPGA6.72_invroute_20220614.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allD8_FPGA6.72_invroute_20220614.hex"
+version = "6.72"
+pcb = "6.1"
+kind = "LS0allD8"
+chips = []
+size = 721024
+sha256 = "658aacfe2a685e556a25a5f7c009c8cfb7600d0728edb056847fceda1d76923c"
+
+[[image]]
+name = "E320_PCB6.1_LS0allD8_FPGA6.73_invroute_20220727.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allD8_FPGA6.73_invroute_20220727.hex"
+version = "6.73"
+pcb = "6.1"
+kind = "LS0allD8"
+chips = []
+size = 721024
+sha256 = "211e59412c243694873fd9e525498c6afc5353573a6f8bddefc9a91b8ada3567"
+
+[[image]]
+name = "E320_PCB6.1_LS0allDA_FPGA6.97_20220920_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allDA_FPGA6.97_20220920_ENCRYPTION.hex"
+version = "6.97"
+pcb = "6.1"
+kind = "LS0allDA"
+chips = []
+size = 721024
+sha256 = "4c5fbe4db633830e8cdcdad13577fed1a4ccf518d46e49806c20b14d856303f0"
+
+[[image]]
+name = "E320_PCB6.1_LS0allDB_FPGA6.70_20230308.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allDB_FPGA6.70_20230308.hex"
+version = "6.70"
+pcb = "6.1"
+kind = "LS0allDB"
+chips = []
+size = 721024
+sha256 = "c93a299493560a900d88ccd4b7ba413d9b3895cc6db7932eb40f28c234756fbe"
+
+[[image]]
+name = "E320_PCB6.1_LS0allDB_FPGA6.89_20230427.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allDB_FPGA6.89_20230427.hex"
+version = "6.89"
+pcb = "6.1"
+kind = "LS0allDB"
+chips = []
+size = 721024
+sha256 = "c4289172726c8689530ac69006150cf1454977e7f590f80c281569fa14f3f0a0"
+
+[[image]]
+name = "E320_PCB6.1_LS0allE0_FPGA7.09_20231218_FDFP3.0.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allE0_FPGA7.09_20231218_FDFP3.0.hex"
+version = "7.09"
+pcb = "6.1"
+kind = "LS0allE0"
+chips = []
+size = 721024
+sha256 = "aeb364e52c1866d5908566c7358dab239d861c413eaee9aae2f697b324b3057f"
+
+[[image]]
+name = "E320_PCB6.1_LS0allE0_FPGA7.20_20240506_FDFP3.0_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allE0_FPGA7.20_20240506_FDFP3.0_ENCRYPTION.hex"
+version = "7.20"
+pcb = "6.1"
+kind = "LS0allE0"
+chips = []
+size = 721024
+sha256 = "fa54610219bd7a707f9b01b084f768e3837fd64c0f46b6f96e784ab42a00694e"
+
+[[image]]
+name = "E320_PCB6.1_LS0allE4_FPGA7.52_20241208_FDFP3.0_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allE4_FPGA7.52_20241208_FDFP3.0_ENCRYPTION.hex"
+version = "7.52"
+pcb = "6.1"
+kind = "LS0allE4"
+chips = []
+size = 721024
+sha256 = "c45a4ace9d594f8e05525de4d4033971c4791ed99b54b3b7f16dda1e7074eeff"
+
+[[image]]
+name = "E320_PCB6.1_LS0allE4_FPGA7.56_20250301_FDFP3.0_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allE4_FPGA7.56_20250301_FDFP3.0_ENCRYPTION.hex"
+version = "7.56"
+pcb = "6.1"
+kind = "LS0allE4"
+chips = []
+size = 721024
+sha256 = "0afd50ef1f107980683123ce0e6737e33b526d180aba58c15a4816a389205f33"
+
+[[image]]
+name = "E320_PCB6.1_LS0allE4_FPGA7.70_invroute_20251225_FDFP3.0.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS0allE4_FPGA7.70_invroute_20251225_FDFP3.0.hex"
+version = "7.70"
+pcb = "6.1"
+kind = "LS0allE4"
+chips = []
+size = 721024
+sha256 = "11878bdfa8c589e1c959bb661e84be82a40881689c2e5b82bb995bcdff8a442e"
+
+[[image]]
+name = "E320_PCB6.0_LS9930D2A_FPGA7.01_20200819.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_LS9930D2A_FPGA7.01_20200819.hex"
+version = "7.01"
+pcb = "6.0"
+kind = "LS9930D2A"
+chips = []
+size = 721024
+sha256 = "ce705502a32637770f07c30133cfcad779229f1efcea639417830ba62ec32f8a"
+
+[[image]]
+name = "E320_PCB6.1_LS9932_FPGA7.30_20240824_FDFP3.0_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_LS9932_FPGA7.30_20240824_FDFP3.0_ENCRYPTION.hex"
+version = "7.30"
+pcb = "6.1"
+kind = "LS9932"
+chips = []
+size = 721024
+sha256 = "605abff70f581f23c0369fe677fa7c8022f5966a99a100ef81a7ebc7e452fbaf"
+
+[[image]]
+name = "E320_PCB6.0_LS9937_FPGA1.07_20231116.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_LS9937_FPGA1.07_20231116.hex"
+version = "1.07"
+pcb = "6.0"
+kind = "LS9937"
+chips = []
+size = 721024
+sha256 = "5f381a2068b5e1f44beb9a78a786f5575c1e17b116db726e2ead3b3f7cf0e99c"
+
+[[image]]
+name = "E320_PCB6.0_LS9937_FPGA1.08_20240401.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_LS9937_FPGA1.08_20240401.hex"
+version = "1.08"
+pcb = "6.0"
+kind = "LS9937"
+chips = []
+size = 721024
+sha256 = "dd46ca7c1353da6c13e9771d2da2a3e8e0bc1a0462da5d5dc67b10a1993adf1f"
+
+[[image]]
+name = "E320_PCB6.0_LS9937_FPGA19.07_20240614.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_LS9937_FPGA19.07_20240614.hex"
+version = "19.07"
+pcb = "6.0"
+kind = "LS9937"
+chips = []
+size = 721024
+sha256 = "7a7d874743510358968acebcfbce1a3afacfa5295f9c900079427eb49a5f7477"
+
+[[image]]
+name = "E320_PCB6.0_LS9937_FPGA19.10_20250301_encryption.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_LS9937_FPGA19.10_20250301_encryption.hex"
+version = "19.10"
+pcb = "6.0"
+kind = "LS9937"
+chips = []
+size = 721024
+sha256 = "f19c3a640a50cf0268f467a3946ca771aef342ea455e0b2d7b9d03e47b4b426a"
+
+[[image]]
+name = "E320_V6.0_NORMAL_FPGA2.34_20200921_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_V6.0_NORMAL_FPGA2.34_20200921_ENCRYPTION.hex"
+version = "2.34"
+pcb = "6.0"
+kind = "NORMAL"
+chips = []
+size = 721024
+sha256 = "3b17c84858fecd1ab85c2bec29e1bef4998395511dd98b0f53f1b7540c7e5ca9"
+
+[[image]]
+name = "E320_V6.0_NORMAL_FPGA9.38_20220118_XinTaoWei_CFD135A.hex"
+path = "firmware/colorlight/e-series/E320_V6.0_NORMAL_FPGA9.38_20220118_XinTaoWei_CFD135A.hex"
+version = "9.38"
+pcb = "6.0"
+kind = "NORMAL"
+chips = ["CFD135A"]
+size = 721024
+sha256 = "a7cd1a01c2f83105b02861d65d221d38e17f17987eb42eca87fb4071e3f42492"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA10.08_20220810_invroute_serial_smartset.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA10.08_20220810_invroute_serial_smartset.hex"
+version = "10.08"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "359e49faed356a1f8c8c0308baa39a9712e25cb7c3635e0d88d187c323d2494e"
+
+[[image]]
+name = "E320_V6.0_NORMAL_FPGA10.40_20200917.hex"
+path = "firmware/colorlight/e-series/E320_V6.0_NORMAL_FPGA10.40_20200917.hex"
+version = "10.40"
+pcb = "6.0"
+kind = "NORMAL"
+chips = []
+size = 721024
+sha256 = "f2f18f3bf7323a7980e24f2092817bffbce222c92265dbcd2a1ebebf6b01d03e"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA13.02_20210706_invroute.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA13.02_20210706_invroute.hex"
+version = "13.02"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "449e1883cbe4a44a07dcc22759502f56b326f338d4745253d2e96635bb2e669b"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA13.06_20220516.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA13.06_20220516.hex"
+version = "13.06"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "a56ccaac03b87ecd98c06f22de3a216f6ab7eef4317981e09fad93b139ec6d99"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA13.08_20220712_invroute_smartset.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA13.08_20220712_invroute_smartset.hex"
+version = "13.08"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "353fae3c036911f375f64ff38222ee882383df5963ff66bd55dfabfcd54e2442"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA13.11_20220615.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA13.11_20220615.hex"
+version = "13.11"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "b5a7720579e679bd5ca98a09dc01196f4e61ad3634929e3464a01364ce23075a"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA13.17_20220709.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA13.17_20220709.hex"
+version = "13.17"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "5e87889b391b362f3401bf94cbee169aed3a16983280ea639bc8dbe6557f5f58"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA13.27_20220920_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA13.27_20220920_ENCRYPTION.hex"
+version = "13.27"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "f46228713f401e1f3e2382747682e1c98c7680f0c0b94676aeba280452213194"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA13.32_20220811.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA13.32_20220811.hex"
+version = "13.32"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "7dec1c11815bbdc6a8257217773fcfc20b1a74ca938dfe7e41f53bb160062bb4"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA13.38_20220914.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA13.38_20220914.hex"
+version = "13.38"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "1321762a21e487d4301b35f3750dc07bd7133200512076607e2302cc00202fa9"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA13.50_20230308.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA13.50_20230308.hex"
+version = "13.50"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "880dc995371208b6aaa4e087e54f9de7b56311ceacb6346b096d53bbe8c735ac"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA13.73_20231008_DP5125H.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA13.73_20231008_DP5125H.hex"
+version = "13.73"
+pcb = "6.0"
+kind = "Normal"
+chips = ["DP5125H"]
+size = 721024
+sha256 = "1189336187d9fe52f87bb1353fc02008db5ec4b963c491675190a7d72eb2a1e0"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA15.28_20240923_CS2017N.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA15.28_20240923_CS2017N.hex"
+version = "15.28"
+pcb = "6.0"
+kind = "Normal"
+chips = ["CS2017N"]
+size = 721024
+sha256 = "135a15e5d0781b8c493ec27299f22d8fa266034991f7ae1fa27e788d69214706"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA20.02_20240409_ICN2037BP_18bit.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA20.02_20240409_ICN2037BP_18bit.hex"
+version = "20.02"
+pcb = "6.0"
+kind = "Normal"
+chips = ["ICN2037BP"]
+size = 721024
+sha256 = "b22860cb3fb3503ce79cad491f0dd5cdda42e21af0d06b0c3e18fac39766c368"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA23.13_20250325_FDFP3.0_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA23.13_20250325_FDFP3.0_ENCRYPTION.hex"
+version = "23.13"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "f10cba93a9b3fee7c8b25dd23bed7910deb46fc65f722e4133e9f8d5c8489dab"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA23.15_20251208_FDFP3.0_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_Normal_FPGA23.15_20251208_FDFP3.0_ENCRYPTION.hex"
+version = "23.15"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "b9ae2b4c1be6b836f99690c9a6615e57f3b8a74a6f000f0874703046422f5c26"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA3.07_20220920_ICND2263.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA3.07_20220920_ICND2263.hex"
+version = "3.07"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICND2263"]
+size = 721024
+sha256 = "4e87fd4d15b07c8a6b929ac17ce487c7c6ee5fba56defec789799b44732573db"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA3.16_20230504_ICND2152_1065.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA3.16_20230504_ICND2152_1065.hex"
+version = "3.16"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICND2152"]
+size = 721024
+sha256 = "1d5dc666324b5363101e40f4476f344fa4a9d67467924ae00f664b711b8b1554"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA3.19_20230625_ICN2263_ICND2152_ICN1065.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA3.19_20230625_ICN2263_ICND2152_ICN1065.hex"
+version = "3.19"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263", "ICND2152", "ICN1065"]
+size = 721024
+sha256 = "8ad72f35c36a01277a143a9587a4efeca6417815b2e73d5a6eaac3815cb28b36"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA3.26_20230925_ICN2263_ICND2152_ICN1065(1)(1).hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA3.26_20230925_ICN2263_ICND2152_ICN1065_1_1_.hex"
+version = "3.26"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263", "ICND2152", "ICN1065"]
+size = 721024
+sha256 = "77778f441ae228fc919a9845893607b4a3ab8349a13067e61d5017b33b850c8d"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA3.26_20230925_ICN2263_ICND2152_ICN1065.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA3.26_20230925_ICN2263_ICND2152_ICN1065.hex"
+version = "3.26"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263", "ICND2152", "ICN1065"]
+size = 721024
+sha256 = "77778f441ae228fc919a9845893607b4a3ab8349a13067e61d5017b33b850c8d"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA3.33_20240524_ICN2263ALL_FDFP_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA3.33_20240524_ICN2263ALL_FDFP_ENCRYPTION.hex"
+version = "3.33"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263ALL"]
+size = 721024
+sha256 = "9cc1b94a5b2f3dde5027c2e889b28e1c62c9fd9ebf51c3ea88ac3c97a2e63949"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA3.36_20240708_ICN2263ALL_FDFP_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA3.36_20240708_ICN2263ALL_FDFP_ENCRYPTION.hex"
+version = "3.36"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263ALL"]
+size = 721024
+sha256 = "fd7babbbcadb7367bbfc96446269940a4d3736c2fbf93f323be290e164bcc4e1"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA3.38_20241014_ICN2263ALL_FDFP_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA3.38_20241014_ICN2263ALL_FDFP_ENCRYPTION.hex"
+version = "3.38"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263ALL"]
+size = 721024
+sha256 = "abc34240d41ed94b55c759733ed30062e1a2b31438d4517c0e6bb222985a0892"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA3.52_20250324_ICN2263ALL_FDFP_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA3.52_20250324_ICN2263ALL_FDFP_ENCRYPTION.hex"
+version = "3.52"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263ALL"]
+size = 721024
+sha256 = "f82eabfa381a80c1ef3bd737edf424c7958c4d432acbf37069b3d315a8503fd6"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA3.63_20240708_ICN2263A Support calibration sequence.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA3.63_20240708_ICN2263A_Support_calibration_sequence.hex"
+version = "3.63"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263A"]
+size = 721024
+sha256 = "6bd926635ece0b02c02b624205db653a37b654007b0d6483890bfaa60f5f3bcb"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA5.71_20241030_ICN2263ALL_FDFP_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA5.71_20241030_ICN2263ALL_FDFP_ENCRYPTION.hex"
+version = "5.71"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263ALL"]
+size = 721024
+sha256 = "3ae78081295b1c1186fa52bbb98c545f359f2dab90c2fb6e022a689871f0ea52"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA6.01_20211102_MBI5268.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA6.01_20211102_MBI5268.hex"
+version = "6.01"
+pcb = "6.0"
+kind = "PWM"
+chips = ["MBI5268"]
+size = 721024
+sha256 = "01695407a75d5925b8840ff1b367436140ff73c9ea9dea513659b4e8edec1397"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA7.06_20220706_FM6363_newip.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA7.06_20220706_FM6363_newip.hex"
+version = "7.06"
+pcb = "6.0"
+kind = "PWM"
+chips = ["FM6363"]
+size = 721024
+sha256 = "6b589eb8e324c772669d7fc6001d30b5f770744ddedeb79d76970ef31e1a16df"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA8.08_20220808_hx_hx8865(2).hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA8.08_20220808_hx_hx8865_2_.hex"
+version = "8.08"
+pcb = "6.0"
+kind = "PWM"
+chips = ["HX8865"]
+size = 721024
+sha256 = "1aba28dc782f1e3497735c104025d07fad8da9753636bdc3177bdebb6d4a20fc"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA8.15_20240710_HX8865.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA8.15_20240710_HX8865.hex"
+version = "8.15"
+pcb = "6.0"
+kind = "PWM"
+chips = ["HX8865"]
+size = 721024
+sha256 = "2fb15d4f4209f05fd14e93efc1b6706e6ae5497386f02731b21c0aabec311212"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA8.16_20240724_baolun_HX8865_HXgamma.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA8.16_20240724_baolun_HX8865_HXgamma.hex"
+version = "8.16"
+pcb = "6.0"
+kind = "PWM"
+chips = ["HX8865"]
+size = 721024
+sha256 = "2382526f314b2f9ea87da6a14093c96311bc04cd6f0cded92de88ec4f0539f63"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA8.88_20210630.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA8.88_20210630.hex"
+version = "8.88"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "322d0dcd9d202e28d5558efca44c5c36af7e71936b786f9b8d0ee3748bedceef"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA9.73_20211121_FM6363_newip_LS9736.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA9.73_20211121_FM6363_newip_LS9736.hex"
+version = "9.73"
+pcb = "6.0"
+kind = "PWM"
+chips = ["FM6363", "LS9736"]
+size = 721024
+sha256 = "abb09c2261e41200d042f38b1b53b66b8a456d0ca61085f0130b49b82c3b508e"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA9.79_20220803_FM6363_newip_LS9736.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA9.79_20220803_FM6363_newip_LS9736.hex"
+version = "9.79"
+pcb = "6.0"
+kind = "PWM"
+chips = ["FM6363", "LS9736"]
+size = 721024
+sha256 = "88d80fb0b171e10f9db40d54dc43eb11a78a8683bce636a5290c0f075465fada"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA9.80_20221013_FM6363_newip_LS9736.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA9.80_20221013_FM6363_newip_LS9736.hex"
+version = "9.80"
+pcb = "6.0"
+kind = "PWM"
+chips = ["FM6363", "LS9736"]
+size = 721024
+sha256 = "2a00286d6cdd197f52b026205e381f574d2953b196950cdb8bdc3c69da6ebfa3"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA9.85_20221114_icn_2055s_2168_2169.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA9.85_20221114_icn_2055s_2168_2169.hex"
+version = "9.85"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "436283c508b1a0fd7baf263a48026670e1db49fc7bea4c92024d0e1bc8b7f797"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA9.90_20220824__FM6363_newip_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA9.90_20220824__FM6363_newip_ENCRYPTION.hex"
+version = "9.90"
+pcb = "6.0"
+kind = "PWM"
+chips = ["FM6363"]
+size = 721024
+sha256 = "6fef48f04caaa9202ccf690a8b465b84d42dc40864a4abe4a61267a5a0d6a5a8"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.05_20210218_invroute.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA10.05_20210218_invroute.hex"
+version = "10.05"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "830f0e85a4be92ce2d9ef46f6b925e2a9814481493bce07f590d15398b76d40e"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.13_20220613_invroute.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA10.13_20220613_invroute.hex"
+version = "10.13"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "8e61d4ab44eb027b9935f3cd7fda031d585d660dbcd8ede7f6daae48cbff1fb1"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.16_20220921__FM6363_newip_ENCRYPTION.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA10.16_20220921__FM6363_newip_ENCRYPTION.hex"
+version = "10.16"
+pcb = "6.0"
+kind = "PWM"
+chips = ["FM6363"]
+size = 721024
+sha256 = "695fee5b6ad9a4a1b8afb18356dd5d757db99783c736e27099e3e5af7b0a0c29"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.18_20230822_invroute_RT5967.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA10.18_20230822_invroute_RT5967.hex"
+version = "10.18"
+pcb = "6.0"
+kind = "PWM"
+chips = ["RT5967"]
+size = 721024
+sha256 = "7194b9ae4c2558d5ab5d47af8220d686a8308995778167b74afe1f2e4a217769"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.20_20220727_invroute.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA10.20_20220727_invroute.hex"
+version = "10.20"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "f57608519e248a495d0e9138debf50d821ee95cef0f1e19c27f75eeab27fb60e"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.27_20220810_invroute_serial_smartset.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA10.27_20220810_invroute_serial_smartset.hex"
+version = "10.27"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "d89f4e115fa86459d012c19ca1537ebd719188f9d56d6a2bd5fcc0c78ba2060a"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.33_20240102_invroute_Unilumin_ICND1065.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA10.33_20240102_invroute_Unilumin_ICND1065.hex"
+version = "10.33"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICND1065"]
+size = 721024
+sha256 = "1e27cbadeb5c22de2cd0ac3d9c0f306a3160baaec67cfbc5b7f3241d23903d74"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.83_20230707_TC6960.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA10.83_20230707_TC6960.hex"
+version = "10.83"
+pcb = "6.0"
+kind = "PWM"
+chips = ["TC6960"]
+size = 721024
+sha256 = "d99d92b9679f75e164b6028405c3002f0a4655048cf398ef245b638d6841be52"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.89_20240320_FDFP3.0_DP3364S_DP3365S_DP3369S.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA10.89_20240320_FDFP3.0_DP3364S_DP3365S_DP3369S.hex"
+version = "10.89"
+pcb = "6.0"
+kind = "PWM"
+chips = ["DP3364S", "DP3365S", "DP3369S"]
+size = 721024
+sha256 = "25ba10752b922f0d2525c88fd04f4d1bbcb88d004d95347258fb3ccdee6bbc98"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.91_20231121_FM6363.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA10.91_20231121_FM6363.hex"
+version = "10.91"
+pcb = "6.0"
+kind = "PWM"
+chips = ["FM6363"]
+size = 721024
+sha256 = "91f351dd3134575135390b78cc90434a98fea17ea2540e9f538dc4da5a10c61a"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.92_20231130_FM6363.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA10.92_20231130_FM6363.hex"
+version = "10.92"
+pcb = "6.0"
+kind = "PWM"
+chips = ["FM6363"]
+size = 721024
+sha256 = "cb53829db406167a596c263099dcb92725e6011995c0bbf929393aa5d9236806"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA11.06_20250312_FDFP3.0_encryption.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA11.06_20250312_FDFP3.0_encryption.hex"
+version = "11.06"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "588748262db625dbdee6faf79cde11a4fb513af95dce1c4ca81110e23ca98f85"
+
+[[image]]
+name = "E320_PCB8.0_PWM_FPGA11.25_20210925_AXS6018B.hex"
+path = "firmware/colorlight/e-series/E320_PCB8.0_PWM_FPGA11.25_20210925_AXS6018B.hex"
+version = "11.25"
+pcb = "8.0"
+kind = "PWM"
+chips = ["AXS6018B"]
+size = 721024
+sha256 = "342decf6d6dc9c45667b2084a519be6121c3fa8ef07c9db1ce73ebfe6b38d748"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA11.26_20240927_HX6258.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA11.26_20240927_HX6258.hex"
+version = "11.26"
+pcb = "6.0"
+kind = "PWM"
+chips = ["HX6258"]
+size = 721024
+sha256 = "e1465cf94535c3739a958a3d89d5acf1b2c85851ee5e5ea5baaecfbb7fcfb747"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA11.28_20251125_FDFP3.0_encryption.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA11.28_20251125_FDFP3.0_encryption.hex"
+version = "11.28"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "33b14c753f7d4b887ebfdce47d6dcb159f2434562945f6ca32aee63fa064629a"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA11.35_20240924_FDFP3.0_ICND8392.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA11.35_20240924_FDFP3.0_ICND8392.hex"
+version = "11.35"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICND8392"]
+size = 721024
+sha256 = "04edf8d986660e293d5de3162545fce18e09a163ca2bd88b9bfc303327915d67"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA11.52_20231101_ChipFountain_CFD455A_CFD2138SPC.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA11.52_20231101_ChipFountain_CFD455A_CFD2138SPC.hex"
+version = "11.52"
+pcb = "6.0"
+kind = "PWM"
+chips = ["CFD455A", "CFD2138SPC"]
+size = 721024
+sha256 = "a013937a018dc4fbafe81f92198c2d1a2ee59a471b06fb499f17fed7e9fdc613"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA12.02_20240719_invroute.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA12.02_20240719_invroute.hex"
+version = "12.02"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "f23d7878529d11fe0872dea1fdcb21a00c83a6ea2c7a3a31253b867b17a9e59f"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA12.11_20211027_HX8864(2)(1)(1).hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA12.11_20211027_HX8864_2_1_1_.hex"
+version = "12.11"
+pcb = "6.0"
+kind = "PWM"
+chips = ["HX8864"]
+size = 721024
+sha256 = "fef37672020ce30e92acfaab7ad4c134a769e3e491586a334862b40946f64dba"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA12.11_20240306_invroute_LOPU_MBI5043.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA12.11_20240306_invroute_LOPU_MBI5043.hex"
+version = "12.11"
+pcb = "6.0"
+kind = "PWM"
+chips = ["MBI5043"]
+size = 721024
+sha256 = "02edc5ab41a17549bca04cd3e935ba6b2aaac96556502f489d1990e662700635"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA12.16_20241208_invroute.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA12.16_20241208_invroute.hex"
+version = "12.16"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "7746b405b454973254029265fdaaf035c27d09e55ee283c4670591094eb18344"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA12.17_20250102_invroute_ICND1065L.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA12.17_20250102_invroute_ICND1065L.hex"
+version = "12.17"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICND1065L"]
+size = 721024
+sha256 = "a4b09600db4b8afb1c21a5c47be72459ff228f3f4f3360c49465519eda935e9f"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA12.32_20240614_FDFP3.0_encryption_ICND1065L.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA12.32_20240614_FDFP3.0_encryption_ICND1065L.hex"
+version = "12.32"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICND1065L"]
+size = 721024
+sha256 = "6b52f11864015c6b0ca741ea492c84ea38aea6ffa479f2ab0b1342671fb9ead5"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA12.33_20240827_FDFP3.0_encryption_ICND1065L(1)(1)(1).hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA12.33_20240827_FDFP3.0_encryption_ICND1065L_1_1_1_.hex"
+version = "12.33"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICND1065L"]
+size = 721024
+sha256 = "1b30ba42af85dae9729bf5a224ce01fed2cb7efeca56f0977487994558d73242"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA12.35_20240821_FDFP3.0_encryption_ICND1065L.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA12.35_20240821_FDFP3.0_encryption_ICND1065L.hex"
+version = "12.35"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICND1065L"]
+size = 721024
+sha256 = "e9898b457e36bfdb7743f92f5483598527c879fb3860570be0a3dd7140988c71"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA12.52_2024527_FDFP3.0_encryption_ICND1065L.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA12.52_2024527_FDFP3.0_encryption_ICND1065L.hex"
+version = "12.52"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICND1065L"]
+size = 721024
+sha256 = "de5df530c7eb6797f4e34ae759157e65325845c4910fa6c23f1281737cda0856"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA12.55_20240910_invroute_DP3365S.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA12.55_20240910_invroute_DP3365S.hex"
+version = "12.55"
+pcb = "6.0"
+kind = "PWM"
+chips = ["DP3365S"]
+size = 721024
+sha256 = "ef05deb0156048eefb9df0678b54328753d962fe92bd93634dcd4582fa85325e"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA12.75_20231208_ICN2263_ICND2152_ICN1065_nocali.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA12.75_20231208_ICN2263_ICND2152_ICN1065_nocali.hex"
+version = "12.75"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263", "ICND2152", "ICN1065"]
+size = 721024
+sha256 = "abedc80da3a5a9b8a4e794a6a373048615fb22c3e3b4d8f3c5d6dd4d7d315292"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA12.77_20240312_ICN2263_ICND2152_ICN1065.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA12.77_20240312_ICN2263_ICND2152_ICN1065.hex"
+version = "12.77"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263", "ICND2152", "ICN1065"]
+size = 721024
+sha256 = "2b9a696335ac30ca7f5bd6c87800bd7a1f48b59ae532d61106f4a2dd9a587388"
+
+[[image]]
+name = "E320_PCB6(1).1_PWM_FPGA12.83_20241226_Unilumin_ICN1065.hex"
+path = "firmware/colorlight/e-series/E320_PCB6_1_.1_PWM_FPGA12.83_20241226_Unilumin_ICN1065.hex"
+version = "12.83"
+pcb = "6(1).1"
+kind = "PWM"
+chips = ["ICN1065"]
+size = 721024
+sha256 = "a7959d7f305feb0f6c6b7ced4c922f9822de54109244cd8c5ee3695227d94763"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA13.13_20250517_invroute_SM16289N.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA13.13_20250517_invroute_SM16289N.hex"
+version = "13.13"
+pcb = "6.0"
+kind = "PWM"
+chips = ["SM16289N"]
+size = 721024
+sha256 = "f93999acb9ec8e48a25a95eda6bb3c2b38d0d9b5f9038d868be3d581c1eef066"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA13.63_20260427_invroute_serial_smartset_DP3365S.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA13.63_20260427_invroute_serial_smartset_DP3365S.hex"
+version = "13.63"
+pcb = "6.0"
+kind = "PWM"
+chips = ["DP3365S"]
+size = 721024
+sha256 = "e251d88b94939bd2797735a344a072651a646eab7e3e30194b3aa34237319e73"
+
+[[image]]
+name = "E320_PCB6.1_PWM_FPGA13.75_20250106_ICN2263_ICND2152_ICN1065_nocali.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.1_PWM_FPGA13.75_20250106_ICN2263_ICND2152_ICN1065_nocali.hex"
+version = "13.75"
+pcb = "6.1"
+kind = "PWM"
+chips = ["ICN2263", "ICND2152", "ICN1065"]
+size = 721024
+sha256 = "14bea902db4daf7fa44e40bb55bed1d63818c18efdbad884c9c05f284d5c9233"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA15.05_20230615_CETC_CNS7363.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA15.05_20230615_CETC_CNS7363.hex"
+version = "15.05"
+pcb = "6.0"
+kind = "PWM"
+chips = ["CNS7363"]
+size = 721024
+sha256 = "de9a5b97883c8f60d295061e82924ffd083063132fb35d46d25a800c5184517b"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA15.35_20240428_FDFP_deltagap_icn1068_3369s_3365s_3254.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA15.35_20240428_FDFP_deltagap_icn1068_3369s_3365s_3254.hex"
+version = "15.35"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICN1068"]
+size = 721024
+sha256 = "1139e8c04f10fb12fb50fb6d9f99be0a3a5da63eef579d35050bc7be7d9be129"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA15.35_20240428_FDFP_deltagap_icn1068_3369s_3365s_3254_3153.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA15.35_20240428_FDFP_deltagap_icn1068_3369s_3365s_3254_3153.hex"
+version = "15.35"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICN1068"]
+size = 721024
+sha256 = "1139e8c04f10fb12fb50fb6d9f99be0a3a5da63eef579d35050bc7be7d9be129"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA15.37_20240507_FDFP_deltagap_icn1068_3369s_3365s_3254.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA15.37_20240507_FDFP_deltagap_icn1068_3369s_3365s_3254.hex"
+version = "15.37"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICN1068"]
+size = 721024
+sha256 = "7097d748347c4ee3e5e0cd76e8e46b8d42f39c1fdd19eed435e42e189eb4a8fb"
+
+[[image]]
+name = "E320_PCB8.0_PWM_FPGA15.60_20230505_cns7263(1)(1).hex"
+path = "firmware/colorlight/e-series/E320_PCB8.0_PWM_FPGA15.60_20230505_cns7263_1_1_.hex"
+version = "15.60"
+pcb = "8.0"
+kind = "PWM"
+chips = ["CNS7263"]
+size = 721024
+sha256 = "92ebd49b627ed8409af4b3ab74c4b35f2cf69b32c9f49818efae9273323f1121"
+
+[[image]]
+name = "E320_PCB8.0_PWM_FPGA15.62_20240808_cns7263_fdfp3.0.hex"
+path = "firmware/colorlight/e-series/E320_PCB8.0_PWM_FPGA15.62_20240808_cns7263_fdfp3.0.hex"
+version = "15.62"
+pcb = "8.0"
+kind = "PWM"
+chips = ["CNS7263"]
+size = 721024
+sha256 = "8e59b46c79116430a3f735e3eb1f5cb72940ef8d9fa3f64b14e4a7e89b053f0f"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA15.63_20260512_invroute_serial_smartset_DP3365S.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA15.63_20260512_invroute_serial_smartset_DP3365S.hex"
+version = "15.63"
+pcb = "6.0"
+kind = "PWM"
+chips = ["DP3365S"]
+size = 721024
+sha256 = "65afbfd714b2d37ad72e2481d1a313c0f47ef0b7768c0104d279a15d4dd83a30"
+
+[[image]]
+name = "E320_PCB8.0_PWM_FPGA15.66_20240103_cns7263.hex"
+path = "firmware/colorlight/e-series/E320_PCB8.0_PWM_FPGA15.66_20240103_cns7263.hex"
+version = "15.66"
+pcb = "8.0"
+kind = "PWM"
+chips = ["CNS7263"]
+size = 721024
+sha256 = "3d75a51a7ea426f9bd8fa5dd7b4aa5b4e717d56779159e13771436d321674bbb"
+
+[[image]]
+name = "E320_PCB8.0_PWM_FPGA15.67_20240108_cns7263_test.hex"
+path = "firmware/colorlight/e-series/E320_PCB8.0_PWM_FPGA15.67_20240108_cns7263_test.hex"
+version = "15.67"
+pcb = "8.0"
+kind = "PWM"
+chips = ["CNS7263"]
+size = 721024
+sha256 = "e8fcf605b702585a81e77eddf4c7f343ff540e1d7981340d40e76baaa3311242"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA15.75_20250530_FDFP3.0_encryption_TBS3266A.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA15.75_20250530_FDFP3.0_encryption_TBS3266A.hex"
+version = "15.75"
+pcb = "6.0"
+kind = "PWM"
+chips = ["TBS3266A"]
+size = 721024
+sha256 = "11a4511bdf960c9ac06e2309268b069e1eec25f4563630d868ee275861bbe8b6"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA15.82_20240822_FDFP3.0_encryption_FM6569.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA15.82_20240822_FDFP3.0_encryption_FM6569.hex"
+version = "15.82"
+pcb = "6.0"
+kind = "PWM"
+chips = ["FM6569"]
+size = 721024
+sha256 = "0d07b5c48648a1b5c932c40e926843a993a13271f804bddfd1fbffe58b78cbd1"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA15.85_20251201_FDFP3.0_encryption_ICN3065.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA15.85_20251201_FDFP3.0_encryption_ICN3065.hex"
+version = "15.85"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICN3065"]
+size = 721024
+sha256 = "9230e6b5f0a91d0bffd1052e05162e835914c7885792b6954ef27d93829eed59"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA15.97_20250722_FDFP3.0_encryption_HX_HX8065.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA15.97_20250722_FDFP3.0_encryption_HX_HX8065.hex"
+version = "15.97"
+pcb = "6.0"
+kind = "PWM"
+chips = ["HX8065"]
+size = 721024
+sha256 = "e99a2bbb780e53a52980407d3460688cd835bddde6e5a598b999132734abf891"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA16.13_20250109_FDFP3.0_encryption_QL.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA16.13_20250109_FDFP3.0_encryption_QL.hex"
+version = "16.13"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "27c078d2ee133ee543839591526b311e866787cf74df1d707755f6b86ead76cd"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA16.17_20250808_FDFP3.0_encryption_QL.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA16.17_20250808_FDFP3.0_encryption_QL.hex"
+version = "16.17"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "212977e0e54fe004f9ffe881ac75a97bb96bd73ec26f44ac27d7d4ab58a8f9d0"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA16.33_20240314_FDFP3.0_ICND2153S.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA16.33_20240314_FDFP3.0_ICND2153S.hex"
+version = "16.33"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICND2153S"]
+size = 721024
+sha256 = "e869359e0927e93709a65248415d04f0fe1cd83ee41254738dd5a79a85b3f7ed"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA16.56_20240603_mingwei_SM16289.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA16.56_20240603_mingwei_SM16289.hex"
+version = "16.56"
+pcb = "6.0"
+kind = "PWM"
+chips = ["SM16289"]
+size = 721024
+sha256 = "100bdae594f26b6ed9b38c2a0d803daa78f5a17f33e2593f495b0814c9443ff0"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA16.88_20231122_C8325.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA16.88_20231122_C8325.hex"
+version = "16.88"
+pcb = "6.0"
+kind = "PWM"
+chips = ["C8325"]
+size = 721024
+sha256 = "6815d5e48ab92ab3420d071ac22483d4a71af3957fafef792c1c0d5dafe84504"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA16.96_20241108_C8325.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA16.96_20241108_C8325.hex"
+version = "16.96"
+pcb = "6.0"
+kind = "PWM"
+chips = ["C8325"]
+size = 721024
+sha256 = "e5cab616c339ff1080959e3d9bb6fcab59599cf9f5523e61b405927a456dfc86"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA17.00_20240426_FDFP_qiangli_LS9708_LS9716.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA17.00_20240426_FDFP_qiangli_LS9708_LS9716.hex"
+version = "17.00"
+pcb = "6.0"
+kind = "PWM"
+chips = ["LS9708", "LS9716"]
+size = 721024
+sha256 = "70e35703d4e8afa35eaadebc0bf9ac6fdc90b7b65eef31d993cb83be7ce59bd2"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA17.18_20240111_FDFP3.0_haiyue_CFD535A_555B.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA17.18_20240111_FDFP3.0_haiyue_CFD535A_555B.hex"
+version = "17.18"
+pcb = "6.0"
+kind = "PWM"
+chips = ["CFD535A"]
+size = 721024
+sha256 = "20532c4699154744728c8977820ca56fb112c1efae4fc053cb2019c53b62f2fe"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA17.30_20250403_mingwei_MW16330_MW5568.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA17.30_20250403_mingwei_MW16330_MW5568.hex"
+version = "17.30"
+pcb = "6.0"
+kind = "PWM"
+chips = ["MW16330", "MW5568"]
+size = 721024
+sha256 = "f58cd3f3912838c668fc342c166d17271041881fb3423f5f79acde45717c8d09"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA17.32_20240708_FDFP3.0_qiangli_LS9716.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA17.32_20240708_FDFP3.0_qiangli_LS9716.hex"
+version = "17.32"
+pcb = "6.0"
+kind = "PWM"
+chips = ["LS9716"]
+size = 721024
+sha256 = "8761b71b384f252b5eab351aa3219fe349d656e0710b2cf21f08fbce53e5d98a"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA17.37_20250906_LPX_DP3375S.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA17.37_20250906_LPX_DP3375S.hex"
+version = "17.37"
+pcb = "6.0"
+kind = "PWM"
+chips = ["DP3375S"]
+size = 721024
+sha256 = "f7bdee7deb8bfc87e0581178eb280874baa89757f1311aa50196f1d967fcf25d"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA20.13_20240702_FDFP3.0_DP3364S_DP3365S_DP3369S.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA20.13_20240702_FDFP3.0_DP3364S_DP3365S_DP3369S.hex"
+version = "20.13"
+pcb = "6.0"
+kind = "PWM"
+chips = ["DP3364S", "DP3365S", "DP3369S"]
+size = 721024
+sha256 = "2e6f6279d0533d08765b1fca08fa7be05558e160f30242366b8203d2b6150c28"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA20.26_20240820_FDFP3.0_CFD535A.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA20.26_20240820_FDFP3.0_CFD535A.hex"
+version = "20.26"
+pcb = "6.0"
+kind = "PWM"
+chips = ["CFD535A"]
+size = 721024
+sha256 = "bb1509334279397503e2c500f894355e6b427a841416328c7bc98c8e3a3d8a0b"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA20.29_20240830_FDFP3.0_CFD855A.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA20.29_20240830_FDFP3.0_CFD855A.hex"
+version = "20.29"
+pcb = "6.0"
+kind = "PWM"
+chips = ["CFD855A"]
+size = 721024
+sha256 = "4233572d4bb9d4f1727230a3362f8b04d5ac786dfa10715722701e20ea813c52"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA20.35_20240902_FDFP3.0_C8385.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA20.35_20240902_FDFP3.0_C8385.hex"
+version = "20.35"
+pcb = "6.0"
+kind = "PWM"
+chips = ["C8385"]
+size = 721024
+sha256 = "08385dda94c9902d58c0079aa984336d312556d62751bf28ad310029047c2437"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA20.36_20241030_FDFP3.0_CFD455J_CFD335B_C8369_TEST.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA20.36_20241030_FDFP3.0_CFD455J_CFD335B_C8369_TEST.hex"
+version = "20.36"
+pcb = "6.0"
+kind = "PWM"
+chips = ["CFD455J", "CFD335B", "C8369"]
+size = 721024
+sha256 = "d6bbf2b7963cf7c332875e1ba219a76415c4b1ab12c45d2bdfd4aa6532bfdcbd"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA20.55_20250719_FDFP3.0_CFD.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA20.55_20250719_FDFP3.0_CFD.hex"
+version = "20.55"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "6fc0478fb7832e26fb0097dc78850426a6259dc4a3c7cc6e876baa75522f6324"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA25.50_20221229_invroute_ICND2076.hex"
+path = "firmware/colorlight/e-series/E320_PCB6.0_PWM_FPGA25.50_20221229_invroute_ICND2076.hex"
+version = "25.50"
+pcb = "6.0"
+kind = "PWM"
+chips = ["ICND2076"]
+size = 721024
+sha256 = "53b8e55e4a18adf63cc978e1f55f754060d1429d9f4632d171bf219812dbe041"

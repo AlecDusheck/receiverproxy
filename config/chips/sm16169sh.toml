@@ -1,4 +1,4 @@
-# Driver-chip library: SM16169SH — the vendor's name for chip id 0x14C with no
+# Driver-chip library: SM16169SH, the vendor's name for chip id 0x14C with no
 # sub-variant. This is the register set the reference config carried
 # (reg 0x07 at 0x04: freq division 1, line gray 64).
 #

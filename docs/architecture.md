@@ -72,12 +72,12 @@ flowchart LR
 Input is `config/panels/<panel>.toml` (`PanelSpec`, `spec/mod.rs`) plus the
 chip library it names (`config/chips/*.toml`, `chips.rs`). No donor file is
 read; every output byte is a vendor default, a spec field, a chip-library
-value or a documented literal, and `Generated.sources` names the source of
-each placement ([building-a-config.md](building-a-config.md)).
+value or a documented literal, and `Generated.sources` says where each
+placement came from ([building-a-config.md](building-a-config.md)).
 
 | output | built by | from |
 |---|---|---|
-| record 0x01 (764 B) | `spec/record01.rs` | vendor Reset defaults, spec fields, chip-control block, then chip-library overrides, then `[record01_overrides]` last — this is where `+0x02F = 1` lands (the `0x..` keys are parsed and range-checked when the TOML loads, `chips.rs::record01_offsets`) |
+| record 0x01 (764 B) | `spec/record01.rs` | vendor Reset defaults, spec fields, chip-control block, then chip-library overrides, then `[record01_overrides]` last, which is where `+0x02F = 1` lands (the `0x..` keys are parsed and range-checked when the TOML loads, `chips.rs::record01_offsets`) |
 | record 0x03 pixel map | `spec/mapping.rs` | geometry + `[mapping]`: `line = row % scan`, `slot = (col/blk)·(groups·blk) + group·blk + col%blk`, `blk = mapping.block` |
 | record 0x84 chip registers | `chips.rs::record_84` | library register order, reg 0x02 = scan−1 |
 | remaining records | `spec/records.rs` | decoded loader defaults, vendor order; 0x84 inserted before 0xcd |
@@ -101,11 +101,11 @@ shared sequence lives in `Block7Builder::from_generated`; `gen_config` adds
 the chip page and the embedded `.rcvbp` on top, and `send_params` slices the
 same image into the vendor's 34 real-time RAM packs (`params.rs`).
 
-Tests in `crates/e120-rcvbp/tests/factory.rs` pin all of this to reality: the
-reference `.rcvbp` regenerates record for record, the factory basic
-pack and block-7 image regenerate byte for byte from
-the day-one flash dump (kept outside the repo; the tests skip without it), and our spec differs from the reference record
-0x01 at exactly `[0x023, 0x02F, 0x0C0..0x0C3]`.
+Tests in `crates/e120-rcvbp/tests/factory.rs` pin all of this: the
+reference `.rcvbp` regenerates record for record, the factory basic pack
+and block-7 image regenerate byte for byte from the day-one flash dump
+(kept outside the repo; the tests skip without it), and our spec differs
+from the reference record 0x01 at exactly `[0x023, 0x02F, 0x0C0..0x0C3]`.
 
 ### 2. Card provisioning (`e120 provision`, `e120-cli/src/provision.rs`)
 
@@ -118,11 +118,11 @@ One command, dry-run without `--commit` ([provisioning.md](provisioning.md)):
 | firmware, path B | host page writes for blocks still differing after A (16.53 write-protects blocks 0–2 and 8 from this path, so A and B together make a whole bank) | `flash.rs erase_firmware_block / write_firmware_page`, `set_program_writable` 0x2300 (`e120 firmware write --from-block 3 --to-block 7`) |
 | wait | 12 s after discovery reports the new version; earlier pushes are lost | `discovery.rs` 0x0700 |
 | EEPROM read | the 256-byte record set via the linear read at 0x7F000 | `flash.rs read_flash_linear` 0x1900 |
-| config | `config gen` then `flash restore-block` of the block-7 image (erase, 3 s settle, 256-byte pages 8 ms apart, verify, repair; page 0xF0 refusing is expected — it is the EEPROM mirror) | `flash.rs erase_block / write_page`, confined to `PARAM_BLOCK` 0x07 |
+| config | `config gen` then `flash restore-block` of the block-7 image (erase, 3 s settle, 256-byte pages 8 ms apart, verify, repair; page 0xF0 refusing is expected: it is the EEPROM mirror) | `flash.rs erase_block / write_page`, confined to `PARAM_BLOCK` 0x07 |
 | EEPROM write | each record at its own address and length from `eeprom::RECORDS`, broadcast index, 500 ms apart; control area `(x, y, x+w, y+h)` from `--position`; save 0x87; reload 0x77; read back | `eeprom.rs` 0x1900 op 0x85 |
 
-Flash allowlists in `e120-proto/src/flash.rs` make it impossible for the
-parameter path to reach firmware or the golden bank. Writing block 7 wipes
+Flash allowlists in `e120-proto/src/flash.rs` keep the parameter path away
+from firmware and the golden bank. Writing block 7 wipes
 the EEPROM mirror, which is why the record set is read before and rewritten
 after. Power-cycle afterwards; the card arms from flash.
 
@@ -189,8 +189,7 @@ and leaves the panel as it is.
 ## Measured defaults and where each lives
 
 Everything below was found on the bench; the reasons are in
-[rendering.md](rendering.md). Change them only with a
-measurement.
+[rendering.md](rendering.md). Change them only with a measurement.
 
 | default | value | lives in | pinned by |
 |---|---|---|---|

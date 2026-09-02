@@ -1,4 +1,4 @@
-# Driver-chip library: SM16269 / SM16269S — the 0x14C family (named SM16169SH
+# Driver-chip library: SM16269 / SM16269S, the 0x14C family (named SM16169SH
 # in the vendor's own chip table) with sub-variant id 0x14D.
 #
 # Sources: libCLTDevice ResetChipCustom (chip 0x14C case, sub-id 0x14D table

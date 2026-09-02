@@ -14,7 +14,7 @@ static reading of `CLTNic.dll`. Nothing was executed.
 unpack with `7z x`; see [archive/vendor-sdk-analysis.md](archive/vendor-sdk-analysis.md)).
 
 There is **no** macOS build of CLTNic; `libCLTDevice.1.dylib` (iSet) contains the
-device/config side only — no `Nic_*` symbols, no picture sender. Six copies of
+device/config side only: no `Nic_*` symbols, no picture sender. Six copies of
 CLTNic exist across the vendor packages; all export the same 25 symbols and
 the x86 and x64 builds agree byte-for-byte on the frame templates.
 
@@ -77,7 +77,7 @@ The patch sites, x86 `fcn.10003580` (the row packetizer):
 | count hi/lo | `mov [edi+0x55], al` / `mov [edi+0x56], al` | `0x10003763`, `0x10003777` (tail) |
 
 The `0x1f101` store settles the endianness: 497 decimal is written as
-the byte pair `01 F1` at offsets 17,18 — big-endian, and it lands *after* the
+the byte pair `01 F1` at offsets 17,18: big-endian, and it lands *after* the
 row and offset fields, not before.
 
 ### 1.3 Independent confirmation of the 21-byte header
@@ -102,7 +102,7 @@ exactly `16 + 16 + 4 + 1 = 37` bytes: pkthdr, then frame bytes 0–15, then
 497 is split into `floor(w/497)` full packets of 497 plus one tail packet of
 `w mod 497`. Confidence: high. (Same value as FPP's `CL_MAX_PIXL_PER_PACKET`.)
 
-### 1.5 Minimum pixel count — a padding rule we do not implement
+### 1.5 Minimum pixel count: a padding rule we do not implement
 
 `0x1000359b`–`0x100035a7`: if the screen width is below 16, the packet's
 `count` is raised to 16 and the extra pixels are zero-filled
@@ -122,7 +122,7 @@ else         base = 320 * (n - 9) + 0x8000
 and the transmitted row field is `base + y` (`add ebx, [var_ch]` at
 `0x1000361f`). For a single screen created as number **1** the base is 0 and
 the field is plain `y`. Confidence: high. Consequence: the high nibble of the
-16-bit row field is a screen/port selector — using a screen number other than 1
+16-bit row field is a screen/port selector; using a screen number other than 1
 would shift every row by 4096.
 
 ### 1.7 Pixel byte order and depth
@@ -141,12 +141,12 @@ add ecx, 3
 **8 bits per channel, 3 bytes per pixel, copied verbatim from the low three
 bytes of a 32-bit source pixel.** Confidence: high.
 
-Which *colour* those three bytes are is decided by the caller, not by CLTNic —
+Which *colour* those three bytes are is decided by the caller, not by CLTNic:
 `Nic_CreateScreen` (`0x10001ec0` → `fcn.10005f80`) takes no pixel-format
 argument, and `fcn.10006540` allocates the buffer as `width*height*4`
 (`0x1000659f`–`0x100065c7`). LEDVISION feeds it GDI/GDI+ 32bpp surfaces, whose
 memory order is B,G,R,A, so the wire order is almost certainly **B,G,R**.
-Confidence: **medium** — inferred from the caller's conventions, not proven in
+Confidence: **medium**, inferred from the caller's conventions, not proven in
 CLTNic. Our `ColorOrder` enum stays useful.
 
 ---
@@ -168,7 +168,7 @@ fcn.10003850(pcap_handle, queue)            ; 0x10002f7c  -> pcap_sendqueue_tran
 So one video frame for one screen is **one pcap send-queue burst**, in this
 order:
 
-1. **Display / latch frame**, type `0x0107`, 112 bytes — *first*, not last.
+1. **Display / latch frame**, type `0x0107`, 112 bytes, *first*, not last.
 2. **Brightness frame**, type `0x0A`, 77 bytes.
 3. **All pixel row packets**, row 0 upward, and within a row left to right.
 
@@ -264,7 +264,7 @@ the pixel *count* per row.
 
 ---
 
-## 4. `Nic_SendScreenBlackPicture` — the minimal correct sequence
+## 4. `Nic_SendScreenBlackPicture`: the minimal correct sequence
 
 `0x10001e60` → `fcn.10006670`. It does **not** build a special frame. It:
 
@@ -279,24 +279,24 @@ frame, then every row packet with all-zero pixel bytes. Confidence: high.
 `Nic_SendScreenPicture` (`0x10001e40`) routes to exactly this path when the
 show flag (`0x101a7470`, set by `Nic_SetScreenShowOnOff`) is 0.
 
-So "make the panel go black" is not a shortcut — it is the full sequence with
-zero pixels: there is exactly one pixel path.
+So "make the panel go black" is not a shortcut; it is the full sequence with
+zero pixels. There is exactly one pixel path.
 
 ---
 
-## 5. `Nic_SetScreenSize` and `Nic_SetScreenConnectionStyle` — neither is on the wire
+## 5. `Nic_SetScreenSize` and `Nic_SetScreenConnectionStyle`: neither is on the wire
 
 Both are **purely host-side**. Video is *not* gated on them. Confidence: high.
 
-* `Nic_SetScreenSize(id, w, h)` — `0x10001f00` → `fcn.10006170`. Rejects
+* `Nic_SetScreenSize(id, w, h)` (`0x10001f00` → `fcn.10006170`). Rejects
   dimensions above `0x100000`, finds the screen, calls two setters
   (`fcn.10008850`, `fcn.100088f0`) that store width and height in the screen
-  object, then calls `fcn.100067d0` + `fcn.10002e80` — which *only* frees and
+  object, then calls `fcn.100067d0` + `fcn.10002e80`, which *only* frees and
   reallocates the local pcap send queue to fit the new worst-case burst size
   (`fcn.10002e80` calls `pcap_sendqueue_destroy` at `[obj+0x28]` and
   `pcap_sendqueue_alloc` at `[obj+0x18]`). **No packet is transmitted.**
 
-* `Nic_SetScreenConnectionStyle(id, style)` — `0x10001f10` → `fcn.100060f0`.
+* `Nic_SetScreenConnectionStyle(id, style)` (`0x10001f10` → `fcn.100060f0`).
   Validates `style ∈ {0,1,2,3}` (`0x10006139`–`0x10006148`) and does one store:
   `mov [eax+0x10], esi` (`0x10006159`). That field is read in `fcn.100068e0` at
   `0x100069e3` and drives a 4-case switch (`0x100069f5`) that copies the user's
@@ -323,7 +323,7 @@ type-0x33 frame. Confidence: high.
 
 ---
 
-## 6. Worked example — one 128-pixel row of a 128×64 panel
+## 6. Worked example: one 128-pixel row of a 128×64 panel
 
 Screen created as number 1, row `y = 0`, white pixels, connection style 0.
 
@@ -397,17 +397,17 @@ the wire colour order is BGR by default (`--order`).
 
 | Item | Confidence |
 |---|---|
-| 21-byte pixel header, fields at 13/15/17 BE, `08 88` at 19–20 | **high** — three independent confirmations (template, patch sites, two length computations) |
+| 21-byte pixel header, fields at 13/15/17 BE, `08 88` at 19–20 | **high**: three independent confirmations (template, patch sites, two length computations) |
 | 497 pixels/packet, `21 + 3n` frame length | **high** |
 | Row field = `(screenNo−1)<<12 + y` for screenNo ≤ 9 | **high** |
 | `count` padded to ≥ 16 below 16 px wide | **high** |
 | 8 bpc, 3 bytes/pixel from a 32-bit source | **high** |
-| Wire colour order is BGR | **medium** — depends on the caller's surface format, not fixed in CLTNic |
+| Wire colour order is BGR | **medium**: depends on the caller's surface format, not fixed in CLTNic |
 | Burst order latch → brightness → rows, one transmit, no pacing | **high** |
-| Latch frame 112 B and brightness frame 77 B layouts | **high** — identical to our current code |
+| Latch frame 112 B and brightness frame 77 B layouts | **high**: identical to our current code |
 | No card-model / scan-mode / chip-family branch anywhere | **high** |
 | `SetScreenSize` and `SetScreenConnectionStyle` send nothing | **high** |
 | `SetTestModeIndex` renders host-side, never asks the card | **high** |
-| Per-channel derivation of brightness bytes `[bright+4..6]` | **high** — linear, traced in CLTNic `0x100062c0` |
-| Purpose of the second 12-byte template at `+0x69` (x86) / `+0x9d` (x64), bytes `11 55 44 33 22 11 11 55 44 33 22 22` | **NOT RESOLVED** — no read reference found anywhere in the DLL; possibly dead |
-| Meaning of the per-row change-flag array (`node+0x1c` gate, `node+0x20` u16 array, `0x10003601`–`0x10003619`) that lets the vendor skip unchanged rows | **medium** — the mechanism is clear, the producer of the flags is in the caller, not CLTNic |
+| Per-channel derivation of brightness bytes `[bright+4..6]` | **high**: linear, traced in CLTNic `0x100062c0` |
+| Purpose of the second 12-byte template at `+0x69` (x86) / `+0x9d` (x64), bytes `11 55 44 33 22 11 11 55 44 33 22 22` | **NOT RESOLVED**: no read reference found anywhere in the DLL; possibly dead |
+| Meaning of the per-row change-flag array (`node+0x1c` gate, `node+0x20` u16 array, `0x10003601`–`0x10003619`) that lets the vendor skip unchanged rows | **medium**: the mechanism is clear, the producer of the flags is in the caller, not CLTNic |

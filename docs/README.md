@@ -43,7 +43,7 @@ Colorlight E120 with a P2.5 128x64 SM16269S panel, driven from the Rust CLI in t
 
 | doc | what |
 |---|---|
-| [archive/handoff-history.md](archive/handoff-history.md) | how the bring-up went, day by day |
+| [archive/handoff-history.md](archive/handoff-history.md) | the bring-up, day by day |
 | [archive/black-floor.md](archive/black-floor.md) | the void-line table decode that removed the black floor |
 | [archive/grey-mapping.md](archive/grey-mapping.md) | gamma table and grey-depth decode; both ruled out as the floor |
 | [archive/firmware-16.53-bench-result.md](archive/firmware-16.53-bench-result.md) | installing 16.53 and the state right after |

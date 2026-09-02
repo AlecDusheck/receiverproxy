@@ -4,7 +4,7 @@ Everything needed to parse, validate and rebuild the vendor firmware images in
 `third-party/firmware/`. Confidence tags: **HIGH** = read directly out of the
 bytes and cross-checked; **MEDIUM** = one stated assumption; **NOT RESOLVED**.
 
-## 1. The part — HIGH
+## 1. The part (HIGH)
 
 All five `.hex` files are raw **Lattice Diamond `.bit` bitstreams** for a
 
@@ -23,7 +23,7 @@ Evidence, two independent sources:
 
 Every file is exactly **721 024 bytes** (`0xB0080`).
 
-## 2. ASCII header — HIGH
+## 2. ASCII header (HIGH)
 
 342 bytes, starting `\xFF\x00` then newline-separated `Key: value` lines,
 terminated by `\x00\xFF`. Verbatim for 16.53:
@@ -54,7 +54,7 @@ Header fields across all five images:
 | `E320_PCB6.0_PWM_FPGA10.81` | 3.10.3.144 | Final Version 10.27 | Thu Sep 07 15:47:58 2023 |
 | `E320_PWM_FPGA16.53_…SM16386S_SM16269SH` | **3.10.2.115** | **Final Version 10.25** | Wed Dec 27 13:00:41 2023 |
 
-Notes — HIGH:
+Notes (HIGH):
 
 * `Rows / Cols / Bits` are **not** device geometry. `Rows` is the frame count
   (7562), `Cols` the frame width in bits (592 = 74 bytes), and
@@ -68,7 +68,7 @@ Notes — HIGH:
   2023-09-07, *after* 13.39 (2022-11-12). See [version-diff.md](version-diff.md).
 * 16.53 was built with an **older** Diamond than the other four.
 
-## 3. Command stream — HIGH
+## 3. Command stream (HIGH)
 
 Offsets are identical in all five images.
 
@@ -77,7 +77,7 @@ Offsets are identical in all five images.
 | `0x156` | `FF FF` | fill |
 | `0x158` | `BD B3` | **preamble** |
 | `0x15A` | `FF FF FF FF` | fill / dummy |
-| `0x15E` | `3B 00 00 00` | `LSC_RESET_CRC` — zero the running CRC |
+| `0x15E` | `3B 00 00 00` | `LSC_RESET_CRC`, zeroes the running CRC |
 | `0x162` | `E2 00 00 00 41 11 10 43` | `VERIFY_ID`, operand = IDCODE `0x41111043` |
 | `0x16A` | `22 00 00 00 40 00 00 20` | control register 0 write, value `0x40000020` |
 | `0x172` | `46 00 00 00` | `LSC_INIT_ADDRESS` |
@@ -88,13 +88,13 @@ Offsets are identical in all five images.
 | `0x8E410` | `88 88` | pad/fill |
 | `0x8E412` | `F6 00 00 00 00 00 18 00` | `LSC_EBR_ADDRESS`, address `0x1800` |
 | `0x8E41A` | `B2 D0 01 00` | `LSC_EBR_WRITE` |
-| `0x8E41E` | 2304 | EBR init payload — 2048 nine-bit words |
+| `0x8E41E` | 2304 | EBR init payload: 2048 nine-bit words |
 | `0x8ED1E` | `B8 28` | pad/fill |
 | `0x8ED20` | `5E 00 00 00` | **program `DONE`** |
 | `0x8ED24` | `FF`… | pad to `0xAFFFB` |
 | `0xAFFFC` | `00 00 00 01 E0 89 5B A0` | 8-byte trailer |
 
-The **only** difference between images at this level — HIGH:
+The **only** difference between images at this level (HIGH):
 
 > The control-register operand at `0x16A` is **`0x40000000` in the 6.69
 > (LS0allDA / PCB 6.1) image and `0x40000020` in the other four.**
@@ -103,11 +103,11 @@ Bit 5 of ECP5 control register 0 is in the SPI-mode / `MSPI` area of the
 register; the exact meaning here is **NOT RESOLVED**.
 
 The trailer at the end of the file is what makes `ecpunpack` abort (see
-[decode-method.md](decode-method.md)). What it is — possibly a
-Colorlight-added image descriptor rather than part of the Lattice format — is
+[decode-method.md](decode-method.md)). What it is (possibly a
+Colorlight-added image descriptor rather than part of the Lattice format) is
 **NOT RESOLVED**.
 
-**It is per-image, not universal — HIGH.** 16.53's is
+**It is per-image, not universal (HIGH).** 16.53's is
 `00 00 00 01 E0 89 5B A0`; 10.81's is `00 00 00 01 C5 99 12 FD`. And the
 Normal 13.39 image is a *different container* altogether: its `0xFF` run
 continues to `0xB007A` and its marker sits at `0xB007B`, i.e. it declares
@@ -115,7 +115,7 @@ length `0x0B0080` rather than `0x0B0000`. The first four bytes `00 00 00 01`
 are common; the last four differ per image and are presumably a checksum or
 build stamp.
 
-## 4. Frame geometry and CRC — HIGH
+## 4. Frame geometry and CRC (HIGH)
 
 Each of the 7562 frames is **77 bytes**:
 
@@ -138,9 +138,9 @@ def crc16(data, crc=0):
 **The CRC accumulates over the command stream since the last CRC reset**, and
 resets after each frame's CRC field:
 
-* **Frame 0** — covers everything from `0x162` (immediately after
+* **Frame 0** covers everything from `0x162` (immediately after
   `LSC_RESET_CRC`) through the frame's own 74 data bytes.
-* **Frames 1..7561** — cover the preceding frame's `0xFF` dummy byte followed
+* **Frames 1..7561** cover the preceding frame's `0xFF` dummy byte followed
   by the 74 data bytes.
 
 With that model **all 7562 frames validate in all five vendor images.**
@@ -148,7 +148,7 @@ With that model **all 7562 frames validate in all five vendor images.**
 This corrects an earlier note in this project which said frame 0 validated
 with an empty prefix. It does not: frame 0's stored CRC is `0x2C8E`, and
 `crc16(frame0_data)` is `0x2E47`. The prefix was found by scanning start
-offsets — only starts in `0x15F..0x162` reproduce `0x2C8E`, and the bytes at
+offsets: only starts in `0x15F..0x162` reproduce `0x2C8E`, and the bytes at
 `0x15F..0x161` are zero and so do not affect the result. Independently
 confirmed by brute-forcing the seed: `crc16(frame0_data, init=0xCEF5)` also
 gives `0x2C8E`, and `0xCEF5` is exactly the running CRC after the header
@@ -187,7 +187,7 @@ with the running-prefix rule above, leave the header and command stream
 untouched, and keep the padding and the 8-byte trailer. The ASCII header's
 `Bitstream CRC` does not need updating (it is not a content checksum, §2).
 
-## 6. The `word:` bit-order trap — HIGH that it exists
+## 6. The `word:` bit-order trap: HIGH that it exists
 
 Not part of the container, but it bites everyone who decodes further.
 prjtrellis writes multi-bit tile settings as `word: NAME <bitstring>`, and the
@@ -196,9 +196,9 @@ bit order is set **per field** by the database, not globally.
 * The PLL's dividers and manufacturing constants are **MSB-first**: only that
   reading gives `MFG_GMC_TEST = 14`, `MFG_GMCREF_SEL = 2`, `ICP_CURRENT = 5`
   (Lattice's standard values), and only that reading yields a physically
-  possible VCO frequency. See [resources.md](resources.md#3-clocking--resolved-end-to-end).
+  possible VCO frequency. See [resources.md](resources.md#3-clocking-resolved-end-to-end).
 * `EBRn.WID` was initially used as an LSB-first calibrator because
-  `110000000` reads as 3, matching `.bram_init 3`. **Do not rely on it** —
+  `110000000` reads as 3, matching `.bram_init 3`. **Do not rely on it**:
   across 54 EBRs the field only ever takes three values
   (`100000000`, `110000000`, `100011111`), so it is not a clean index and the
   agreement may be coincidence.
@@ -207,10 +207,10 @@ bit order is set **per field** by the database, not globally.
 `$(brew --prefix prjtrellis)/share/trellis/database/ECP5/tiledata/<TILE>/bits.db`
 before believing a decoded value.**
 
-## 7. And a worse trap: `BASE_TYPE` names are not IO standards — HIGH
+## 7. And a worse trap: `BASE_TYPE` names are not IO standards (HIGH)
 
 See [pinout.md](pinout.md#the-base_type-trap). The short version: prjtrellis's
-`PIOx.BASE_TYPE` enum is degenerate — many IO standards share one bit pattern
+`PIOx.BASE_TYPE` enum is degenerate: many IO standards share one bit pattern
 and prjtrellis prints the alphabetically last name that matches. On this part
 **every bank is 3.3 V**, so every `SSTL18` / `SSTL15` label in the decode is an
 artefact.

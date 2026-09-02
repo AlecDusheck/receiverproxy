@@ -10,14 +10,14 @@ e120 provision --spec config/panels/p25-128x64-sm16269s.toml \
 
 Without `--commit` it prints the plan. With it, each step reports on stderr as
 `[n/5] …` followed by terse `firmware:` / `flash:` / `eeprom:` lines; the
-snapshot paths are the only stdout output. Steps, and why each is the way it is:
+snapshot paths are the only stdout output. The steps and why:
 
 | step | what | why |
 |---|---|---|
 | 1 snapshot | primary bank + golden bank to `build/snapshot-<time>/` | the only copy of what the card held; the recovery path for everything below |
 | 2 firmware | compare the bank to the image; if it differs, SDRAM self-program (`firmware install`) **then** host writes of any block still differing, then whole-bank verify; wait for the card to come back reporting the image's version | 16.53 write-protects blocks 0–2 and 8 from the host path and its self-program writes only those, so a complete install needs both ([rendering.md](rendering.md)) |
 | 3 EEPROM read | the 256-byte record via the linear read | writing block 7 wipes the EEPROM mirror; the records must come back afterwards |
-| 4 config | `config gen` from the spec, `flash restore-block` the block-7 image | the whole configuration, from TOML, no donor file ([building-a-config.md](building-a-config.md)); `arm_at_boot = true` so the card configures itself from flash — RAM pushes are unreliable |
+| 4 config | `config gen` from the spec, `flash restore-block` the block-7 image | the whole configuration, from TOML, no donor file ([building-a-config.md](building-a-config.md)); `arm_at_boot = true` so the card configures itself from flash; RAM pushes are unreliable |
 | 5 EEPROM write | every record back at its own address and length, broadcast index, 500 ms apart; control area = `(x, y, x+w, y+h)`; save (0x87); reload (0x77); verify by reading back | records written across boundaries are ignored; index-0 writes are ignored while the cabinet record is corrupt; back-to-back writes are dropped ([eeprom-map.md](eeprom-map.md), [receiver-identity.md](receiver-identity.md)) |
 
 Then power-cycle. The card arms from flash and renders whatever `e120 show image` /
@@ -36,7 +36,7 @@ a time while provisioning, or provision on a bench link.
 
 ## What a card must not be left with
 
-* an erased EEPROM control area (`startX = 0xFFFF`) — it will report a healthy
-  size and drop every pixel; `scripts/flash-review.py` checks it;
-* a mixed firmware bank — always verify all eleven blocks after any write;
+* an erased EEPROM control area (`startX = 0xFFFF`): it reports a healthy
+  size and drops every pixel; `scripts/flash-review.py` checks it;
+* a mixed firmware bank: verify all eleven blocks after any write;
 * parameters only in RAM.

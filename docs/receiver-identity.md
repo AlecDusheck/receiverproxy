@@ -13,7 +13,7 @@ transmitted.
 
 ---
 
-## 1. The record — EEPROM `0x02`, 42 bytes — HIGH
+## 1. The record: EEPROM `0x02`, 42 bytes (HIGH)
 
 `CReceiverOP::WriteEepromCtrlAreaOffset` @ `0x3b2fc0` builds it. The first five
 `u16` are byte-swapped to big-endian (`movzwl` / `rolw $0x8` / `movw` at
@@ -26,10 +26,10 @@ transmitted.
 |---|---|---|---|
 | `0x02` | u16 BE | **startX** | left edge of this card's window in the screen |
 | `0x04` | u16 BE | **startY** | top edge |
-| `0x06` | u16 BE | **endX** | `startX + width` — an *end coordinate*, not a width |
+| `0x06` | u16 BE | **endX** | `startX + width`, an *end coordinate*, not a width |
 | `0x08` | u16 BE | **endY** | `startY + height` |
 | `0x0a` | u16 BE | reserved, always 0 | |
-| `0x0c`–`0x2b` | 32 B | connection blob, low half — **NOT RESOLVED** | vendor writes zeros in the default path |
+| `0x0c`–`0x2b` | 32 B | connection blob, low half, **NOT RESOLVED** | vendor writes zeros in the default path |
 
 A companion 32-byte blob goes to **EEPROM `0x92`**
 (`CReceiverOP::WriteEepromExtendDataOffset` @ `0x3c1820`,
@@ -57,7 +57,7 @@ For a single card at the origin the two readings coincide, which is why
 calling offsets `0x06`/`0x08` "width/height". That reading is right only while
 `startX = startY = 0`.
 
-## 2. Who writes it — HIGH
+## 2. Who writes it (HIGH)
 
 Two paths, both ending at the same 42 bytes at EEPROM `0x02`:
 
@@ -77,15 +77,15 @@ Two paths, both ending at the same 42 bytes at EEPROM `0x02`:
    (call site `0x1a13fa`, guarded by the flag at `[rbx+0xc]`), which writes the
    **degenerate default**: `startX = startY = 0`,
    `endX = CHWParamRcvGeneral::GetMaxWidth()`,
-   `endY = GetMaxHeight()`, blob all zero — followed by the same 32 zero bytes
+   `endY = GetMaxHeight()`, blob all zero, followed by the same 32 zero bytes
    at EEPROM `0x92` and a reload command.
 
 So every time LEDVISION/iSet saves a configuration to a receiver it also
 rewrites the control area. The first config path here (build a 64 KB block-7
 image, erase, write 256 pages) did not, and the erase wiped the mirror;
-`e120 provision` now reads the records before and writes them back after.
+`e120 provision` reads the records before and writes them back after.
 
-### `SaveSingleRcvCtrlArea` — the three-frame sequence
+### `SaveSingleRcvCtrlArea`: the three-frame sequence
 
 `CReceiverOP::SaveSingleRcvCtrlArea` @ `0x3b5820` is the whole operation for
 one card, and it is exactly three frames with 100 ms between them:
@@ -96,28 +96,28 @@ one card, and it is exactly three frames with 100 ms between them:
 | `0x3b590b` | `WriteEepromExtendDataOffset` | 32 B → EEPROM `0x92` |
 | `0x3b5946` | `ReLoadLocalParam` (arg `0x04`) | type `0x0600`, opcode `0x77`, data `01 01 00 00 00` |
 
-`SRcvCtrlArea` is `{u32 startX; u32 startY; u32 endX; u32 endY; u8* ext; u16 extLen;}` —
+`SRcvCtrlArea` is `{u32 startX; u32 startY; u32 endX; u32 endY; u8* ext; u16 extLen;}`;
 the `pshufb` mask at `0x3b5880` (`00 01 04 05 08 09 0c 0d`) takes the low `u16`
 of four consecutive `u32`s.
 
-## 3. Is any of this in the `.rcvbp`? — No — HIGH
+## 3. Is any of this in the `.rcvbp`? No (HIGH)
 
 The control area is **not** in the `.rcvbp`, not in record 0x01, and not in the
 compiled parameter image at flash `0x70000`. It lives only in the EEPROM (and
 its flash mirror at `0x07F000`). Two independent confirmations:
 
-* `CHWParamRcvGeneral::SetRcvsInCabinetPos` @ `0x15fdb0` — the only
-  position-shaped thing that *does* ride in the parameter blob — is a
+* `CHWParamRcvGeneral::SetRcvsInCabinetPos` @ `0x15fdb0`, the only
+  position-shaped thing that *does* ride in the parameter blob, is a
   rows×cols grid of receivers **inside one cabinet**, a plain `memcpy` into
   `this+0xe5fc`. It is not a screen coordinate.
 * `CRcvParamManager::SetCabinetSettingParam` @ `0x390360` stores only the
-  cabinet's own pixel size (`SetMaxWidth`, `SetMaxHeight`) — no origin.
+  cabinet's own pixel size (`SetMaxWidth`, `SetMaxHeight`), no origin.
 
 `CReceiverOP::SetMarkRcvPositionEnable` @ `0x3c2e70` is a red herring: it is the
 volatile "highlight this card on the wall" toggle, a type `0x3300` frame with no
 flash or EEPROM opcode anywhere.
 
-## 4. The state this card was found in — HIGH
+## 4. The state this card was found in (HIGH)
 
 Both dumps below were taken with page-addressed (type `0x0600`) flash reads, so
 they are the flash mirror of the EEPROM at `0x07F000`.
@@ -138,7 +138,7 @@ differing from the vendor image in exactly `0x07F000`–`0x07FFFF`, all
 `0xFF`). Then `e120 card screen-size --set 128x64` wrote the 256-byte record
 back with only bytes `0x06`–`0x09` patched and everything else left as the
 `0xFF` it had just read, restoring the size and leaving the offsets at
-`0xFFFF`. It now refuses a record that reads as erased.
+`0xFFFF`. It refuses a record that reads as erased.
 
 ## 5. Answers to the four questions
 
@@ -150,21 +150,21 @@ back with only bytes `0x06`–`0x09` patched and everything else left as the
    record and *not* a flash-block write.
 2. **Is there a per-card position, and where?** Yes: `startX`/`startY` at EEPROM
    `0x02`/`0x04`, big-endian `u16`. There is no separate "receiver index" or
-   "screen number" stored on the card — the index only appears as the frame's
+   "screen number" stored on the card; the index only appears as the frame's
    addressing field (`payload[3..4]`, `0xFFFF` = broadcast).
 3. **What does the card do with the row field?** It compares it against this
    window. The transmitted row is a *screen-global* row (`docs/pixel-protocol.md`
    §1.6), and the card keeps a pixel only when the row is in `[startY, endY)`
    and the column in `[startX, endX)`. That filtering rule is inferred from the
    record's shape and from the fact that FPP addresses rows globally and relies
-   on LEDVISION having set the window — **MEDIUM**; the firmware itself is not
+   on LEDVISION having set the window (**MEDIUM**); the firmware itself is not
    available for static analysis. What is HIGH is that the window exists, that
-   it is per-card, and that ours is currently empty.
+   it is per-card, and that an erase leaves it empty.
 4. **Is there a separate "display on" / "normal mode" command?** No command is
    required beyond what we already send. Two EEPROM flags are adjacent and worth
    restoring to their factory values, but neither is a start/stop:
    `0x41` "no input show info" and `0x42` "turn on screen show" (both `0x00` at
-   the factory, both `0xFF` now). `Nic_SetTestModeIndex` renders host-side and
+   the factory, both `0xFF` after an erase). `Nic_SetTestModeIndex` renders host-side and
    never asks the card (`docs/pixel-protocol.md` §5.1), so the built-in
    generator being inert is expected, not a symptom.
 
@@ -190,7 +190,7 @@ e120 debug send --type 0200 --pad 1282 \
 1296-byte frame: type `02 00`, pack index 0, then 128 entries of
 `left=0, top=0, right=128, bottom=64`.
 
-### 6.1 Persist it — EEPROM `0x02`, 42 bytes
+### 6.1 Persist it: EEPROM `0x02`, 42 bytes
 
 Send with the usual MACs `11:22:33:44:55:66` / `22:22:33:44:55:66`. Payload
 length is `max(0x80, dataLen + 0x12)` = `0x80`, so each frame is **140 bytes**.
@@ -219,7 +219,7 @@ which lays out as:
 | 36 | 32 × `00` | blob (matches the factory value) |
 | 68 | 72 × `00` | pad to a 128-byte payload |
 
-### 6.2 Restore the companion blob — EEPROM `0x92`, 32 bytes
+### 6.2 Restore the companion blob: EEPROM `0x92`, 32 bytes
 
 ```
 e120 debug send --type 1900 --pad 126 --payload \
@@ -267,9 +267,9 @@ e120 debug send --type 1900 --pad 126 --payload 00000044000000020000002a
 i.e. `00 00 00 | 44 | 00 00 00 02 | 00 00 00 2a`; the length field is simply how
 many bytes to return.
 
-## 7. State of the repo
+## 7. What the commands do
 
-* `e120 card screen-size --set` still reads and writes all 256 bytes from
+* `e120 card screen-size --set` reads and writes all 256 bytes from
   EEPROM 0; it refuses a record that reads as erased. It prints the
   end coordinates as a size, which is right only while `startX = startY = 0`.
 * `e120 flash restore-block` writes block 0x07 from an image whose page

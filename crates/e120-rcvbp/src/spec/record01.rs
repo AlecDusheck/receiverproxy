@@ -42,7 +42,7 @@ const DEFAULTS: &[(usize, &[u8])] = &[
     (0x282, &[0x01]),
 ];
 
-/// Bytes the vendor sets from state not yet named (source known, meaning
+/// Bytes the vendor sets from unnamed state (source known, meaning
 /// unresolved), carried as literals so the output matches a config the card accepts.
 const LITERALS: &[(usize, &[u8])] = &[
     (0x043, &[0x60]),                             // OBJ+0xB8

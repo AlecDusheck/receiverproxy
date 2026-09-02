@@ -1,4 +1,4 @@
-# The pixel write path — what happens to a type-`0x55` frame
+# The pixel write path: what happens to a type-`0x55` frame
 
 **The question:** when the card receives a pixel-data Ethernet frame (type byte
 `0x55` at frame offset 12), what does the gateware do with it, and what must
@@ -6,12 +6,12 @@ hold for those pixel bytes to land in the buffer the display raster reads?
 
 **The short answer, stated honestly up front:**
 
-* The **entry point is now identified in the bitstream** and it is not
+* The **entry point is identified in the bitstream** and it is not
   ambiguous: two block RAMs, one per Ethernet port, are the only
-  clock-domain-crossing memories in the design. Every frame the card receives —
-  `0x55`, `0x0A`, `0x0107`, `0x0600`, all of them — enters through one of those
+  clock-domain-crossing memories in the design. Every frame the card receives
+  (`0x55`, `0x0A`, `0x0107`, `0x0600`, all of them) enters through one of those
   two, and nothing else. **HIGH.**
-* The **two candidate destination memories are identified** — two large banked
+* The **two candidate destination memories are identified**: two large banked
   arrays of EBRs, each with a single shared write-enable flip-flop and a single
   shared address generator. **HIGH** that they exist and are so organised;
   **NOT RESOLVED** which of them is the pixel buffer.
@@ -35,7 +35,7 @@ Artefacts produced for this file:
 
 ---
 
-## 1. Method — how the block RAMs were finally opened up
+## 1. Method: how the block RAMs were finally opened up
 
 Every previous attempt in this project to reason about block RAM stopped at
 "53 EBRs are instantiated but none was traced to a logical buffer"
@@ -54,11 +54,11 @@ So the recipe is: find every driven `JA#`/`JB#`/`JC#`/`JD#`/`JCE#`/`JCLK#`/
 `JLSR#` wire, follow `fixed_dn` one hop to learn which EBR pin it actually is,
 then walk the set-arc graph back to the driving cell. `ebrmap.py` does this.
 It is a *one-hop* identification followed by a backward walk, i.e. the pattern
-[decode-method.md §6](decode-method.md#6-how-far-backward-tracing-can-be-trusted--high)
+[decode-method.md §6](decode-method.md#6-how-far-backward-tracing-can-be-trusted-high)
 recommends, not a deep blind trace.
 
-Result: **53 of 56 EBR sites have at least one driven input pin** in 16.53 —
-the same 53 the utilisation count gives — and every one now has its pin set,
+Result: **53 of 56 EBR sites have at least one driven input pin** in 16.53,
+the same 53 the utilisation count gives, and every one has its pin set,
 its clock, its control sources and the die location of its address and data
 generators recorded. Same for 10.81.
 
@@ -79,7 +79,7 @@ obvious (verified at `CIB_R25C4`):
 
 ---
 
-## 2. The receive path: exactly two block RAMs, one per Ethernet port — HIGH
+## 2. The receive path: exactly two block RAMs, one per Ethernet port (HIGH)
 
 Across all 53 instantiated EBRs in 16.53, **exactly two have `CLKA ≠ CLKB`**:
 
@@ -88,14 +88,14 @@ EBR@39,37   CLKA = G_HPBX0100 (global net 1, LR quadrant)   CLKB = G_HPBX0200 (n
 EBR@42,37   CLKA = G_HPBX0000 (global net 0, LR quadrant)   CLKB = G_HPBX0200 (net 2 = PLL CLKOP)
 ```
 
-Both sit at `x = 39` and `x = 42`, `y = 37` — the **lower-right (LR) quadrant**.
+Both sit at `x = 39` and `x = 42`, `y = 37`, the **lower-right (LR) quadrant**.
 Cross-referencing the DCC table in
-[resources.md](resources.md#global-clock-network--high-for-the-arcs):
+[resources.md](resources.md#global-clock-network-high-for-the-arcs):
 
 | DCC | source | nets driven |
 |---|---|---|
-| `LDCC3` | pad `J1` `PCLKT7_1` — **left PHY RXC** | UL1, **LR1** |
-| `RDCC2` | pad `M16` `PCLKT3_0` — **right PHY RXC** | UR1, **LR0** |
+| `LDCC3` | pad `J1` `PCLKT7_1`, **left PHY RXC** | UL1, **LR1** |
+| `RDCC2` | pad `M16` `PCLKT3_0`, **right PHY RXC** | UR1, **LR0** |
 
 So:
 
@@ -107,7 +107,7 @@ They are the design's **only** clock-domain-crossing memories. Since the RGMII
 receive logic is the only thing in the design that runs on a PHY RX clock, and
 since every byte that arrives on the wire arrives in that domain, **these two
 block RAMs are the sole entry point for every Ethernet frame the card
-accepts** — the `0x55` pixel rows included. — **HIGH.**
+accepts**, the `0x55` pixel rows included. **(HIGH)**
 
 Their shape is identical and distinctive:
 
@@ -127,14 +127,14 @@ That is a textbook asynchronous FIFO: write side gated by a two-term condition
 on the RX clock, read side gated by a two-term condition on CLKOP.
 
 **The same signature appears in 10.81**, the build the card is actually running
-([flash-layout.md §5.1](flash-layout.md)) — two EBRs, at `(4,37)` and
+([flash-layout.md §5.1](flash-layout.md)): two EBRs, at `(4,37)` and
 `(10,25)`, with `ADA# = 10`, `DIA# = 9`, `CEA`+`CEB`+`OCEA` driven, no WE, and
 `CLKA ≠ CLKB`. Placement moved; the structure did not. (The specific global-net
 numbers differ between builds and the 10.81 DCC table was **not** re-derived,
 so for 10.81 the claim is "two crossing FIFOs of the same shape", not "this one
-is the left PHY".) — **HIGH.**
+is the left PHY".) **(HIGH)**
 
-### 2.1 A consequence that matters for the bench — HIGH
+### 2.1 A consequence that matters for the bench (HIGH)
 
 **1024 × 9 bits is 1024 bytes.** A maximum-size Colorlight pixel packet is
 `21 + 3 × 497` = **1512 bytes**, which does not fit. So the card cannot be
@@ -146,7 +146,7 @@ single FIFO occupancy, so this is not a fault mode we are hitting. But it does
 mean:
 
 * there is no "whole packet buffered, then validated, then committed" step, and
-  therefore **no place for a whole-packet accept/reject decision** — the
+  therefore **no place for a whole-packet accept/reject decision**; the
   decision has to be made from the header, early, byte by byte;
 * a **row/offset window test on the header is exactly the shape of decision
   this architecture forces**, because it can be made from the first 8 payload
@@ -160,12 +160,12 @@ that §3 shows is **not present**.
 
 ---
 
-## 3. The destination: two banked memories — HIGH that they exist
+## 3. The destination: two banked memories (HIGH that they exist)
 
 Grouping the 53 EBRs by their shared write-enable flip-flop reveals two large,
 regular arrays and a long tail of ones and twos. In 16.53:
 
-### Bank A — 8 EBRs
+### Bank A: 8 EBRs
 
 ```
 EBR@8,37  10,25  10,37  13,25  13,37  15,37  17,25  19,25
@@ -179,7 +179,7 @@ data-in generator cells at x 8..15, y 16..22
 
 Eight blocks × 2048 × 9 = **147 456 bits**.
 
-### Bank B — 12 EBRs
+### Bank B: 12 EBRs
 
 ```
 EBR@44,25  44,37  46,25  48,25  48,37  51,37  53,37  55,37  57,37  60,25  62,25  64,25
@@ -192,45 +192,45 @@ aspect ratios: ADA13/DIA2 (8192x2), ADA12/DIA4 (4096x4), ADA10/DIA16 (1024x16)
 Every member uses **exactly 16 384 of its 18 432 bits**, whatever its aspect
 ratio. Twelve blocks × 16 384 = **196 608 bits**.
 
-`196 608 = 8192 × 24` — which is a 128 × 64 panel at 24 bits per pixel exactly.
+`196 608 = 8192 × 24`, which is a 128 × 64 panel at 24 bits per pixel exactly.
 **Do not read anything into that.** The equivalent bank in 10.81 has **13**
 members (`WEA <- Q4@43,29`), giving 212 992 bits, which breaks the coincidence;
 and the mixed aspect ratios mean the bank is *not* a plain 8192 × 24 array
 anyway. The arithmetic is recorded because it is the sort of thing a later
-reader will compute and be misled by. — the total is **HIGH**, the
+reader will compute and be misled by. The total is **HIGH**; the
 interpretation is **NOT RESOLVED**.
 
 ### What the bank structure rules in and out
 
-* **HIGH — there is no second, idle frame buffer.** Bank A and Bank B are the
+* **HIGH: there is no second, idle frame buffer.** Bank A and Bank B are the
   only multi-EBR arrays in the design, they are structurally different from
   each other (different depth, different width, different control), and every
   remaining EBR is a singleton or a pair. There is nowhere for a "back buffer
   that never becomes the front buffer" to live. **The double-buffer-swap
   hypothesis is dead.**
-* **HIGH — both banks are written at run time and start empty.** Only one EBR
+* **HIGH: both banks are written at run time and start empty.** Only one EBR
   in the whole design carries a `.bram_init` block
-  ([block-ram.md §1](block-ram.md#1-exactly-one-initialised-bram--high)), and it
+  ([block-ram.md §1](block-ram.md#1-exactly-one-initialised-bram-high)), and it
   is neither bank. A bank that is never written scans whatever the SRAM powered
   up as. That is a mechanism for structured garbage that never goes black,
   and it is consistent with the bench.
-* **HIGH — the same two-bank architecture is present in 10.81**, so this is a
+* **HIGH: the same two-bank architecture is present in 10.81**, so this is a
   property of the design, not of the build we cannot run.
-* **NOT RESOLVED — which bank the raster reads and which the Ethernet writes.**
+* **NOT RESOLVED: which bank the raster reads and which the Ethernet writes.**
   See §3.1: the memory that feeds the pads is in **neither** bank, so there is
   at least one more stage between a bank and the output.
 
 ### 3.1 The RAM that feeds the output stage is `EBR@4,25`, and its write gate
-### is a single flip-flop — HIGH
+### is a single flip-flop (HIGH)
 
-[output-stage.md §7.3](output-stage.md#73-what-the-21-mux-selects-between--high-that-it-is-counter-vs-bram)
+[output-stage.md §7.3](output-stage.md#73-what-the-21-mux-selects-between-high-that-it-is-counter-vs-bram)
 traced the pads' 2:1 mux to block-RAM data out at `JQ5@5,25 ← JDOB13_EBR` and
 `JQ2@4,25 ← JDOB2_EBR`. Both J-pins belong to **one** EBR instance: the bel at
 `x = 4, y = 25`, whose configuration spans CIB columns 4–6. That is
-`MIB_R25C4/C5 EBR0` — the same block
-[§7.4](output-stage.md#74-the-control-group-source-ram-starts-empty--high)
+`MIB_R25C4/C5 EBR0`, the same block
+[§7.4](output-stage.md#74-the-control-group-source-ram-starts-empty-high)
 already identified as `WID = 1`, uninitialised at configuration time. The two
-readings now agree and the map fills the block in:
+readings agree and the map fills the block in:
 
 ```
 EBR@4,25   PDPW16KD, PDPW16KD.DATA_WIDTH_R = 36, REGMODE_A/B = OUTREG
@@ -246,20 +246,20 @@ EBR@4,25   PDPW16KD, PDPW16KD.DATA_WIDTH_R = 36, REGMODE_A/B = OUTREG
 Because `WEA` is strapped high, **`CSA0` is the entire write enable of the
 memory that drives the HUB75 pads**, and it is one flip-flop: `Q6@9,27`. Its
 fan-in is a five-level cone of ordinary counter and state-machine flops around
-`x 7..13, y 27..36` — no constant, no parameter-looking register, nothing that
+`x 7..13, y 27..36`: no constant, no parameter-looking register, nothing that
 resolves in five levels. `Q6@9,27` is therefore **the single most interesting
 named signal in the design for this fault**, and it is the obvious first target
 if anyone gets a way to observe internal state (JTAG readback, a debug build,
 or a Diamond-side simulation of the recovered region).
 
-512 × 36 bits is not a frame buffer. It is a **line/scan buffer** — one scan
+512 × 36 bits is not a frame buffer. It is a **line/scan buffer**: one scan
 address's worth of serial data for the output stage, which matches
 `CardScanLen = 256` and 36 bits of parallel colour lanes far better than it
-matches 8192 pixels. That is a shape argument, not evidence. — MEDIUM.
+matches 8192 pixels. That is a shape argument, not evidence. (MEDIUM)
 
 ---
 
-## 4. Why the `0x55` decode itself could not be recovered — and why not to retry
+## 4. Why the `0x55` decode itself could not be recovered, and why not to retry
 
 The decode of the type byte, the row field, the offset field and the count
 field is a **constant comparison plus a magnitude comparison**. This project
@@ -271,7 +271,7 @@ has already established, with a positive control that failed, that:
 > ([parameter-path.md §4](parameter-path.md#4-constants-the-card-compares-against),
 > [chip-id.md](chip-id.md))
 
-Two further attempts were made this session and both failed for reasons that
+Two further attempts were made and both failed for reasons that
 generalise; they are recorded in
 `analysis/fpga/negative_results_and_method.txt` as N6 and N7:
 
@@ -284,7 +284,7 @@ generalise; they are recorded in
   shared span wires and did not terminate in the time available.
 
 So the honest position is: **the netlist can tell you where the packet enters
-and where the two candidate destinations are; it cannot currently tell you what
+and where the two candidate destinations are; it cannot tell you what
 decides whether a given `0x55` payload is written or dropped.** Searching
 harder with LUT-constant methods is *known* to be futile, and that is a
 finding, not a gap.
@@ -295,21 +295,21 @@ Recovering the netlist around the RX FIFO **read port**: what consumes
 `DOA*`/`DOB*` of `EBR@39,37` and `EBR@42,37`, and what the byte counter that
 walks the header feeds. That is a forward netlist-recovery task on a *small,
 localised* region (`x 38..46`, `y 30..45`), which is far more tractable than
-any chip-wide search — and it is the one region of the die whose function is
-now certain.
+any chip-wide search, and it is the one region of the die whose function is
+certain.
 
 ---
 
-## 5. The mechanism the evidence actually points at — and it is not in the FPGA
+## 5. The mechanism the evidence points at, and it is not in the FPGA
 
 This is documentary, not bitstream, evidence, and it is tagged accordingly.
 
-### 5.1 The `row` and `x-offset` fields are absolute display coordinates — HIGH
+### 5.1 The `row` and `x-offset` fields are absolute display coordinates (HIGH)
 
 Both independent senders agree, and neither has any notion of per-receiver
 addressing on the wire:
 
-* **FPP** (`ColorLight-5a-75.cpp`, the copy in this session's scratchpad).
+* **FPP** (`ColorLight-5a-75.cpp`).
   `Init()` loops `for (row = 0; row < m_rows; row++)` over the **whole
   display's** height and packetises `m_rowSize` = the **whole display's**
   width × 3, splitting at 497 pixels. Every packet goes to the one destination
@@ -326,7 +326,7 @@ Each receiver therefore has to **window** the stream: keep the pixels whose
 its own horizontal extent, and discard the rest. There is no other way a wall
 can work from a single broadcast stream.
 
-### 5.2 The card's window is configuration, and it has its own packet — HIGH
+### 5.2 The card's window is configuration, and it has its own packet (HIGH)
 
 FPP documents a packet type this project has been sending but never verified:
 
@@ -358,8 +358,8 @@ offsets** are in the reply too but that his guessed positions did not survive
 testing.
 
 `crates/e120-proto/src/discovery.rs::set_layout` already builds this frame and
-`e120-driver` sends it before the first video frame — but with a **98-byte
-payload**, i.e. room for the header and one 20-byte record only. FPP's sibling
+`e120-driver` sends it before the first video frame, but with a **98-byte
+payload**, room for the header and one 20-byte record only. FPP's sibling
 packet `0x11` carries `3 + 64 × 20 = 1283` data bytes, which is exactly a
 64-receiver table. **A short `0x02` may simply be rejected on length.** That is
 a hypothesis, not a finding; it is cheap to test.
@@ -368,11 +368,11 @@ a hypothesis, not a finding; it is cheap to test.
 
 | bench fact | fits? |
 |---|---|
-| brightness (`0x0A`) and latch (`0x0107`) work | yes — neither carries coordinates, so neither is windowed |
-| streaming shifts supply current, panel garbage changes | yes — frames are received, the RX FIFOs churn, the latch frames still fire |
-| all-black never darkens the panel; all-white differs | yes — if the writes are discarded the bank keeps its power-on contents; the *difference* between black and white would then come from the burst cadence, not the payload. **This is the weakest link: a fully-windowed-out stream should make black and white identical.** Partial overlap would explain a difference; so would a second effect. |
-| config now byte-identical to the seller's `.rcvbp` | yes, and it is the point — the seller's file was compiled for a **256 × 384 wall**, so its notion of where this cabinet sits is not (0,0) in a 128 × 64 display |
-| four different host raster layouts all fail | yes — reordering rows cannot help if every row index is rejected |
+| brightness (`0x0A`) and latch (`0x0107`) work | yes; neither carries coordinates, so neither is windowed |
+| streaming shifts supply current, panel garbage changes | yes; frames are received, the RX FIFOs churn, the latch frames still fire |
+| all-black never darkens the panel; all-white differs | yes; if the writes are discarded the bank keeps its power-on contents; the *difference* between black and white would then come from the burst cadence, not the payload. **This is the weakest link: a fully-windowed-out stream should make black and white identical.** Partial overlap would explain a difference; so would a second effect. |
+| config byte-identical to the reference `.rcvbp` | yes, and it is the point: the reference file was compiled for a **256 × 384 wall**, so its notion of where this cabinet sits is not (0,0) in a 128 × 64 display |
+| four different host raster layouts all fail | yes; reordering rows cannot help if every row index is rejected |
 
 ### 5.4 What this does *not* explain
 
@@ -391,14 +391,14 @@ Send a `0x07` discovery frame (284 bytes, receiver index at frame offset 16)
 with the wire otherwise quiet, capture the `0x08` reply, and dump it. From one
 capture you get, all at once:
 
-1. **`Data[21..24]` — the cabinet width and height the card believes it has.**
+1. **`Data[21..24]`: the cabinet width and height the card believes it has.**
    If that is not `0x0080 0x0040`, the window hypothesis is confirmed on the
    spot and the fix is a configuration fix, not a gateware fix.
-2. **`Data[2..3]` — the firmware version the card reports.** This settles
+2. **`Data[2..3]`: the firmware version the card reports.** This settles
    16.53-vs-10.81 and, per
    [open-questions.md §3.2](open-questions.md#32-where-does-the-reported-firmware-version-come-from),
    also settles which flash bank actually boots.
-3. **`Data[38..41]` — the received-packet counter.** Take a reading, send
+3. **`Data[38..41]`: the received-packet counter.** Take a reading, send
    exactly *K* pixel packets, take a second reading. If the counter advances by
    *K*, the packets are **accepted and counted** and the fault is downstream of
    acceptance. If it does not, they are being dropped at the frame level and
@@ -409,8 +409,8 @@ capture you get, all at once:
    Two captures locate the offset fields exactly.
 
 It is read-only, needs no flash write, costs one frame, and it converts the
-central hypothesis from an argument into a measurement. Everything else —
-row-base sweeps, layout-packet length experiments — should wait for it.
+central hypothesis from an argument into a measurement. Everything else
+(row-base sweeps, layout-packet length experiments) should wait for it.
 
 If the counter *does* advance and the cabinet size *is* 128 × 64, then the
 window theory is refuted and the next move is the localised netlist recovery

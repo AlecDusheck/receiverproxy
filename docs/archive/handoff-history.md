@@ -1,9 +1,8 @@
-# Handoff history
+# Bring-up history
 
-The narrative the top-level `HANDOFF.md` carried until 2026-09-02, kept as
-the record of how the bring-up went. The current state is in `HANDOFF.md`;
-the measurements are in [rendering.md](../rendering.md) and the withdrawn
-claims in [retracted-findings.md](../retracted-findings.md).
+How the bring-up went, day by day. The measurements are in
+[rendering.md](../rendering.md) and the withdrawn claims in
+[retracted-findings.md](../retracted-findings.md).
 
 ## 2026-09-01, evening
 
@@ -55,7 +54,7 @@ static (1.6–1.8). After the install the panel still did not render and black
 and white drew the same current; the card's own test patterns also rendered
 as garbage, which put the fault at or below the card's raster stage. Open
 item at that point: derive the panel-driving parameters (scan addressing,
-chip protocol, timing) from the hardware instead of inheriting the seller's.
+chip protocol, timing) from the hardware instead of inheriting the reference.
 Two analyses were in progress: the gateware's 0x55 receive path and what
 gates a pixel write (`docs/fpga/pixel-write-path.md`), and the vendor SDK's
 Screen Connection step (`screen-connection-wire.md`, `receiver-identity.md`).
@@ -63,7 +62,7 @@ Screen Connection step (`screen-connection-wire.md`, `receiver-identity.md`).
 ## Earlier
 
 * Wire protocol recovered byte-exact from CLTNic.dll ([pixel-protocol.md](../pixel-protocol.md)).
-* Config generation from TOML alone with no donor file; the seller's shipped
+* Config generation from TOML alone with no donor file; the reference shipped
   config regenerates record for record under test.
 * Gateware analysis of the ECP5 bitstream (`docs/fpga/`), including a
   negative-results file so dead searches are not repeated.

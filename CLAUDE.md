@@ -14,7 +14,7 @@ driven. Everything under `config/*/mined/` is a vendor default taken from the
 config corpus, not a measurement.
 
 The hardware works. If pixels are wrong, the fault is in configuration or in
-the frames we send; do not propose rewiring, moving ribbons or ports, or
+the frames sent; do not propose rewiring, moving ribbons or ports, or
 changing the supply.
 
 ## Rig rules
@@ -52,13 +52,13 @@ measured default lives. Keep it true when moving things.
 - Timing defaults in `e120-driver` (frame order, latch count, latch gap, row
   gap) are measured; each carries the measurement in a comment. Change them
   only with a new measurement.
-- Never run hardware commands unless the card is known to be on and the user
-  asked; the card can be left in a state that needs a power-cycle.
+- Never run hardware commands unasked, and never while the card may be off;
+  a command can leave the card in a state that needs a power-cycle.
 
 ## Rust
 
-Clippy runs pedantic and nursery at deny. The rules below are in the same
-spirit:
+Clippy runs pedantic and nursery at deny. The rules below follow the same
+line:
 
 - If a design needs a paragraph to justify it, it is probably the wrong
   design. Step back.

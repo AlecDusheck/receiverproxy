@@ -4,7 +4,7 @@
 # Generate with:  e120 config gen --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
 # Push to RAM:    e120 config send --spec config/panels/p25-128x64-sm16269s.toml
 # Every byte of the output is a vendor default, a field below, a chip-library
-# value, or a documented literal — see build/*-sources.txt.
+# value, or a documented literal; see build/*-sources.txt.
 
 name = "p25-128x64-sm16269s"
 

@@ -1,8 +1,8 @@
-# "Screen Connection" on the wire — the card-area pack (type 0x0200)
+# "Screen Connection" on the wire: the card-area pack (type 0x0200)
 
 > Archived. The type-0x0200 card-area pack decoded here was not adopted: provisioning sets the control area through the EEPROM record ([receiver-identity.md](../receiver-identity.md), [provisioning.md](../provisioning.md)), and `e120_proto::discovery::set_layout` still sends the 98-byte FPP form, off by default in the driver. Section 7 remains open.
 
-What LEDVISION/iSet actually transmits when the user lays cabinets out and
+What LEDVISION/iSet transmits when the user lays cabinets out and
 presses Send or Save. Static analysis of `libCLTDevice.1.dylib` (iSet 7 macOS,
 C++ symbols intact). Nothing was executed or transmitted.
 
@@ -10,7 +10,7 @@ Read with [`docs/receiver-identity.md`](../receiver-identity.md), which covers t
 *persisted* half (the EEPROM control area). This file covers the *volatile*
 half.
 
-## 1. Call path — HIGH
+## 1. Call path (HIGH)
 
 ```
 CReceiverOP::SendOrSaveLayout            0x3b5990   (spawns a thread)
@@ -24,13 +24,13 @@ CReceiverOP::SendOrSaveLayout            0x3b5990   (spawns a thread)
 1. `SavePortBackup`, `CalculateRcvCount`
 2. if `this+0x21` (send-packs): `GetCardAreaParamPacks(layout, m_packs, 0, this+0x20)` @ `0x37c8ec`
 3. if `this+0x20 == 0` (save): `PrepareData()` @ `0x37ca4b`
-4. if `this+0x21`: **`SendRealTimePacks()` @ `0x37ca14` — this is where frames go out**
-5. sender/processor branches (`dt == 1/2/4`) — not reached with no sender box
+4. if `this+0x21`: **`SendRealTimePacks()` @ `0x37ca14`, where the frames go out**
+5. sender/processor branches (`dt == 1/2/4`), not reached with no sender box
 6. if save: `DoWriteConnectionToEeprom()` @ `0x37cace`, then `WriteBackUpConncetion()`
 
 So **Send = the packs below; Save = the packs below *plus* the EEPROM writes.**
 
-## 2. Framing — HIGH
+## 2. Framing (HIGH)
 
 `CSendControl::CSendControl(u8* buf, u32 len)` @ `0x257330`:
 
@@ -43,7 +43,7 @@ So **Send = the packs below; Save = the packs below *plus* the EEPROM writes.**
 ```
 
 Independently rebuilt by the transport, `CCmdAnalysisProtocolNic::CommandPack`
-@ `0x257fb0`, command `0x807D` branch at `0x25814d` — same two MAC constants,
+@ `0x257fb0`, command `0x807D` branch at `0x25814d`: same two MAC constants,
 same `+0xc` payload copy.
 
 **Frame = dst `11:22:33:44:55:66` | src `22:22:33:44:55:66` | payload.** The
@@ -52,11 +52,11 @@ detect frame (`BuildDetectRcvCard` @ `0x30a370`, `movw $0x7,(%rbx)`).
 
 `SendRealTimePacks` @ `0x37ec00` hands `buf+0xC, len-0xC` to
 `CDeviceSetIO::SendData` with `cmd = 0x807D`, `r9d = 2`, plus sender and port
-indices — which the `0x807D` handler ignores entirely. **Nothing about the port
+indices, which the `0x807D` handler ignores. **Nothing about the port
 or the sender appears in the frame**, so these are receiver-directed frames we
 can emit ourselves.
 
-## 3. `SCardAreaPack` — 1284 bytes — HIGH
+## 3. `SCardAreaPack`, 1284 bytes (HIGH)
 
 `GetCardAreaParamPacks` @ `0x38a1c0` allocates 8 stack packs, stride `0x504`,
 each initialised at `0x38a316`/`0x38a327`:
@@ -64,13 +64,13 @@ each initialised at `0x38a316`/`0x38a327`:
 
 | off | size | meaning |
 |---|---|---|
-| 0x000 | 1 | `0x02` — type low byte |
-| 0x001 | 1 | `0x00` — type high byte (wire type reads `02 00`) |
+| 0x000 | 1 | `0x02`, type low byte |
+| 0x001 | 1 | `0x00`, type high byte (wire type reads `02 00`) |
 | 0x002 | 1 | `0x00` |
 | 0x003 | 1 | pack index (`movb %dl, 0x3(%r12)` @ `0x38dc68`) |
 | 0x004 | 1280 | 128 entries × 10 bytes |
 
-### Entry — left / top / right / bottom, big-endian
+### Entry: left / top / right / bottom, big-endian
 
 `GetCardAreaPacksEx` @ `0x38da60`, cursor `%rbx` starting at `pack+0xD` and
 stepping 10 (`0x38dcdd`):
@@ -92,7 +92,7 @@ stepping 10 (`0x38dcdd`):
 
 > **This corrects `docs/archive/config-protocol.md` §15.2**, which read the
 > entry as `xOffset, yOffset, width, height`. It is
-> **left, top, right, bottom** — an exclusive-edge rectangle. The two readings
+> **left, top, right, bottom**, an exclusive-edge rectangle. The two readings
 > coincide only when the card sits at the origin. Corroborated three ways:
 > `GetParamPacksLayout` @ `0x3b9660` fills `0, 0, rcvMaxWidth, rcvMaxHeight`;
 > `CBasicParamSendAndWriter::GetParamPacksLayoutDefault` @ `0x325f50` is
@@ -108,13 +108,13 @@ Other rules, all HIGH:
 * **The receiver's identity is positional**: entry *i* is the *i*-th card in the
   port chain (`GetInitedSenderPortRcvList` @ `0x38daf2`, slot `-1` → entry left
   zero). There is no receiver-index field inside the pack.
-* Unused entries are **not zero** — the filled prefix is replicated across all
+* Unused entries are **not zero**: the filled prefix is replicated across all
   128 slots by a doubling `memcpy` loop at `0x38dd6d`–`0x38ddc1`.
 * Pack count = `ceil(nRcv / 128)`, capped at 8.
 * Zero-receiver fallback (`0x38dde6`) writes entry 0 =
   `00 00 00 00 00 80 00 80` (a 0x8000 × 0x8000 rectangle).
 
-## 4. `SOutputOffset` — 69 bytes, type `0x1100` — HIGH structure
+## 4. `SOutputOffset`, 69 bytes, type `0x1100` (HIGH for the structure)
 
 Built only when the "send" flag is set (`0x38a5c0`); allocated `n * 0x45` and
 initialised `record[0] = 0x11`, `record[3..5] = 0xFFFF` (`0x38a62e`–`0x38a67e`).
@@ -123,12 +123,12 @@ initialised `record[0] = 0x11`, `record[3..5] = 0xFFFF` (`0x38a62e`–`0x38a67e`
 |---|---|---|
 | 0x00 | 1 | `0x11` |
 | 0x01 | 2 | `00 00` |
-| 0x03 | 2 | receiver index, big-endian (default `FF FF`) — **medium** |
-| 0x05 | 64 | copy of `SRcvRegionData + 0x0F` — **NOT RESOLVED**, zero in ordinary use |
+| 0x03 | 2 | receiver index, big-endian (default `FF FF`); **medium** |
+| 0x05 | 64 | copy of `SRcvRegionData + 0x0F`; **NOT RESOLVED**, zero in ordinary use |
 
 Frame length `12 + 69 = 81`.
 
-## 5. `SRcvRegionData` — the layout editor's per-card record — HIGH for +0..+0xE
+## 5. `SRcvRegionData`, the layout editor's per-card record (HIGH for +0..+0xE)
 
 `sizeof = 0x5F`. From `CRcvLayout::GetRcvRegion` @ `0x1b0180` and `ResetIndex`
 @ `0x1b12f0`:
@@ -143,7 +143,7 @@ Frame length `12 + 69 = 81`.
 | +0x09 | u16 | startY |
 | +0x0B | u16 | width |
 | +0x0D | u16 | height |
-| +0x0F | 0x50 | opaque — NOT RESOLVED |
+| +0x0F | 0x50 | opaque, NOT RESOLVED |
 
 ## 6. The frame to send for one 128x64 card at (0,0)
 

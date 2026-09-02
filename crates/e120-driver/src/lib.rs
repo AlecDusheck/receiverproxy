@@ -24,7 +24,7 @@ pub struct Timing {
     /// latches before the last row is stored and that row flickers.
     pub latch_gap: Duration,
     /// Pause between row packets. The card's receive FIFO is 1 KB, so a
-    /// line-rate burst can drop its tail; zero has measured fine so far.
+    /// line-rate burst can drop its tail; zero measured fine.
     pub row_gap: Duration,
 }
 

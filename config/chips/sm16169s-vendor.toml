@@ -53,7 +53,7 @@ serial_clock = 15
 # OBJ+0xD4E1 for 0x124 bytes (0x12E80E-0x12E81A), which covers the whole
 # SChipControl at OBJ+0xD5E5, so on a freshly built parameter object they are
 # zero. (In the corpus they carry leftovers from whichever chip was selected
-# before — 00 00, 0a 02, 05 05 and 0c 00 all occur.)
+# before: 00 00, 0a 02, 05 05 and 0c 00 all occur.)
 #
 # Bytes 10..13 are then recomputed by SetGclkNumsOfChipControlByChipCustom
 # @ 0x151580 (jump table @ 0x1530FC, index chipType-0x12; 0x00DE -> case
@@ -75,7 +75,7 @@ chip_control = [0x00, 0x0e, 0x02, 0x04, 0x08, 0x01, 0x03, 0x00, 0x00, 0x00,
                 0x00, 0x81, 0x00, 0x81, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00]
 
 # SChipCustom, record 0x01 +0x06A..+0x079 / basic-pack body +0x70..+0x7F.
-# THIS is the chip's configuration — the equivalent of record 0x84 on an SH
+# THIS is the chip's configuration, the equivalent of record 0x84 on an SH
 # part. Values below are for scan 16; see chip_custom_scan_patch.
 #
 # ResetChipCustom @ 0x156EA0. Common prologue, for every chip:
@@ -107,7 +107,7 @@ chip_control = [0x00, 0x0e, 0x02, 0x04, 0x08, 0x01, 0x03, 0x00, 0x00, 0x00,
 #   0x18029E753 GetScanMode() (vt+0x420), then helper 0x1802C7940 which does
 #     cc[2] = (cc[2] & ~0x0F) | ((scan-1) & 0x0F), and the same for cc[4], cc[6].
 #
-# Layout (three per-colour pairs plus three 16-bit LE words — the pairing is
+# Layout (three per-colour pairs plus three 16-bit LE words; the pairing is
 # inferred from the R/G/B shape of every other chip's block, MEDIUM):
 #   [0]      0x80 = "use self GCK" (IsPWMChip), plus serial-clock bits 14:8
 #   [1]      serial clock low byte (15)

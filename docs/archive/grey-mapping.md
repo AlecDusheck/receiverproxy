@@ -45,7 +45,7 @@ Which one applies is chosen by the virtual slot **`vt+0x5A8`** on
 `CHWParamRcvGeneral` (call sites `0x19b5dd`, `0x1ed60d`, `0x11aefa`): return 2
 selects the 10-bit table, 4 the 12-bit table, anything else the 8-bit table.
 Record 0x01 flag word #1 bit18 (`vt+0x5A8()==2`) and bit31 (`==4`) are the
-serialised form. **Our card's stored value is the 8-bit table** — see §1.4.
+serialised form. **Our card's stored value is the 8-bit table**; see §1.4.
 
 ### 1.2 The pack: type `0x76`
 
@@ -101,7 +101,7 @@ Per entry `i` in `0..255`, `x = i / 255.0` (`0x11b05d`, divisor `255.0` @
   otherwise `y = (expl((x - 0.559904)*2.79574) + 0.28466892) / 12`
   (`0x11b140`–`0x11b168`). **`y(0) = 0`.**
 * **otherwise** (`0x11b0b0`):
-  * `if (1e-5 > x) y = 0` — `movsd 1e-05, %xmm3; ucomisd %xmm4, %xmm3; ja`
+  * `if (1e-5 > x) y = 0`: `movsd 1e-05, %xmm3; ucomisd %xmm4, %xmm3; ja`
     @ `0x11b0b4`–`0x11b0c0`. **This is the input-0 case: `y(0) = 0.0`,
     unconditionally.**
   * `g < 1.1` → `y = pow(x, g) + 0.0` (`0x11b0f3`, addend `0.0` @ `0x3fc820`).
@@ -121,8 +121,8 @@ Per entry `i` in `0..255`, `x = i / 255.0` (`0x11b05d`, divisor `255.0` @
 Then (`0x11b220`–`0x11b252`): `v = round_half_away(y * outMax)`, clamped to
 `0xFFFFFE`. For `i == 255` only, if
 `IsNeedDropGrayWhenCalGammaTable()` and `grayLevel >= 10`, the top entry is
-reduced by `2^(grayLevel-10)` LSBs of the grey field (`0x11b264`–`0x11b2c9`) —
-this is where the code shows that **the card takes the top `grayLevel` bits of
+reduced by `2^(grayLevel-10)` LSBs of the grey field (`0x11b264`–`0x11b2c9`).
+This is where the code shows that **the card takes the top `grayLevel` bits of
 the 24-bit word**: `cl = 24 - grayLevel` (`0x11b2ac`).
 Finally (`0x11aff0`) the value is quantised, `v = (v >> (8 - shake2)) << (8 - shake2)`,
 and stored big-endian as `v>>16, v>>8, v`.
@@ -136,7 +136,7 @@ Neither the luminance level (record `+0x026`) nor the current percents
 (record `+0x0B4/B8/BC`) enter this function; the only record-0x01 inputs are
 the f32 gamma at `+0x01C`, the derived grey level, and the calc-method bits of
 flag word #2. Current gains/percents reach the card through the **basic pack**
-(`0x34`–`0x37`, `0xD8`), not the gamma table — see §3.
+(`0x34`–`0x37`, `0xD8`), not the gamma table; see §3.
 
 ### 1.4 Where the card keeps it: SPI flash, and the E120 on this bench has one
 
@@ -166,18 +166,18 @@ flag word #2. Current gains/percents reach the card through the **basic pack**
 ```
 
 which decodes as gamma **2.8**, `OBJ+0xB4` = 0, kind **0 (8-bit table)**,
-version 1 — exactly the layout above. And bytes `0x10`..`0x90F` are
+version 1, exactly the layout above. And bytes `0x10`..`0x90F` are
 **byte-for-byte identical** to the table this formula produces for gamma 2.8 at
 **14-bit** grey (`<scratch>/gamma/gamma8_2p8_14bit.bin`; 2304/2304 bytes match,
 zero differences). Entry `i` in the linear segment is `i * 0x400`, and
-`(2^24-1)/(2^14-1) = 1024.0` — the linear slope `L = 255/16383` in 24-bit
+`(2^24-1)/(2^14-1) = 1024.0`, the linear slope `L = 255/16383` in 24-bit
 units, i.e. "output = input, in 14-bit units".
 
 **So: the 8→N map is real, it is on this card, it was computed for 14-bit grey,
 and its entry 0 is `00 00 00`.** Reading it at 12-bit (top 12 bits, `>> 12`)
 still gives 0 for input 0 and `0xFFF` for input 255. It cannot be the floor.
 
-### 1.5 The one additive offset — and why it does not apply
+### 1.5 The one additive offset, and why it does not apply
 
 `CSendAndSaveRcvParam::CalGammaTableAfterCompensation(uchar*, int)` @
 **`0x1e5f90`** adds a constant to gamma-table entries (vectorised
@@ -186,11 +186,11 @@ still gives 0 for input 0 and `0xFFF` for input 255. It cannot be the floor.
 called from all three pack builders (`0x1e7a53`, `0x1e7b39`, `0x1e7c36`).
 
 It is gated (`0x1e5fc4`, `0x1e5fd2`) on `GetScreenShakeParam` returning
-`p1 != 0 && p2 == 6`, and returns unmodified otherwise. It also *skips entry 0*
-— the SIMD loop starts at byte offset 3 (`movl $0x3, %eax` @ `0x1e6029`).
+`p1 != 0 && p2 == 6`, and returns unmodified otherwise. It also *skips entry 0*:
+the SIMD loop starts at byte offset 3 (`movl $0x3, %eax` @ `0x1e6029`).
 `OBJ+0xE13C` is serialised at `SaveBpToBuffer 0x1caee1` / loaded at
 `LoadBpBufFromBuffer 0x1c787f`, which by the established stack-slot mapping is
-**record 0x01 payload `+0x1ED`** — a byte not previously in
+**record 0x01 payload `+0x1ED`**, a byte not previously in
 `docs/record-0x01-fields.md`. Confidence: high for the transport, medium for
 the payload offset.
 
@@ -199,7 +199,7 @@ touch input 0. Not the floor.*
 
 ---
 
-## 2. Grey depth: what the vendor actually derives for chip `0x14C`
+## 2. Grey depth: what the vendor derives for chip `0x14C`
 
 ### 2.1 The file's grey byte is discarded
 
@@ -207,20 +207,20 @@ touch input 0. Not the floor.*
 (record 0x01 `+0x023`), then:
 
 1. `0x13b015`–`0x13b042`: if `(stored - 1) <= 0x13`, test
-   `GetSupporttedGray() & (1 << (stored-1))` — mask table at **`0x401420`**,
-   which is simply `bit(n-1)` for grey `n`. If the bit is clear,
+   `GetSupporttedGray() & (1 << (stored-1))`, mask table at **`0x401420`**,
+   which is `bit(n-1)` for grey `n`. If the bit is clear,
    `OBJ+0x80 = GetDefaultGray()`.
 2. `GetSupporttedGray()` @ **`0x13a5f0`** dispatches on the chip id
    (`OBJ+0xD3C4`) through a jump table at **`0x13aa7c`**. **Chip `0x14C`'s entry
    is `0x13aa0e`, the epilogue, with `r12` left at 0 from
-   `xorl %r12d, %r12d` @ `0x13a609` — the supported-grey mask for `0x14C` is
-   `0x0000`.** So the test always fails and the stored value is always replaced.
+   `xorl %r12d, %r12d` @ `0x13a609`, so the supported-grey mask for `0x14C` is
+   `0x0000`.** The test always fails and the stored value is always replaced.
 3. `GetDefaultGray()` @ **`0x13c0e0`**, jump table **`0x13c410`**: chip `0x14C`
    jumps straight to `0x13c3ee` with the pre-loaded default
-   `movl $0x10, %r15d` @ `0x13c10e` — **16**.
+   `movl $0x10, %r15d` @ `0x13c10e`, **16**.
 4. `GetGrayLevelCalType()` for `0x14C` is **12** (`0xFAF50`; already documented
    in `docs/chip-libraries-non-sh.md` §4). The cal-type-12 arm at `0x13b264`
-   then **overwrites** `OBJ+0x80` again — from the driver registers.
+   then **overwrites** `OBJ+0x80` again, from the driver registers.
 
 ### 2.2 The register formula (cal type 12, chip `0x14C`)
 
@@ -228,7 +228,7 @@ touch input 0. Not the floor.*
 (`docs/chip-control-block.md` §row "SChipCustomPlus"); record 0x84 is a flat
 stream of `[reg, R, G, B]` quads, so byte `k` of the payload is at
 `OBJ+0xD4E5+k`. For the factory table (`config/chips/sm16269s-factory.toml`)
-payload byte 5 is reg `0x03`'s R value and byte 21 is reg `0x07`'s R value —
+payload byte 5 is reg `0x03`'s R value and byte 21 is reg `0x07`'s R value,
 i.e. `OBJ+0xD4EA` = **reg 0x03**, `OBJ+0xD4FA` = **reg 0x07**.
 
 The `0x14C` arm, `0x13b46a`–`0x13b5d8`:
@@ -249,7 +249,7 @@ grey = n < 0x1000 ? 12 : n < 0x2000 ? 13 : n < 0x4000 ? 14 : n < 0x8000 ? 15 : 1
 
 (The generic arm it overrides, `0x13b367`–`0x13b3b2`, is
 `ceil(log10f(clamp(((OBJ+0xD4EA & 0x7F)+1) * OBJ+0xD4FE * 4, <= 0x10000)) / 0.30103f)`
-— `_log10f` @ `0x3fb740`, `log10(2)` @ `0x401390`. It is dead for `0x14C`.)
+with `_log10f` @ `0x3fb740`, `log10(2)` @ `0x401390`. It is dead for `0x14C`.)
 
 A final adjustment at `0x13b1f8`–`0x13b20d`: if `IsSupportNormalScanMethod()`
 and `OBJ+0xDF8C`, the returned value is `OBJ+0x80 - 1`.
@@ -279,7 +279,7 @@ Our registers (`0x03 = 0x3F`, `0x07 = 0x04`, so `b = 0`) give
 > 13, at reg `0x03 >= 0x40` (the chip's 13-bit mode) with reg `0x07` bits 4:3
 > clear. Verified.
 
-### 2.4 `IsNeed16BitGrayWhenSend()` — what it actually changes
+### 2.4 `IsNeed16BitGrayWhenSend()`: what it changes
 
 `CChipTypeClassify::IsNeed16BitGrayWhenSend()` @ **`0xFB710`** returns true for
 chip ids `0x85 0xBB 0xC1 0xC2 0xCC 0xCE 0xCF 0xD6 0xE2 0xE5 0xE6 0x10D 0x110
@@ -317,8 +317,8 @@ a `.rcvbp`) does not apply the rule and emits `0x0E`. Both are documented in
 
 ## 3. The 0x0107 channel-gain bytes (resolved)
 
-Traced in `CLTNic.dll` (x86 build, base `0x10000000`). `fcn.1013d1f0` — the
-call `docs/pixel-protocol.md` §2.2 left open — is **`pow(double, double)`**
+Traced in `CLTNic.dll` (x86 build, base `0x10000000`). `fcn.1013d1f0`, the
+call `docs/pixel-protocol.md` §2.2 left open, is **`pow(double, double)`**
 (Intel SSE2 libm: `stmxcsr` `0x1013d1f3`, mantissa split
 `psrlq xmm0,0x2c` `0x1013d244`, reciprocal table `0x10181390`). `0x10125173`
 is **`roundf`** (half away from zero).
@@ -340,7 +340,7 @@ Then, with `Mb = roundf(M * 255)`:
 | `0x101b1669` | `0x0107` **byte 39 = G gain** | `round(cG * Mb / 255)` | `0x10006355`–`0x100063d7` |
 | `0x101b166a` | `0x0107` **byte 40 = B gain** | `round(cB * Mb / 255)` | `0x10006322`–`0x100063e2` |
 
-**There is no gamma and no offset on these bytes — they are strictly linear.**
+**There is no gamma and no offset on these bytes; they are strictly linear.**
 The `pow(x, 0.4)` calls in the same function feed a *different* triple, bytes
 13/14/15 of the 77-byte **type-`0x0A`** brightness frame
 (`gk = round(255*(ck/255)^0.4)`, `Mg = round(255*M^0.4)`, byte = `round(gk*Mg/255)`;
@@ -360,7 +360,7 @@ R/G/B **current gain** (record `+0x032/033/034`, object `+0xD3B9..BB`,
 accessors `0x16e140`/`0x16e150`/`0x16e160`, reset default `0x2B2B2B2B` at
 `0x12fb37`) and **current percent** (record `+0x0B4/B8/BC`, via
 `GetCurrentPercent` `0x13e920` → `CChipCurrentCalculator::GetCurrentPercent`
-`0xcca80`) reach the card only through the basic pack (`0x34`–`0x37`, `0xD8`) —
+`0xcca80`) reach the card only through the basic pack (`0x34`–`0x37`, `0xD8`);
 they are configuration, not part of the sync frame. Confidence: high.
 
 ---
@@ -381,7 +381,7 @@ Searched `syms.txt`, `sym/*.syms`, `dylib.strings`, `full.asm`, all
   `0.0` for everything else (`xorps` @ `0xf658f`). The whole `CalBlackTime*`
   family (`0x1f5b40`, `0x1f5ba0`, `0x1f4ab0`, `0x1f5be0`, `0x1f5dc0`,
   `0x1f63f0`, `0x1f6620`, `0x1f6070`) is **camera-shutter black-*field timing*
-  for refresh maths, not a black level** — cf. `IDS_ERROR_BLACKTIME`,
+  for refresh maths, not a black level**; cf. `IDS_ERROR_BLACKTIME`,
   "black time >= 2*(Tdt1+Tdt2)".
 * `GetRemoveLowGrayMode()` @ `0x16e3c0` reads `OBJ+0xE62C`, the same slot as
   `GetChipCurrentVerifyVal` @ `0x16f310`; never packed, never serialised. Dead.
@@ -393,7 +393,7 @@ Searched `syms.txt`, `sym/*.syms`, `dylib.strings`, `full.asm`, all
 * `CSC6618Lib::SetGammaStart6618` / `CSC6660Lib::SetGammaStart` are the
   sender-side scaler chips.
 * "Low Gray Spot / 低灰麻点" (`Multi_eng.utf8.ini:175, 355, 448, 491-492, 690`)
-  exists for DP5525/MBI/ICN/LS9937 pages — **there is no 麻点 control on any
+  exists for DP5525/MBI/ICN/LS9937 pages; **there is no 麻点 control on any
   SM16169SH or SM16269 page**.
 
 **Found and reachable, but only as raw chip registers.** The SM16169SH /
@@ -413,7 +413,7 @@ SM16269 parameter dialogs `IDD20172`–`IDD20174`
 
 These are bits inside the 180-byte `SChipCustomPlus` blob shipped by
 `GetChipCustomPlusParamPack` @ `0x1ea2b0` (`memcpy` `0xB4` bytes to `pack+4` @
-`0x1ea2ea`, plus `0x50` bytes from `OBJ+0xD6D0` to `pack+0xB8`) — i.e. record
+`0x1ea2ea`, plus `0x50` bytes from `OBJ+0xD6D0` to `pack+0xB8`), i.e. record
 0x84, which the bench has already swept register by register with no effect.
 The macOS dylib has **no per-field accessors for SM16169SH** (only
 `SSM16169SHChipCustomPlus::GetScanCycleLevel()` @ `0xf0840`). The field/bit
@@ -426,7 +426,7 @@ x 4-bit array at `OBJ+0xC369`; the setter has a clobber bug
 (`movb %al, 0xc369(%rdi)` @ `0x13e388` overwrites entries 0/1 on every call);
 only the first word leaves the host (`GetBasicParam 0x1e2aba`/`0x1e2ac1` →
 pack `0x2C`-`0x2D`; record 0x01 `+0x045`). **No caller anywhere in the dylib.**
-Meaning: **NOT RESOLVED** — treat it as unknown, not as a low-grey control.
+Meaning: **NOT RESOLVED**; treat it as unknown, not as a low-grey control.
 The adjacent byte `OBJ+0xC368` goes to **EEPROM byte `0x71`**
 (`GetEepromPacks 0x1e8043`), which is missing from `docs/eeprom-map.md`.
 
@@ -447,32 +447,32 @@ appears in the macOS dylib.
 
 Ranked, with what supports each.
 
-### 5.1 Leading candidate — the scan table has more bit-plane levels than the pixel word has bits
+### 5.1 Leading candidate: the scan table has more bit-plane levels than the pixel word has bits
 
 `crates/e120-rcvbp/src/image/scan_table.rs` hard-codes `let gray = 14u32` and
 uses the vendor's **14-bit** field-table block, while our basic pack declares
 grey **12**. The scan table is a list of `(level, time/8)` entries: with
 `gray = 14` it contains entries for levels **12 and 13**, whose bit times are
-`2^12` and `2^13` times the minimum OE — together roughly **75 % of the frame's
+`2^12` and `2^13` times the minimum OE, together roughly **75 % of the frame's
 total lit time**.
 
 If the card indexes the pixel word by the `level` byte from the scan table, a
 12-bit word has no bits 12 and 13. Whatever those slots read (adjacent pixel
 bits, stale SDRAM, an undriven bus) is displayed with three quarters of the
-frame's weight — which predicts exactly what the bench sees:
+frame's weight, which predicts exactly what the bench sees:
 
 * a **per-pixel** pattern, present on an all-black frame;
 * **static plus flickering** components (single frames correlate ~0.6 with each
-  other, ~0.88 with the average) — fixed memory contents plus refresh churn;
+  other, ~0.88 with the average): fixed memory contents plus refresh churn;
 * scaling with the channel gains (it is real lit time, not leakage);
-* **immune to every driver register** — it is an FPGA-side scheduling artefact,
-  not a chip setting;
+* **immune to every driver register**, because it is an FPGA-side scheduling
+  artefact, not a chip setting;
 * immune to `[current] percent`, to double-buffer writes, and to grey-depth
   changes on the driver side;
 * the right magnitude: the floor is `(0.75-0.47)/(1.75-0.47) ≈ 22 %` of full
   scale, i.e. those two planes lit at roughly 30 % density.
 
-Status: **inferred**, but every premise is verified — the 14 in the scan table
+Status: **inferred**, but every premise is verified: the 14 in the scan table
 is in our own source, the 12 in the pack is in our own config, and §2.3 shows
 the vendor never pairs them.
 
@@ -519,7 +519,7 @@ Sanity: the shape matches the gray-14 block exactly (levels 0..5 in single
 segments, then 2, 4, 4, 8, 8, and the top in 16), and every store in the block
 maps to a valid `(level, slot)` with none left over.
 
-### 5.3 Runner-up — a grey-depth/word-width mismatch at the driver
+### 5.3 Runner-up: a grey-depth/word-width mismatch at the driver
 
 Our registers derive **14** (§2.3) while the pack says **12**. If the FPGA
 shifts 12 bits per channel per pixel into a chip configured for 14-bit S-PWM
@@ -532,11 +532,11 @@ Status: **inferred, second choice.**
 
 ### 5.4 Ruled out
 
-* A gamma/LUT with a non-zero origin. **Ruled out** — §1.3 (three code paths
+* A gamma/LUT with a non-zero origin. **Ruled out** by §1.3 (three code paths
   all give 0), §1.4 (the table on this card's flash starts `00 00 00`),
   §1.5 (the only additive offset skips entry 0 and is gated off).
-* Any vendor black-level / low-grey pack. **Ruled out** — §4.
-* A minimum-brightness parameter behind the channel gains. **Ruled out** — §3.
+* Any vendor black-level / low-grey pack. **Ruled out** by §4.
+* A minimum-brightness parameter behind the channel gains. **Ruled out** by §3.
 * The card using a *default* table when none is sent: not applicable, this card
   has a real one in flash, byte-identical to the vendor formula.
 
@@ -544,14 +544,14 @@ Status: **inferred, second choice.**
 
 ## 6. The experiment
 
-> **Outcome (2026-09-01):** the primary experiment was run — the 12-level
+> **Outcome (2026-09-01):** the primary experiment was run. The 12-level
 > schedule with 12-bit words raised the all-black draw from 0.75 A to 0.90 A
 > instead of dropping it toward 0.47 A, so the schedule depth is not the
 > floor's cause. The 14-level table stays in the solver; the floor was the
 > phantom line positions ([black-floor.md](black-floor.md)). Kept below as
 > the record of what was tried.
 
-**Primary — make the scan table's level count match the pack's grey byte.**
+**Primary: make the scan table's level count match the pack's grey byte.**
 
 1. Add `FIELD_TABLE_16SEG_GRAY12` (§5.2) to
    `crates/e120-rcvbp/src/image/scan_table.rs` and take `gray` from the spec
@@ -564,7 +564,7 @@ Status: **inferred, second choice.**
    e120 flash restore-block build/<name>-block7.bin --commit
    # power-cycle (arm_at_boot), then measure
    ```
-3. Keep everything else identical — grey byte 12, registers `0x03 = 0x3F`,
+3. Keep everything else identical: grey byte 12, registers `0x03 = 0x3F`,
    `0x07 = 0x04`, gains 12.
 
 **Predicted result if §5.1 is right:** the all-black draw drops from
@@ -574,23 +574,23 @@ just spread over 12 planes instead of 14). A partial drop means only one of the
 two phantom planes was being driven.
 
 **Predicted result if §5.1 is wrong:** black is unchanged, which also settles
-it — move to the secondary test.
+it; move to the secondary test.
 
-**Secondary — run a vendor-consistent (grey, reg 0x03, reg 0x07) triple.**
-The two the vendor can actually emit for our silicon, from §2.3:
+**Secondary: run a vendor-consistent (grey, reg 0x03, reg 0x07) triple.**
+The two the vendor can emit for our silicon, from §2.3:
 
 | variant | reg 0x03 | reg 0x07 | grey byte | field table |
 |---|---|---|---|---|
-| A (what the registers already say) | `0x3F` | `0x04` | **14** | gray-14, `0x1d678a` — already shipped |
-| B (13-bit chip mode) | `0x7F` (bit 6 set) | `0x04` | **13** | gray-13, `0x1d66d4` — needs transcribing |
+| A (what the registers already say) | `0x3F` | `0x04` | **14** | gray-14, `0x1d678a` (already shipped) |
+| B (13-bit chip mode) | `0x7F` (bit 6 set) | `0x04` | **13** | gray-13, `0x1d66d4` (needs transcribing) |
 
 Variant A costs nothing to retry now that the failure mode is understood: the
 current image already carries the 14-level scan table and the 14-bit flash
 gamma table, so setting the pack grey byte to `0x0E` makes all three agree for
 the first time. `rendering-recipe.md` records that 14 "makes pixel data not
 display at all", but that was measured with the grey byte alone changed and
-several other things (notably `+0x02F` and the frame order) not yet settled — it
-is worth one clean repeat.
+several other things (`+0x02F` and the frame order among them) not yet settled.
+It is worth one clean repeat.
 
 **Cheap diagnostic, no reflash.** If levels 12/13 are the culprit, deleting just
 those entries from the scan table should be enough. Zero the `(level, time)`
@@ -611,17 +611,17 @@ gain sweep 0/4/12/40/120 → 0.47/0.71/0.75/0.86/1.08 A.
 | Gamma pack type is `0x76`, `0x487` bytes, index at `+3`, kind at `+4`, payload at `+7` | **verified** (`0x19b5fe`, `0x1e7b50`, `0x1e7b54`, `0x1e7b5f`) |
 | Table entry for input 0 is exactly 0 in every host path | **verified** (`0x11b0b4`–`0x11b0c0`; bypass path `0x1e79bb`; compensation skips index 0 at `0x1e6029`) |
 | The table is `y = L*x` below the tangent point, `L = 255/(2^depth - 1)` | **verified** (`0x11af63`, `0x11b175`–`0x11b1c4`) |
-| This card's flash holds that table, gamma 2.8, 14-bit, header per `0x1ed5a0` | **verified** — 2304/2304 bytes match, header decodes field for field |
-| Flash region = block 9 (`0x90000`) | **medium** — from the dump's filename; the content and header are certain |
+| This card's flash holds that table, gamma 2.8, 14-bit, header per `0x1ed5a0` | **verified**: 2304/2304 bytes match, header decodes field for field |
+| Flash region = block 9 (`0x90000`) | **medium**, from the dump's filename; the content and header are certain |
 | `GetSupporttedGray(0x14C) = 0`, `GetDefaultGray(0x14C) = 16` | **verified** (jump tables `0x13aa7c`, `0x13c410`) |
 | Grey for `0x14C` = bucket(`m * (128 << ((reg07>>3)&3))`), `m = reg03 < 0x40 ? 64 : 32` | **verified** (`0x13b46a`–`0x13b5d8`); constants `0x3fc7f0`, `0x3fe460` |
 | Grey 12 is unreachable for `0x14C`; minimum is 13 | **verified** (arithmetic on the above) |
-| `IsNeed16BitGrayWhenSend` changes only basic-pack `0x0C` | **verified** — one caller, `0x1dfefa` |
+| `IsNeed16BitGrayWhenSend` changes only basic-pack `0x0C` | **verified**: one caller, `0x1dfefa` |
 | `0x0107` gain bytes = `round(c_k * round(255*pct/100) / 255)`, no gamma, no offset | **verified** (CLTNic `0x100062c0`) |
 | No black-level / min-grey parameter exists for this chip | **verified negative** (§4) |
 | `SetGrayCompensation` semantics | **NOT RESOLVED** |
-| `SChipCustomPlus` bit layout for 低灰均匀性 / 低灰补偿 / 消隐等级 | **NOT RESOLVED** — chase `ScreenBeautifyAssistant.dll` |
+| `SChipCustomPlus` bit layout for 低灰均匀性 / 低灰补偿 / 消隐等级 | **NOT RESOLVED**; chase `ScreenBeautifyAssistant.dll` |
 | Record 0x01 `+0x1ED` = `OBJ+0xE13C` gamma additive offset | **medium** |
 | EEPROM byte `0x71` = `OBJ+0xC368` | **medium** |
-| `FIELD_TABLE_16SEG_GRAY12` values | **verified** decode; **tested 2026-09-01** — paired with 12-bit words it raised the black floor (0.75 → 0.90 A) rather than removing it; the solver keeps the 14-level table (`scan_table.rs`, `GRAY`) |
-| The floor is the two phantom bit-plane levels | **retracted** — the §6 primary experiment moved the floor the wrong way; the floor was the phantom line positions ([black-floor.md](black-floor.md)) |
+| `FIELD_TABLE_16SEG_GRAY12` values | **verified** decode; **tested 2026-09-01**: paired with 12-bit words it raised the black floor (0.75 → 0.90 A) rather than removing it; the solver keeps the 14-level table (`scan_table.rs`, `GRAY`) |
+| The floor is the two phantom bit-plane levels | **retracted**: the §6 primary experiment moved the floor the wrong way; the floor was the phantom line positions ([black-floor.md](black-floor.md)) |

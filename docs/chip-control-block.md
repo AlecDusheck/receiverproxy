@@ -6,7 +6,7 @@ offset in that image; `full.asm` is its `objdump -d` with demangled names). Cros
 parse (`vendor/led-config-files` plus LEDVISION 9.6 `config_files/`) and
 against the chip-name tables in `CLTInterface.dll` from LEDSet 2.26.
 
-Confidence is marked per row. **NOT RESOLVED** means exactly that — several
+Confidence is marked per row. **NOT RESOLVED** means exactly that: several
 of these bytes are copied wholesale by the vendor and never read field-by-field
 anywhere in the library, so there is no evidence to name them from.
 
@@ -25,7 +25,7 @@ getter/setter pair. This is where every claim below is anchored.
 | `SChipCustom5th` | `+0xD5FF` | 6 | `GetChipCustom5th` `0x16e0b0` / `Set…` `0x16e0d0` | not in record 0x01 | — |
 
 Confidence **high**: `GetChipControl` is literally
-`movups 0xd5e5(%rsi),%xmm0` + `movl 0xd5f5(%rsi),%ecx` — 16 + 4 = 20 bytes.
+`movups 0xd5e5(%rsi),%xmm0` + `movl 0xd5f5(%rsi),%ecx`, 16 + 4 = 20 bytes.
 
 `SChipControl` is vtable slot **`vt+0x198`** (get) / **`vt+0x1A0`** (set). This
 supersedes `docs/record-0x01-fields.md`'s entry for `+0x0C4`, which called the
@@ -52,16 +52,16 @@ chip-control block.
 So bytes 10–13 of the block that ends up in the boot image are **recomputed at
 pack-build time** and do not have to match what the `.rcvbp` stores. Our
 generator (`crates/e120-rcvbp/src/spec/basic_pack.rs`, `put(0x91, …)`) copies
-the record bytes verbatim instead — which is only correct while the record's
+the record bytes verbatim instead, which is only correct while the record's
 own bytes 10–13 already equal what the vendor would compute. For our current
 config they do (see §2).
 
 ## 1. Per-byte table for `SChipControl`
 
-Sources: `CHWParamRcvGeneral::ResetChipControl()` `0x1454d0` — a jump table at
+Sources: `CHWParamRcvGeneral::ResetChipControl()` `0x1454d0` (a jump table at
 `0x146030` indexed by `chipType − 0x10`, covering ids `0x10..0x15D`, decoded
-directly from the dylib bytes; and `SetGclkNumsOfChipControlByChipCustom`
-`0x151580` — jump table at `0x1530FC` indexed by `chipType − 0x12`.
+directly from the dylib bytes) and `SetGclkNumsOfChipControlByChipCustom`
+`0x151580` (jump table at `0x1530FC` indexed by `chipType − 0x12`).
 
 * chip **0x14C** → `ResetChipControl` case at **`0x145517`**, shared with
   ids `0x47 0xBB 0xC1 0xC2 0xD6 0x110 0x11A 0x125 0x12A 0x12C 0x135 0x13C 0x14A`.
@@ -71,8 +71,8 @@ directly from the dylib bytes; and `SetGclkNumsOfChipControlByChipCustom`
 | byte | record off | pack body | 0x14C | 0x2F | where it is written | meaning | conf |
 |---|---|---|---|---|---|---|---|
 | 0 | `+0x0C4` | `+0x91` | `00` | `00` | `movl $0x05010E00, 0xd5e5` `0x145583` / `movl $0x04030E00` `0x145645` | NOT RESOLVED | — |
-| 1 | `+0x0C5` | `+0x92` | `0e` | `0e` | same dword | NOT RESOLVED. `0x0E` in **every** non-zero branch of `ResetChipControl` — a family constant, not a parameter | — |
-| 2 | `+0x0C6` | `+0x93` | `01` | `03` | same dword | NOT RESOLVED. Varies 1–7 by chip; for ids `0xCD/0x111` it is `2·vt+0x610() + 0x1B` (`0x145996`), for `0xBF/0xCB` it is `3 + 3·(chip==0xBF)` (`0x145961`), `7` for `0x74` (`0x14571f`) — i.e. a small count/index, not a flag | — |
+| 1 | `+0x0C5` | `+0x92` | `0e` | `0e` | same dword | NOT RESOLVED. `0x0E` in **every** non-zero branch of `ResetChipControl`, a family constant, not a parameter | — |
+| 2 | `+0x0C6` | `+0x93` | `01` | `03` | same dword | NOT RESOLVED. Varies 1–7 by chip; for ids `0xCD/0x111` it is `2·vt+0x610() + 0x1B` (`0x145996`), for `0xBF/0xCB` it is `3 + 3·(chip==0xBF)` (`0x145961`), `7` for `0x74` (`0x14571f`); a small count/index, not a flag | — |
 | 3 | `+0x0C7` | `+0x94` | `05` | `04` | same dword | NOT RESOLVED | — |
 | 4 | `+0x0C8` | `+0x95` | `06` | `08` | `movw $0x0106, 0xd5e9` `0x14558d` / `movw $0x0108` `0x14564f` | NOT RESOLVED | — |
 | 5 | `+0x0C9` | `+0x96` | `01` | `01` | same word | NOT RESOLVED. `01` in almost every branch | — |
@@ -80,24 +80,24 @@ directly from the dylib bytes; and `SetGclkNumsOfChipControlByChipCustom`
 | 7 | `+0x0CB` | `+0x98` | `00` | `00` | zeroed unless chip ∈ {`0xC1`,`0xC2`,`0x135`} (`0x145550`); some chips get it from `SetGclkNums…` (e.g. `0x151616`: `= chipCustom[8]`); `SetChipControlParam` sets it to `vt+0x98() & 0x0F` when `IsSpecialNotPWMType()` (`0x1e404e`) | a small nibble-width quantity tied to the output model on non-PWM chips | low |
 | 8 | `+0x0CC` | `+0x99` | `00` | `00` | same word as byte 7; on the `IsSpecialNotPWMType` path `= round(OBJ+0xDEFC × k)` (`0x1e4059`–`0x1e408b`), i.e. derived from the minimum-OE float | min-OE-derived count on non-PWM chips | low |
 | 9 | `+0x0CD` | `+0x9A` | `00` | `00` | `movb $0x0, 0xd5ee` | NOT RESOLVED | — |
-| **10–13** | `+0x0CE..0x0D1` | `+0x9B..0x9E` | `00 97 00 97` | `00 81 00 81` (variants `01 01 01 01`, `02 01 02 01`) | **`SetGclkNumsOfChipControlByChipCustom`** — see §2 | **a 16-bit GCLK / "scan cycle level" count, stored big-endian and then repeated: `(hi, lo, hi, lo)`** | high |
+| **10–13** | `+0x0CE..0x0D1` | `+0x9B..0x9E` | `00 97 00 97` | `00 81 00 81` (variants `01 01 01 01`, `02 01 02 01`) | **`SetGclkNumsOfChipControlByChipCustom`**, see §2 | **a 16-bit GCLK / "scan cycle level" count, stored big-endian and then repeated: `(hi, lo, hi, lo)`** | high |
 | 14–15 | `+0x0D2..0x0D3` | `+0x9F..0xA0` | `00 08` | `00 10` | `movw $0x0800, 0xd5f3` `0x14557a` / `movw $0x1000` `0x145668` | NOT RESOLVED. Reads as a big-endian `0x0800` / `0x1000`; other chips get `0x0000`, `0x0400`, `0x0500`, `0x1000` | — |
-| 16 | `+0x0D4` | `+0xA1` | `02` | `00` | **not written by `ResetChipControl` for either chip** (only `chip == 0x11A` gets `1`, `0x145573`); some chips get `vt+0xA8()` in `SetChipControlParam` (`0x1e3e84`) | NOT RESOLVED — and for chip 0x14C the vendor's reset path never assigns it, so the `02` in our file is carried over from whatever LEDVISION last wrote. **Unexplained.** | — |
-| 17 | `+0x0D5` | `+0xA2` | `00` | `00` | `movb $0x0, 0xd5f6` at the very top of `ResetChipControl` (`0x1454eb`) — unconditionally zero for every chip; only `0x36/0x40` later set `0x20` (`0x1e3ed4`) | always 0 here | high |
+| 16 | `+0x0D4` | `+0xA1` | `02` | `00` | **not written by `ResetChipControl` for either chip** (only `chip == 0x11A` gets `1`, `0x145573`); some chips get `vt+0xA8()` in `SetChipControlParam` (`0x1e3e84`) | NOT RESOLVED. For chip 0x14C the vendor's reset path never assigns it, so the `02` in our file is carried over from whatever LEDVISION last wrote. **Unexplained.** | — |
+| 17 | `+0x0D5` | `+0xA2` | `00` | `00` | `movb $0x0, 0xd5f6` at the very top of `ResetChipControl` (`0x1454eb`), unconditionally zero for every chip; only `0x36/0x40` later set `0x20` (`0x1e3ed4`) | always 0 here | high |
 | 18–19 | `+0x0D6..0x0D7` | `+0xA3..0xA4` | `0a 02` | `00 00` | `movw $0x020A, 0xd5f7` `0x1455a7`; the 0x2F group never writes it | NOT RESOLVED | — |
 
-Both observed 20-byte values are therefore **fully accounted for**: every byte
-is either a literal from the chip's `ResetChipControl` case, a zero it writes,
-or (10–13) the computed GCLK count — except byte 16.
+Both observed 20-byte values are therefore **fully accounted for**, except
+byte 16: every other byte is a literal from the chip's `ResetChipControl`
+case, a zero it writes, or (10–13) the computed GCLK count.
 
-## 2. Bytes 10–13: the GCLK count — HIGH
+## 2. Bytes 10–13: the GCLK count (HIGH)
 
 `SetGclkNumsOfChipControlByChipCustom(SChipControl& sc, SChipCustom, SChipGrobalConfig, SChipCustomPlus, int chipType)`
 `0x151580`. Register layout: `rdi=this`, `rsi=&sc`, `rdx:rcx = chipCustom[0..15]`,
 `r8 = grobalConfig`, stack (`rbp+0x10`) `= chipCustomPlus[0..255]`, `r9d = chipType`.
 Jump table `0x1530FC`, index `chipType − 0x12`.
 
-### chip 0x14C — case `0x151ADB`
+### chip 0x14C, case `0x151ADB`
 
 ```
 level = SSM16169SHChipCustomPlus::GetScanCycleLevel()          ; 0xf0840
@@ -139,11 +139,11 @@ SM16169SH branch applies: `A=1, u=1, v=0, n=0` → `1·128/1 + (0+10+12) + 1 =`
 **`151 = 0x97`**, which is exactly bytes 11 and 13 of `00 0e 01 05 06 01 03 00
 00 00 00 97 00 97 00 08 02 00 0a 02`. This is what pins the whole decode.
 
-Consequences worth knowing:
+Consequences:
 
 * Our generated config (`build/p25-128x64-sm16269s.rcvbp`) has the same
   `reg 0x07 = 0x04` and the same sub-id `0x0000`, so `0x97` is **correct and
-  self-consistent** for it. This block is *not* currently wrong.
+  self-consistent** for it. This block is *not* wrong.
 * With `sub_id = 0x14D` (as `config/chips/sm16269.toml` has) the vendor
   would compute `sm16269(0x04) = 94 = 0x5E`, not `0x97`; with the vendor
   `reg 0x07 = 0x44` as well it becomes `48 = 0x30`. Changing `reg 0x07` or
@@ -153,19 +153,19 @@ Consequences worth knowing:
   `sub_id = 0x14D` + `reg 0x07 = 0x44` with a `chip_control` of `0x97`, a
   combination the vendor would never emit (it would emit `0x30`).
 
-### chip 0x2F — case `0x151BCF`
+### chip 0x2F, case `0x151BCF`
 
 Only acts when `GetChipTypeEx() == 0x102`; for the corpus' sub-id `0x8A` it
 falls through to `0x1526AB` and the bytes stay as `ResetChipControl` left them.
 The three corpus variants are all explained:
 
-* `01 01 01 01` — `ResetChipControl` `0x14568f` (`movl $0x01010101`), taken when
+* `01 01 01 01`: `ResetChipControl` `0x14568f` (`movl $0x01010101`), taken when
   sub-id `== 0x8A`.
-* `00 81 00 81` and `02 01 02 01` — the shape produced by `0x1515E9`
+* `00 81 00 81` and `02 01 02 01`: the shape produced by `0x1515E9`
   (`cl = ((cc[2]&1)·2) ^ 2`, `sil = (cc[2]&1) ? 0x81 : 1`, written to
   `sc[10..13]`). Same pair-of-pairs layout; sub-id-dependent.
 
-## 3. `+0x030` and `+0x031` (`SetGClock`) — they never reach the card
+## 3. `+0x030` and `+0x031` (`SetGClock`): they never reach the card
 
 Loader mapping (record-0x01 handler inside
 `CRcvParamFileManager::LoadBpBufFromBuffer` `0x1c5020`; payload byte `N` lives at
@@ -184,7 +184,7 @@ attributing every `0x…(%r*)` reference to its enclosing function) gives:
 
 * **`OBJ+0xD3B8` ("GCLK setting", record `+0x031`, ours `0x14`)** is referenced
   by exactly four functions: `Reset()` (which sets the default, `movb $0x14,
-  0xd3b8` at `0x12fb30` — i.e. **0x14 *is* the vendor default**), `SetGClock`,
+  0xd3b8` at `0x12fb30`, so **0x14 *is* the vendor default**), `SetGClock`,
   `operator=`, `SaveBpToBuffer`, and one real consumer:
   **`CHWParamRcvGeneral::GetShowGrayValue()` `0x165210`** (read at `0x16598d`,
   feeding a grey-depth computation together with `GetChipCustom`).
@@ -205,16 +205,16 @@ The real GCLK surface for this chip is elsewhere and is thin:
 |---|---|---|---|
 | `CHWParamRcvGeneral::IsUseSelfGCK()` | `0x131430` | wrapper that returns `CChipTypeClassify::IsPWMChip()` → **true** | true |
 | `CChipTypeClassify::IsPWMChip()` | `0xf88e0` | **true** (`cmpl $0x14c` at `0xf8cd0`) | true (`cmpw $0x2f`, `0xf8945`) |
-| `CChipTypeClassify::IsHasGCLKRatioSetting()` | `0xf8e80` | **false** — 0x14C is explicitly excluded by the `id−0x110` / `btq $0x1000100000000401` idiom at `0xf8ef0`/`0xf8f09` | **true** |
-| `CChipParamCalculator::GetGclkCount()` | `0xecf40` | **0** — index `0x13A` falls past the `cmpl $0x138` bound at `0xecfb1`, so the default arm returns 0 | computed |
+| `CChipTypeClassify::IsHasGCLKRatioSetting()` | `0xf8e80` | **false**; 0x14C is explicitly excluded by the `id−0x110` / `btq $0x1000100000000401` idiom at `0xf8ef0`/`0xf8f09` | **true** |
+| `CChipParamCalculator::GetGclkCount()` | `0xecf40` | **0**; index `0x13A` falls past the `cmpl $0x138` bound at `0xecfb1`, so the default arm returns 0 | computed |
 | `CHWParamRcvGeneral::IsGclkAndDclkLinkage()` | `0x167c20` | false (only chip `0x105`, and then only if `chipCustom[9] & 8`) | false |
 | `CHWParamRcvGeneral::IsSpecialNotPWMType()` | `0x161860` | **false** | false |
 
 There is **no** `OeAsGclk`, `LatWidth`, `VsyncMode`, `SelfScan`, `GclkMode` or
 `IsHasGclk` symbol anywhere in the library; the only `Vsync*` symbols are
 sender-side (`CProcessorVOP::SetVSync*`). **LAT/LE pulse widths, VSYNC issuance
-and the data-latch command encoding are not parameters in the `.rcvbp` at all**
-— consistent with `docs/fpga/output-stage.md` §0: the chip's serial protocol
+and the data-latch command encoding are not parameters in the `.rcvbp` at all**,
+which agrees with `docs/fpga/output-stage.md` §0: the chip's serial protocol
 lives in the FPGA bitstream, selected by chip id.
 
 `IsUseSelfGCK()` is how the "use self GCK" bit gets set:
@@ -225,7 +225,7 @@ Our record `+0x06A..0x06B = 80 0F` → bit 7 set, serial clock 15. **Correct.**
 
 ## 4. The "chip-custom-EX" bytes
 
-### `+0x073..0x078` — bytes 9–14 of `SChipCustom`, not a separate field
+### `+0x073..0x078`: bytes 9–14 of `SChipCustom`, not a separate field
 
 `SChipCustom` is `+0x06A..0x079`, so `+0x073..0x078` are its bytes 9–14. The
 library never reads them individually except `chipCustom[9] & 8` in
@@ -235,7 +235,7 @@ library never reads them individually except `chipCustom[9] & 8` in
 The corpus value `03 d0 07 f4 03 79` is a chip-0x2F artefact.
 `ResetChipCustom`'s case for chip `0x2F` + sub `0x8A` (`0x157A99`) writes
 `chipCustom[8..15] = c4 03 44 03 c4 03 79 00` (`movabsq $0x7903c4034403c4`,
-`0x157ad8`) — i.e. three little-endian 16-bit values (`0x03C4`, `0x0344`,
+`0x157ad8`), three little-endian 16-bit values (`0x03C4`, `0x0344`,
 `0x03C4`) plus `0x79`; the corpus files carry an edited variant
 (`… 07d0 … 03f4 … 79`). It also writes `chipCustom[3]=[5]=[7]=0xF9` and
 `chipCustom[2]=[4]=[6] = ((clamp(vt+0x590(),1,0x20) − 1) & 0x1F) | 0x60`.
@@ -248,16 +248,16 @@ common prologue**. The prologue explicitly zeroes bytes 2–15
 default for our chip; the corpus values must not be copied across.**
 Confidence **high**.
 
-### `+0x0E0..0x0E3` — `SChipCustomEX`, pack body `+0xD0`
+### `+0x0E0..0x0E3`: `SChipCustomEX`, pack body `+0xD0`
 
 Four bytes, whole-struct accessors only. `ResetChipCustom` sets it to **0** for
 every chip in its prologue (`movl $0x0, -0x174(%rbp)` then `vt+0x128` =
 `SetChipCustomEX`, `0x156fff`–`0x157016`); the chip-0x14C case does not override
 it. Our zeros are correct.
 
-The corpus `79 00 79 00` is again chip-0x2F specific — the same `0x79` = 121
+The corpus `79 00 79 00` is again chip-0x2F specific: the same `0x79` = 121
 that its `SChipCustom` carries, stored as two little-endian `0x0079`. Same
-"value repeated twice" layout as `SChipControl[10..13]`, so it is very likely a
+"value repeated twice" layout as `SChipControl[10..13]`, so it is likely a
 second count of the same kind for that chip family; **NOT RESOLVED** in detail.
 
 Caveat carried from `docs/record-0x01-fields.md`: bytes here are permuted by
@@ -277,19 +277,18 @@ their **meaning is NOT RESOLVED**. Two things are nonetheless solid:
 
 * Both **do** reach the card (they are in the basic pack, hence in the boot
   image), so they are not inert like `+0x030`/`+0x031`.
-* `OBJ+0xB8` sits inside the scan/output cluster —
-  `0xB5` scan method, `0xB6` split, `0xB7` (loader forces 0), `0xB8` ?,
-  `0xB9` data-group/output code, `0xBB`, `0xBC`, `0xBD` 8 ns OE — and in the
-  pack it is written as the pair `body[0x26] = OBJ+0xB8`,
-  `body[0x27] = OBJ+0xB9 | (outputModel≥2)`. Its `0x60` occurs in **8 of 1146**
-  vendor files, on chips `0xA2`, `0xE5`, `0xFD`, `0x9D`, at scans 8/10/16/28/45 —
-  no correlation with scan, pitch or geometry.
+* `OBJ+0xB8` sits inside the scan/output cluster (`0xB5` scan method, `0xB6`
+  split, `0xB7` (loader forces 0), `0xB8` ?, `0xB9` data-group/output code,
+  `0xBB`, `0xBC`, `0xBD` 8 ns OE), and in the pack it is written as the pair
+  `body[0x26] = OBJ+0xB8`, `body[0x27] = OBJ+0xB9 | (outputModel≥2)`. Its
+  `0x60` occurs in **8 of 1146** vendor files, on chips `0xA2`, `0xE5`, `0xFD`,
+  `0x9D`, at scans 8/10/16/28/45: no correlation with scan, pitch or geometry.
 
 ## 6. How the chip id changes the card-side protocol
 
 `GetChipType()` `0x16daa0` = `OBJ+0xD3C4` (record `+0x036` low, `+0x204` high);
 `GetChipTypeEx()` `0x16da90` = `OBJ+0xDF20` (record `+0x0E9` low, `+0x205` high).
-`CChipTypeClassify` `0xf8870` caches nothing — it holds only a
+`CChipTypeClassify` `0xf8870` caches nothing; it holds only a
 `CHWParamRcvGeneral*` and re-calls the vtable each time.
 `GetChipTypeExPosition` `0xfcdb0` folds `0x14D → 0x14C` and `0x8A → 0x2F`.
 
@@ -325,15 +324,15 @@ implemented: `SChipControl` (`ResetChipControl` `0x1454d0`, per-chip jump table)
 (zeroed by default, per-chip overrides), the serial clock
 (`ResetIS`, via `IsPWMChip` and `GetChipMaxScanMode`), the grey level
 (`GetGrayLevel`, from `SChipCustom[2]`/`[3]`/`[9]` and the register table), and
-the pack-time fixups in `SetChipControlParam` `0x1e3b00` — **whose per-chip lists
-do not contain `0x14C` at all**, so for our chip the only pack-time changes to
-the block are the GCLK count of §2.
+the pack-time fixups in `SetChipControlParam` `0x1e3b00`, **whose per-chip lists
+do not contain `0x14C` at all**, so for our chip the only pack-time change to
+the block is the GCLK count of §2.
 
-## 7. Chip names — and a correction
+## 7. Chip names, and a correction
 
 Recovered from the 13 name tables in the dylib, all referenced from
 `CHWParamRcvGeneral::InitChipNameMap()` `0x12F100`. Record layout, stride
-`0x104` on macOS: `{u16 chipType; wchar_t name[64] (UTF-32LE); u16 groupIdx}` —
+`0x104` on macOS: `{u16 chipType; wchar_t name[64] (UTF-32LE); u16 groupIdx}`;
 the 4-byte `wchar_t` is why `strings` finds nothing. On the Windows DLLs the
 same tables use stride `0x84` with 2-byte `wchar_t`.
 
@@ -343,7 +342,7 @@ same tables use stride `0x84` with 2-byte `wchar_t`.
 | `0x008A` | **SM16159** | `_SMChipNameTable` `0x45E8BC`; `CLTInterface.dll` `0xD704D4` |
 | `0x014C` | **SM16169SH** (newer builds: `SM16169SH/SL`) | `_SMChipNameTable` `0x45EAC4`; `CLTInterface.dll` `0xD705DC` |
 | `0x014D` | **SM16380SH** (newer: `SM16380SH/SA`) | `_SMChipNameTable` `0x45FB04`; `CLTInterface.dll` `0xD713C8`; LEDVISION 9.6 `CLTDevice.dll` `0x438394` |
-| `0x0214` | **SM16269S** | `CLTInterface.dll` `0xD70EA0` — **only** in the LEDSet 2.26 build |
+| `0x0214` | **SM16269S** | `CLTInterface.dll` `0xD70EA0`, **only** in the LEDSet 2.26 build |
 
 Neighbours: `0x00DE` SM16169S, `0x0170` SM16169SW/SM16189, `0x024D` SM16169SK,
 `0x0217` SM16269SW, `0x0215` SM16386SH.
@@ -354,16 +353,16 @@ Two corrections this forces on earlier notes:
    `config/chips/sm16269.toml`'s header comment and `sub_id = 0x014D` are wrong.
    The C++ class `SSM16269ChipCustomPlus` is bound to id `0x14D`
    (`CChipParamCalculator::CalRefreshFreqSM16169SH` `0xE28A0` branches on
-   `GetChipTypeEx() == 0x14D` and calls it, `0xE299F`) — an internal misnomer in
+   `GetChipTypeEx() == 0x14D` and calls it, `0xE299F`), an internal misnomer in
    the vendor's own source. Do not read the class name as evidence.
 2. **The real SM16269S is `0x0214`, and `libCLTDevice`/LEDVISION 9.6 do not
-   know it at all** — the dylib's tables stop at `0x15D`. Declaring `0x014C`
+   know it at all**; the dylib's tables stop at `0x15D`. Declaring `0x014C`
    (SM16169SH) is the closest thing those builds can express, and it is what
    both the reference file and ours do.
 
-The task brief described the `0x002F` corpus as "SM16169 modules". It is not:
+Earlier notes described the `0x002F` corpus as "SM16169 modules". It is not:
 `0x2F` is MBI5153 with sub-id SM16159. Treat that corpus as a *different chip
-family* — its `SChipControl`, `SChipCustom` and `SChipCustomEX` values are not
+family*: its `SChipControl`, `SChipCustom` and `SChipCustomEX` values are not
 transferable to `0x14C`, and `IsHasGCLKRatioSetting` is true for it and false
 for us.
 
@@ -392,7 +391,7 @@ identity that arms the SM16269S outputs; `0x0214` (the real SM16269S id,
 known only to LEDSet 2.26) and `0x00DE` never arm. Record `+0x043 = 0x60`
 (8 of 1146 vendor files; `OBJ+0xB8` in the scan/output member cluster, pack
 body `+0x26`) and `SChipControl` byte 16 = `0x02` (never written by the reset
-path for this chip) were not needed and their meaning is still not resolved.
+path for this chip) were not needed and their meaning is not resolved.
 
 Cleared by this analysis:
 
@@ -403,7 +402,7 @@ Cleared by this analysis:
   default for this chip.
 * `SChipCustomEX` = zeros is the vendor default.
 * Record `+0x030 = 0x32` and `+0x031 = 0x14` are the vendor defaults **and
-  never reach the card** — `+0x031` ("GCLK setting") only feeds
+  never reach the card**; `+0x031` ("GCLK setting") only feeds
   `GetShowGrayValue()`. Sweeping it can do nothing.
 * The corpus values for `+0x073..0x078` and `+0x0E0..0x0E3` belong to MBI5153 /
   SM16159 and must not be ported.

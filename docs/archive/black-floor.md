@@ -5,12 +5,12 @@
 > writes, and with it black measures 0.466 A (LEDs off). Kept for the decode
 > and the verification of the other candidate tables.
 
-2026-09-01. Static analysis only — nothing was executed, nothing touched the
+2026-09-01. Static analysis only: nothing was executed, nothing touched the
 card. Every hex address is a byte offset in the macOS build
 `libCLTDevice.1.dylib` (`__TEXT` VAs = file offsets); the disassembly used is
-`<scratch>/libCLTDevice.asm` (a scratch directory outside the tree). Image offsets are offsets into the 0x8000-byte
-compiled parameter image (flash `0x70000`), per
-[compiled-image-format.md](../compiled-image-format.md).
+`<scratch>/libCLTDevice.asm` (a scratch directory outside the tree). Image
+offsets are offsets into the 0x8000-byte compiled parameter image (flash
+`0x70000`), per [compiled-image-format.md](../compiled-image-format.md).
 
 **The bench fact this file exists to explain.** An all-black frame leaves a
 *fixed* per-slot, per-colour duty (~24 % of white): red lit on chain slots
@@ -20,10 +20,10 @@ scales only with the `0x0107` channel-gain bytes, is invariant to every driver
 register and to the grey byte, and **changes shape with the load-length fields**
 (CardScanLen / MaxPsc at basic-pack body `+0x0D`, `+0x39`, `+0xE3`, `+0xE5`).
 
-**Headline.** The type-`0x1F` void-line table is now fully decoded, and the
+**Headline.** The type-`0x1F` void-line table is fully decoded, and the
 bench result "both void-line regions = `0xFF` → panel completely dark" is
 exactly what the decode predicts. But the decode also shows **our bytes are the
-correct vendor output** — all-zero, byte-identical to the factory image, and
+correct vendor output**: all-zero, byte-identical to the factory image, and
 independently corroborated by the anti-void table the vendor derived *from* that
 same void table. So candidate (a) is **not a misconfiguration**; what it gives
 us instead is a proven, per-position output gate that can be used as a probe.
@@ -32,7 +32,7 @@ source is card-side, and §6 says how to localise it with two reflashes.
 
 ---
 
-## 1. The type-`0x1F` void-line table — VERIFIED
+## 1. The type-`0x1F` void-line table (VERIFIED)
 
 ### 1.1 The pack
 
@@ -72,12 +72,12 @@ and the per-pack source offset comes from the jump table at `0x1e5998`
 `CHWParamRcvGeneral::ChangeVoidLineDataFromNormalToCustom` @ **`0x160160`**:
 
 * returns immediately if `OBJ+0xD4D0 != 0` (a "custom void data already loaded"
-  flag) — `0x16016e`;
-* otherwise `bzero(OBJ+0xD4C8, 0x1000)` — `0x160188`;
+  flag), `0x16016e`;
+* otherwise `bzero(OBJ+0xD4C8, 0x1000)`, `0x160188`;
 * **returns with the buffer still all zero if the void-line count is 0**
   (`vt+0xD8` → `testb %al,%al; je` at `0x1601d2`);
 * otherwise walks the void groups and does `addb %bl, buf[i]` over a suffix of
-  the range — an accumulating **offset** per index, not a flag.
+  the range: an accumulating **offset** per index, not a flag.
 
 Two branches, and they are what fix the buffer's layout:
 
@@ -118,12 +118,12 @@ buffer (`dst[0x0000..0x0FFF]` = line axis, `dst[0x1000..0x1FFF]` = column axis,
 
 This is decisive in three ways:
 
-* it confirms `physical = real + offset` — step 2 marks exactly the *images* of
+* it confirms `physical = real + offset`: step 2 marks exactly the *images* of
   the real positions as non-void;
 * it explains the bench result: `voidbuf = 0xFF` ⇒ `p = a + 255`; for `a` in a
   256-slot line every image is still ≤ `0x7FF`, but every *real* position is
-  displaced by 255, so nothing the card wants to emit lands where the panel is
-  — **the panel goes dark, including the floor**;
+  displaced by 255, so nothing the card wants to emit lands where the panel is,
+  and **the panel goes dark, including the floor**;
 * it means **a non-void entry is `0x00`, not a marker.** `0x2000` (bit 13) is
   the marker; it lives in the *anti-void* table, not this one.
 
@@ -141,9 +141,9 @@ same `0x40C` pack shape, source offsets from the bitmask dispatch at
 
 | pack | source | image |
 |---|---|---|
-| 0,1 | `0x0000`, `0x0400` | `0x1800`, `0x1C00` — line axis, entries 0–1023 |
-| 2,3 | `0x1000`, `0x1400` | `0x2000`, `0x2400` — column axis, entries 0–1023 |
-| 4–7 | `0x0800`,`0x0C00`,`0x1800`,`0x1C00` | `0x7000`… — entries 1024–2047, large load only |
+| 0,1 | `0x0000`, `0x0400` | `0x1800`, `0x1C00` (line axis, entries 0–1023) |
+| 2,3 | `0x1000`, `0x1400` | `0x2000`, `0x2400` (column axis, entries 0–1023) |
+| 4–7 | `0x0800`,`0x0C00`,`0x1800`,`0x1C00` | `0x7000`… (entries 1024–2047, large load only) |
 
 ### 1.5 The exact bytes for our geometry (128x64, 1/16, one 256-slot lane)
 
@@ -161,14 +161,14 @@ or void points (basic-pack body `+0x1F` void-point count = 0), so:
 
 **Verified against the card**: `card-dumps/primary-region.bin` at `0x71000` and
 `0x76800` are all zero (2048 bytes each), `0x71800` is `0x2000+n` twice, and
-`0x77000` is all zero — and our generated `build/p25-128x64-sm16269s-block7.bin`
+`0x77000` is all zero, and our generated `build/p25-128x64-sm16269s-block7.bin`
 matches. The factory image's anti-void table being exactly `0x2000+n` with **no
 `0x8000` bit anywhere** is independent proof that the void table it was derived
 from was all zeros, i.e. that all-zero *is* the vendor's output for a module
 with no void lines.
 
 > **Conclusion for candidate (a): the void-line table is correct as written.
-> `0x00` does not mean "void: output fixed data" — it means "no displacement".
+> `0x00` does not mean "void: output fixed data"; it means "no displacement".
 > The `0xFF` experiment did not find a bug; it demonstrated that the card
 > applies this remap to every position it drives, the floor included.**
 
@@ -176,7 +176,7 @@ with no void lines.
 
 ## 2. Candidates closed by this analysis
 
-### (b) data-swap / colour source / current exchange — CLOSED, our zeros are right
+### (b) data-swap / colour source / current exchange: CLOSED, our zeros are right
 
 `CSendAndSaveRcvParam::GetCurrentExchangeParamPack` @ **`0x1f6890`** sets
 `pack[5] = 1` and asks `CRCVCurrentDataManager::GetCurrentExchangeParam(pack+0xC,
@@ -190,27 +190,27 @@ g = GetGroupIndexFromDataSwap(GetModuleIndexFromActualPos(...), swapCopy)   ; 0x
 dst[g] = GetModuleIndex(...)                                               ; 0x1adcfc
 ```
 
-— i.e. **a hub-data-group → module-index map**, one byte per group. With a
+That is **a hub-data-group → module-index map**, one byte per group. With a
 single module every group maps to module **0**, so the vendor's output is the
 all-zero buffer it started from. This resolves the "may differ from vendor
-output — NOT RESOLVED" note in
+output, NOT RESOLVED" note in
 [compiled-image-format.md](../compiled-image-format.md) for image `0x0C00`:
 **zeros are correct for one module.** (VERIFIED for the writer; the value
-`GetModuleIndex` returns for module 0 is inferred to be 0 — MEDIUM.)
+`GetModuleIndex` returns for module 0 is inferred to be 0, MEDIUM.)
 
 There is no per-lane padding data anywhere in the data-swap pack: it is the
 64-byte lane map plus three `01 00` deseam fixed-point 1.0 pairs.
 
-### (c) module-position table (type 0x17) — CLOSED
+### (c) module-position table (type 0x17): CLOSED
 
 The vendor's all-zero output is the `> 64 tiles` bail-out only
 (`GetDefaultModulePos` @ `0x1558b0`). Our screen is 8 x 4 = **32** tiles of the
 16 x 16 grid unit, under the limit, so a real table with count `0x20` is what the
 vendor would emit. Our table is that. Nothing here can make the card treat part
-of a line as another module — the table carries `[outer, inner, x, y, w, h]`
+of a line as another module: the table carries `[outer, inner, x, y, w, h]`
 rectangles of the *screen*, not of the shift chain.
 
-### (e) "CardScanLen 256, extent 128" — CLOSED, that ratio is the vendor's own
+### (e) "CardScanLen 256, extent 128": CLOSED, that ratio is the vendor's own
 
 Read from the two images (`card-dumps/primary-region.bin` `0x70000` vs
 `build/…-block7.bin`), basic-pack body offsets:
@@ -225,13 +225,13 @@ Read from the two images (`card-dumps/primary-region.bin` `0x70000` vs
 | `0x3B` extent in line dir | `0100` = 256 | `0080` = 128 |
 | `0xE3`/`0xE5` MaxPsc | `0200` | `0100` |
 
-The factory has extent 256 against CardScanLen 512 — **the same 2:1 ratio we
+The factory has extent 256 against CardScanLen 512, **the same 2:1 ratio we
 have**, and it is arithmetically forced: `OneScanLen = W·(H/2)/scan = W·2` for a
 128x64 at 1/16, i.e. two row-groups share one 2·W-slot shift. The card is
 *supposed* to be told "the line is 128 wide and the chain is 256 slots".
 Nothing is wrong here.
 
-### (d) scan table — not a *configuration* differentiator
+### (d) scan table: not a *configuration* differentiator
 
 Our scan table is byte-identical to the factory's, and
 [output-stage.md §3](../fpga/output-stage.md) records that the generator produces
@@ -239,9 +239,9 @@ the same table for a 256- and a 512-clock load (the width enters only a frame-
 time estimate). A table that does not change with the load cannot be the thing
 whose *shape* changes when CardScanLen changes. The `(start,end)` pairs at
 `+0x3C0` and the segment schedule remain the mechanism that converts whatever is
-in the line buffer into duty — but they are not carrying a per-slot pattern.
+in the line buffer into duty, but they are not carrying a per-slot pattern.
 
-### (f) default markers — searched, nothing found
+### (f) default markers: searched, nothing found
 
 The pack builders that touch per-position data are
 `GetVoidLineInfoPacks` (`memcpy` of a `bzero`ed buffer),
@@ -250,18 +250,18 @@ positions), `GetPixelSequencePacks` @ `0x1e5aa0` (`bzero` then the mapping) and
 `GetVoidTablePack` @ `0x1e5710` (bails, zeros). The only non-zero constants any
 of them writes into per-position data are the anti-void `0x20` marker and the
 `0x8000` void flag. **No builder writes `0xFFFF`, `0x8000` or any other filler
-into slots it considers unused.** — VERIFIED negative over these five builders.
+into slots it considers unused.** VERIFIED negative over these five builders.
 
 ---
 
-## 3. What the `0xFF` result actually tells us — INFERRED but tight
+## 3. What the `0xFF` result tells us (INFERRED but tight)
 
 1. The floor is emitted **through the card's normal per-position output path**;
    it is not leakage, not a stuck OE, and not the driver free-running. If it
    were any of those, displacing the position map could not extinguish it.
 2. The floor is therefore **content in the line buffer** (`EBR@4,25`, 512 x 36,
    [pixel-write-path.md §3.1](../fpga/pixel-write-path.md)) for real slot
-   positions, and pixel data **adds on top of it** rather than replacing it —
+   positions, and pixel data **adds on top of it** rather than replacing it:
    sent patterns render correctly over it.
 3. It is bit-exact across power cycles, so its source is deterministic: either a
    counter or a table the card loads identically from flash on every boot. Not
@@ -273,18 +273,18 @@ into slots it considers unused.** — VERIFIED negative over these five builders
    RGB lanes from something other than the pixel buffer.*
 5. Its boundary is at **slot 128 = the module width = the row-group boundary**
    (`slot = group·W + col`, `crates/e120-rcvbp/src/spec/mapping.rs`), not at 64.
-   So the red lane differs between the two row-groups of one scan address —
+   So the red lane differs between the two row-groups of one scan address,
    which is a *slot-index* structure, not a panel-column structure.
-6. Its dependence on CardScanLen says the fill is addressed with the load length
-   — consistent with (4)+(5) and with `EBR@4,25` being a per-scan-address line
+6. Its dependence on CardScanLen says the fill is addressed with the load length,
+   consistent with (4)+(5) and with `EBR@4,25` being a per-scan-address line
    buffer of exactly `CardScanLen` slots.
 
 None of (1)–(6) is a configuration byte we get wrong. Every configuration
-candidate in the brief is now either verified-correct (§1.5, §2) or shown to be
+candidate considered is either verified-correct (§1.5, §2) or shown to be
 width-independent (§2d). **The remaining hypothesis is card-side: one plane's
 worth of the line buffer is filled from a fixed internal source.** That is not
-decidable from the vendor library — the library has no model of the card's line
-buffer at all — and [output-stage.md §7.3](../fpga/output-stage.md) already
+decidable from the vendor library (it has no model of the card's line
+buffer at all), and [output-stage.md §7.3](../fpga/output-stage.md) already
 records the unresolved 2:1 mux in the output stage (CCU2 counter vs block-RAM
 data-out) as exactly this kind of "fixed source vs live data" selection.
 
@@ -300,10 +300,10 @@ data-out) as exactly this kind of "fixed source vs live data" selection.
 | Entries are byte offsets; `physical = real + offset`; `0x00` = no displacement | **verified** (`0x1602c8` accumulate; `0x160552`/`0x160563` image marking) |
 | A no-void module gets an all-zero table | **verified** (early return at `0x1601d2` after the `bzero` at `0x160188`) |
 | Anti-void entry = `0x2000` + rank, `+0x8000` if void; bit 6 forced 0 | **verified** (`0x160500`, `0x1605cd`, `0x1605e6`) |
-| The factory card's void table was identity | **verified** — its anti-void image is `0x2000+n` with no `0x8000` anywhere |
-| Our `0x1000`/`0x1400`/`0x6800`/`0x1800`/`0x7000` bytes equal the factory's | **verified** — byte census of `card-dumps/primary-region.bin` |
+| The factory card's void table was identity | **verified**: its anti-void image is `0x2000+n` with no `0x8000` anywhere |
+| Our `0x1000`/`0x1400`/`0x6800`/`0x1800`/`0x7000` bytes equal the factory's | **verified** by byte census of `card-dumps/primary-region.bin` |
 | Current-exchange body = group→module-index map; zeros correct for one module | **verified** for the writer (`0x1adc80`, `0x1adcfc`); **medium** that module 0 → 0 |
-| extent 128 with CardScanLen 256 is the vendor relationship | **verified** — factory 256/512 is the same ratio |
+| extent 128 with CardScanLen 256 is the vendor relationship | **verified**: factory 256/512 is the same ratio |
 | No pack builder emits a filler word for unused positions | **verified negative** over the five per-position builders |
 | The floor is one bit-plane sourced from a fixed card-internal source | **inferred** (§3) |
 | The floor's index space is the 256-slot chain rather than the 128-column module | **inferred** from the slot-128 boundary; §6 A settles it |
@@ -321,7 +321,7 @@ data-out) as exactly this kind of "fixed source vs live data" selection.
   is the switch that would let a hand-written void table survive a vendor
   rebuild.
 * `vt+0xF8` (row-vs-column void axis selector), `vt+0xC8` (start void line),
-  `vt+0xD8` (void line count), `vt+0xE8` (void line spacing) — named by their
+  `vt+0xD8` (void line count), `vt+0xE8` (void line spacing): named by their
   `Get/SetVoidLine*` accessors at `0x161d70`-ish but not mapped to record
   offsets. All are 0 for us.
 
@@ -345,7 +345,7 @@ Write the **column** half only, image `0x1400`–`0x17FF`:
 
 Leave the line half (`0x1000`–`0x13FF`) all zero. For a vendor-consistent image
 also rewrite the anti-void **column** block at image `0x1C00`–`0x1FFF` by the
-§1.3 rule — non-void set = `{0..127} ∪ {256..1023}` (the displaced `383..510`
+§1.3 rule: non-void set = `{0..127} ∪ {256..1023}` (the displaced `383..510`
 are already inside it), rank = running count of non-void positions:
 
 ```
@@ -355,14 +355,14 @@ p in 256..1023  -> 0x2000 | (p - 128)
 ```
 
 **Read-out.** If the floor and the picture both vanish on chain slots 128–255,
-the card's column axis *is* the chain slot and the floor lives in slot space —
-then repeat with the halves swapped to confirm, and the floor's shape is a
+the card's column axis *is* the chain slot and the floor lives in slot space;
+repeat with the halves swapped to confirm. The floor's shape is then a
 function of slot index, which points the netlist work at the line-buffer
 address generator. If instead a *different* 64- or 128-column band of the panel
 goes dark, the card's column axis is the module column (0–127) and the
 `0x0F`/`0x3B` extent is what indexes it. If the floor survives untouched while
 the picture goes dark on those slots, the floor is injected **downstream of the
-void remap** and every configuration hypothesis is dead — which is itself the
+void remap** and every configuration hypothesis is dead, which is itself the
 most valuable possible outcome.
 
 ### B. What is the line axis? (one page, no anti-void edit needed if you accept the inconsistency)
@@ -376,8 +376,8 @@ Write the **line** half, image `0x1000`–`0x13FF`:
 
 If exactly one scan address stays lit, the line axis is the scan address
 (0–15). If one panel row band stays lit, it is the panel row (0–63). Either
-answer tells you how many of the 1024 entries the card actually consults, and
-whether the floor is per-scan-address or per-row — which the camera can read off
+answer tells you how many of the 1024 entries the card consults, and
+whether the floor is per-scan-address or per-row, which the camera can read off
 one frame.
 
 ### Not worth doing

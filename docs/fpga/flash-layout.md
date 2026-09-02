@@ -9,17 +9,17 @@ How a vendor `.hex` maps into the card's flash, what else lives there, and the
 `analysis/fpga/failing-frames-primary-after-restore.tsv`,
 `analysis/fpga/flash-map.py` (regenerates all of it, read-only).
 
-## 1. Alignment: delta = 0 — HIGH
+## 1. Alignment: delta = 0 (HIGH)
 
 A vendor `.hex` byte 0 lands on flash byte 0 of the bank base, ASCII header
-and all. **The 128-byte size difference is not an offset** — it is trailing
+and all. **The 128-byte size difference is not an offset**; it is trailing
 padding at `.hex` `0x0B0000`–`0x0B007F` that the dumps simply stop short of.
 
 Every bitstream command byte lines up exactly at delta 0 in all three dumps:
 `BD B3` at `0x158`, `0xE2` at `0x162`, `0x22` at `0x16A`, `0x82` at `0x176`.
 Deltas ±128, +342 and +214 were tested and all fall to chance.
 
-## 2. Dump extents — HIGH
+## 2. Dump extents (HIGH)
 
 | file | size | flash range | blocks |
 |---|---|---|---|
@@ -30,7 +30,7 @@ Deltas ±128, +342 and +214 were tested and all fall to chance.
 Corroborated by `docs/archive/config-protocol.md` §25.2, which records the
 banks as measured.
 
-## 3. Primary bank, factory state — HIGH
+## 3. Primary bank, factory state (HIGH)
 
 Per-64K-block match against 10.81 is exactly `1.000000` for blocks 0x00, 0x01,
 0x02, 0x08, 0x09, 0x0A and chance-level for 0x03–0x07. A whole-file diff
@@ -62,39 +62,39 @@ against 10.81 yields exactly two differing segments: `0x030000`–`0x07FFFF` and
 
 **Correction to an earlier note: the 8-byte end marker is per-image, not
 universal.** 16.53's is `00 00 00 01 E0 89 5B A0`; 10.81's is
-`00 00 00 01 C5 99 12 FD`. And 13.39 is a *different container* — its `0xFF`
+`00 00 00 01 C5 99 12 FD`. And 13.39 is a *different container*: its `0xFF`
 run continues to `0xB007A` and its marker sits at `0xB007B`, matching
 `third-party/README.md`'s note that the Normal family declares length
-`0x0B0080` rather than `0x0B0000`. — HIGH
+`0x0B0080` rather than `0x0B0000` (HIGH).
 
-**Golden bank — HIGH.** A complete, hole-free bitstream, header date
+**Golden bank (HIGH).** A complete, hole-free bitstream, header date
 `Sat Jul 09 14:10:43 2022`, all 7562 frame CRCs valid, the only `0xFF` run is
-the tail. It matches **none** of the five images we have (see §5) — it is a
+the tail. It matches **none** of the five images we have (see §5); it is a
 build we do not possess.
 
 **Regions not read but targeted by the vendor library** (from
-`config-protocol.md` §22.4, host disassembly, unverified on hardware —
+`config-protocol.md` §22.4, host disassembly, unverified on hardware;
 MEDIUM): `0x0A0000`, `0x1C0000`, `0x1E0000`, `0x1F0000`, `0x390000`,
 `0x3A0000`, `0x3B0000`, `0x3C0000`, `0xD60000`, `0xE70000`, `0xE80000`,
 `0xE90000`. An addrHi of `0xE9` implies a **≥ 16 MB address space**.
 
 ## 4. The 0x7F000 question
 
-### 0x7F000 is INSIDE the bitstream image region — HIGH
+### 0x7F000 is INSIDE the bitstream image region (HIGH)
 
 Frame data runs `0x00017A`–`0x08E3FB`. `0x7F000` sits about 62 % of the way
 through it, in the middle of **frames 6750–6804**.
 
-In the vendor `.hex` that sector is ordinary, high-entropy frame data — only
+In the vendor `.hex` that sector is ordinary, high-entropy frame data: only
 4295 of the 327 680 bytes in `0x30000`–`0x7FFFF` are `0xFF`, all 256 byte
 values are present, and its frame CRCs are valid there like everywhere else.
 
 **So the vendor `.hex` at `0x7F000` is not padding.** This contradicts
 `third-party/README.md`'s claim that "a `.hex` file's contents there are
-padding". That claim is wrong as stated. — HIGH, and this is a correction to
+padding". That claim is wrong as stated (HIGH), and this is a correction to
 existing repo documentation.
 
-### What lives there normally — HIGH for existence, MEDIUM for content
+### What lives there normally: HIGH for existence, MEDIUM for content
 
 In the factory dump, `0x07F000`–`0x07F0FF` holds 256 bytes of card-written
 parameter data and `0x07F100`–`0x07FFFF` is erased:
@@ -110,60 +110,60 @@ parameter data and `0x07F100`–`0x07FFFF` is erased:
 0007f0f0: 0080 8080 3200 1f00 0000 0000 0007 ff00
 ```
 
-Note `00 80 00 40` at `0x7F007` = **128 × 64**, the screen size. The repeated
+`00 80 00 40` at `0x7F007` is **128 × 64**, the screen size. The repeated
 `720E` / `0D91` / `0002` triples and the mixed `0x00`/`0xFF` field structure
 fit the "screen-size / geometry record" description in
 `docs/compiled-image-format.md` ("Page 0xF0 is EEPROM-backed … and not part of
 the image"). The individual fields were not decoded.
 
-### Why our dump reads erased — HIGH
+### Why our dump reads erased (HIGH)
 
 `primary-after-restore.bin` differs from 10.81 in **exactly one contiguous
 span**: `0x07F000`–`0x07FFFF`, all `0xFF`. That is one full 4 KB flash sector.
 
 The coherent reading: our restore **erased** the sector (a block/sector erase
-reached it) but the **page writes into it were refused or redirected** — which
+reached it) but the **page writes into it were refused or redirected**, which
 is exactly the behaviour `config-protocol.md` §22.4 describes ("redirected to
 a small EEPROM; no flash write reaches it"; "the host never writes `0x07F000`
-directly — the card's firmware does").
+directly; the card's firmware does").
 
 A "read always returns `0xFF`" artefact is **ruled out**, because the same
 read path returned real data at `0x7F000` in `primary-region.bin`.
 
-### Where the reported version string comes from — NOT RESOLVED, but narrowed
+### Where the reported version string comes from: NOT RESOLVED, but narrowed
 
-* Not an ASCII string — the only printable strings in any image are the
+* Not an ASCII string: the only printable strings in any image are the
   Lattice header.
-* Not USERCODE — command `0xC2` at `0x08E408` encodes `0x00000000` in all five
+* Not USERCODE: command `0xC2` at `0x08E408` encodes `0x00000000` in all five
   vendor images **and** all three dumps.
-* Not a fixed-offset literal — all five images were searched for their own
+* Not a fixed-offset literal: all five images were searched for their own
   version encoded as `(maj,min)`, `(min,maj)` and `maj·100+min`, big- and
   little-endian; the intersection of hit offsets across the five is **empty**.
 
 `GetRCVTypeVersionDesp` formats `%d.%02d` from receiver-info reply bytes
 `+0x10`/`+0x14`, so the number is produced by the **running gateware** as a
-register value — synthesised into fabric LUTs, scrambled by placement, and not
+register value, synthesised into fabric LUTs, scrambled by placement, and not
 recoverable by byte search. The version the card reports is therefore the
 version of whichever bitstream is **actually configured**.
 
 ## 5. The failing frame CRCs
 
-### `primary-after-restore.bin`: exactly 55 failing frames — HIGH
+### `primary-after-restore.bin`: exactly 55 failing frames (HIGH)
 
 Indices **6750–6804**, contiguous, occupying flash `0x07EFC0`–`0x08004A`.
 
 All five vendor `.hex` files and `golden-bank.bin` have **zero** failures with
 the same checker, so the CRC model is sound.
 
-**Cause: coincident with the carved-out sector — HIGH.** The set of frames
-that *overlap* `[0x7F000, 0x7FFFF]` is precisely 6750..6804 — count 55, span
+**Cause: coincident with the carved-out sector (HIGH).** The set of frames
+that *overlap* `[0x7F000, 0x7FFFF]` is precisely 6750..6804: count 55, span
 `0x7EFC0`–`0x8004A`. Identical set. The first and last frames straddle the
 sector boundary (frame 6750 loses its last 13 bytes; frame 6804 its first 2).
 
 Not misalignment (delta 0 is proven and the other 7507 frames pass). Not a
 host/card write collision beyond this one sector.
 
-### `primary-region.bin`: 4113 failing frames — HIGH
+### `primary-region.bin`: 4113 failing frames (HIGH)
 
 Indices 2548–6804, spanning `0x2FFDE`–`0x8004A`. The frames overlapping the
 reserved span `0x30000`–`0x7FFFF` number 4257; **every failing frame is in
@@ -173,7 +173,7 @@ init 0 over zeros is zero, so an all-zero frame trivially validates).
 So **100 % of the frames covering `0x30000`–`0x7FFFF` are corrupt as
 bitstream, and 0 % outside it.** Clustered in exactly one region.
 
-### Can the card boot this? — the important, partly unresolved bit
+### Can the card boot this? The important, partly unresolved bit
 
 The data *outside* the reserved span is byte-identical to 10.81, so the
 primary bank is unambiguously a 10.81 install (§5.1). But when
@@ -185,15 +185,15 @@ block 0x20 is the standard arrangement, and `golden-bank.bin` is a complete
 valid bitstream.
 *Against it:* golden's 2304-byte EBR init block is byte-identical to
 13.39/9.53/6.69/16.53 and **differs from 10.81** (10.81 has the known
-five-entry-longer prologue — see [block-ram.md](block-ram.md)), so golden is
-very unlikely to be a 10.81 build — yet the card reported 10.81. Also neither
+five-entry-longer prologue; see [block-ram.md](block-ram.md)), so golden is
+very unlikely to be a 10.81 build, yet the card reported 10.81. Also neither
 bank contains a second `BD B3` preamble or any jump command, so there is no
 in-bitstream multiboot redirect; any fallback would have to be device- or
 board-level.
 
 **(B) `0x030000`–`0x07FFFF` is not the boot flash.** The card's flash-access
 firmware redirects host reads/writes in that range to a separate parameter
-store — which we already know it does for `0x07F000`. Under this reading the
+store, as it is known to do for `0x07F000`. Under this reading the
 real boot flash holds a contiguous intact 10.81, the card boots and reports
 10.81, host writes to blocks 0x03–0x07 "succeed" into the parameter store, and
 blocks 0x00–0x02 / 0x08–0x0A are write-protected. Every observation fits,
@@ -202,7 +202,7 @@ after we wrote them there.
 
 **Choosing between (A) and (B): NOT RESOLVED.**
 
-**A third reading is ruled out — HIGH.** `third-party/README.md` currently
+**A third reading is ruled out (HIGH).** `third-party/README.md`
 asserts that the loader *skips* `0x030000`–`0x07FFFF`. It cannot: skipping
 320 KB out of a single continuous `LSC_PROG_INCR_RTI` of 7562 frames is not
 expressible in this bitstream format, the frames there are real CRC-valid
@@ -211,7 +211,7 @@ bitstream is not contiguous / those contents are padding" is wrong as stated,
 even though its practical rules about which regions the host may write are
 correct.**
 
-### ECP5 behaviour on a frame CRC mismatch — MEDIUM, flagged as unverified
+### ECP5 behaviour on a frame CRC mismatch: MEDIUM, flagged as unverified
 
 Understanding: the device raises the CRC-error flag in the status register,
 aborts configuration and leaves `DONE` deasserted; there is a
@@ -224,7 +224,7 @@ ECP5 falls back to golden automatically without an explicit jump or
 `SPI_MODE` setting. Both need the ECP5 sysCONFIG usage guide to settle, and
 both bear directly on the (A)-vs-(B) question.
 
-### 5.1 Which firmware is installed — HIGH
+### 5.1 Which firmware is installed (HIGH)
 
 **Both primary dumps are `E320_PCB6.0_PWM_FPGA10.81_20230907.hex`**, confirmed
 three independent ways: the header date `Thu Sep 07 15:47:58 2023` matches
@@ -251,7 +251,7 @@ The ~18–21 % band is the chance floor for two unrelated 25F bitstreams, so
 > **the card as dumped is running 10.81**. Check which image a claim refers to
 > before acting on it.
 
-## 6. The compiled boot image sits at absolute flash `0x070000` — HIGH
+## 6. The compiled boot image sits at absolute flash `0x070000` (HIGH)
 
 Every region in `docs/compiled-image-format.md` maps to
 `0x070000 + image_offset`, and **every erased hole the doc predicts is present
@@ -278,7 +278,7 @@ at exactly the predicted address**:
 | `0x8000` | `0x078000` | u32-LE length + `.rcvbp` | length `0x241F`, `.rcvbp` at `0x078004`, ends `0x07A422`, erased after ✓ |
 
 **`build/p25-128x64-sm16269s-block7.bin` lands at absolute flash
-`0x070000`** — HIGH. It is exactly `0x10000` (one 64K block) and its embedded
+`0x070000`** (HIGH). It is exactly `0x10000` (one 64K block) and its embedded
 `.rcvbp` header sits at file offset `0x8000`, matching the documented image
 offset. Against the factory dump's block 0x07 it is 82.03 % identical; the
 differences are the expected geometry changes (its basic pack has
@@ -287,7 +287,7 @@ embedded `.rcvbp` is `0x24E1` vs the factory's `0x241F`).
 `build/p25-128x64-sm16269s-basic-pack.bin` is the first `0x100` bytes of that
 block, i.e. flash `0x070000`–`0x0700FF`.
 
-## 7. Block 0x0B: the module mapping table — HIGH
+## 7. Block 0x0B: the module mapping table (HIGH)
 
 `primary-region.bin`'s extra `0x10000` is block 0x0B.
 `0x0B0000`–`0x0B00FF` holds a 256-byte **module mapping table** page: magic
@@ -296,17 +296,17 @@ block, i.e. flash `0x070000`–`0x0700FF`.
 `0x0B0100`–`0x0BFFFF` is erased.
 
 This is exactly the "addrHi `0x0b` = module mapping table" entry in §22.4 of
-the protocol doc — **first physical confirmation of that table.**
+the protocol doc, and the **first physical confirmation of that table.**
 
-## 8. Unidentified data — NOT RESOLVED
+## 8. Unidentified data: NOT RESOLVED
 
-* `0x030000`–`0x033FFF` — 4096 × 4-byte BE entries, 4091 of them `FFFFFF00`,
+* `0x030000`–`0x033FFF`: 4096 × 4-byte BE entries, 4091 of them `FFFFFF00`,
   4 `FFFFFF80`, 1 `FFFFFF40`. The shape of a 4096-entry gamma or calibration
-  LUT, but with essentially no information in it.
-* `0x040000`–`0x04FFFF` — 64 KB of the constant word `99 99 99 08`.
+  LUT, but with almost no information in it.
+* `0x040000`–`0x04FFFF`: 64 KB of the constant word `99 99 99 08`.
 
 Neither corresponds to any region in `compiled-image-format.md`, and blocks
-0x03/0x04 are not assigned in §22.4 of the protocol doc. Note that
-`config-protocol.md` states block 0x03 "reads 0xFF per your scan" — true of
+0x03/0x04 are not assigned in §22.4 of the protocol doc.
+`config-protocol.md` states block 0x03 "reads 0xFF per your scan", true of
 `0x034000`–`0x03FFFF` but **not** of `0x030000`–`0x033FFF`, so that earlier
 scan was partial.

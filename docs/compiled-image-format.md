@@ -1,14 +1,14 @@
-# The compiled parameter image at flash 0x70000 — format
+# The compiled parameter image at flash 0x70000
 
-The card applies this image at boot. It is built by the vendor's
+The card applies this image at boot. The vendor's
 `CSendAndSaveRcvParam::GetRcvParamBufForSPIFlash` (libCLTDevice @ 0x1eb270)
-as a fixed-offset scatter of pack *bodies* — no per-region framing, lengths,
-terminators or checksums — driven by a host-side region directory that is not
-itself written to flash. Everything below was recovered from the disassembly
-and verified against the day-one flash dump (block 7 at 0x70000; the dump is
-kept outside the repo and the tests skip without it): `Block7Builder` in `crates/e120-rcvbp/src/image/` rebuilds that
-block byte-exactly from erased flash
-(`crates/e120-rcvbp/tests/factory.rs`).
+builds it as a fixed-offset scatter of pack *bodies*, with no per-region
+framing, lengths, terminators or checksums, driven by a host-side region
+directory that is not itself written to flash. Everything below comes from the
+disassembly and was checked against the day-one flash dump (block 7 at 0x70000;
+the dump is kept outside the repo and the tests skip without it):
+`Block7Builder` in `crates/e120-rcvbp/src/image/` rebuilds that block
+byte-exactly from erased flash (`crates/e120-rcvbp/tests/factory.rs`).
 
 Pages no directory entry covers are never written and read back as erased
 flash (0xFF): 0x900 (when no chip block), 0xD00–0xFFF, 0x2800–0x2FFF,
@@ -28,7 +28,7 @@ erase clears it, and nothing in this image restores it.
 | 0x0500 | 0x100 | data-swap pack body (`GetDataSwapEx2ParamPack` @ 0x1ec700) | 64-byte lane map = record 0x01 +0x19A..0x1D9 (identity 0x40..0x7F); zeros; three deseam pairs at +0xEA/+0xF0/+0xF6 = `01 00` (8.8 fixed 1.0, deseam off) | unchanged |
 | 0x0600 | 0x300 | module-position pack body (type 0x17, pack+5) | `GetDefaultModulePos` @ 0x1558b0: screen (MaxW x MaxH) tiled by the grid unit (record +0x057/+0x058 lo, +0x24E/+0x24F hi = 16x16); count at +0x005; 10-byte entries from +0x016: `[outer, inner, x BE, y BE, w BE, h BE]`. Direction variants: line_dir 0 (R2L) `[row, nc-1-col]` compacted, 1 (L2R) `[row, col]` compacted, 2 (T2B) `[col, row]` positional, 3 (B2T) `[nc-1-col, nr-1-row]` positional; R2L/L2R drop tiles with inner index ≥ 8 and rows ≥ 32. **All-zero when tiles > 64** (the reference file's 256x384 wall = 384 tiles) | **non-zero: count 0x20, 32 entries** |
 | 0x0C00 | 0x100 | current exchange (`GetCurrentExchangeParam` @ 0x1adb20) | a hub-data-group → module-index map, one byte per group; with a single module every group maps to module 0, so the vendor's output is the all-zero buffer it starts from ([archive/black-floor.md](archive/black-floor.md) §2). Zeros | zeros |
-| 0x0900 | 0x100 | chip-register block (record 0x84 verbatim, pack+4) | written only if `IsMultiRegisterChip()` — true for chip 0x14C in LEDVISION 9.6 / iSet 7, evidently false in the older tool that produced the factory image (page is 0xFF). `ExchangeChipRegisterWhenColorChanged` @ 0x1ea370 (via the DP5525 handler for this chip) permutes per-colour registers only when the colour *source* triple (+0x02C..0x02E) is exchanged; for (2,1,0) all three branches fall through — identity, verified | optional (`boot.arm_at_boot`) |
+| 0x0900 | 0x100 | chip-register block (record 0x84 verbatim, pack+4) | written only if `IsMultiRegisterChip()`: true for chip 0x14C in LEDVISION 9.6 / iSet 7, evidently false in the older tool that produced the factory image (page is 0xFF). `ExchangeChipRegisterWhenColorChanged` @ 0x1ea370 (via the DP5525 handler for this chip) permutes per-colour registers only when the colour *source* triple (+0x02C..0x02E) is exchanged; for (2,1,0) all three branches fall through (identity, verified) | optional (`boot.arm_at_boot`) |
 | 0x0A00 | 0x200 | current segment (`CChipCurrentCalculator::GetCurrentSegmentBuf` @ 0x0d4860) | chip-id range check `0x14C-8 > 0xFB` → bails → zeros | zeros |
 | 0x1000 | 0x800 | void-line packs 0–1 (type 0x1F, pack+8): 1024 per-line byte offsets at 0x1000, 1024 per-column offsets at 0x1400, `physical = a + table[a]` | the vendor writes zeros (no void lines). `Block7Builder::void_line_columns` sets the column entries `width..2·width` to `0xFF` when `mapping.gate_phantom_positions` is on (default), displacing the positions the card drives with a fixed pattern off the chain ([rendering.md](rendering.md)) | line half zeros; column half `0xFF` at 128..256 |
 | 0x1800 | 0x1000 | anti-void-line packs 0–3 (type 0x32, pack+8) | `GetAntiVoidLineParam` @ 0x1604d0: two identical blocks of 2048 u16-BE counters `0x2000+n` (bit 5 = marker, bit 7 cleared for every line since none are void), sliced 4 x 0x400. **Not gamma LUTs** as earlier documented | unchanged |
@@ -48,8 +48,7 @@ flash in this order (`Block7Builder::from_generated`, later placements win
 overlapping pages): zero regions, basic pack, data-swap, module positions,
 anti-void counters, void-line columns, mapping, scan table, then the chip
 page (if `boot.arm_at_boot`) and the embedded `.rcvbp`. Every byte comes from
-the spec, the chip library or a decoded formula; the sources file names
-the source of each placement.
+the spec, the chip library or a decoded formula; the sources file says which.
 
 ## Corrections to earlier readings
 

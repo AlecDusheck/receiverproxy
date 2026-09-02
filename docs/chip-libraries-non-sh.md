@@ -89,7 +89,7 @@ added.
 Everything below is the vendor library's own behaviour, from
 `CChipTypeClassify` (dylib `0xF8860`…) and `CSendAndSaveRcvParam::GetBasicParam`
 `0x1DFB50`. `0x0214` and `0x0187` are unknown to every dispatch table in every
-build, so they take each function's *default* arm — which is what the
+build, so they take each function's *default* arm, which is what the
 right-hand column shows.
 
 | property | address | `0x00DE` | `0x014C` | `0x0214` / `0x0187` |
@@ -121,7 +121,7 @@ everything else equal:
 
 | body offset | `0x00DE` | `0x014C` | `0x0214` | why |
 |---|---|---|---|---|
-| `+0x08` (grey bits) | `0x0E` | **`0x10`** | `0x0E` | `pack[0x0C] = GetGrayLevel(); if (IsNeed16BitGrayWhenSend()) pack[0x0C] = 0x10;` — `0x1DFEEF`–`0x1DFF03`. **Caveat:** our factory pack (compiled by the *card*, not by the PC tool) has `0x0E` at this offset for chip 0x14C, so the card's own compiler does not apply this rule. Do not "fix" our generator from this row. |
+| `+0x08` (grey bits) | `0x0E` | **`0x10`** | `0x0E` | `pack[0x0C] = GetGrayLevel(); if (IsNeed16BitGrayWhenSend()) pack[0x0C] = 0x10;` at `0x1DFEEF`–`0x1DFF03`. **Caveat:** our factory pack (compiled by the *card*, not by the PC tool) has `0x0E` at this offset for chip 0x14C, so the card's own compiler does not apply this rule. Do not "fix" our generator from this row. |
 | `+0x10` | derived from min-OE (`0x1DFF94`–`0x1DFFD1`) | `OBJ+0x83` (`0x1DFFD6`) | `OBJ+0x83` | `IsHighRefreshValid()` gate at `0x1DFF81` |
 | `+0x17` (pack `+0x1B`) | **`0xDE`** | `0xFE` | `0xFE` | ids < 0x100 use the byte slot; larger ones set the `0xFE` escape (`ResetChipType` `0x1E5130`) |
 | `+0x70..+0x7F` | see §2 | zeros | **zeros** | `SChipCustom` |
@@ -139,7 +139,7 @@ Id `0x14C` arms the drivers (and, with the settings in
   ("use self GCK") and the serial-clock bytes, and the default arm adds
   nothing; `ResetChipControl` zeroes its 20 bytes. A config declaring `0x0214`
   ships the driver an all-zero configuration. That is not a tuning problem, it
-  is an absent chip library — and no shipped Colorlight build has one.
+  is an absent chip library, and no shipped Colorlight build has one.
 * **`0x0DE` was tested with the wrong block.** Its configuration is
   `SChipCustom`, not a register table, and the test sent it the SH register
   table for `0x14C` while leaving `SChipCustom` at the 0x14C value
@@ -155,7 +155,7 @@ Id `0x14C` arms the drivers (and, with the settings in
   beyond "bits 3:0 = scan − 1" and "bits 6:5 select the GCLK pair". The corpus
   shows the high nibble taking `0xC`, `0xD` and `0xE`, and the low byte `0x31`,
   `0x38`, `0x39`, `0x3B`, `0x3C` and `0xB9`, so at least five more bits are
-  user-settable — presumably by the chip-parameter dialog
+  user-settable, presumably by the chip-parameter dialog
   (`IsShowChipParamButton(0xDE)` is true). The dialog resource was not chased.
 * The three 16-bit words at `SChipCustom[8..13]`. Corpus variants
   `0400/05C0/03C0` (the default, 30 files), `0200/02C0/02C0`,
@@ -171,8 +171,7 @@ Id `0x14C` arms the drivers (and, with the settings in
   SM16169S files and all zeros in the rest. Neither value comes from
   `ResetChipCustom`'s 0x00DE case; still whole-struct-only, as in
   `docs/chip-control-block.md` §8.
-* SM16386S `0x0187` has no implementation in ANY of the three builds on disk —
+* SM16386S `0x0187` has no implementation in ANY of the three builds on disk:
   it is a name-table entry in LEDSetting 2.2.6 (`CLTInterface.dll` file offset
-  `0xD71554`, group 3) and
-  nothing more. It cannot serve as a comparison point; it only serves as the
+  `0xD71554`, group 3) and nothing more. It is no comparison point, only the
   control that shows what "unimplemented" looks like.

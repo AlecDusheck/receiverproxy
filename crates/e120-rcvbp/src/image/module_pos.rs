@@ -2,7 +2,7 @@
 //!
 //! The screen tiled by the grid unit, one 10-byte entry
 //! `[outer idx, inner idx, x, y, w, h]` (BE) per tile. The vendor leaves it
-//! zero when a gate fails, notably over 64 tiles: the factory 256x384 wall
+//! zero when a gate fails; one gate is 64 tiles, and the factory 256x384 wall
 //! has 384, hence its zeros.
 
 use crate::record01::View;

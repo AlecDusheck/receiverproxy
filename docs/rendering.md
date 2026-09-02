@@ -8,7 +8,7 @@ taken as described in [bench.md](bench.md). Claims this project made and later
 withdrew are in [retracted-findings.md](retracted-findings.md); read that
 before changing anything here.
 
-Bench state as of 2026-09-01, configured from flash after a power-cycle:
+Measured 2026-09-01, configured from flash after a power-cycle:
 black 0.466 A (LEDs off; boot current 0.41 A), grey 64 0.73 A, grey 128
 0.98 A, white 2.64 A at the bench brightness, same-content control 0.432 A,
 greys monotonic, every test pattern intact. Three of three power-cycles gave
@@ -131,6 +131,6 @@ factory image and the two probe experiments are in
   `reversed_lines` in the spec are the knobs. Not measured.
 * A faint flicker seen by eye is not measurable with the 30 fps camera
   (2.4 % frame to frame against an 8–14 % camera reference). It may have been
-  the floor's per-pixel structure mixed into content; re-assess by eye now
-  that black is black.
+  the floor's per-pixel structure mixed into content; re-assess by eye with
+  black rendering black.
 * Serial clock 8 (the reference file) versus 15 (chip default): not swept.

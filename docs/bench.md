@@ -98,7 +98,7 @@ all-black is conclusive regardless of photographic conditions.
 | meter | reads | limit |
 |---|---|---|
 | KA3005P current | total panel + card draw; black 0.466 A, boot 0.41 A, white 2.64 A at the bench brightness | drifts over tens of seconds; the first seconds of a stream run high; 0.033 A within-condition spread; blind to where on the panel the current goes |
-| averaged webcam capture | structure, geometry, mapping; clip fraction; correlation between captures | the panel multiplexes 1/16, so a single 1/30 s frame is scan phase, not content; every photo before 2026-09-01 was one frame. `bench.py capture` now primes a 90-frame average; keep it that way. Auto-exposure clips LEDs to white above brightness ~20; auto-gain boosts a dark panel; reflections off nearby surfaces enter even a difference image |
+| averaged webcam capture | structure, geometry, mapping; clip fraction; correlation between captures | the panel multiplexes 1/16, so a single 1/30 s frame is scan phase, not content; every photo before 2026-09-01 was one frame. `bench.py capture` primes a 90-frame average; keep it that way. Auto-exposure clips LEDs to white above brightness ~20; auto-gain boosts a dark panel; reflections off nearby surfaces enter even a difference image |
 | `bench.py flicker / bands / glitch` | per-frame brightness series, rolling-shutter band period, band events | 30 fps cannot resolve the panel's flicker: 2.4 % frame to frame against an 8–14 % camera reference. Flicker is judged by eye |
 | `e120 discover` | firmware version, control area end coordinates | reports a healthy size while the control area is erased (`startX = 0xFFFF`); check the EEPROM with `scripts/flash-review.py` |
 

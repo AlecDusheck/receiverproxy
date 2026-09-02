@@ -1,10 +1,9 @@
 # Building a config for a panel
 
-A panel is described once in `config/panels/<panel>.toml`; everything the
-card consumes is generated from it and a chip library entry. Nothing is
-copied from a donor file: every output byte is a vendor default, a spec
-field, a chip-library value, or a documented literal, and the sources
-file names the source of each placement.
+Describe a panel once in `config/panels/<panel>.toml`. Everything the card
+consumes is generated from that file and a chip library. Nothing comes from
+a donor file: each output byte is a vendor default, a spec field, a
+chip-library value or a documented literal, and the sources file says which.
 
 ```sh
 e120 config gen --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
@@ -54,12 +53,12 @@ and `gray_bits` ([chip-libraries-non-sh.md](chip-libraries-non-sh.md)).
 
 | Output | Source | Confidence |
 |---|---|---|
-| record 0x01 | vendor write-side defaults (`CHWParamRcvGeneral::Reset/ResetIS/ResetSwapData`), the spec, the chip library (family/sub id, chip control, reset serial clock), and 11 documented literals for bytes whose meaning is unresolved (`spec/record01.rs`) | high — the reference file regenerates byte-exact |
+| record 0x01 | vendor write-side defaults (`CHWParamRcvGeneral::Reset/ResetIS/ResetSwapData`), the spec, the chip library (family/sub id, chip control, reset serial clock), and 11 documented literals for bytes whose meaning is unresolved (`spec/record01.rs`) | high; the reference file regenerates byte-exact |
 | record 0x03 (mapping) | geometry: pixel → (`row % scan`, `group·width + col`) with the vendor's reversed group order; reproduces the 34-config consensus | high |
 | record 0x84 (chip registers) | chip library + `reg 0x02 = scan − 1` | high |
 | other records (0x8a, 0x83/0x89, 0xca, 0xcd, 0x8f, 0x07, 0x86, 0x8e, 0x8d, 0x91/0x95/0xd8/0xda) | decoded loader defaults (`spec/records.rs`); 0x8a mirrors the screen size, 0xca the module geometry | high |
-| basic pack (all 256 bytes) | `GetBasicParam` transcribed field by field from record 0x01, plus the CRC-32 trailer | high — factory pack byte-exact |
-| boot image | every region generated (`image/`): gated zeros, data-swap, module positions, anti-void counters, mapping, scan table (bit-time solver), embedded `.rcvbp` | high — factory image byte-exact |
+| basic pack (all 256 bytes) | `GetBasicParam` transcribed field by field from record 0x01, plus the CRC-32 trailer | high; factory pack byte-exact |
+| boot image | every region generated (`image/`): gated zeros, data-swap, module positions, anti-void counters, mapping, scan table (bit-time solver), embedded `.rcvbp` | high; factory image byte-exact |
 
 Pins (`crates/e120-rcvbp/tests/factory.rs`): the reference config regenerates
 record for record from a spec; that spec reproduces the factory pack and the
@@ -68,10 +67,10 @@ only in the intended bytes.
 
 ## Why the reference config was wrong for this bench
 
-It was compiled for a 256x384 wall (2x6 of these modules) — screen size,
+It was compiled for a 256x384 wall (2x6 of these modules): screen size,
 module count and CardScanLen in the boot pack, an all-zero module-position
 table (the wall exceeds the vendor's 64-tile cap), and a pixel mapping that is
-a lone outlier against the corpus — and it carried the SM16169SH register set
+a lone outlier against the corpus. It also carried the SM16169SH register set
 with the sub-variant id unset, although the silicon is SM16269S.
 
 ## Limits

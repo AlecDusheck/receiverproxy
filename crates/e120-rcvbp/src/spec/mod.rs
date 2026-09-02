@@ -149,7 +149,7 @@ impl Default for Timing {
 #[serde(deny_unknown_fields)]
 pub struct Mapping {
     /// Data groups (`stored height / scan` of them) in reverse order in the
-    /// buffer — the vendor default (234 of 241 two-group configs).
+    /// buffer, the vendor default (234 of 241 two-group configs).
     pub reversed_groups: bool,
     /// Scan lines addressed bottom-up (`scan-1-row`) instead of top-down.
     pub reversed_lines: bool,

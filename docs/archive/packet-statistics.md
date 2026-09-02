@@ -1,4 +1,4 @@
-# Per-receiver packet statistics — how LEDVISION reads them
+# Per-receiver packet statistics: how LEDVISION reads them
 
 > Archived. Exploratory: the four discovery-reply counters at payload 37, 41, 45 and 97 were located but never named, and the deciding experiment was not run. The reply parser is `crates/e120-proto/src/discovery.rs`; the control-area read-back at payload 16-23 it points out is still worth adopting.
 
@@ -9,8 +9,8 @@ statistics-specific frame in the vendor library is the **clear** command,
 frame type **`0x0900`**.
 
 Static reading of `libCLTDevice.1.dylib` (iSet 7 macOS build, C++ symbols
-intact) — the same binary `docs/receiver-identity.md` and `docs/eeprom-map.md`
-were derived from — plus the LEDVISION 9.6 language resources and a stripped
+intact, the same binary `docs/receiver-identity.md` and `docs/eeprom-map.md`
+were derived from), plus the LEDVISION 9.6 language resources and a stripped
 read of `LedAdmin.dll`. Nothing was executed; nothing touched the network.
 
 Paths:
@@ -33,7 +33,7 @@ EtherType slot**, i.e. `buf[0]` is frame offset 12. This document uses:
 
 * `buf[i]` = frame offset `12 + i` (what the builders write);
 * `payload[i]` = frame offset `14 + i` (what `crates/e120-proto/src/discovery.rs`
-  calls `p[i]` — the byte after the two type bytes).
+  calls `p[i]`, the byte after the two type bytes).
 
 So `payload[i] == buf[i + 2]`.
 
@@ -50,14 +50,14 @@ The **reply** parser uses a third base: `CReceiverOP::DetectOneRcvInfo`
 so `CReceiverInfo::InitRcvBuf08Ex`'s `buf` is **`rxframe + 13`**, one byte
 before `payload[0]`. Its `buf[n]` is our `payload[n-1]`. That is confirmed
 independently: it reads the card type at its `buf[1]` and the detected size at
-`buf[0x15]`/`buf[0x17]`, which are our `payload[0]` and `payload[20]`/`[22]` —
+`buf[0x15]`/`buf[0x17]`, which are our `payload[0]` and `payload[20]`/`[22]`,
 exactly the fields `parse_discovery_response` already reads. **HIGH.**
 
 ---
 
 ## 1. The request frame
 
-### 1.1 The plain discovery request — this is all you need
+### 1.1 The plain discovery request (all you need)
 
 `BuildDetectRcvCard(unsigned int*, unsigned char**, unsigned short)`
 @ `0x30a370`:
@@ -94,7 +94,7 @@ at vtable `+0x48` with reply selector `edx = 0xff08` and a **600 ms** timeout
 
 ### 1.2 The "extended detect" family (for completeness)
 
-Four other builders share one layout, discovered by comparing
+Four other builders share one layout, found by comparing
 `BuildDetectRcvCardInfo` @ `0x30a460`, `BuildQucikDetectRcvCard` @ `0x30a710`,
 `BuildDetectRcvMonitorExInfo` @ `0x30a4f0` and `BuildDetectLastRcvCardInfo`
 @ `0x30a5c0` (the last two load their headers from `__TEXT,__const` at
@@ -112,7 +112,7 @@ Four other builders share one layout, discovered by comparing
 | 0–1 | 2 | `07 00` type |
 | 2 | 1 | `00` |
 | 3–4 | 2 | receiver index BE (`FF FF` broadcast) |
-| 5 | 1 | `FF` — "extended request" marker |
+| 5 | 1 | `FF`, "extended request" marker |
 | 6 | 1 | `01` broadcast form, `00` in the indexed form |
 | 7 | 1 | `N` = number of 16-bit item ids that follow |
 | 8 … | 2N | item ids, **little-endian** u16 |
@@ -121,7 +121,7 @@ Four other builders share one layout, discovered by comparing
 | … | — | zeros to 272 bytes total |
 
 Observed sub-commands: `0x07` receiver monitor-ex (with N=14, ids 0…13),
-`0x09` upgrade-descriptor query (N=0 — this is exactly `upgrade_info()` in
+`0x09` upgrade-descriptor query (N=0; this is exactly `upgrade_info()` in
 `discovery.rs`, which independently confirms the layout), `0xF3` "last receiver
 index" (N=2, ids `0x0054`,`0x0055`, `CReceiverOP::DetectLastRcvInfo`
 @ `0x3cb460`, `movl $0xf3,%edx` @ `0x3cb4c6`).
@@ -177,13 +177,13 @@ the whole decoder. Selected fields, by *payload* offset (`= buf - 1`):
 | 162–169 | 8 B | `+0xde` | `0x39db12` | sub-version block (`M3`/`LCD`/`ARM %d.%02d`, see `0x3c8e9b`) |
 | 429 | struct | — | `0x39e5c9` | `SRcvDetectCustomAnswer` tail, parsed by `InitRcvBuf08CustomDetect` |
 
-Two things are worth flagging beyond the statistics question:
+Two things beyond the statistics question:
 
 * **payload 16–23 is a read-back of the EEPROM control area.** The parser
   computes `+0x40 = payload[20..21] - payload[16..17]` and
   `+0x44 = payload[22..23] - payload[18..19]`. `parse_discovery_response` in
   `crates/e120-proto/src/discovery.rs` reads `payload[20..23]` as
-  "cols/rows" — that is `endX/endY`, correct only while `startX = startY = 0`,
+  "cols/rows"; that is `endX/endY`, correct only while `startX = startY = 0`,
   exactly the trap `docs/receiver-identity.md` §1 documents for EEPROM `0x02`.
   **The discovery reply gives you `startX`/`startY` for free at payload 16–19**
   and would have caught the empty-window fault immediately. **HIGH.**
@@ -210,15 +210,15 @@ LedAdmin_HW_TotalPackERatio= Error Ratio
 LedAdmin_HW_TotalTime=Run Time
 ```
 
-So the UI shows exactly three per-receiver counters — **Network Packet, Error
-Packet, Run Time** — plus a derived Error Ratio. Those three must be three of
+So the UI shows exactly three per-receiver counters (**Network Packet, Error
+Packet, Run Time**) plus a derived Error Ratio. Those three must be three of
 the four `u32` above.
 
 **Which is which is NOT RESOLVED.** The library never names them: `SRcvCardInfo`
 has no accessors, the public `CReceiverOP::DetectReceiverCardsInfo` @ `0x3c8b70`
 (which flattens `SRcvCardInfo` into the 188-byte `SReceiverCardInfo` for the
 SDK) copies temperature and a status byte but **not** any of these four fields,
-and the consumer is `LedAdmin.dll` — a stripped MSVC x64 build of a different
+and the consumer is `LedAdmin.dll`, a stripped MSVC x64 build of a different
 CLTDevice generation whose struct offsets do not match the macOS build, so
 cross-matching `+0x9c`/`+0xa0` there produced only false positives.
 
@@ -231,7 +231,7 @@ What the code *does* establish:
   argues for that pair being the environment/run-time side;
 * `+0x9c`/`+0xa0` sit in the flags/identity region.
 
-Reconciling with the bench numbers in the brief:
+Against the bench numbers:
 
 * payload 37–40 (`+0x9c`) advances during pixel streaming and **not** during
   brightness-only traffic. A pure "total packets received" counter would move
@@ -262,7 +262,7 @@ runs start from zero.
 
 ---
 
-## 3. Is any of this in the ordinary 0x07/0x08 discovery exchange? — **Yes, all of it**
+## 3. Is any of this in the ordinary 0x07/0x08 discovery exchange? **Yes, all of it**
 
 There is no separate statistics request anywhere in `libCLTDevice`. The
 complete list of `Build*` frame constructors (`nm -g | c++filt | grep '^.* T Build'`,
@@ -274,7 +274,7 @@ or `Detect*PackCount*` member. The receiver "monitor" path
 thing: it is sent with command selector `0x807b`, its reply is a stream of
 64-byte records each beginning `0xEE` with a validity bit at record byte 7, and
 `CReceiverInfo::InitRcvMonitorExInfo08Ex` @ `0x39e810` extracts a single 8-byte
-field from record+15 — module temperature/humidity monitoring, not packets.
+field from record+15: module temperature/humidity monitoring, not packets.
 **HIGH.**
 
 So: the answer to question 3 is that the counters are **only** in the 0x08
@@ -317,7 +317,7 @@ apart from the type word:
 |---|---|---|
 | 12–13 | `09 00` | frame type |
 | 14 | `00` | reserved |
-| 15–16 | `ff ff` | receiver index BE — the vendor always broadcasts |
+| 15–16 | `ff ff` | receiver index BE; the vendor always broadcasts |
 | 17–283 | `00` × 267 | pad |
 
 Send selector `0x807d` with `r9d = 2` is the same fire-and-forget path used by
@@ -329,8 +329,8 @@ flash or EEPROM. **HIGH.**
 
 ## 5. Ready-to-run
 
-Read the statistics (this is just discovery — `e120 discover` already sends it;
-use `debug send` when you want the raw reply bytes):
+Read the statistics (this is just discovery; `e120 discover` already sends it.
+Use `debug send` when you want the raw reply bytes):
 
 ```sh
 e120 debug send --type 0700 --pad 270 --payload 000000 --show 128
@@ -389,7 +389,7 @@ index in place of `ffff`.
 * **Whether `0x0900` clears all four counters or only the packet pair.** The
   symbol is `ResetRcvStatisticalData` / `BuildClearPackCount` and the UI button
   is "Reset Network Packet"; the frame carries no selector, so it is one
-  all-or-nothing reset — but which fields it resets can only be seen on the
+  all-or-nothing reset, but which fields it resets can only be seen on the
   bench.
 * **`CReceiverOP::DetectR8BitErrorRate` / `DetectNewR8BitErrorRate`**
   (`0x3ca380`, `0x3ca5b0`, builders at `0x30d650`/`0x30d6f0`) were not analysed.

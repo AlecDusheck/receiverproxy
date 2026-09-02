@@ -9,19 +9,19 @@ per-pin raw routing evidence for all five images is in
 **The pinout is a property of the board, not of one firmware.** Running the
 same analysis over all five vendor images gives byte-identical direction flags
 on **196 of 197 pins**. The single exception is `R7` (SPI flash `D5/MISO2`),
-used as an input only in the Normal 13.39 build. — HIGH
+used as an input only in the Normal 13.39 build. (HIGH)
 
 ---
 
 ## The `BASE_TYPE` trap
 
-**Do not believe the IO-standard names prjtrellis prints.** — HIGH
+**Do not believe the IO-standard names prjtrellis prints.** (HIGH)
 
 Proven from `database/ECP5/tiledata/*/bits.db`:
 
 * In `PICL0` / `PICR0` there are only **three** distinct `PIOA.BASE_TYPE` bit
   patterns: empty (30 names, including every `INPUT_*` and `NONE`),
-  `{F1B4,F2B4}` (26 names — every single-ended `OUTPUT_*` **and** every
+  `{F1B4,F2B4}` (26 names: every single-ended `OUTPUT_*` **and** every
   `BIDIR_*`), and a six-bit pattern (28 differential names). prjtrellis prints
   the alphabetically last matching name, which for the middle pattern is
   `OUTPUT_SSTL18_II`. **So "OUTPUT_SSTL18_II" on a left/right pin means only
@@ -29,7 +29,7 @@ Proven from `database/ECP5/tiledata/*/bits.db`:
 * In `PIOT0` / `PICL1` the fuzzed `BASE_TYPE` patterns absorbed the `DRIVE`
   bits. `OUTPUT_LVTTL33 = {F15,F16,F17,F2,F7,F9}` while
   `DRIVE 8 = {F15,F16,F17,!F18,!F19}`. Consequently **a real `BIDIR_LVTTL33`
-  pin at `DRIVE 4` decodes as `INPUT_LVTTL33`** — its bits are a strict subset
+  pin at `DRIVE 4` decodes as `INPUT_LVTTL33`**; its bits are a strict subset
   match. This is why 18 apparent "inputs" had a driven `PADDO` *and* `PADDT`.
 * **All eight banks are `BANK.VCCIO 3V3`** in all five images (35 of 35
   `BANKREF` tiles). `3V3` is the only VCCIO value with a unique bit, so this
@@ -54,23 +54,23 @@ left/right PIC site `(x=0, y=r)`: `JPADDOA ← JA0@(1,r)`,
 `JPADDOB ← JA3@(1,r)`, `JPADDOC ← JA0@(1,r+2)`, `JPADDOD ← JA3@(1,r+2)`. On
 the top edge PIOA uses the CIB at column X and PIOB at column X+1. Every PIO
 has a private CIB node whose only fan-out is
-`{J*_CIBTEST, JPADD*, JTXDATA0*}`, so the test above is exact. — HIGH
+`{J*_CIBTEST, JPADD*, JTXDATA0*}`, so the test above is exact. (HIGH)
 
 **Cross-check that closes the loop:** after correcting for the aliasing,
 direction from routing and direction from electrical config agree on **all 197
-pins with zero contradictions** — every routing-BIDIR pin has
+pins with zero contradictions**: every routing-BIDIR pin has
 `DRIVE 4 + HYSTERESIS ON`, every routing-OUT pin has a `DRIVE` +
 `PULLMODE NONE`, every routing-IN pin has `HYSTERESIS ON` and no `DRIVE`.
 
 The one place the "fill" reading *is* right: all 42 `OUTPUT_SSTL15D_II`, all 7
 `OUTPUT_SSTL18D_*`, all 18 `OUTPUT_LVCMOS33D` and 47 of 49 `OUTPUT_SSTL15_II`
 entries sit on **unbonded** pads. Those are Diamond's unused-pad fill. But of
-the 57 **bonded** `OUTPUT_SSTL18_II` sites, **55 have a live fabric driver** —
-they are real pins. — HIGH
+the 57 **bonded** `OUTPUT_SSTL18_II` sites, **55 have a live fabric driver**;
+they are real pins. (HIGH)
 
 ---
 
-## 1. Pin census — HIGH
+## 1. Pin census (HIGH)
 
 | direction | TOP (b0/b1) | RIGHT (b2/b3) | BOTTOM (b8) | LEFT (b6/b7) | total |
 |---|---|---|---|---|---|
@@ -86,17 +86,17 @@ they are real pins. — HIGH
 **34 pins are genuinely bidirectional.** 20 of them share a single tri-state
 enable whose root is one flip-flop, `Q2_SLICE@(25,2)`:
 `A2 A3 A4 A5 B2 B3 B4 B11 B13 C3 C5 C6 C13 D5 D7 D11 E5 E6 E10 E11`.
-— HIGH for "20 pins, one common OE". What that bus *is* — **NOT RESOLVED**;
+HIGH for "20 pins, one common OE". What that bus *is*: **NOT RESOLVED**;
 see §4.
 
 ---
 
-## 2. Ethernet: two RGMII Gigabit ports — HIGH
+## 2. Ethernet: two RGMII Gigabit ports (HIGH)
 
 ### Memory is ruled out, four independent ways
 
 1. **No `DQSBUF`, `DDRDLL`, `DLLDEL` or `ECLKBRIDGE` configuration anywhere**
-   in any of the five images — only tile *names* containing `DQS`
+   in any of the five images; only tile *names* containing `DQS`
    (`PICL1_DQS0` etc.) hosting ordinary IO. A DDRx interface cannot exist
    without a DQS group.
 2. **No bidirectional pin on the left or right edges except `T4`** (one pin).
@@ -110,78 +110,78 @@ The 24 DDR/clock pins fall into two perfectly symmetric 12-pin groups:
 
 | signal | **PHY-A (left edge)** | **PHY-B (right edge)** |
 |---|---|---|
-| RXC — dedicated clock input | **`J1`** R23C0A `PCLKT7_1` | **`M16`** R26C72C `PCLKT3_0` |
+| RXC, dedicated clock input | **`J1`** R23C0A `PCLKT7_1` | **`M16`** R26C72C `PCLKT3_0` |
 | RXD[3:0] + RX_CTL (IDDR) | `J2`, `K1`, `K2` (R23C0 B/C/D), `J3`, `K3` (R20C0 C/D) | `L16`, `L15`, `M15` (R26C72 A/B/D), `P16`, `R16` (R35C72 A/B) |
-| TXC — ODDR clock output | **`L1`** R26C0A `PCLKT6_1` | **`J16`** R23C72A `PCLKT2_1` |
+| TXC, ODDR clock output | **`L1`** R26C0A `PCLKT6_1` | **`J16`** R23C72A `PCLKT2_1` |
 | TXD[3:0] + TX_CTL (ODDR) | `L2`, `M1`, `M2` (R26C0 B/C/D), `P1`, `R1` (R35C0 A/B) | `J15`, `K16`, `K15` (R23C72 B/C/D), `J14`, `K14` (R20C72 C/D) |
 | RX clock domain | global net 1 (UL quadrant) | global net 0 (LR quadrant) |
 | TXD launch clock | global net 2 = PLL **CLKOP** | global net 3 = PLL **CLKOP** |
 | TXC launch clock | global net 1 = PLL **CLKOS3** | global net 2 = PLL **CLKOS3** |
 
-Why this is RGMII and not something else — HIGH:
+Why this is RGMII and not something else (HIGH):
 
 * 4 data + 1 control in each direction, **DDR on all ten**, **zero tri-state**,
   **zero DQS**. That is the RGMII signature exactly.
 * The two TXC pins are proven to be **generated clocks**, not stubs: their CIB
-  input muxes are tied to constants — `CIB.JA0MUX 1` (TXDATA0 = 1) with
+  input muxes are tied to constants: `CIB.JA0MUX 1` (TXDATA0 = 1) with
   `JC0MUX 0` (TXDATA1 = 0) in `CIB_R26C1` and `CIB_R23C71`. An ODDR fed 1/0
   emits a clock. They also carry `DATAMUX_ODDR IOLDO`,
   `IOLOGIC MODE IDDRX1_ODDRX1` and `DRIVE 8`.
-* **TXC runs on CLKOS3 while TXD runs on CLKOP** — a deliberate RGMII TXC/TXD
+* **TXC runs on CLKOS3 while TXD runs on CLKOP**, a deliberate RGMII TXC/TXD
   skew of about +0.2 ns. HIGH for the mechanism; MEDIUM for the number, which
   depends on the VCO frequency.
 * Each PHY's RX logic is clocked by *that PHY's own* RXC pad, through its own
-  DCC onto its own global net — confirmed independently by the CMUX arcs and
+  DCC onto its own global net, confirmed independently by the CMUX arcs and
   by the IOLOGIC clock muxes.
 
-**Conclusion: exactly two Ethernet ports, RGMII, Gigabit class.** — HIGH
+**Conclusion: exactly two Ethernet ports, RGMII, Gigabit class.** (HIGH)
 
-### PHY management — RETRACTED
+### PHY management (RETRACTED)
 
 An earlier reading of this file identified six left-bank-6 `IREG_OREG` pins as
 PHY management, with **`T4` as MDIO**.
 
-> **That is retracted — HIGH.** `T4` is one of the 96 RGB data pins
-> (see [output-stage.md §7.1](output-stage.md#71-the-96-rgb-data-pins-are-identified--high)).
+> **That is retracted (HIGH).** `T4` is one of the 96 RGB data pins
+> (see [output-stage.md §7.1](output-stage.md#71-the-96-rgb-data-pins-are-identified-high)).
 > **There is no MDC/MDIO group anywhere in this design.** The two PHYs are
 > presumably strapped rather than managed.
 
 ---
 
-## 3. SPI configuration flash — HIGH
+## 3. SPI configuration flash (HIGH)
 
 Bank 8 (bottom edge) is the boot SPI flash, and it is **live at runtime**:
 
-* `CCLK.MODE USRMCLK` — the fabric drives the flash clock after configuration.
+* `CCLK.MODE USRMCLK`: the fabric drives the flash clock after configuration.
 * `T6` = `D7/IO7` as a registered BIDIR; `T7` = `D1/MISO` as an input;
   `CSN`, `WRITEN`, `HOLDN`, `D0`, `D2`, `D3`, `D4`, `D6` as outputs.
 * 13 bank-8 pins in total.
 
 This is how the running design reads its stored configuration back out of the
-same flash it booted from — see [parameter-path.md](parameter-path.md).
+same flash it booted from; see [parameter-path.md](parameter-path.md).
 
 ---
 
-## 4. The LED side — ~147 pins, partly decomposed
+## 4. The LED side: ~147 pins, partly decomposed
 
 After removing 24 RGMII pins and 13 bank-8 SPI pins, roughly **147 pins remain
 on the LED side** (≈52 top, ≈47 left, ≈51 right), of which 32 are
-bidirectional. — HIGH
+bidirectional. (HIGH)
 
 **That is about ten times a single HUB75 port.** An early worry in this
-analysis — "only 7 output pins, too few for HUB75" — was an artefact of the
+analysis ("only 7 output pins, too few for HUB75") was an artefact of the
 `BASE_TYPE` trap and is **wrong**. Discard it.
 
-### The RGB data group is identified — HIGH
+### The RGB data group is identified (HIGH)
 
 **96 of those pins are the serial RGB data lines**: the 96 left- and
 right-edge pads (47 LEFT OUT + 48 RIGHT OUT + 1 LEFT BIDIR). 96 = **32 serial
 RGB groups × 3 colour lines**, exactly the E120 spec's figure. Found via the
 `IREG_OREG` signature in the Normal/LS builds, with zero discrepancy in either
 direction. List: `analysis/fpga/rgb96_pins.txt`; method:
-[output-stage.md §7.1](output-stage.md#71-the-96-rgb-data-pins-are-identified--high).
+[output-stage.md §7.1](output-stage.md#71-the-96-rgb-data-pins-are-identified-high).
 
-### The control group is identified as a group — HIGH
+### The control group is identified as a group (HIGH)
 
 The **top-edge pads** are the HUB75 control signals. They share a global
 synchronous blank (`Q4@23,18`) and a 2:1 source select (`Q5@23,18`), and are
@@ -193,13 +193,13 @@ C7  B7  A8   E8 D8   C8 B8   B9 C9   D9 E9   A9   B10 C10
 ```
 
 These are the only top-edge pins with that drive/slew combination, and 14 is
-exactly a HUB75E port's signal count (6 RGB + 5 address + CLK + LAT + OE) —
-but with the RGB lines now known to be on the left/right edges, that
+exactly a HUB75E port's signal count (6 RGB + 5 address + CLK + LAT + OE),
+but with the RGB lines known to be on the left/right edges, that
 coincidence should not be over-read. **MEDIUM.**
 
 ### What is NOT RESOLVED
 
-* **Which top-edge pad carries which control signal** — A, B, C, D, E vs CLK
+* **Which top-edge pad carries which control signal**: A, B, C, D, E vs CLK
   vs LAT vs OE. The group is identified; it has not been decomposed.
 * **Which pins form which of the twelve physical HUB75E connectors.** Nothing
   in the bitstream ties a pad to a connector.
@@ -219,7 +219,7 @@ coincidence should not be over-read. **MEDIUM.**
 
 ---
 
-## 5. Board architecture implied by the pinout — HIGH unless noted
+## 5. Board architecture implied by the pinout: HIGH unless noted
 
 ```
                      +-------------------------------+
@@ -242,10 +242,10 @@ coincidence should not be over-read. **MEDIUM.**
 ```
 
 * Two gigabit Ethernet ports (in and out / daisy-chain), **strapped, not
-  managed** — there is no MDIO/MDC.
+  managed**; there is no MDIO/MDC.
 * One SPI flash holding both the bitstream and the card's configuration.
-* No external RAM of any kind — all buffering is in the FPGA's 53 block RAMs.
-* Everything else — ~147 pins — goes to the twelve HUB75E connectors: **96 RGB
+* No external RAM of any kind; all buffering is in the FPGA's 53 block RAMs.
+* Everything else (~147 pins) goes to the twelve HUB75E connectors: **96 RGB
   data lines on the left and right edges, the control signals on the top
   edge.**
 * No dedicated status-LED or button pins were identified. The six

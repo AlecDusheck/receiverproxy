@@ -1,8 +1,8 @@
 # The `.rcvbp` receiver-parameter file format
 
-Derived independently two ways — by structural analysis of the file bytes, and
-by disassembly of `CHWParamReceiver::LoadFromBuffer` @ `0x170e50` in
-`libCLTDevice.1.dylib` — which agree. Implemented in `crates/e120-rcvbp`. Record 0x01's fields are decoded in [`record-0x01-fields.md`](record-0x01-fields.md), which supersedes the per-field guesses in the table below.
+Derived two ways that agree: from the file bytes themselves, and from the
+disassembly of `CHWParamReceiver::LoadFromBuffer` @ `0x170e50` in
+`libCLTDevice.1.dylib`. Implemented in `crates/e120-rcvbp`. Record 0x01's fields are decoded in [`record-0x01-fields.md`](record-0x01-fields.md), which supersedes the per-field guesses in the table below.
 
 ## File header (32 bytes)
 
@@ -37,7 +37,7 @@ slack across all 19 files tested, 89 070 bytes for the compressed sample):
 
 | id | Contents |
 |---|---|
-| `0x01` | Main receiver parameters — geometry, scan, timing, coefficients |
+| `0x01` | Main receiver parameters: geometry, scan, timing, coefficients |
 | `0x03` | Pixel/row mapping table: a 3-byte header then 4096 three-byte entries |
 | `0x84` | Driver-chip register table: `(register, R, G, B)` quads |
 | `0x8a` | Secondary parameters |
@@ -46,13 +46,13 @@ slack across all 19 files tested, 89 070 bytes for the compressed sample):
 | `0x07`, `0x86`, `0x8d`, `0x8e`, `0x8f`, `0x91`, `0x95`, `0xcd`, `0xd8`, `0xda` | Gamma and calibration tables; all zero in an uncalibrated profile |
 
 For `P2.5-32S-128X64-SM16269S-256X384I.rcvbp`, only records `0x01`, `0x03`,
-`0x84`, `0x8a`, `0xca` and the two small coefficient records carry data — about
+`0x84`, `0x8a`, `0xca` and the two small coefficient records carry data, about
 13 KB of the 89 KB total. Everything else is empty tables.
 
 ## Record `0x01` field positions
 
-Established empirically by diffing a corpus of 18 P2.5 configuration files that
-vary in scan, driver chip, and module size while holding other parameters fixed.
+Found by diffing 18 P2.5 configuration files that vary in scan, driver chip
+and module size while holding other parameters fixed.
 Offsets are within the record payload.
 
 | Offset | Field | Evidence |
@@ -72,5 +72,5 @@ expressed through record `0x84`'s register table plus these timing values.
 ## Relationship to the wire protocol
 
 The file is **not** replayed verbatim onto the wire. iSet parses it into a
-`CHWParamReceiver` object and re-serializes that into typed packets — see
-`archive/config-protocol.md`. The record IDs above are file-format IDs, not packet types.
+`CHWParamReceiver` object and re-serializes that into typed packets
+(`archive/config-protocol.md`). The record IDs above are file-format IDs, not packet types.

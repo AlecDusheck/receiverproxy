@@ -1,4 +1,4 @@
-# Record 0x01 (0x0a01) — the complete field dictionary
+# Record 0x01 (0x0a01): the complete field dictionary
 
 Instruction-level decode of the 764-byte main receiver-parameter record, from
 the macOS libCLTDevice disassembly (all addresses refer to it). Sources: the
@@ -99,7 +99,7 @@ per-byte survey behind this page was not kept in the repo.
 bit0 OBJ+0xBF (pack 0x17) · bit1 OBJ+0xC0 (pack 0x16) · bits3-5 OBJ+0xD3BD-BF ·
 bit6 OBJ+0xD8 SpModule enable (pack 0x94) · bit7 OBJ+0xD3C2 · bit10 OBJ+0x78
 (pack 0x48) · bit11 OBJ+0xD3C0 (pack 0x49) · **bit12 OBJ+0xD6EA: geometry
-source select — clear = module W/H/void from payload 0x000-0x007 (our file:
+source select; clear = module W/H/void from payload 0x000-0x007 (our file:
 clear)** · bit13 gamma-10bit · bit14 OBJ+0x86 · bit15 OBJ+0xB4 · bit16
 OBJ+0xD6D8 · bit17 OBJ+0xDEF0 · bit18 vt+0x5A8()==2 · bit19 OBJ+0x87==0 ·
 bit20 vt+0xA8()==0 · bit21 GetIsSetCustomModulePosSusseed · bit22 OBJ+0xDEF1 ·
@@ -122,7 +122,7 @@ vt+0x2A0 · bit12 OBJ+0xD6D9 · bit13 always set · bits13|14 OBJ+0xE1A3.
   module dimension`. Factory (2 modules in line dir): 512; one module: 256.
 * **GetModuleCountInLineDir** @ 0x14b1e0 = `ceil(GetMaxInLineDir()/moduleDim)`
   where MaxInLineDir comes from the IRcvMaxSize interface (the CARD/live
-  layout), not record 0x01 — baked into the pack at compile time.
+  layout), not record 0x01; baked into the pack at compile time.
 * GetRgbSelValue (OBJ+0xDF7C) is not stored in record 0x01; its setter is
   never called in the dylib.
 
@@ -130,13 +130,13 @@ vt+0x2A0 · bit12 OBJ+0xD6D9 · bit13 always set · bits13|14 OBJ+0xE1A3.
 
 The section numbers refer to [archive/config-protocol.md](archive/config-protocol.md).
 
-1. vt+0x50 is **GetChipType** @ 0x16daa0, not GetSplitSegment — §21.2's gray
+1. vt+0x50 is **GetChipType** @ 0x16daa0, not GetSplitSegment; §21.2's gray
    override is a chip-type test.
 2. **pack 0x0B is the scan denominator** (factory body[0x07] = 0x10 = 16),
    not GetRgbSelValue. The card never was at 1/8 scan.
 3. **pack 0x0D-0x0E BE is the serial clock frequency** (factory = 8), not the
    scan mode. §21.2 conflated these; basic-pack-single-module.bin (v1)
-   accidentally doubled the serial clock — v2 fixes this.
+   accidentally doubled the serial clock; v2 fixes this.
 4. New §7.3 fills: pack 0x8C-0x8F = MaxWidth/MaxHeight BE; pack 0x34-0x37 =
    the four current gains; pack 0x74-0x83 = the chip-custom block (record
    payload +0x06A..0x079 verbatim).

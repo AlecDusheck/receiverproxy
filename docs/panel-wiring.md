@@ -3,7 +3,7 @@
 The pixel map (record `0x0a03`) is the card's answer to "where does framebuffer
 pixel N physically live". Getting it wrong scrambles every column no matter how
 correct the pixel data is, and it is not something you can eyeball from a byte
-diff — decode it as structure with `scripts/mapstruct.py`.
+diff; decode it as structure with `scripts/mapstruct.py`.
 
 ## The record
 
@@ -41,7 +41,7 @@ slot = (col / blk) * (groups * blk) + group * blk + col % blk      # blk = 64
 
 ## The wiring we assumed, and why it was wrong
 
-With `blk = width` the formula collapses to `group * width + col` — each data
+With `blk = width` the formula collapses to `group * width + col`, so each data
 group gets one contiguous 128-slot half of the chain. That is the majority
 wiring across the vendor corpus and remains the generator's default, but it is
 **not** this module's wiring, and it is what had been flashed to the card.
@@ -65,7 +65,7 @@ itself says 16, twice:
 * driver register `0x02` reads `0x0f` = scan − 1.
 
 Our parser also prints "main param block: width 128, scan 1/32" for both this
-file and ours — that field is not the module scan and the two disagreeing is
+file and ours; that field is not the module scan and the two disagreeing is
 normal, not a bug.
 
 ## Driver registers (record 0x84)
@@ -82,10 +82,10 @@ The factory writes **no secondary chip id** (record 0x01 `+0x0E9` and `+0x205`
 both zero). Claiming `0x14D` would declare max scan 64 on a 1/16 module, via the
 vendor's own ResetIS rule where the sub-id overrides max scan.
 
-## Status
+## Result
 
 With `block = 64`, the factory registers and no sub-id, `config gen` reproduces
-the reference file **record-for-record from TOML alone**, no donor —
+the reference file **record-for-record from TOML alone**, no donor,
 pinned by `the_reference_config_is_regenerated_record_for_record`. The only
 intended difference is screen size: they compiled for a 256x384 wall of twelve
 modules, we have one.

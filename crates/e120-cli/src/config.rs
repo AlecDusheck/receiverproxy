@@ -179,8 +179,8 @@ fn describe_record(t: u16, empty: bool) -> &'static str {
 }
 
 /// Generate a panel's configuration from a TOML spec: the `.rcvbp`, the
-/// basic-pack body, the compiled block-7 boot image, and a list of where each byte came from
-/// naming the source of every placed byte.
+/// basic-pack body, the compiled block-7 boot image, and a file listing
+/// where every placed byte came from.
 pub fn gen_config(spec_path: &str, out_dir: &str) -> Result<()> {
     let spec = rcvbp::spec::PanelSpec::load(spec_path)?;
     let g = spec.generate()?;

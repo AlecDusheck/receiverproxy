@@ -1,4 +1,4 @@
-//! Record 0x01 — the main receiver-parameter record: named byte offsets and
+//! Record 0x01, the main receiver-parameter record: named byte offsets and
 //! typed accessors. The field dictionary is `docs/record-0x01-fields.md`.
 
 use anyhow::{bail, Result};

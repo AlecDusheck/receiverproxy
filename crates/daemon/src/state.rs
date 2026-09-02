@@ -2,25 +2,18 @@
 //! the jobs, and the one owner of the raw link.
 
 use crate::error::{ApiError, ApiResult};
-use crate::jobs::{self, Handle, Jobs, Line, Lines};
+use crate::api::Settings;
+use crate::jobs::{self, Handle, JobKind, Jobs, Line, Lines};
 use crate::{lock, store};
-use anyhow::{Context, Result};
-use e120_canvas::Canvas;
-use e120_commands::{Ctx, Progress};
-use e120_proto::DiscoveryInfo;
-use serde::{Deserialize, Serialize};
+use anyhow::Result;
+use wall::Canvas;
+use ops::{Ctx, Progress};
+use colorlight::DiscoveryInfo;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 /// The interface when neither the command line nor the settings name one.
 const DEFAULT_IFACE: &str = "en24";
-
-/// `settings.json`.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Settings {
-    pub iface: String,
-    pub brightness: u8,
-}
 
 /// Who holds the link: a job, or a synchronous command by its subject.
 struct Holder {
@@ -35,7 +28,8 @@ pub struct AppState {
     pub jobs: Jobs,
     holder: Mutex<Option<Holder>>,
     pub data_dir: PathBuf,
-    pub token: Option<String>,
+    /// The credential every API request but `GET /health` must present.
+    pub token: String,
 }
 
 /// Held while a command or job owns the link; dropping it frees the link.
@@ -47,27 +41,18 @@ impl Drop for Guard {
     }
 }
 
-/// The chip libraries built into the daemon, so a spec from the browser
-/// resolves `config/chips/...` without a checkout.
-static CHIPS: include_dir::Dir<'static> =
-    include_dir::include_dir!("$CARGO_MANIFEST_DIR/../../config/chips");
-
 /// The daemon's chip-library loader: the embedded set by repository path,
 /// then the filesystem relative to the working directory.
 ///
 /// # Errors
 /// Fails when the path is in neither.
 pub fn load_library(path: &str) -> Result<String> {
-    if let Some(f) = path
-        .strip_prefix("config/chips/")
-        .and_then(|rel| CHIPS.get_file(rel))
-    {
-        return f
-            .contents_utf8()
-            .map(str::to_owned)
-            .with_context(|| format!("{path}: not utf-8"));
+    // The embedded set, so a spec from the browser resolves `config/chips/...`
+    // without a checkout.
+    if let Some(text) = ops::panelspec::embedded::chip(path) {
+        return Ok(text.to_owned());
     }
-    e120_commands::read_library(path)
+    ops::read_library(path)
 }
 
 impl AppState {
@@ -76,15 +61,12 @@ impl AppState {
     ///
     /// # Errors
     /// Fails if a stored file exists but does not parse.
-    pub fn new(
-        data_dir: PathBuf,
-        token: Option<String>,
-        iface: Option<String>,
-    ) -> Result<Arc<Self>> {
+    pub fn new(data_dir: PathBuf, token: String, iface: Option<String>) -> Result<Arc<Self>> {
         let mut settings: Settings =
             store::load(&data_dir.join("settings.json"))?.unwrap_or_else(|| Settings {
                 iface: DEFAULT_IFACE.to_owned(),
                 brightness: 255,
+                card: None,
             });
         if let Some(i) = iface {
             settings.iface = i;
@@ -131,15 +113,21 @@ impl AppState {
     }
 
     /// The command context from the settings; the panel size only matters
-    /// without a layout, and every daemon command passes the wall.
+    /// without a layout, and every daemon command passes the wall. The card
+    /// model is the `card` setting, else the first discovered card's.
     pub fn ctx(&self) -> Ctx {
         let s = self.settings();
+        let model = match &s.card {
+            Some(name) => receivers::by_name(name),
+            None => lock(&self.cards).first().and_then(|c| receivers::by_id(c.card_id)),
+        };
         Ctx {
             iface: s.iface,
             width: 128,
             height: 64,
-            order: e120_proto::ColorOrder::Bgr,
+            order: colorlight::ColorOrder::Bgr,
             brightness: s.brightness,
+            model,
         }
     }
 
@@ -165,7 +153,7 @@ impl AppState {
         lock(&self.holder)
             .as_ref()
             .and_then(|h| h.job.clone())
-            .filter(|j| matches!(j.kind(), "show/video" | "show/hold"))
+            .filter(|j| matches!(j.kind(), JobKind::ShowVideo | JobKind::ShowHold))
     }
 
     /// A `show/*` request replaces a running show job: cancel it and wait.
@@ -209,7 +197,7 @@ impl AppState {
     /// 409 while the link is held.
     pub fn start_job<F>(
         self: &Arc<Self>,
-        kind: &'static str,
+        kind: JobKind,
         subject: &str,
         files: Vec<String>,
         f: F,
@@ -248,7 +236,7 @@ impl AppState {
     pub async fn discover_at_start(self: &Arc<Self>) {
         match self
             .command("discover", |ctx, p| {
-                e120_commands::capture::discover(ctx, 3, p)
+                ops::capture::discover(ctx, 3, p)
             })
             .await
         {

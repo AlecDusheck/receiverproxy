@@ -4,8 +4,9 @@
 use crate::lock;
 use axum::response::sse::{Event as SseEvent, KeepAlive, Sse};
 use axum::response::IntoResponse;
-use e120_commands::Progress;
-use serde::Serialize;
+use ops::Progress;
+use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
@@ -13,7 +14,8 @@ use tokio::sync::{broadcast, mpsc, watch};
 use tokio_stream::wrappers::ReceiverStream;
 
 /// Which stream a line went to in the CLI.
-#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum Stream {
     Out,
@@ -21,25 +23,80 @@ pub enum Stream {
 }
 
 /// One line a command printed, in order.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Line {
     pub stream: Stream,
     pub text: String,
 }
 
-/// What a command produced: its lines, the files it wrote, and for a gated
-/// command whether it committed.
-#[derive(Clone, Debug, Default, Serialize)]
+/// What a command produced: its lines and the files it wrote.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Outcome {
     pub lines: Vec<Line>,
     pub files: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub committed: Option<bool>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+/// A gated command's outcome: the plan when `committed` is false.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct GatedOutcome {
+    #[serde(flatten)]
+    pub outcome: Outcome,
+    pub committed: bool,
+}
+
+/// What a finished job produced.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(untagged)]
+pub enum JobResult {
+    Gated(GatedOutcome),
+    Plain(Outcome),
+}
+
+/// The long operations, named as the API names them.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub enum JobKind {
+    #[serde(rename = "provision")]
+    Provision,
+    #[serde(rename = "firmware/install")]
+    FirmwareInstall,
+    #[serde(rename = "flash/snapshot")]
+    FlashSnapshot,
+    #[serde(rename = "flash/restore")]
+    FlashRestore,
+    #[serde(rename = "show/video")]
+    ShowVideo,
+    #[serde(rename = "show/hold")]
+    ShowHold,
+}
+
+impl JobKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Provision => "provision",
+            Self::FirmwareInstall => "firmware/install",
+            Self::FlashSnapshot => "flash/snapshot",
+            Self::FlashRestore => "flash/restore",
+            Self::ShowVideo => "show/video",
+            Self::ShowHold => "show/hold",
+        }
+    }
+}
+
+impl fmt::Display for JobKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
-pub enum State {
+pub enum JobState {
     Running,
     Done,
     Failed,
@@ -47,16 +104,17 @@ pub enum State {
 }
 
 /// A job as the API shows it.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Job {
     pub id: String,
-    pub kind: &'static str,
-    pub state: State,
+    pub kind: JobKind,
+    pub state: JobState,
     pub started: String,
     pub finished: Option<String>,
     pub lines: Vec<Line>,
     pub error: Option<String>,
-    pub result: Option<Outcome>,
+    pub result: Option<JobResult>,
 }
 
 /// What an SSE subscriber sees: a line with its index in `lines`, or the end.
@@ -75,12 +133,12 @@ pub struct Handle {
 }
 
 impl Handle {
-    fn new(id: String, kind: &'static str) -> Self {
+    fn new(id: String, kind: JobKind) -> Self {
         Self {
             job: Mutex::new(Job {
                 id,
                 kind,
-                state: State::Running,
+                state: JobState::Running,
                 started: rfc3339_now(),
                 finished: None,
                 lines: Vec::new(),
@@ -101,12 +159,12 @@ impl Handle {
         lock(&self.job).id.clone()
     }
 
-    pub fn kind(&self) -> &'static str {
+    pub fn kind(&self) -> JobKind {
         lock(&self.job).kind
     }
 
     pub fn is_running(&self) -> bool {
-        lock(&self.job).state == State::Running
+        lock(&self.job).state == JobState::Running
     }
 
     /// Ask the command to stop at its next poll.
@@ -140,19 +198,22 @@ impl Handle {
             let mut job = lock(&self.job);
             job.finished = Some(rfc3339_now());
             if self.cancel.load(Ordering::Relaxed) {
-                job.state = State::Cancelled;
+                job.state = JobState::Cancelled;
             } else {
                 match result {
                     Ok((files, committed)) => {
-                        job.state = State::Done;
-                        job.result = Some(Outcome {
+                        job.state = JobState::Done;
+                        let outcome = Outcome {
                             lines: job.lines.clone(),
                             files,
-                            committed,
+                        };
+                        job.result = Some(match committed {
+                            Some(committed) => JobResult::Gated(GatedOutcome { outcome, committed }),
+                            None => JobResult::Plain(outcome),
                         });
                     }
                     Err(e) => {
-                        job.state = State::Failed;
+                        job.state = JobState::Failed;
                         job.error = Some(e);
                     }
                 }
@@ -171,7 +232,7 @@ impl Handle {
             let mut sub = handle.events.subscribe();
             let (replay, running) = {
                 let job = lock(&handle.job);
-                (job.lines.clone(), job.state == State::Running)
+                (job.lines.clone(), job.state == JobState::Running)
             };
             for line in &replay {
                 if tx.send(Ok(line_event(line))).await.is_err() {
@@ -278,7 +339,7 @@ impl Jobs {
     }
 
     /// Register a job under an id from [`Jobs::next_id`].
-    pub fn create(&self, id: String, kind: &'static str) -> Arc<Handle> {
+    pub fn create(&self, id: String, kind: JobKind) -> Arc<Handle> {
         let handle = Arc::new(Handle::new(id, kind));
         lock(&self.all).push(handle.clone());
         handle
@@ -367,8 +428,8 @@ mod tests {
         let a = jobs.next_id();
         let b = jobs.next_id();
         assert_eq!((a.as_str(), b.as_str()), ("j1", "j2"));
-        jobs.create(a, "provision");
-        jobs.create(b, "flash/snapshot");
+        jobs.create(a, JobKind::Provision);
+        jobs.create(b, JobKind::FlashSnapshot);
         let ids: Vec<String> = jobs.list().into_iter().map(|j| j.id).collect();
         assert_eq!(ids, ["j2", "j1"]);
         assert!(jobs.get("j1").is_some());

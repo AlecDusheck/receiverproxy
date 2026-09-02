@@ -6,7 +6,7 @@ use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
 use axum::Router;
 use base64::prelude::{Engine, BASE64_STANDARD};
-use e120_server::{router, AppState};
+use daemon::{router, AppState};
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -19,23 +19,24 @@ fn repo() -> PathBuf {
 }
 
 fn fresh_dir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("e120-server-test-{name}-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("daemon-test-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
 
-fn state(name: &str, token: Option<&str>) -> Arc<AppState> {
-    AppState::new(
-        fresh_dir(name),
-        token.map(str::to_owned),
-        Some("nosuch0".to_owned()),
-    )
-    .unwrap()
+/// The daemon's token for every test; `req` presents it.
+const TOKEN: &str = "s3cret";
+
+fn state(name: &str) -> Arc<AppState> {
+    AppState::new(fresh_dir(name), TOKEN.to_owned(), Some("nosuch0".to_owned())).unwrap()
 }
 
 fn req(method: Method, path: &str, body: Option<Value>) -> Request<Body> {
-    let b = Request::builder().method(method).uri(path);
+    let b = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("x-token", TOKEN);
     match body {
         Some(v) => b
             .header(header::CONTENT_TYPE, "application/json")
@@ -80,7 +81,7 @@ async fn wait_job(app: &Router, id: &str) -> Value {
 
 #[tokio::test]
 async fn health_has_the_documented_shape() {
-    let app = router(state("health", None));
+    let app = router(state("health"));
     let (status, v) = call(&app, req(Method::GET, "/api/v1/health", None)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(v["version"], env!("CARGO_PKG_VERSION"));
@@ -93,7 +94,7 @@ async fn config_gen_returns_what_the_cli_writes() {
     let spec_path = "config/panels/p25-128x64-sm16269s.toml";
     let spec_toml = std::fs::read_to_string(repo().join(spec_path)).unwrap();
 
-    let app = router(state("gen", None));
+    let app = router(state("gen"));
     let (status, v) = call(
         &app,
         req(
@@ -108,9 +109,10 @@ async fn config_gen_returns_what_the_cli_writes() {
 
     // `e120 config gen`, as the binary runs it from the repository root.
     let out = fresh_dir("gen-cli");
-    let loader = |p: &str| e120_commands::read_library(&repo().join(p).to_string_lossy());
-    let mut lines = e120_server::jobs::Lines::default();
-    let g = e120_commands::config::gen_config(
+    let loader = |p: &str| ops::read_library(&repo().join(p).to_string_lossy());
+    let mut lines = daemon::jobs::Lines::default();
+    let g = ops::config::gen_config(
+        ops::receivers::default_model(),
         &repo().join(spec_path).to_string_lossy(),
         &out.to_string_lossy(),
         &loader,
@@ -147,14 +149,15 @@ async fn a_gated_command_without_commit_returns_the_plan() {
     // and returns before opening the link.
     let snap = fresh_dir("gate-snap");
     let spec =
-        e120_rcvbp::spec::PanelSpec::load(repo().join("config/panels/p25-128x64-sm16269s.toml"))
+        ops::panelspec::PanelSpec::load(repo().join("config/panels/p25-128x64-sm16269s.toml"))
             .unwrap();
-    let g = e120_commands::config::generate(&spec, "spec.toml", &e120_server::state::load_library)
+    let card = ops::receivers::default_model();
+    let g = ops::config::generate(card, &spec, "spec.toml", &daemon::state::load_library)
         .unwrap();
     let config = snap.join("config.rcvbp");
     std::fs::write(&config, &g.rcvbp).unwrap();
 
-    let app = router(state("gate", None));
+    let app = router(state("gate"));
     let (status, v) = call(
         &app,
         req(
@@ -200,10 +203,10 @@ async fn a_gated_command_without_commit_returns_the_plan() {
 
 #[tokio::test]
 async fn a_running_job_makes_link_routes_409() {
-    let st = state("busy", None);
+    let st = state("busy");
     let app = router(st.clone());
     let id = st
-        .start_job("show/hold", "fake", Vec::new(), |_, p| {
+        .start_job(daemon::jobs::JobKind::ShowHold, "fake", Vec::new(), |_, p| {
             while !p.cancelled() {
                 std::thread::sleep(Duration::from_millis(5));
             }
@@ -265,7 +268,7 @@ async fn a_running_job_makes_link_routes_409() {
 
 #[tokio::test]
 async fn cors_headers_are_present() {
-    let app = router(state("cors", None));
+    let app = router(state("cors"));
     let preflight = Request::builder()
         .method(Method::OPTIONS)
         .uri("/api/v1/health")
@@ -301,33 +304,50 @@ async fn cors_headers_are_present() {
 }
 
 #[tokio::test]
-async fn a_token_gates_the_api() {
-    let app = router(state("token", Some("s3cret")));
-    let (status, v) = call(&app, req(Method::GET, "/api/v1/health", None)).await;
+async fn the_token_gates_every_route_but_health() {
+    let app = router(state("token"));
+    let bare = |path: &str| Request::builder().uri(path).body(Body::empty()).unwrap();
+    let with = |path: &str, token: &str| {
+        Request::builder()
+            .uri(path)
+            .header("x-token", token)
+            .body(Body::empty())
+            .unwrap()
+    };
+
+    let (status, v) = call(&app, bare("/api/v1/settings")).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert_eq!(v["error"], "token required");
-
-    let wrong = Request::builder()
-        .uri("/api/v1/health")
-        .header("x-token", "nope")
-        .body(Body::empty())
-        .unwrap();
-    let (status, v) = call(&app, wrong).await;
+    let (status, v) = call(&app, with("/api/v1/settings", "nope")).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert_eq!(v["error"], "bad token");
-
-    let right = Request::builder()
-        .uri("/api/v1/health")
-        .header("x-token", "s3cret")
-        .body(Body::empty())
-        .unwrap();
-    let (status, _) = call(&app, right).await;
+    let (status, v) = call(&app, with("/api/v1/settings", TOKEN)).await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(v["iface"], "nosuch0");
+
+    // Health answers without a token, with the version alone.
+    let (status, v) = call(&app, bare("/api/v1/health")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(v, json!({ "version": env!("CARGO_PKG_VERSION") }));
+    let (status, v) = call(&app, with("/api/v1/health", "nope")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(v, json!({ "version": env!("CARGO_PKG_VERSION") }));
+    let (status, v) = call(&app, with("/api/v1/health", TOKEN)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(v["iface"], "nosuch0");
+    assert_eq!(v["cards"], json!([]));
+
+    // `EventSource` cannot set headers, so the query form counts too.
+    let (status, v) = call(&app, bare("/api/v1/jobs?token=s3cret")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(v, json!([]));
+    let (status, _) = call(&app, bare("/api/v1/jobs?token=nope")).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
 async fn errors_are_json_with_the_documented_codes() {
-    let app = router(state("errors", None));
+    let app = router(state("errors"));
     let (status, v) = call(&app, req(Method::GET, "/api/v1/nope", None)).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert_eq!(v["error"], "not found");
@@ -339,6 +359,7 @@ async fn errors_are_json_with_the_documented_codes() {
     let bad = Request::builder()
         .method(Method::POST)
         .uri("/api/v1/brightness")
+        .header("x-token", TOKEN)
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from("{\"value\": 999}"))
         .unwrap();
@@ -358,13 +379,13 @@ async fn errors_are_json_with_the_documented_codes() {
 
 #[tokio::test]
 async fn the_wall_is_validated_and_stored() {
-    let st = state("wall", None);
+    let st = state("wall");
     let app = router(st.clone());
     let (status, v) = call(&app, req(Method::GET, "/api/v1/wall", None)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(v["width"], 128);
 
-    let two = e120_canvas::Canvas::cards(128, 64, 2, 1);
+    let two = wall::Canvas::cards(128, 64, 2, 1);
     let (status, v) = call(
         &app,
         req(

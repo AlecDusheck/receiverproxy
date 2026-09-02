@@ -1,9 +1,16 @@
 //! One handler per route in `docs/ui.md` section 2.
 
+use crate::api::{
+    Brightness, Card, Cards, ConfigRead, ConfigReadReq, ConfigSendReq, ConfigWriteReq, DiscoverReq,
+    FirmwareReq, GenFileSet, GenFiles, Health, ProvisionReq, ReloadReq, RestoreReq,
+    ScreenSizeQuery, ScreenSizeReq, SetLayoutReq, Settings, ShowFillReq, ShowImageReq,
+    ShowPatternReq, ShowVideoReq, Size, SizeOutcome, SnapshotReq, SpecReq, Started,
+    TestModeReq,
+};
 use crate::assets;
 use crate::error::{ApiError, ApiResult};
-use crate::jobs::{Job, Line, Outcome};
-use crate::state::{load_library, AppState, Settings};
+use crate::jobs::{GatedOutcome, Job, JobKind, Line, Outcome};
+use crate::state::{load_library, AppState};
 use crate::{lock, Shared};
 use anyhow::Context;
 use axum::body::Bytes;
@@ -15,19 +22,18 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::prelude::{Engine, BASE64_STANDARD};
-use e120_canvas::Canvas;
-use e120_commands::{capture, config, display, flash, params, provision, restore, screen, upgrade};
-use e120_proto::DiscoveryInfo;
-use e120_rcvbp::spec::PanelSpec;
-use e120_video::Fit;
+use wall::Canvas;
+use ops::{capture, config, display, flash, params, provision, restore, screen, upgrade};
+use panelspec::PanelSpec;
+use sources::Fit;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tower_http::cors::{Any, CorsLayer};
 
 /// The whole application: the API under `/api/v1`, the web app elsewhere.
+/// `GET /health` is added after the token layer, so it answers without one.
 pub fn router(state: Shared) -> Router {
     let api = Router::new()
-        .route("/health", get(health))
         .route("/discover", post(discover))
         .route("/settings", get(get_settings).put(put_settings))
         .route("/brightness", post(brightness))
@@ -55,7 +61,8 @@ pub fn router(state: Shared) -> Router {
         .route("/jobs", get(list_jobs))
         .route("/jobs/{id}", get(get_job).delete(delete_job))
         .route("/jobs/{id}/events", get(job_events))
-        .layer(middleware::from_fn_with_state(state.clone(), token_check));
+        .layer(middleware::from_fn_with_state(state.clone(), token_check))
+        .route("/health", get(health));
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
@@ -67,16 +74,46 @@ pub fn router(state: Shared) -> Router {
         .with_state(state)
 }
 
-/// `X-Token` must match `--token` when one is set.
+/// Every route behind this layer needs the daemon's token.
 async fn token_check(State(state): State<Shared>, req: Request, next: Next) -> Response {
-    if let Some(want) = &state.token {
-        match req.headers().get("x-token").and_then(|v| v.to_str().ok()) {
-            None => return ApiError::unauthorized("token required").into_response(),
-            Some(got) if got != want => return ApiError::unauthorized("bad token").into_response(),
-            Some(_) => {}
-        }
+    if let Err(e) = authorize(&state, &req) {
+        return e.into_response();
     }
     next.run(req).await
+}
+
+#[derive(Deserialize)]
+struct TokenQs {
+    token: Option<String>,
+}
+
+/// The token a request presents: the `X-Token` header, or `?token=` for
+/// `EventSource`, which cannot set headers.
+fn presented(req: &Request) -> Option<String> {
+    if let Some(h) = req.headers().get("x-token") {
+        return h.to_str().ok().map(str::to_owned);
+    }
+    Query::<TokenQs>::try_from_uri(req.uri())
+        .ok()
+        .and_then(|Query(q)| q.token)
+}
+
+/// 401 unless the request presents the daemon's token.
+fn authorize(state: &AppState, req: &Request) -> ApiResult<()> {
+    match presented(req) {
+        None => Err(ApiError::unauthorized("token required")),
+        Some(got) if !same(&got, &state.token) => Err(ApiError::unauthorized("bad token")),
+        Some(_) => Ok(()),
+    }
+}
+
+/// Equality whose time does not depend on where the strings differ.
+fn same(a: &str, b: &str) -> bool {
+    a.len() == b.len()
+        && a.bytes()
+            .zip(b.bytes())
+            .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+            == 0
 }
 
 // --- extractors -------------------------------------------------------------
@@ -116,82 +153,25 @@ impl<S: Send + Sync, T: DeserializeOwned> FromRequestParts<S> for Qs<T> {
     }
 }
 
-// --- shapes -----------------------------------------------------------------
+// --- shared ------------------------------------------------------------------
 
-/// `e120_proto::DiscoveryInfo` without `raw`; the field names are the API.
-#[derive(Serialize)]
-#[allow(clippy::struct_field_names)]
-struct Card {
-    controller: u8,
-    card_id: u8,
-    ver_major: u8,
-    ver_minor: u8,
-    cols: u16,
-    rows: u16,
+fn outcome(lines: Vec<Line>, files: Vec<String>) -> Outcome {
+    Outcome { lines, files }
 }
 
-impl From<&DiscoveryInfo> for Card {
-    fn from(i: &DiscoveryInfo) -> Self {
-        Self {
-            controller: i.controller,
-            card_id: i.card_id,
-            ver_major: i.ver_major,
-            ver_minor: i.ver_minor,
-            cols: i.cols,
-            rows: i.rows,
-        }
+fn gated(lines: Vec<Line>, files: Vec<String>, committed: bool) -> GatedOutcome {
+    GatedOutcome {
+        outcome: outcome(lines, files),
+        committed,
     }
 }
 
-#[derive(Serialize)]
-struct Health {
-    version: &'static str,
-    iface: String,
-    cards: Vec<Card>,
-}
-
-#[derive(Serialize)]
-struct Started {
-    id: String,
-}
-
-fn outcome(lines: Vec<Line>, files: Vec<String>, committed: Option<bool>) -> Json<Outcome> {
-    Json(Outcome {
-        lines,
-        files,
-        committed,
-    })
-}
-
-fn wait_default() -> u64 {
-    3
-}
-
-fn wait_2() -> u64 {
-    2
-}
-
-fn fps_default() -> u32 {
-    30
-}
-
-fn contain() -> Fit {
-    Fit::Contain
-}
+/// Seconds a discovery-backed command waits when the request says nothing.
+const WAIT: u64 = 3;
 
 fn parse_fit(s: &str) -> ApiResult<Fit> {
     s.parse()
         .map_err(|e| ApiError::bad_request(format!("fit: {e}")))
-}
-
-/// `Fit` from its CLI spelling.
-fn de_fit<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Fit, D::Error> {
-    let s: String = Deserialize::deserialize(d)?;
-    s.parse().map_err(serde::de::Error::custom)
-}
-
-fn de_fit_opt<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Fit, D::Error> {
-    de_fit(d)
 }
 
 /// A file name for a snapshot or backup, from the clock.
@@ -212,31 +192,26 @@ fn data_path(state: &AppState, sub: &str, name: &str) -> ApiResult<String> {
 
 // --- health, discovery, settings -------------------------------------------
 
-async fn health(State(state): State<Shared>) -> Json<Health> {
+async fn health(State(state): State<Shared>, req: Request) -> Json<Health> {
+    let full = authorize(&state, &req).is_ok();
     Json(Health {
-        version: env!("CARGO_PKG_VERSION"),
-        iface: state.settings().iface,
-        cards: lock(&state.cards).iter().map(Card::from).collect(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        iface: full.then(|| state.settings().iface),
+        cards: full.then(|| lock(&state.cards).iter().map(Card::from).collect()),
     })
-}
-
-#[derive(Deserialize)]
-struct DiscoverReq {
-    #[serde(default = "wait_default")]
-    wait: u64,
 }
 
 async fn discover(
     State(state): State<Shared>,
     Body(req): Body<DiscoverReq>,
-) -> ApiResult<Json<serde_json::Value>> {
-    let wait = req.wait;
+) -> ApiResult<Json<Cards>> {
+    let wait = req.wait.unwrap_or(WAIT);
     let (cards, _) = state
         .command("discover", move |ctx, p| capture::discover(ctx, wait, p))
         .await?;
-    let out: Vec<Card> = cards.iter().map(Card::from).collect();
+    let out = cards.iter().map(Card::from).collect();
     *lock(&state.cards) = cards;
-    Ok(Json(serde_json::json!({ "cards": out })))
+    Ok(Json(Cards { cards: out }))
 }
 
 async fn get_settings(State(state): State<Shared>) -> Json<Settings> {
@@ -250,21 +225,19 @@ async fn put_settings(
     if s.iface.trim().is_empty() {
         return Err(ApiError::bad_request("iface: empty"));
     }
+    if let Some(name) = &s.card {
+        ops::model::named(name).map_err(|e| ApiError::bad_request(format!("card: {e}")))?;
+    }
     state
         .set_settings(s.clone())
         .map_err(|e| ApiError::command("settings", &e))?;
     Ok(Json(s))
 }
 
-#[derive(Serialize, Deserialize)]
-struct BrightnessReq {
-    value: u8,
-}
-
 async fn brightness(
     State(state): State<Shared>,
-    Body(req): Body<BrightnessReq>,
-) -> ApiResult<Json<BrightnessReq>> {
+    Body(req): Body<Brightness>,
+) -> ApiResult<Json<Brightness>> {
     let value = req.value;
     state
         .command("brightness", move |ctx, _| display::brightness(ctx, value))
@@ -274,7 +247,7 @@ async fn brightness(
     state
         .set_settings(s)
         .map_err(|e| ApiError::command("brightness", &e))?;
-    Ok(Json(BrightnessReq { value }))
+    Ok(Json(Brightness { value }))
 }
 
 // --- show -------------------------------------------------------------------
@@ -285,12 +258,12 @@ async fn show_still(
     state: &Shared,
     subject: &'static str,
     canvas: Canvas,
-    frame: e120_canvas::Frame,
+    frame: wall::Frame,
     hold: bool,
 ) -> ApiResult<Response> {
     state.cancel_show().await;
     if hold {
-        let id = state.start_job("show/hold", subject, Vec::new(), move |ctx, p| {
+        let id = state.start_job(JobKind::ShowHold, subject, Vec::new(), move |ctx, p| {
             display::show_frame(ctx, canvas, &frame, true, p).map(|()| None)
         })?;
         return Ok(Json(Started { id }).into_response());
@@ -300,16 +273,7 @@ async fn show_still(
             display::show_frame(ctx, canvas, &frame, false, p)
         })
         .await?;
-    Ok(outcome(lines, Vec::new(), None).into_response())
-}
-
-#[derive(Deserialize)]
-struct ShowImageReq {
-    path: String,
-    #[serde(default, deserialize_with = "de_fit_opt")]
-    fit: Fit,
-    #[serde(default)]
-    hold: bool,
+    Ok(Json(outcome(lines, Vec::new())).into_response())
 }
 
 /// A multipart `show/image`: the `file` part's bytes and name, `fit`, `hold`.
@@ -351,24 +315,12 @@ async fn show_image(State(state): State<Shared>, req: Request) -> ApiResult<Resp
         let img = image::open(&r.path)
             .with_context(|| format!("open image {}", r.path))
             .map_err(|e| ApiError::command("show image", &e))?;
-        (img, r.fit, r.hold)
+        (img, r.fit.unwrap_or_default(), r.hold.unwrap_or(false))
     };
     let canvas = state.wall();
     let frame = display::image_frame(&img, &canvas, fit)
         .map_err(|e| ApiError::command("show image", &e))?;
     show_still(&state, "show image", canvas, frame, hold).await
-}
-
-#[derive(Deserialize)]
-struct ShowVideoReq {
-    path: String,
-    #[serde(default, rename = "loop")]
-    looping: bool,
-    #[serde(default = "fps_default")]
-    fps: u32,
-    #[serde(default = "contain", deserialize_with = "de_fit")]
-    fit: Fit,
-    layout: Option<Canvas>,
 }
 
 async fn show_video(
@@ -384,52 +336,37 @@ async fn show_video(
         None => state.wall(),
     };
     state.cancel_show().await;
-    let id = state.start_job("show/video", "show video", Vec::new(), move |ctx, p| {
-        display::play_on(ctx, canvas, &req.path, req.fps, req.fit, req.looping, p).map(|()| None)
+    let fps = req.fps.unwrap_or(30);
+    let fit = req.fit.unwrap_or(Fit::Contain);
+    let looping = req.looping.unwrap_or(false);
+    let id = state.start_job(JobKind::ShowVideo, "show video", Vec::new(), move |ctx, p| {
+        display::play_on(ctx, canvas, &req.path, fps, fit, looping, p).map(|()| None)
     })?;
     Ok(Json(Started { id }))
-}
-
-#[derive(Deserialize)]
-struct ShowPatternReq {
-    name: String,
-    #[serde(default)]
-    hold: bool,
 }
 
 async fn show_pattern(
     State(state): State<Shared>,
     Body(req): Body<ShowPatternReq>,
 ) -> ApiResult<Response> {
-    let pattern: e120_video::Pattern = req
-        .name
-        .parse()
-        .map_err(|e| ApiError::bad_request(format!("name: {e}")))?;
     let canvas = state.wall();
-    let frame = e120_video::pattern(pattern, canvas.width, canvas.height);
-    show_still(&state, "show pattern", canvas, frame, req.hold).await
-}
-
-#[derive(Deserialize)]
-struct ShowFillReq {
-    rgb: String,
-    #[serde(default)]
-    hold: bool,
+    let frame = sources::pattern(req.name, canvas.width, canvas.height);
+    show_still(&state, "show pattern", canvas, frame, req.hold.unwrap_or(false)).await
 }
 
 async fn show_fill(
     State(state): State<Shared>,
     Body(req): Body<ShowFillReq>,
 ) -> ApiResult<Response> {
-    let rgb = e120_commands::util::parse_color(std::slice::from_ref(&req.rgb))
+    let rgb = ops::util::parse_color(std::slice::from_ref(&req.rgb))
         .map_err(|e| ApiError::bad_request(format!("rgb: {e:#}")))?;
     let canvas = state.wall();
     let frame = solid(&canvas, rgb)?;
-    show_still(&state, "show fill", canvas, frame, req.hold).await
+    show_still(&state, "show fill", canvas, frame, req.hold.unwrap_or(false)).await
 }
 
-fn solid(canvas: &Canvas, rgb: [u8; 3]) -> ApiResult<e120_canvas::Frame> {
-    e120_canvas::Frame::from_rgb(
+fn solid(canvas: &Canvas, rgb: [u8; 3]) -> ApiResult<wall::Frame> {
+    wall::Frame::from_rgb(
         canvas.width,
         canvas.height,
         rgb.repeat((canvas.width * canvas.height) as usize),
@@ -445,85 +382,58 @@ async fn show_blank(State(state): State<Shared>) -> ApiResult<Response> {
 
 // --- config -----------------------------------------------------------------
 
-#[derive(Deserialize)]
-struct SpecReq {
-    spec_toml: String,
-}
-
 fn parse_spec(subject: &str, toml: &str) -> ApiResult<PanelSpec> {
     PanelSpec::parse(toml)
         .context("parse spec")
         .map_err(|e| ApiError::command(subject, &e))
 }
 
-async fn config_gen(Body(req): Body<SpecReq>) -> ApiResult<Json<serde_json::Value>> {
+async fn config_gen(State(state): State<Shared>, Body(req): Body<SpecReq>) -> ApiResult<Json<GenFiles>> {
     let spec = parse_spec("config gen", &req.spec_toml)?;
     let label = format!("{}.toml", spec.name);
-    let g = config::generate(&spec, &label, &load_library)
+    // No hardware: the boot image is laid out for the settings' card, the
+    // discovered one, else the first tested model.
+    let card = state.ctx().model.unwrap_or_else(receivers::default_model);
+    let g = config::generate(card, &spec, &label, &load_library)
         .map_err(|e| ApiError::command("config gen", &e))?;
-    Ok(Json(serde_json::json!({
-        "name": g.name,
-        "files": {
-            "rcvbp": BASE64_STANDARD.encode(&g.rcvbp),
-            "basic_pack": BASE64_STANDARD.encode(&g.basic_pack),
-            "block7": g.block7.as_deref().map(|b| BASE64_STANDARD.encode(b)),
-            "sources_txt": g.report,
+    Ok(Json(GenFiles {
+        name: g.name,
+        files: GenFileSet {
+            rcvbp: BASE64_STANDARD.encode(&g.rcvbp),
+            basic_pack: BASE64_STANDARD.encode(&g.basic_pack),
+            block7: g.block7.as_deref().map(|b| BASE64_STANDARD.encode(b)),
+            sources_txt: g.report,
         },
-        "sources": g.sources,
-        "notes": g.notes,
-    })))
-}
-
-#[derive(Deserialize)]
-struct ConfigReadReq {
-    #[serde(default)]
-    index: u16,
-    #[serde(default = "basic_param_page")]
-    page: u16,
-    #[serde(default = "chunks_default")]
-    max_chunks: u16,
-    #[serde(default = "wait_2")]
-    wait: u64,
-}
-
-fn basic_param_page() -> u16 {
-    e120_proto::FLASH_PAGE_BASIC_PARAM
-}
-
-fn chunks_default() -> u16 {
-    64
+        sources: g.sources,
+        notes: g.notes,
+    }))
 }
 
 async fn config_read(
     State(state): State<Shared>,
     Body(r): Body<ConfigReadReq>,
-) -> ApiResult<Json<serde_json::Value>> {
+) -> ApiResult<Json<ConfigRead>> {
     let (bytes, lines) = state
         .command("config read", move |ctx, _| {
-            flash::read_config(ctx, r.index, r.page, r.max_chunks, r.wait)
+            flash::read_config(
+                ctx,
+                r.index.unwrap_or(0),
+                r.page,
+                r.max_chunks.unwrap_or(64),
+                r.wait.unwrap_or(2),
+            )
         })
         .await?;
-    Ok(Json(serde_json::json!({
-        "rcvbp": BASE64_STANDARD.encode(&bytes),
-        "lines": lines,
-    })))
-}
-
-#[derive(Deserialize)]
-struct ConfigWriteReq {
-    rcvbp: String,
-    #[serde(default)]
-    commit: bool,
-    #[serde(default)]
-    index: u16,
-    #[serde(default = "wait_2")]
-    wait: u64,
+    Ok(Json(ConfigRead {
+        rcvbp: BASE64_STANDARD.encode(&bytes),
+        lines,
+    }))
 }
 
 async fn config_write(
     State(state): State<Shared>,
     Body(r): Body<ConfigWriteReq>,
-) -> ApiResult<Json<Outcome>> {
+) -> ApiResult<Json<GatedOutcome>> {
     let bytes = BASE64_STANDARD
         .decode(&r.rcvbp)
         .map_err(|e| ApiError::bad_request(format!("rcvbp: {e}")))?;
@@ -533,25 +443,22 @@ async fn config_write(
         .map_err(|e| ApiError::command("config write", &anyhow::anyhow!("write {config}: {e}")))?;
     let backup = data_path(&state, "backups", &format!("block07-{ts}.bin"))?;
     let files = vec![config.clone(), backup.clone()];
+    let commit = r.commit.unwrap_or(false);
     let ((), lines) = state
         .command("config write", move |ctx, p| {
-            flash::write_config(ctx, &config, r.commit, &backup, None, r.index, r.wait, p)
+            flash::write_config(
+                ctx,
+                &config,
+                commit,
+                &backup,
+                None,
+                r.index.unwrap_or(0),
+                r.wait.unwrap_or(2),
+                p,
+            )
         })
         .await?;
-    Ok(outcome(lines, files, Some(r.commit)))
-}
-
-#[derive(Deserialize)]
-struct ConfigSendReq {
-    spec_toml: String,
-    #[serde(default)]
-    chip_only: bool,
-    #[serde(default = "gap_default")]
-    gap_ms: u64,
-}
-
-fn gap_default() -> u64 {
-    8
+    Ok(Json(gated(lines, files, commit)))
 }
 
 async fn config_send(
@@ -561,29 +468,23 @@ async fn config_send(
     let spec = parse_spec("config send", &r.spec_toml)?;
     let g = spec
         .chip_library(&load_library)
-        .and_then(|chip| spec.generate_with(&chip))
+        .and_then(|chip| rcvbp::spec::generate(&spec, &chip))
         .map_err(|e| ApiError::command("config send", &e))?;
     let ((), lines) = state
         .command("config send", move |ctx, _| {
-            params::send_generated(ctx, &spec, &g, r.chip_only, r.gap_ms)
+            params::send_generated(
+                ctx,
+                &spec,
+                &g,
+                r.chip_only.unwrap_or(false),
+                r.gap_ms.unwrap_or(8),
+            )
         })
         .await?;
-    Ok(outcome(lines, Vec::new(), None))
+    Ok(Json(outcome(lines, Vec::new())))
 }
 
 // --- provision, flash, firmware ---------------------------------------------
-
-#[derive(Deserialize)]
-struct ProvisionReq {
-    spec_toml: String,
-    firmware_path: Option<String>,
-    position: (u16, u16),
-    snapshot_dir: Option<String>,
-    #[serde(default)]
-    commit: bool,
-    #[serde(default = "wait_default")]
-    wait: u64,
-}
 
 async fn provision_route(
     State(state): State<Shared>,
@@ -599,7 +500,8 @@ async fn provision_route(
     std::fs::write(&spec_path, &r.spec_toml)
         .map_err(|e| ApiError::command("provision", &anyhow::anyhow!("write {spec_path}: {e}")))?;
     let files = vec![spec_path.clone()];
-    let id = state.start_job("provision", "provision", files, move |ctx, p| {
+    let commit = r.commit.unwrap_or(false);
+    let id = state.start_job(JobKind::Provision, "provision", files, move |ctx, p| {
         provision::provision(
             ctx,
             &provision::Args {
@@ -607,24 +509,15 @@ async fn provision_route(
                 firmware: r.firmware_path.as_deref(),
                 position: r.position,
                 snapshot_dir: Some(&dir),
-                commit: r.commit,
-                wait: r.wait,
+                commit,
+                wait: r.wait.unwrap_or(WAIT),
             },
             &load_library,
             p,
         )
-        .map(|()| Some(r.commit))
+        .map(|()| Some(commit))
     })?;
     Ok(Json(Started { id }))
-}
-
-#[derive(Deserialize)]
-struct SnapshotReq {
-    dir: Option<String>,
-    #[serde(default)]
-    index: u16,
-    #[serde(default = "wait_default")]
-    wait: u64,
 }
 
 async fn flash_snapshot(
@@ -639,90 +532,63 @@ async fn flash_snapshot(
         format!("{dir}/primary-region.bin"),
         format!("{dir}/golden-bank.bin"),
     ];
-    let id = state.start_job("flash/snapshot", "flash snapshot", files, move |ctx, p| {
-        restore::snapshot(ctx, &dir, r.index, r.wait, p).map(|()| None)
+    let id = state.start_job(JobKind::FlashSnapshot, "flash snapshot", files, move |ctx, p| {
+        restore::snapshot(ctx, &dir, r.index.unwrap_or(0), r.wait.unwrap_or(WAIT), p)
+            .map(|()| None)
     })?;
     Ok(Json(Started { id }))
-}
-
-#[derive(Deserialize)]
-struct RestoreReq {
-    dir: String,
-    #[serde(default)]
-    commit: bool,
-    #[serde(default)]
-    index: u16,
-    #[serde(default = "wait_default")]
-    wait: u64,
 }
 
 async fn flash_restore(
     State(state): State<Shared>,
     Body(r): Body<RestoreReq>,
 ) -> ApiResult<Json<Started>> {
+    let commit = r.commit.unwrap_or(false);
     let id = state.start_job(
-        "flash/restore",
+        JobKind::FlashRestore,
         "flash restore",
         Vec::new(),
         move |ctx, p| {
-            restore::all(ctx, &r.dir, r.commit, r.index, r.wait, p).map(|()| Some(r.commit))
+            restore::all(
+                ctx,
+                &r.dir,
+                commit,
+                r.index.unwrap_or(0),
+                r.wait.unwrap_or(WAIT),
+                p,
+            )
+            .map(|()| Some(commit))
         },
     )?;
     Ok(Json(Started { id }))
-}
-
-#[derive(Deserialize)]
-struct FirmwareReq {
-    path: String,
-    #[serde(default)]
-    commit: bool,
-    #[serde(default)]
-    golden: bool,
-    #[serde(default = "timeout_default")]
-    timeout: u64,
-    #[serde(default = "chunk_delay_default")]
-    chunk_delay_us: u64,
-    #[serde(default = "wait_4")]
-    wait: u64,
-}
-
-fn timeout_default() -> u64 {
-    120
-}
-
-fn chunk_delay_default() -> u64 {
-    3000
-}
-
-fn wait_4() -> u64 {
-    4
 }
 
 async fn firmware_install(
     State(state): State<Shared>,
     Body(r): Body<FirmwareReq>,
 ) -> ApiResult<Json<Started>> {
-    let partition = if r.golden {
-        e120_proto::upgrade::Partition::Golden
+    let partition = if r.golden.unwrap_or(false) {
+        colorlight::upgrade::Partition::Golden
     } else {
-        e120_proto::upgrade::Partition::Primary
+        colorlight::upgrade::Partition::Primary
     };
+    let commit = r.commit.unwrap_or(false);
     let id = state.start_job(
-        "firmware/install",
+        JobKind::FirmwareInstall,
         "firmware install",
         Vec::new(),
         move |ctx, p| {
             upgrade::install(
                 ctx,
                 &r.path,
-                r.commit,
+                commit,
                 partition,
-                r.timeout,
-                r.chunk_delay_us,
-                r.wait,
+                r.timeout.unwrap_or(120),
+                r.chunk_delay_us.unwrap_or(3000),
+                r.wait.unwrap_or(4),
                 p,
             )
-            .map(|()| Some(r.commit))
+            .map(|()| Some(commit))
         },
     )?;
     Ok(Json(Started { id }))
@@ -730,78 +596,47 @@ async fn firmware_install(
 
 // --- card -------------------------------------------------------------------
 
-#[derive(Deserialize)]
-struct IndexWait {
-    #[serde(default)]
-    index: u16,
-    #[serde(default = "wait_default")]
-    wait: u64,
-}
-
-#[derive(Serialize)]
-struct Size {
-    width: u16,
-    height: u16,
-}
-
 async fn get_screen_size(
     State(state): State<Shared>,
-    Qs(q): Qs<IndexWait>,
+    Qs(q): Qs<ScreenSizeQuery>,
 ) -> ApiResult<Json<Size>> {
     let ((width, height), _) = state
         .command("card screen-size", move |ctx, p| {
-            screen::screen_size(ctx, None, false, q.index, q.wait, p)
+            screen::screen_size(
+                ctx,
+                None,
+                false,
+                q.index.unwrap_or(0),
+                q.wait.unwrap_or(WAIT),
+                p,
+            )
         })
         .await?;
     Ok(Json(Size { width, height }))
-}
-
-#[derive(Deserialize)]
-struct ScreenSizeReq {
-    width: u16,
-    height: u16,
-    #[serde(default)]
-    commit: bool,
-    #[serde(default)]
-    index: u16,
-    #[serde(default = "wait_default")]
-    wait: u64,
-}
-
-#[derive(Serialize)]
-struct SizeOutcome {
-    #[serde(flatten)]
-    outcome: Outcome,
-    width: u16,
-    height: u16,
 }
 
 async fn put_screen_size(
     State(state): State<Shared>,
     Body(r): Body<ScreenSizeReq>,
 ) -> ApiResult<Json<SizeOutcome>> {
+    let commit = r.commit.unwrap_or(false);
     let ((width, height), lines) = state
         .command("card screen-size", move |ctx, p| {
-            screen::screen_size(ctx, Some((r.width, r.height)), r.commit, r.index, r.wait, p)
+            screen::screen_size(
+                ctx,
+                Some((r.width, r.height)),
+                commit,
+                r.index.unwrap_or(0),
+                r.wait.unwrap_or(WAIT),
+                p,
+            )
         })
         .await?;
     Ok(Json(SizeOutcome {
-        outcome: Outcome {
-            lines,
-            files: Vec::new(),
-            committed: Some(r.commit),
-        },
+        outcome: gated(lines, Vec::new(), commit),
         width,
         height,
     }))
-}
-
-#[derive(Deserialize)]
-struct ReloadReq {
-    #[serde(default)]
-    index: u16,
-    #[serde(default)]
-    full: bool,
 }
 
 async fn card_reload(
@@ -810,17 +645,10 @@ async fn card_reload(
 ) -> ApiResult<Json<Outcome>> {
     let ((), lines) = state
         .command("card reload", move |ctx, _| {
-            screen::reload(ctx, r.index, r.full)
+            screen::reload(ctx, r.index.unwrap_or(0), r.full.unwrap_or(false))
         })
         .await?;
-    Ok(outcome(lines, Vec::new(), None))
-}
-
-#[derive(Deserialize)]
-struct TestModeReq {
-    n: u8,
-    #[serde(default)]
-    index: u16,
+    Ok(Json(outcome(lines, Vec::new())))
 }
 
 async fn card_test_mode(
@@ -829,18 +657,10 @@ async fn card_test_mode(
 ) -> ApiResult<Json<Outcome>> {
     let ((), lines) = state
         .command("card test-mode", move |ctx, _| {
-            screen::test_mode(ctx, r.index, r.n)
+            screen::test_mode(ctx, r.index.unwrap_or(0), r.n)
         })
         .await?;
-    Ok(outcome(lines, Vec::new(), None))
-}
-
-#[derive(Deserialize)]
-struct SetLayoutReq {
-    panel_width: u16,
-    panel_height: u16,
-    #[serde(default)]
-    index: u16,
+    Ok(Json(outcome(lines, Vec::new())))
 }
 
 async fn card_set_layout(
@@ -849,10 +669,10 @@ async fn card_set_layout(
 ) -> ApiResult<Json<Outcome>> {
     let ((), lines) = state
         .command("card set-layout", move |ctx, _| {
-            screen::set_layout(ctx, r.index, r.panel_width, r.panel_height)
+            screen::set_layout(ctx, r.index.unwrap_or(0), r.panel_width, r.panel_height)
         })
         .await?;
-    Ok(outcome(lines, Vec::new(), None))
+    Ok(Json(outcome(lines, Vec::new())))
 }
 
 // --- wall -------------------------------------------------------------------

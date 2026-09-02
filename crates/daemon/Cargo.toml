@@ -1,0 +1,44 @@
+[package]
+name = "daemon"
+description = "The e120 daemon behind `e120 ui`: the token-gated JSON API and the web UI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ops.workspace = true
+wall.workspace = true
+colorlight.workspace = true
+panelspec.workspace = true
+receivers.workspace = true
+rcvbp.workspace = true
+sources.workspace = true
+
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+image.workspace = true
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "multipart", "query", "tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-stream = "0.1"
+tower-http = { version = "0.6", features = ["cors"] }
+include_dir = "0.7"
+base64 = "0.22"
+getrandom = { version = "0.2", features = ["std"] }
+libc.workspace = true
+dirs = "6"
+mime_guess = "2"
+ts-rs = { workspace = true, optional = true }
+rcvbp-wasm = { workspace = true, optional = true, features = ["ts"] }
+
+[features]
+# `cargo test -p daemon --features ts` writes web/src/api/types.ts from the
+# request and response structs here, in wall, sources and rcvbp-wasm.
+ts = ["dep:ts-rs", "dep:rcvbp-wasm", "wall/ts", "sources/ts"]
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[lints]
+workspace = true

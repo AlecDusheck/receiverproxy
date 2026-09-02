@@ -1,10 +1,12 @@
-//! The daemon behind `e120 ui`: an HTTP server on 127.0.0.1 that holds the
-//! raw Ethernet link and runs the `e120-commands` functions, as documented in
-//! `docs/ui.md`. Static files come from `web/dist` when it existed at build
-//! time; the JSON API lives under `/api/v1`.
+//! The daemon behind `e120 ui`: an HTTP server that holds the raw Ethernet
+//! link and runs the `ops` functions, as documented in `docs/ui.md`. Static
+//! files come from `web/dist` when it existed at build time; the JSON API
+//! lives under `/api/v1` and every route but `GET /health` needs the token.
 
+pub mod api;
 mod assets;
 mod error;
+mod ifaces;
 pub mod jobs;
 mod routes;
 pub mod state;
@@ -14,23 +16,41 @@ pub use routes::router;
 pub use state::AppState;
 
 use anyhow::{Context, Result};
+use base64::prelude::{Engine, BASE64_URL_SAFE_NO_PAD};
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 /// What `e120 ui` passes.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Options {
     pub port: u16,
+    /// The address to bind. Loopback keeps the daemon on this machine;
+    /// anything else exposes it to that network, with the token as the only
+    /// credential.
+    pub listen: Ipv4Addr,
     /// Open the browser on the URL once listening.
     pub open: bool,
-    /// Required in an `X-Token` header on every API request when set.
+    /// The credential every API request must carry; a random one when absent.
     pub token: Option<String>,
     /// Interface given on the command line; beats the saved setting.
     pub iface: Option<String>,
     /// Where settings, the wall, backups and snapshots live; the OS config
     /// directory plus `e120` when absent.
     pub data_dir: Option<PathBuf>,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            port: 7120,
+            listen: Ipv4Addr::LOCALHOST,
+            open: false,
+            token: None,
+            iface: None,
+            data_dir: None,
+        }
+    }
 }
 
 /// Bind, discover once, print the URL, serve until the process ends.
@@ -52,15 +72,21 @@ async fn serve(opts: Options) -> Result<()> {
             .context("no configuration directory for this user; pass --data-dir")?
             .join("e120"),
     };
-    let state = AppState::new(data_dir, opts.token.clone(), opts.iface)?;
-    let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, opts.port))
+    let token = match opts.token {
+        Some(t) => t,
+        None => new_token()?,
+    };
+    let state = AppState::new(data_dir, token.clone(), opts.iface)?;
+    let listener = tokio::net::TcpListener::bind((opts.listen, opts.port))
         .await
-        .with_context(|| format!("bind 127.0.0.1:{}", opts.port))?;
-    let mut url = format!("http://127.0.0.1:{}", opts.port);
-    if let Some(t) = &opts.token {
-        url.push_str("#token=");
-        url.push_str(t);
-    }
+        .with_context(|| format!("bind {}:{}", opts.listen, opts.port))?;
+    // On 0.0.0.0 the printed URL names an address a browser can reach.
+    let host = if opts.listen.is_unspecified() {
+        ifaces::first_non_loopback_v4().unwrap_or(opts.listen)
+    } else {
+        opts.listen
+    };
+    let url = format!("http://{host}:{}/#token={token}", opts.port);
     println!("e120 ui: {url}");
 
     state.discover_at_start().await;
@@ -68,6 +94,13 @@ async fn serve(opts: Options) -> Result<()> {
         open_browser(&url);
     }
     axum::serve(listener, router(state)).await.context("serve")
+}
+
+/// 32 random bytes as base64url, the credential for one run of the daemon.
+fn new_token() -> Result<String> {
+    let mut bytes = [0u8; 32];
+    getrandom::getrandom(&mut bytes).context("generate the token")?;
+    Ok(BASE64_URL_SAFE_NO_PAD.encode(bytes))
 }
 
 /// Hand the URL to the desktop; a failure only means the user opens it by hand.

@@ -159,11 +159,14 @@ def wait_for_card(timeout=25):
     return False
 
 
-def boot(spec, minutes=10):
+def boot(spec, minutes=10, settle=12):
     kill_streams()
     if not power('cycle', minutes):
         sys.exit(1)
-    time.sleep(2)
+    # The card answers discovery well before it has finished loading its own
+    # boot parameters; packs pushed into that window are lost or half-applied
+    # and the panel comes up dark and deaf. Give it the full settle.
+    time.sleep(settle)
     r = sh([E120, 'send-params', '--spec', spec])
     print(r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr.strip())
     time.sleep(1.5)

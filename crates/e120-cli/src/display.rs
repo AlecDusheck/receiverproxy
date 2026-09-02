@@ -183,12 +183,18 @@ pub fn send_frame_as(
     raster: Raster,
     row_base: u16,
 ) -> Result<()> {
-    dev.send(&protocol::sync(cli.brightness))?;
+    // Brightness, rows, then the latch twice — the order the Wall driver
+    // uses. A card fresh from arming never starts displaying when the latch
+    // leads the rows (docs/bench-measurement.md); once it has been woken by
+    // this order either works, which hid the difference for a long time.
     dev.send(&protocol::brightness(cli.brightness))?;
     let w = cli.width as usize;
     let h = cli.height as usize;
     if raster == Raster::Rows {
-        return send_rows(dev, cli, fb, w, h, row_base);
+        send_rows(dev, cli, fb, w, h, row_base)?;
+        dev.send(&protocol::sync(cli.brightness))?;
+        dev.send(&protocol::sync(cli.brightness))?;
+        return Ok(());
     }
     let half = h / 2;
     let mut line = vec![[0u8; 3]; w * 2];
@@ -211,6 +217,8 @@ pub fn send_frame_as(
             offset += chunk.len();
         }
     }
+    dev.send(&protocol::sync(cli.brightness))?;
+    dev.send(&protocol::sync(cli.brightness))?;
     Ok(())
 }
 
@@ -239,22 +247,7 @@ fn send_rows(
 }
 
 pub fn send_frame(dev: &mut bpf::Bpf, cli: &Cli, fb: &[[u8; 3]]) -> Result<()> {
-    // The vendor's own sender leads each frame with the latch, follows it with
-    // the brightness frame, and only then sends the rows — the whole burst
-    // back to back (docs/pixel-protocol.md). We previously sent rows first and
-    // latched afterwards, which is FPP's order, not Colorlight's.
-    dev.send(&protocol::sync(cli.brightness))?;
-    dev.send(&protocol::brightness(cli.brightness))?;
-    let w = cli.width as usize;
-    for row in 0..cli.height {
-        let line = &fb[row as usize * w..(row as usize + 1) * w];
-        let mut offset = 0usize;
-        for chunk in line.chunks(protocol::MAX_PIXELS_PER_PACKET) {
-            dev.send(&protocol::pixel_row(row, offset as u16, chunk, cli.order))?;
-            offset += chunk.len();
-        }
-    }
-    Ok(())
+    send_frame_as(dev, cli, fb, Raster::Rows, 0)
 }
 
 pub fn show(cli: &Cli, fb: &[[u8; 3]], hold: bool) -> Result<()> {

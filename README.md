@@ -4,6 +4,10 @@ Drive a Colorlight E120 LED receiving card and its modules over raw Ethernet: ge
 
 The card speaks a layer-2 protocol with fixed MAC addresses and no IP, so `e120` writes whole Ethernet frames itself (BPF on macOS, a packet socket on Linux) and needs no vendor software. It reads and writes the card's flash and EEPROM, with address allowlists that keep configuration writes inside the parameter block and firmware writes on the card's own staging path. It installs FPGA firmware. It generates the receiver configuration (the `.rcvbp` file and the 64 KB boot image the card loads at power-on) from a short TOML panel spec plus a chip library, and ships libraries for common driver chips and module classes mined from 2,381 vendor config files. It shows still images, plays video through ffmpeg, reads raw rgb24 frames from stdin, and serves a unix socket other programs can write frames to. Every command that writes flash or EEPROM prints its plan and stops unless `--commit` is given.
 
+## Motivation
+
+Colorlight's own software is the only official way to drive its receiving cards, and recent versions of LEDVISION dropped the ability to send content to a receiving card directly: a sender card or box is now required, and the software itself has grown into a large Windows install. `e120` works with zero Colorlight software. A Mac or Linux machine with an Ethernet port talks to the card directly, provisions it from a text file, and plays whatever ffmpeg can decode.
+
 ## Install
 
 Rust stable via [rustup](https://rustup.rs) (`rust-toolchain.toml` pins the channel), then:
@@ -135,6 +139,21 @@ e120 flash restore --dir before --commit           # configuration back, not fir
 ```
 
 Multi-panel walls: provision each card with its own `--position x,y`, describe the wall in a layout file (`e120 card layout-example` prints one) and stream it with `e120 show video --layout wall.json`.
+
+## Tested
+
+✅ driven on the bench · ⚠️ config generates, never driven · ❌ not supported
+
+| receiving card | panel / driver chip | |
+|---|---|---|
+| Colorlight E120, firmware 16.53 | P2.5 128x64 1/16, SM16269S | ✅ |
+| Colorlight E120 | the 87 module classes in `config/panels/mined/` (ICN2053, ICN2038S, ICN2055, ICN2065, MBI5124, MBI5153, SM16380, SM16389, LS9929/9930, DP5525, …) | ⚠️ |
+| Colorlight E120 | SM16369S, ICND2263 (register record layout not decoded) | ❌ |
+| Colorlight E120 | snake-wired low-scan outdoor modules (1/2, 1/4, 1/5, 1/10 scan) | ❌ |
+| other Colorlight E-series cards (the 16.53 image is named E320) | any | ⚠️ |
+| Linsn, Novastar, Huidu cards | any | ❌ |
+
+Host: macOS ✅, Linux ⚠️ (builds and lints for x86_64 and aarch64, not run against a card).
 
 ## Configuration
 

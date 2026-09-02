@@ -61,10 +61,10 @@ test("the E120 model file reads whole", () => {
 test("the firmware manifest lists five images and locates them at base_url", () => {
   const fw = firmware(repo);
   assert.equal(fw.images.length, 5);
-  assert.equal(fw.base_url, "https://assets.receiverproxy.com/firmware");
+  assert.equal(fw.base_url, "https://assets.receiverproxy.com");
   const first = fw.images[0]!;
   assert.equal(first.version, "16.53");
   assert.equal(first.size, 721024);
-  assert.deepEqual(imageLocation(fw, first), { href: `${fw.base_url}/${first.name}`, remote: true });
+  assert.deepEqual(imageLocation(fw, first), { href: `${fw.base_url}/${first.path}`, remote: true });
   assert.deepEqual(imageLocation({ base_url: "", images: [] }, first), { href: `third-party/firmware/${first.name}`, remote: false });
 });

@@ -151,7 +151,7 @@ pub fn list(p: &mut dyn Progress) {
     }
 }
 
-/// `rxp firmware fetch NAME`: download `base_url/NAME` with `curl` into the
+/// `rxp firmware fetch NAME`: download `base_url/path` with `curl` into the
 /// cache after checking its sha256. With an empty `base_url` it reports
 /// where the image is expected instead.
 ///
@@ -185,7 +185,7 @@ fn fetch_in(root: &Path, name: &str, p: &mut dyn Progress) -> Result<()> {
             dest.display()
         );
     }
-    let url = format!("{}/{name}", m.base_url.trim_end_matches('/'));
+    let url = format!("{}/{}", m.base_url.trim_end_matches('/'), image.path);
     p.err(&format!("fetch: {url}"));
     std::fs::create_dir_all(&cache).with_context(|| format!("create {}", cache.display()))?;
     let tmp = cache.join(format!("{name}.part"));

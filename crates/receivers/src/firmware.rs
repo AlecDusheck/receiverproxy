@@ -14,7 +14,7 @@ const TEXT: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../conf
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
-    /// Where `fetch` downloads `base_url/NAME` from; empty means local only.
+    /// The asset host `fetch` downloads `base_url/path` from; empty means local only.
     pub base_url: String,
     #[serde(default)]
     pub image: Vec<Image>,
@@ -26,6 +26,8 @@ pub struct Manifest {
 pub struct Image {
     /// The file name, and what commands take.
     pub name: String,
+    /// Object path under `base_url`: `firmware/<vendor>/<family>/<file>`.
+    pub path: String,
     /// What the card reports after the install.
     pub version: Version,
     /// The board revision in the file name; absent when the name carries none.
@@ -156,6 +158,7 @@ mod tests {
     fn a_wrong_hash_or_size_is_refused() {
         let img = Image {
             name: "synthetic.hex".into(),
+            path: "firmware/x/x.hex".into(),
             version: Version(1, 0),
             pcb: None,
             kind: "PWM".into(),
@@ -171,7 +174,7 @@ mod tests {
 
     #[test]
     fn a_malformed_manifest_is_refused() {
-        let bad = "base_url = \"\"\n[[image]]\nname = \"x.hex\"\nversion = \"1.0\"\nkind = \"PWM\"\nchips = []\nsize = 1\nsha256 = \"abc\"\n";
+        let bad = "base_url = \"\"\n[[image]]\nname = \"x.hex\"\npath = \"firmware/x/x.hex\"\nversion = \"1.0\"\nkind = \"PWM\"\nchips = []\nsize = 1\nsha256 = \"abc\"\n";
         assert!(parse(bad).unwrap_err().contains("64 lowercase hex"));
         let twice = TEXT.to_string() + "\n[[image]]\nname = \"E320_PCB6.0_PWM_FPGA9.53_20221031.hex\"\nversion = \"9.53\"\nkind = \"PWM\"\nchips = []\nsize = 1\nsha256 = \"cb7c264231d7123bbf3fba4a9ec964a410b20e284db5715e46f50da0eeaffa19\"\n";
         assert!(parse(&twice).unwrap_err().contains("listed twice"));

@@ -164,7 +164,7 @@ export function cards(repo = root()): Card[] {
   return list.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
-export type Image = { name: string; version: string; kind: string; pcb?: string; chips: string[]; size: number; sha256: string };
+export type Image = { name: string; path: string; version: string; kind: string; pcb?: string; chips: string[]; size: number; sha256: string };
 export type Firmware = { base_url: string; images: Image[] };
 
 /** config/firmware.toml: the manifest `rxp firmware list` prints. */
@@ -174,14 +174,14 @@ export function firmware(repo = root()): Firmware {
     base_url: str(t.base_url),
     images: (Array.isArray(t.image) ? t.image : []).map((x) => {
       const i = table(x);
-      const img: Image = { name: str(i.name), version: str(i.version), kind: str(i.kind), chips: strs(i.chips), size: num(i.size), sha256: str(i.sha256) };
+      const img: Image = { name: str(i.name), path: str(i.path), version: str(i.version), kind: str(i.kind), chips: strs(i.chips), size: num(i.size), sha256: str(i.sha256) };
       if (typeof i.pcb === "string") img.pcb = i.pcb;
       return img;
     }),
   };
 }
 
-/** Where a manifest image is: `base_url/NAME` when the manifest names a base, else its path in the repository. */
+/** Where a manifest image is: `base_url/path` when the manifest names a base, else its path in the repository. */
 export function imageLocation(fw: Firmware, img: Image): { href: string; remote: boolean } {
-  return fw.base_url ? { href: `${fw.base_url.replace(/\/$/, "")}/${img.name}`, remote: true } : { href: `third-party/firmware/${img.name}`, remote: false };
+  return fw.base_url ? { href: `${fw.base_url.replace(/\/$/, "")}/${img.path}`, remote: true } : { href: `third-party/firmware/${img.name}`, remote: false };
 }

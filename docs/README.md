@@ -1,54 +1,54 @@
 # Documentation
 
-Colorlight E120 with a P2.5 128x64 SM16269S panel, driven from the Rust CLI in this repo.
+Reference for the Colorlight E120 receiving card, its formats, its protocol,
+its gateware, and the `e120` tool that drives it. Bench hardware: one E120
+(firmware 16.53) driving one P2.5 128x64 SM16269S module.
 
-## Start here
+CLAUDE.md: orientation for contributors ([../CLAUDE.md](../CLAUDE.md)).
+
+## Platform
 
 | doc | what |
 |---|---|
-| [../CLAUDE.md](../CLAUDE.md) | orientation: hardware, commands, rig rules, code rules |
-| [architecture.md](architecture.md) | spec → boot image → card → frames; which crate owns each step; where every measured default lives |
-| [provisioning.md](provisioning.md) | bring a card to a working state in one command; multi-panel positioning |
-| [rendering.md](rendering.md) | every setting that matters, its value, what pins it, what happened when it was wrong |
-| [retracted-findings.md](retracted-findings.md) | claims this project recorded and later disproved |
-| [building-a-config.md](building-a-config.md) | the TOML spec → `.rcvbp` + boot image generator |
+| [architecture.md](architecture.md) | spec to boot image to card to frames; which crate owns each step; where each measured default lives |
+| [provisioning.md](provisioning.md) | `e120 provision`: snapshot, firmware, configuration, EEPROM, verify; multi-panel positioning |
+| [rendering.md](rendering.md) | every setting that affects the picture, its value, what pins it, the effect of other values |
+| [bench.md](bench.md) | the rig, the measurement method, the meters and their limits, `scripts/bench.py` |
+| [building-a-config.md](building-a-config.md) | the TOML panel spec, the chip library, `e120 config gen` |
 
 ## Formats
 
 | doc | what |
 |---|---|
-| [pixel-protocol.md](pixel-protocol.md) | the row, latch and brightness frames, recovered from CLTNic.dll |
 | [rcvbp-format.md](rcvbp-format.md) | the `.rcvbp` container and its records |
 | [record-0x01-fields.md](record-0x01-fields.md) | record 0x01 byte by byte |
 | [compiled-image-format.md](compiled-image-format.md) | the boot image at flash block 7, region by region |
-| [panel-wiring.md](panel-wiring.md) | record 0x03 (pixel map) and this module's 64-column interleave |
+| [panel-wiring.md](panel-wiring.md) | record 0x03 (pixel map) and the 128x64 module's 64-column interleave |
 | [eeprom-map.md](eeprom-map.md) | the EEPROM access frame and address map |
 
-## Card internals
+## Protocol
 
 | doc | what |
 |---|---|
-| [chip-control-block.md](chip-control-block.md) | the 20-byte SChipControl: the driver-chip protocol descriptor |
+| [pixel-protocol.md](pixel-protocol.md) | the row, latch and brightness frames, as emitted by CLTNic.dll |
+| [receiver-identity.md](receiver-identity.md) | the EEPROM control area: which incoming pixels a card keeps |
+
+## Driver chips
+
+| doc | what |
+|---|---|
+| [chip-control-block.md](chip-control-block.md) | the 20-byte SChipControl block and the other chip-protocol fields of record 0x01 |
 | [chip-libraries-non-sh.md](chip-libraries-non-sh.md) | non-addressed S-PWM chips (SM16169S) and their SChipCustom block |
-| [receiver-identity.md](receiver-identity.md) | the EEPROM control area: how a card knows which pixels are its own |
-| [fpga-gateware.md](fpga-gateware.md) | the ECP5 bitstream in two pages; detail in [fpga/](fpga/README.md) |
 
-## Bench
+## Gateware
 
 | doc | what |
 |---|---|
-| [bench.md](bench.md) | the rig, how measurements are taken, the meters and their limits, `scripts/bench.py` |
+| [fpga-gateware.md](fpga-gateware.md) | the ECP5 bitstream in two pages |
+| [fpga/README.md](fpga/README.md) | index of the gateware analysis: bitstream, flash, pinout, block RAM, pixel path, output stage, unresolved points |
 
-## Archive
+## Verified negatives
 
 | doc | what |
 |---|---|
-| [archive/handoff-history.md](archive/handoff-history.md) | the bring-up, day by day |
-| [archive/black-floor.md](archive/black-floor.md) | the void-line table decode that removed the black floor |
-| [archive/grey-mapping.md](archive/grey-mapping.md) | gamma table and grey-depth decode; both ruled out as the floor |
-| [archive/firmware-16.53-bench-result.md](archive/firmware-16.53-bench-result.md) | installing 16.53 and the state right after |
-| [archive/packet-statistics.md](archive/packet-statistics.md) | the discovery reply's counters |
-| [archive/screen-connection-wire.md](archive/screen-connection-wire.md) | the vendor's card-area pack (not adopted) |
-| [archive/vendor-sdk-analysis.md](archive/vendor-sdk-analysis.md) | how the vendor libraries were read |
-| [archive/config-protocol.md](archive/config-protocol.md) | the first long-form analysis log; superseded where the pages above disagree |
-| [fpga/](fpga/README.md) | gateware analysis detail |
+| [retracted-findings.md](retracted-findings.md) | claims about this card and panel that measurement disproves |

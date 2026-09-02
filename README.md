@@ -250,9 +250,9 @@ Chip libraries are in `config/chips/`, panel specs in `config/panels/`. `config/
 
 How the generator derives each record, and its limits, is in [docs/building-a-config.md](docs/building-a-config.md).
 
-## How it was worked out
+## Notes and evidence
 
-[docs/README.md](docs/README.md) indexes the notes: the `.rcvbp` container and record 0x01 byte by byte, the boot image region by region, the pixel map, the chip-control block, the EEPROM records, the pixel protocol recovered from the vendor sender DLL, the FPGA bitstream and flash layout, and the firmware 16.53 install. `crates/e120-rcvbp/tests/factory.rs` pins the generator to the card: the factory basic pack and boot image regenerate byte for byte from the card's day-one flash dump (kept outside the repository; those tests skip without it). Bench results were taken with PSU current readings and averaged camera captures ([docs/bench.md](docs/bench.md)); the values that mattered and what each alternative did are in [docs/rendering.md](docs/rendering.md), and every claim that later measurement disproved is kept in [docs/retracted-findings.md](docs/retracted-findings.md).
+[docs/README.md](docs/README.md) indexes the notes: the `.rcvbp` container and record 0x01 byte by byte, the boot image region by region, the pixel map, the chip-control block, the EEPROM records, the pixel protocol recovered from the vendor sender DLL, the FPGA bitstream and flash layout, and the firmware 16.53 install. `crates/e120-rcvbp/tests/factory.rs` pins the generator to the card: the factory basic pack and boot image regenerate byte for byte from the card's factory flash dump (kept outside the repository; those tests skip without it). Bench results were taken with PSU current readings and averaged camera captures ([docs/bench.md](docs/bench.md)); the values that mattered and what each alternative did are in [docs/rendering.md](docs/rendering.md), and the claims that measurement disproves are in [docs/retracted-findings.md](docs/retracted-findings.md).
 
 ## Hardware
 

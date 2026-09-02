@@ -2,8 +2,8 @@
 //! (unacknowledged; the caller paces them), erase, program, completion poll.
 //!
 //! The card programs only 0x000000-0x02FFFF and 0x080000-0x0AFFFF from the
-//! staged image; the 320 KB between reads back unchanged after an upgrade
-//! (`docs/archive/firmware-16.53-bench-result.md`).
+//! staged image; measured after the 16.53 install, the 320 KB between reads
+//! back unchanged (`docs/provisioning.md`, `docs/fpga/flash-layout.md`).
 
 use super::{frame_with, indexed};
 

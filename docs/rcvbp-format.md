@@ -1,8 +1,11 @@
 # The `.rcvbp` receiver-parameter file format
 
-Derived two ways that agree: from the file bytes themselves, and from the
-disassembly of `CHWParamReceiver::LoadFromBuffer` @ `0x170e50` in
-`libCLTDevice.1.dylib`. Implemented in `crates/e120-rcvbp`. Record 0x01's fields are decoded in [`record-0x01-fields.md`](record-0x01-fields.md), which supersedes the per-field guesses in the table below.
+`.rcvbp` is the vendor's receiver-parameter container. Sources: the file
+bytes of the vendor corpus, and the disassembly of
+`CHWParamReceiver::LoadFromBuffer` @ `0x170e50` in `libCLTDevice.1.dylib`;
+the two agree. Implemented in `crates/e120-rcvbp`. Record 0x01's fields are
+decoded byte by byte in [`record-0x01-fields.md`](record-0x01-fields.md),
+which is the authority for field names.
 
 ## File header (32 bytes)
 
@@ -23,8 +26,8 @@ Two variants exist, distinguished by signature:
 
 ## Record stream
 
-The payload is a flat TLV stream that tiles the buffer exactly (verified: zero
-slack across all 19 files tested, 89 070 bytes for the compressed sample):
+The payload is a flat TLV stream that tiles the buffer exactly (measured:
+zero slack across 19 files; 89 070 bytes for the compressed sample):
 
 ```
 [u16 size, little-endian, includes this 4-byte header]
@@ -33,44 +36,52 @@ slack across all 19 files tested, 89 070 bytes for the compressed sample):
 [payload; size - 4 bytes]
 ```
 
-### Records observed
+### Records
 
 | id | Contents |
 |---|---|
-| `0x01` | Main receiver parameters: geometry, scan, timing, coefficients |
-| `0x03` | Pixel/row mapping table: a 3-byte header then 4096 three-byte entries |
+| `0x01` | Main receiver parameters: geometry, scan, timing, coefficients (764-byte payload) |
+| `0x03` | Pixel/row mapping table: a 3-byte header then 4096 three-byte entries ([panel-wiring.md](panel-wiring.md)) |
 | `0x84` | Driver-chip register table: `(register, R, G, B)` quads |
-| `0x8a` | Secondary parameters |
+| `0x8a` | Secondary parameters; mirrors the screen size |
 | `0xca` | Cabinet geometry: u16 width, u16 scan |
 | `0x83`, `0x89` | Small RGB coefficient records (10 bytes each) |
 | `0x07`, `0x86`, `0x8d`, `0x8e`, `0x8f`, `0x91`, `0x95`, `0xcd`, `0xd8`, `0xda` | Gamma and calibration tables; all zero in an uncalibrated profile |
 
-For `P2.5-32S-128X64-SM16269S-256X384I.rcvbp`, only records `0x01`, `0x03`,
+In `P2.5-32S-128X64-SM16269S-256X384I.rcvbp` only records `0x01`, `0x03`,
 `0x84`, `0x8a`, `0xca` and the two small coefficient records carry data, about
-13 KB of the 89 KB total. Everything else is empty tables.
+13 KB of the 89 KB total. The rest is empty tables.
 
 ## Record `0x01` field positions
 
-Found by diffing 18 P2.5 configuration files that vary in scan, driver chip
-and module size while holding other parameters fixed.
-Offsets are within the record payload.
+Offsets are within the record payload. The corpus column records how the
+byte varies across 18 P2.5 configuration files that differ in scan, driver
+chip and module size with other parameters fixed. The name column is the
+decoded accessor from [`record-0x01-fields.md`](record-0x01-fields.md).
 
-| Offset | Field | Evidence |
+| Offset | Name | Corpus variation |
 |---|---|---|
-| `+0x000` | Module width | 128 on 128-wide modules, 64 on 64-wide, 0x40/0x80 tracks the filename |
-| `+0x001` | Scan denominator | 32 → 64 across an otherwise identical 32S/64S pair |
-| `+0x020` | Scan (second copy) | changes with `+0x001` |
-| `+0x021`, `+0x04b` | Timing derived from scan | 12 → 18 across the 32S/64S pair; also shifts with driver chip |
-| `+0x023`, `+0x049` | Timing | shifts with both scan and chip |
-| `+0x05a`–`+0x069` | 16-entry row-order permutation | wholly reordered across the 32S/64S pair |
-| `+0x0ae`–`+0x0b1` | f32, changes with driver chip | `0x4372b3e9` vs `0x420dcf4e` between chip 9929 and 6618 |
-| `+0x0fc`–`+0x105` | Chip-specific block | populated for chip 9929, zeroed for 6618 |
+| `+0x000` | module width (`GetMoudleWidth`) | 128 on 128-wide modules, 64 on 64-wide; `0x40`/`0x80` tracks the filename |
+| `+0x001` | module height as stored (`GetMoudleHeight`) | 32 to 64 across an otherwise identical 32S/64S pair |
+| `+0x020` | scan denominator (`GetScanMode`) | changes with `+0x001` |
+| `+0x021`, `+0x04b` | serial clock frequency (`SetSerialClockFrequency`) and its duplicate | 12 to 18 across the 32S/64S pair; also shifts with driver chip |
+| `+0x023` | gray level (`GetGrayLevel`) | shifts with both scan and chip |
+| `+0x049` | serial clock / 2 | shifts with both scan and chip |
+| `+0x05a` to `+0x069` | swap block 0 (`ResetSwapData`), 16 entries | wholly reordered across the 32S/64S pair |
+| `+0x0ae` to `+0x0b1` | f32 minimum OE (`HR_SetMinOE`) | `0x4372b3e9` vs `0x420dcf4e` between chip 9929 and 6618 |
+| `+0x0fc` to `+0x105` | chip-specific block | populated for chip 9929, zeroed for 6618 |
 
-The driver chip is not identified by a single ID byte here; chip identity is
-expressed through record `0x84`'s register table plus these timing values.
+`+0x001` is not the scan denominator; the scan denominator is `+0x020`
+(decoded from `GetScanMode`; factory pack body `[0x07] = 0x10 = 16`).
+
+The driver chip id is a 16-bit value split across `+0x036` (low byte) and
+`+0x204` (high byte). Chip identity on the card is expressed through that id,
+record `0x84`'s register table and the timing values above.
 
 ## Relationship to the wire protocol
 
-The file is **not** replayed verbatim onto the wire. iSet parses it into a
-`CHWParamReceiver` object and re-serializes that into typed packets
-(`archive/config-protocol.md`). The record IDs above are file-format IDs, not packet types.
+The file is not replayed verbatim onto the wire. The vendor tool parses it
+into a `CHWParamReceiver` object and re-serializes that into typed packets:
+the 256-byte basic pack and the real-time pack push, described in
+[fpga/parameter-path.md](fpga/parameter-path.md). The record ids above are
+file-format ids, not packet types.

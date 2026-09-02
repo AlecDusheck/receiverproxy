@@ -1,14 +1,15 @@
 # Architecture
 
-How a panel description becomes light, end to end, and which piece of the
-repo owns each step. This is the map; the measurements behind every value
-are in [rendering.md](rendering.md), the claims we withdrew in
-[retracted-findings.md](retracted-findings.md), and the method in
+The path from a panel description to light, and which part of the repo owns
+each step. The measurements behind every value are in
+[rendering.md](rendering.md), the verified negatives in
+[retracted-findings.md](retracted-findings.md), and the measurement method in
 [bench.md](bench.md).
 
 ## The pipeline
 
-Two things reach the card over one raw Ethernet link (`en24` here; `/dev/bpf` on macOS, an `AF_PACKET` socket on Linux):
+Two things reach the card over one raw Ethernet link (`/dev/bpf` on macOS, an
+`AF_PACKET` socket on Linux; the default interface is `en24`):
 
 1. **Configuration**, once per card: a TOML panel spec is compiled into the
    receiver's boot image and written to flash block 7 together with firmware
@@ -103,9 +104,10 @@ same image into the vendor's 34 real-time RAM packs (`params.rs`).
 
 Tests in `crates/e120-rcvbp/tests/factory.rs` pin all of this: the
 reference `.rcvbp` regenerates record for record, the factory basic pack
-and block-7 image regenerate byte for byte from the day-one flash dump
-(kept outside the repo; the tests skip without it), and our spec differs
-from the reference record 0x01 at exactly `[0x023, 0x02F, 0x0C0..0x0C3]`.
+and block-7 image regenerate byte for byte from the factory flash dump
+(`card-dumps/primary-region.bin`, kept outside the repo; the tests skip
+without it), and the bench spec differs from the reference record 0x01 at
+exactly `[0x023, 0x02F, 0x0C0..0x0C3]`.
 
 ### 2. Card provisioning (`e120 provision`, `e120-cli/src/provision.rs`)
 
@@ -122,9 +124,9 @@ One command, dry-run without `--commit` ([provisioning.md](provisioning.md)):
 | EEPROM write | each record at its own address and length from `eeprom::RECORDS`, broadcast index, 500 ms apart; control area `(x, y, x+w, y+h)` from `--position`; save 0x87; reload 0x77; read back | `eeprom.rs` 0x1900 op 0x85 |
 
 Flash allowlists in `e120-proto/src/flash.rs` keep the parameter path away
-from firmware and the golden bank. Writing block 7 wipes
-the EEPROM mirror, which is why the record set is read before and rewritten
-after. Power-cycle afterwards; the card arms from flash.
+from firmware and the golden bank. Writing block 7 wipes the EEPROM mirror,
+which is why the record set is read before and rewritten after. Power-cycle
+afterwards; the card arms from flash.
 
 ### 3. Frames (`e120-proto`, `e120-driver`, `e120-cli`)
 
@@ -143,23 +145,24 @@ brightness (0x0A, 77 B)  →  one 0x55 row packet per panel row (64 × 128 px)
   buffer so a refresh loop need not allocate per packet. Every other builder
   goes through `frame_with` (one allocation, payload written in place).
 * `e120-driver::Wall::show` is the only content path (`show video`,
-  `pattern`, `stream`, `serve`, `image`, `fill`, `test`, `blank`): it renders an `e120-canvas::Canvas`
-  (receivers at their screen position, panels with position, rotation, flip
-  inside each receiver) into one screen-sized framebuffer (framebuffer, row
-  packet buffer, brightness and latch frames are built once in
-  `Wall::with_sink` and reused, so a refresh allocates nothing), sends every
-  screen row with screen coordinates, chunked at 497 (`ceil(width/497) x
-  height` row packets, however many cards listen), then applies `Timing`
-  (latch gap, latch count, row gap; defaults are the measured recipe);
-  `Pacer` keeps the fps. `e120-video` supplies frames (ffmpeg rawvideo pipe,
-  test patterns).
+  `pattern`, `stream`, `serve`, `image`, `fill`, `test`, `blank`): it renders
+  an `e120-canvas::Canvas` (receivers at their screen position, panels with
+  position, rotation, flip inside each receiver) into one screen-sized
+  framebuffer (framebuffer, row packet buffer, brightness and latch frames
+  are built once in `Wall::with_sink` and reused, so a refresh allocates
+  nothing), sends every screen row with screen coordinates, chunked at 497
+  (`ceil(width/497) x height` row packets, however many cards listen), then
+  applies `Timing` (latch gap, latch count, row gap; defaults are the
+  measured recipe); `Pacer` keeps the fps. `e120-video` supplies frames
+  (ffmpeg rawvideo pipe, test patterns).
   `e120-cli/src/display.rs::wall_settings` builds the `Settings` once, with
   the env-var overrides below.
 * `e120-net::Link` is a dumb pipe: one `send` = one wire frame, `recv` returns
   within the timeout with whatever arrived (frames borrowed from one reused
-  kernel-sized buffer; one frame per call on Linux), always promiscuous so card replies to the vendor
-  sender MAC are seen. No protocol knowledge lives there. `read_pcap` yields
-  a `Pcap` whose `packets()` borrow the file bytes the same way.
+  kernel-sized buffer; one frame per call on Linux), always promiscuous so
+  card replies to the vendor sender MAC are seen. No protocol knowledge lives
+  there. `read_pcap` yields a `Pcap` whose `packets()` borrow the file bytes
+  the same way.
 
 The card keeps only pixels whose screen coordinates fall inside its EEPROM
 control area, so a multi-panel wall is many cards each provisioned with its
@@ -184,17 +187,17 @@ and leaves the panel as it is.
 | `e120-proto` | frame builders and reply parsers for every packet type; flash/EEPROM/firmware address allowlists | open sockets, sleep, sequence frames |
 | `e120-net` | `Link` open/send/recv over `/dev/bpf` (macOS) or `AF_PACKET` (Linux); classic pcap reader | know any Colorlight framing or MAC |
 | `e120-rcvbp` | `.rcvbp` parse/write, record 0x01 view, chip library, spec → records/pack/boot image | touch the network or PSU |
-| `e120-canvas` | RGB8 `Frame` (bytes private; `row`/`as_bytes` accessors), wall topology (receivers carry the screen position they were provisioned with), `validate` → `LayoutError`, canvas → one screen framebuffer (`render`, or `render_into` reusing it; unrotated panels are row copies) | — |
-| `e120-video` | `FrameSource` (`next_frame` refills a caller-owned `Frame`): `VideoSource` (ffmpeg rawvideo pipe) and `raw::RawSource` (rgb24 from any `Read`); `raw::Header`/`raw::Writer` for socket clients; `Pattern`s, `Fit`/`Pattern` name parsing | — |
-| `e120-driver` | `Wall::show` (the measured frame recipe), `show_rows` (the same recipe over a band of screen rows; the card keeps the rest), `set_brightness` / `set_gains` (rebuild the cached brightness and latch frames), `Pacer`, layout announce; `FrameSink` (`Link` in production, a recording `Vec` in tests) so the recipe is pinned offline | — |
+| `e120-canvas` | RGB8 `Frame` (bytes private; `row`/`as_bytes` accessors), wall topology (receivers carry the screen position they were provisioned with), `validate` → `LayoutError`, canvas → one screen framebuffer (`render`, or `render_into` reusing it; unrotated panels are row copies) | none |
+| `e120-video` | `FrameSource` (`next_frame` refills a caller-owned `Frame`): `VideoSource` (ffmpeg rawvideo pipe) and `raw::RawSource` (rgb24 from any `Read`); `raw::Header`/`raw::Writer` for socket clients; `Pattern`s, `Fit`/`Pattern` name parsing | none |
+| `e120-driver` | `Wall::show` (the measured frame recipe), `show_rows` (the same recipe over a band of screen rows; the card keeps the rest), `set_brightness` / `set_gains` (rebuild the cached brightness and latch frames), `Pacer`, layout announce; `FrameSink` (`Link` in production, a recording `Vec` in tests) so the recipe is pinned offline | none |
 | `e120-cli` | the `e120` binary: clap tree (`main.rs` holds the top-level commands, `cli/` one enum per group), command modules, Block7 assembly order, still-image send path, flash discipline (dry-run/backup/verify), provisioning sequence. Unix conventions: results only on stdout (a value, a path per line, a table), progress and step lines on stderr, warnings as `e120: warning: …`, errors as `e120: <subcommand>: …` with exit 1 (`main.rs` wraps every command's error in its subcommand path), usage errors exit 2 | hold byte layouts (they belong in proto/rcvbp) |
 | `e120-demos` | the `e120-demo` binary: effects behind one `Effect` trait (`step` draws, `refresh` names the gain, per-channel cast and rows to send, `fps` the rate), a registry `list`/`cycle` read, its own PRNG and value noise; reaches the panel only through `e120_driver::{Wall, Pacer}` like any third-party program | know packet layouts, open the link itself, allocate per frame |
 | `scripts/` | the bench (`bench.py`, `psu.sh`) and read-only config inspection; EEPROM repair | build pixel frames |
 
 ## Measured defaults and where each lives
 
-Everything below was found on the bench; the reasons are in
-[rendering.md](rendering.md). Change them only with a measurement.
+Every default below is measured; the measurements are in
+[rendering.md](rendering.md). Change them only with a new measurement.
 
 | default | value | lives in | pinned by |
 |---|---|---|---|
@@ -203,9 +206,9 @@ Everything below was found on the bench; the reasons are in
 | grey depth | 12 (12–16 render alike) | `[module] gray_bits` | same delta list (`0x023`) |
 | mapping block | 64 | `[mapping] block` | `the_reference_mapping_is_reproduced_by_the_block_knob` |
 | phantom-position gate | on | `[mapping] gate_phantom_positions` default true, `spec/mod.rs`; `Block7Builder::void_line_columns` | bench current only (black 0.466 A) |
-| arm at boot | true | `[boot] arm_at_boot` → chip page 0x0900 | — |
-| frame order | brightness → rows → 500 µs → 3 latches | `e120-driver/src/lib.rs` `Timing::default()`; `display.rs::wall_settings` reads the env overrides | `settings_default_to_the_measured_recipe`, eye on the bench |
-| raster | `rows` | the only layout `Wall::show` cuts (one 0x55 packet per panel row) | — |
+| arm at boot | true | `[boot] arm_at_boot` → chip page 0x0900 | none |
+| frame order | brightness → rows → 500 µs → 3 latches | `e120-driver/src/lib.rs` `Timing::default()`; `display.rs::wall_settings` reads the env overrides | `settings_default_to_the_measured_recipe`; latch count and gap judged by eye on the bench |
+| raster | `rows` | the only layout `Wall::show` cuts (one 0x55 packet per panel row) | none |
 | layout announce | off | `Settings::default()` and `display.rs::wall_settings` (the frame blanks a provisioned card) | `settings_default_to_the_measured_recipe` |
 | colour order | `bgr` | `main.rs` `--order` default; driver `Settings` | `colour_order_reorders_the_channels` |
 | pixels per packet | 497 | `e120-proto/src/pixel.rs MAX_PIXELS_PER_PACKET` | `pixel_rows_follow_the_fpp_layout` |
@@ -219,26 +222,26 @@ Experiment-only overrides (defaults above are the contract; nothing in
 
 ## Bench tooling
 
-| tool | use it when |
+| tool | use |
 |---|---|
 | `scripts/psu.sh on/off/status/extend` | every power action. Arms a 10-minute auto-off; never writes voltage or current. |
 | `scripts/bench.py boot` | before any configuration experiment: power-cycle, wait for discovery, settle 12 s, `config send`. |
 | `scripts/bench.py run` | every A/B: one looping 30 fps stream of all conditions plus a same-content control, primed-average camera captures at 30 % into each segment, PSU current per condition. `--restart` streams each condition through `e120 show image --hold` for per-condition brightness. |
 | `scripts/bench.py locate / capture / compare / tile` | set the crop once per rig, take a single averaged photo, diff two, tile a set. Captures must stay primed averages: the panel is 1/16 multiplexed and a single frame is scan phase, not content. |
-| `scripts/flash-review.py <dump>` | after every flash operation: diff block 7 against the day-one dump run by run, and check the EEPROM control area is not `0xFFFF`. |
-| `scripts/eeprom-restore.py` | the control area or another EEPROM record is erased and you do not want to re-provision: rewrites records from the day-one dump one at a time (`--commit`). `e120 provision` does the same natively. |
+| `scripts/flash-review.py <dump>` | after every flash operation: diff block 7 against the factory dump run by run, and check the EEPROM control area is not `0xFFFF`. |
+| `scripts/eeprom-restore.py` | the control area or another EEPROM record is erased and re-provisioning is not wanted: rewrites records from the factory dump one at a time (`--commit`). `e120 provision` does the same natively. |
 | `scripts/mapdump.py / mapstruct.py / chipregs.py` | compare two `.rcvbp` files as geometry (record 0x03) or as register tables (0x84); read-only. |
 | `e120 discover`, `e120 debug listen / send / replay / pcap` | wire diagnostics; `discover` is also the firmware-version check. |
 
 ## Where to change what
 
-| I want to… | edit | then |
+| change | edit | then |
 |---|---|---|
 | describe a new panel or wall | `config/panels/<panel>.toml` (copy the existing one) | `e120 config gen`, `e120 provision --commit`, power-cycle |
-| add a driver chip | `config/chips/<chip>.toml`; `chips.rs` only if it needs a new block shape | `factory.rs` still passes |
+| add a driver chip | `config/chips/<chip>.toml`; `chips.rs` only if it needs a new block shape | `factory.rs` passes |
 | change the pixel wiring | `[mapping]` in the spec; formula in `rcvbp/src/spec/mapping.rs` | `flash restore-block` + power-cycle (mapping is read from flash at boot) |
 | change a record 0x01 byte | `[record01_overrides]` in the spec, or `spec/record01.rs` DEFAULTS if it is a vendor default | update the delta test in `factory.rs` |
-| change a boot-image region | `rcvbp/src/image/*`; the order lives in `Block7Builder::from_generated` | `the_factory_image_rebuilds_from_erased_flash…`, `the_bench_spec_displaces_the_phantom_positions` |
+| change a boot-image region | `rcvbp/src/image/*`; the order lives in `Block7Builder::from_generated` | `the_factory_image_rebuilds_from_erased_flash_and_its_own_parts`, `the_bench_spec_displaces_the_phantom_positions` |
 | change the wire format of a frame | `proto/src/pixel.rs` (rows/latch/brightness) or the matching proto module | the byte-pinned proto tests |
 | change frame timing or latch count | `driver/src/lib.rs` `Timing::default()` (`cli/src/display.rs::wall_settings` starts from it and applies the env overrides) | `bench.py run`, judge by eye, update rendering.md |
 | add a content source or pattern | `e120-video` (implement `FrameSource`) | `e120 show pattern` / `video` / `stream` |

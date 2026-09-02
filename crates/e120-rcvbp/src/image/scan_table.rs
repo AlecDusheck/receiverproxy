@@ -11,9 +11,9 @@ pub const LEN: usize = 0x400;
 const LEVELS: usize = 16;
 const SLOTS: u32 = 32;
 const MAX_ENTRIES: usize = 0xE7;
-/// Schedule depth, not taken from `gray_bits`: on 2026-09-01 the 12-level
-/// block with 12-bit words raised the black floor (0.75 -> 0.90 A) rather than
-/// removing it (docs/archive/grey-mapping.md §6). 14 is what the factory image carries.
+/// Schedule depth, not taken from `gray_bits`: measured, the 12-level block
+/// with 12-bit words raises the black floor (0.75 -> 0.90 A) rather than
+/// removing it (docs/rendering.md). 14 is what the factory image carries.
 const GRAY: u32 = 14;
 
 /// Field-table block for 16 segments at 14-bit gray, levels 0..=12

@@ -1,6 +1,6 @@
 # The web UI, the daemon and the WASM module
 
-The contract for `web/`, `crates/e120-server` and `crates/e120-wasm`. Everything
+The contract for `web/`, `crates/daemon` and `crates/rcvbp-wasm`. Everything
 else is built against the shapes here; a shape that changes changes here first.
 
 ## 1. Overview and the two modes
@@ -9,43 +9,67 @@ The UI is a static site (Svelte 5, Vite, TypeScript, hand-written CSS) with
 four screens: **Cards**, **Wall**, **Builder**, **Library**. It has two sources
 of function:
 
-- **WASM** (`crates/e120-wasm`): `e120-rcvbp` and `e120-canvas` compiled to
+- **WASM** (`crates/rcvbp-wasm`): `rcvbp` and `wall` compiled to
   `wasm32-unknown-unknown`. Generates, inspects and diffs configurations and
   validates wall layouts in the browser. No hardware, no network.
-- **The daemon** (`crates/e120-server`, started by `e120 ui`): an HTTP server
+- **The daemon** (`crates/daemon`, started by `e120 ui`): an HTTP server
   on `127.0.0.1:7120` that holds the raw Ethernet link and runs the CLI's
-  command functions. Everything that touches the card goes through it.
+  command functions. Everything that touches the card goes through it, and
+  every request carries the daemon's token.
 
-On load the app requests `GET http://127.0.0.1:7120/api/v1/health` with a
-1 s timeout.
+On load the app requests `GET /api/v1/health` with a 1 s timeout, with the
+token when it has one (section 2, "The token").
 
-| | daemon absent (standalone) | daemon present |
-|---|---|---|
-| Banner | shown: "The e120 daemon is not running. Install with `cargo install --path crates/e120-cli`, then run `e120 ui`." Dismissible per session. | not shown |
-| Cards screen | hidden from the sidebar | enabled |
-| Wall screen | editor, table, import/export | plus "provision this card" per receiver, "save as the daemon's wall" |
-| Builder, Library | full, through WASM | full, through WASM; Builder gains "send to card" and "write to card" |
-| Status bar | "standalone" | "iface en24 · 1 card: E120 16.53 128x64" and the running job |
+| | daemon absent (standalone) | daemon answers, no token (locked) | daemon present |
+|---|---|---|---|
+| Banner | shown: "The e120 daemon is not running. Install with `cargo install --path crates/cli`, then run `e120 ui`." Dismissible per session. | a token field and "connect"; "bad token" next to it when one was sent | not shown |
+| Cards screen | hidden from the sidebar | hidden | enabled |
+| Wall screen | editor, table, import/export | as standalone | plus "provision this card" per receiver, "save as the daemon's wall" |
+| Builder, Library | full, through WASM | full, through WASM | full, through WASM; Builder gains "send to card" and "write to card" |
+| Status bar | "standalone" | "standalone" | "iface en24 · 1 card: E120 16.53 128x64" and the running job |
 
-The probe runs once at load and again when the user clicks "retry" in the
-banner. When served by the daemon the API base is the page's own origin; a
-`VITE_E120_API` build variable overrides it for `pnpm dev`.
+The probe runs once at load and again when the user clicks "retry" or
+"connect" in the banner. Health answers `{ version }` alone without the
+token; that answer is what tells the app it is locked. When served by the
+daemon the API base is the page's own origin; a `VITE_E120_API` build
+variable overrides it for `pnpm dev`.
 
 ## 2. The JSON API
 
-Base: `http://127.0.0.1:7120/api/v1`. Bound to loopback only. Request and
+Base: `http://127.0.0.1:7120/api/v1` (`--port`, `--listen`). Request and
 response bodies are JSON (`Content-Type: application/json`) unless a route
 says multipart. Numbers are JSON numbers; bytes are base64 strings; paths are
 strings as the daemon's process sees them (absolute, or relative to the
 directory `e120 ui` was started in).
 
-**CORS**: `Access-Control-Allow-Origin: *`, all methods, headers
-`Content-Type, X-Token`. The daemon listens on loopback only, but any page
-open in the browser can reach loopback, so any page can drive the panel and
-write its flash while the daemon runs. Starting with `--token TOKEN` requires
-every request to carry `X-Token: TOKEN` (401 `{"error":"token required"}` or
-`{"error":"bad token"}` otherwise). The built app reads the token from the
-URL fragment `#token=...` once and keeps it in memory.
+### The token
+
+Every route except `GET /health` requires the daemon's token. `e120 ui`
+generates one at start (32 random bytes, base64url) unless `--token TOKEN`
+is given, and prints the URL `http://HOST:PORT/#token=TOKEN`, which it also
+opens in the browser. A request presents the token in an `X-Token` header,
+or as `?token=` in the query for `EventSource`, which cannot set headers.
+Without it the answer is 401 `{"error":"token required"}`; with a wrong one
+401 `{"error":"bad token"}`. `GET /health` answers `{ version }` without
+the token and the full body with it, so the app can tell a daemon it is
+locked out of from no daemon at all.
+
+The built app reads `#token=` from the fragment once, stores it in
+`sessionStorage` (`e120.token`, one browser tab, gone when the tab closes),
+removes it from the address bar with `history.replaceState`, and sends
+`X-Token` on every request. A token typed into the banner is stored the
+same way.
+
+**Network exposure**: the daemon binds `127.0.0.1` unless `--listen ADDR`
+names another address (`0.0.0.0` for every interface); the printed URL uses
+that address, or the first non-loopback IPv4 address when listening on
+`0.0.0.0`. The token is the credential either way: on loopback it keeps
+other pages open in the same browser from driving the panel and writing the
+card's flash; on the network it keeps other machines out. **CORS** stays
+open (`Access-Control-Allow-Origin: *`, all methods, headers `Content-Type,
+X-Token`) because of it: an origin is not a credential, the token is. The
+link is plain HTTP, so the token crosses the network in clear; use
+`--listen` on networks you trust.
 
 ### Errors
 
@@ -82,11 +106,17 @@ Gated: `config/write`, `provision`, `flash/restore`, `firmware/install`,
 
 ### Common shapes
 
+The shapes below and every request body are Rust structs
+(`crates/daemon/src/api.rs`, `jobs.rs`) from which `web/src/api/types.ts` is
+generated (section 5, "Shared types"); the TypeScript here is the same
+thing with comments.
+
 ```ts
-// One receiving card, from e120_proto::DiscoveryInfo.
+// One receiving card, from colorlight::DiscoveryInfo.
 type Card = {
   controller: number;   // receiver index on the chain
-  card_id: number;      // e.g. 0x03 for an E120, shown as hex
+  card_id: number;      // the type byte, 0x64 for an E120, shown as hex
+  model: string | null; // the config/cards model for card_id, null when none
   ver_major: number;    // 16
   ver_minor: number;    // 53
   cols: number;         // detected width
@@ -106,6 +136,9 @@ type Outcome = {
 // Result of a gated command.
 type GatedOutcome = Outcome & { committed: boolean };
 
+// What a finished job produced.
+type JobResult = GatedOutcome | Outcome;
+
 // A long operation.
 type Job = {
   id: string;           // "j" + counter, unique for the daemon's lifetime
@@ -115,14 +148,18 @@ type Job = {
   finished: string | null;
   lines: Line[];        // everything so far
   error: string | null; // set when state is "failed"
-  result: GatedOutcome | Outcome | null;  // set when state is "done"
+  result: JobResult | null;  // set when state is "done"
 };
 ```
 
+A request field the routes below mark `?` may be left out; the daemon then
+uses the default the route names.
+
 ### Routes
 
-`GET /health` → `{ version: string, iface: string, cards: Card[] }`.
-`version` is `e120-server`'s `CARGO_PKG_VERSION`. `cards` is the last
+`GET /health` → `{ version: string, iface: string, cards: Card[] }` with
+the token, `{ version: string }` without (never 401).
+`version` is `daemon`'s `CARGO_PKG_VERSION`. `cards` is the last
 discovery result; the daemon discovers once at startup (3 s) and on every
 `POST /discover`. A failed discovery leaves `cards` as `[]`; the error is
 logged and returned by the next `POST /discover`. Never opens the link
@@ -132,11 +169,13 @@ itself, so it is safe to poll.
 `{ cards: Card[] }`. Unlike `e120 discover`, no card is `{ "cards": [] }`
 with 200, not an error. 409 while a job runs.
 
-`GET /settings` → `{ iface: string, brightness: number }`.
-`PUT /settings` body `{ iface: string, brightness: number }` → the same.
+`GET /settings` → `{ iface: string, brightness: number, card: string | null }`.
+`PUT /settings` body the same → the same.
 `iface` applies to the next link opened. `brightness` (0-255) is the value
-sent in sync frames by every following `show/*`. Persisted in the daemon's
-settings file (section 5).
+sent in sync frames by every following `show/*`. `card` names a model from
+`config/cards/` (400 for an unknown name) and overrides the model the last
+discovery gave; `null` follows discovery. Persisted in the daemon's settings
+file (section 5).
 
 `POST /brightness` body `{ value: number }` (0-255) → `{ value: number }`.
 Sends the brightness and sync frames now (`e120 brightness`) and updates
@@ -147,7 +186,7 @@ hold?: boolean }` or `multipart/form-data` with a `file` part and optional
 `fit`, `hold` fields. `Fit` is `"stretch" | "contain" | "cover"`, default
 `"stretch"` (what `e120 show image` does: `resize_exact`). `contain` and
 `cover` are the `image` crate's `resize` and `resize_to_fill` with Lanczos3,
-letterboxed in black; `e120_video::Fit` only applies to `VideoSource`. The
+letterboxed in black; `sources::Fit` only applies to `VideoSource`. The
 image is rendered onto the daemon's wall (`GET /wall`). `hold: false` sends three refreshes and returns;
 `hold: true` starts a `show/hold` job that refreshes until cancelled or
 replaced and the response is `{ id }` instead.
@@ -185,7 +224,7 @@ No hardware. Chip library resolution is in section 5.
 
 `POST /config/read` body `{ index?: number, page?: number, max_chunks?: number, wait?: number }` → `{ rcvbp: string, lines: Line[] }`. Base64 of the
 file bytes `e120 config read` would save. Defaults as the CLI: index 0, page
-`FLASH_PAGE_BASIC_PARAM`, 64 chunks, 2 s. Read-only.
+the card model's parameter page, 64 chunks, 2 s. Read-only.
 
 `POST /config/write` body `{ rcvbp: string, commit?: boolean, index?: number, wait?: number }` → `GatedOutcome`. The block backup goes to
 `<data dir>/backups/block07-<unix seconds>.bin` and is listed in `files`.
@@ -244,7 +283,7 @@ stream closes. A comment line `: keepalive` goes out every 15 s.
 
 ### One link, one job
 
-The daemon owns one `e120_net::Link` at a time. A job holds it from start to
+The daemon owns one `rawlink::Link` at a time. A job holds it from start to
 end. While a job is `running`, every route that opens the link (`discover`,
 `brightness`, `show/*`, `config/read`, `config/write`, `config/send`,
 `provision`, `flash/*`, `firmware/*`, `card/*`) returns 409, with two
@@ -256,15 +295,18 @@ progress finishes its block before the job stops.
 
 ## 3. The WASM surface
 
-`crates/e120-wasm` is a `cdylib` over `e120-rcvbp` and `e120-canvas` with
+`crates/rcvbp-wasm` is a `cdylib` (and an `rlib`, so `daemon --features ts`
+can read its structs) over `rcvbp` and `wall` with
 `wasm-bindgen` pinned to the installed CLI's version (`wasm-bindgen --version`
 at the time of writing: 0.2.127; the crate and the CLI must match exactly).
-`web/scripts/build-wasm.sh` emits `web/src/wasm/e120_wasm.js` and
-`e120_wasm_bg.wasm` (`--target web`). Every function throws a JavaScript
+`web/scripts/build-wasm.sh` emits `web/src/wasm/rcvbp_wasm.js` and
+`rcvbp_wasm_bg.wasm` (`--target web`). Every function throws a JavaScript
 `Error` whose `message` is the anyhow chain rendered with `{:#}`.
 
 ```ts
-// web/src/wasm/e120_wasm.d.ts (generated) plus the shapes below in web/src/lib/types.ts
+// web/src/wasm/rcvbp_wasm.d.ts (generated by wasm-bindgen, every result `any`);
+// the shapes below are `crates/rcvbp-wasm/src/api.rs`, generated into
+// web/src/api/types.ts, and what web/src/lib/wasm.ts types the module with.
 
 export default function init(): Promise<void>;   // loads the .wasm; call once
 
@@ -299,7 +341,7 @@ type RecordInfo = {
   description: string;          // config.rs describe_record, "" when unknown
   fields: Record01 | null;      // decoded when id == 0x01 and length >= 764
 };
-type Record01 = {               // every e120_rcvbp::record01::View accessor
+type Record01 = {               // every rcvbp::record01::View accessor
   module_width: number; module_height_stored: number; scan: number;
   serial_clock: number; gray: number; luminance_level: number;
   max_width: number; max_height: number; grid: [number, number];
@@ -315,14 +357,13 @@ type Diff = {
   records: { type: string; len_a: number; len_b: number; offsets: number[] }[];  // all differing offsets, not the CLI's first 16
 };
 
-type Libraries = {
-  chips:  { path: string; name: string; toml: string }[];
-  panels: { path: string; name: string; toml: string; mined: boolean }[];
-};
+type Libraries = { chips: LibraryChip[]; panels: LibraryPanel[] };
+type LibraryChip = { path: string; name: string; toml: string };
+type LibraryPanel = { path: string; name: string; toml: string; mined: boolean };
 ```
 
-`libraries()` returns the files embedded at build time with `include_dir`
-from `config/chips/**/*.toml` and `config/panels/**/*.toml`, `path` relative
+`libraries()` returns the files `panelspec::embedded` holds, built in from
+`config/chips/**/*.toml` and `config/panels/**/*.toml`, `path` relative
 to the repository root (`config/chips/mined/icn2053.toml`), `name` from the
 file's `name =` field (chip libraries name themselves; a panel spec without
 one uses the file stem), `mined` true under `config/panels/mined/`. Order:
@@ -345,21 +386,34 @@ web/
     main.ts               mounts App, starts the daemon probe and the wasm load in parallel
     App.svelte            sidebar + content + status bar; hash router
     app.css               tokens, reset, form controls, layout
+    api/
+      types.ts            generated from the Rust structs (section 5, "Shared types"); never edited
+      ops.ts              the one interface: `ops.pure` (WASM), `ops.card` (daemon, null when absent), `ops.probe`, `ops.connect`
+      daemon.ts           the transport: base URL, token, request/call ({error} handling, status bar), sse(jobId, onLine, onEnd)
+      mock.ts             the canned daemon behind `VITE_E120_MOCK=1`
     lib/
-      api.ts              fetch wrapper (base URL, token, {error} handling), sse(jobId, onLine, onEnd)
-      wasm.ts             `ready: Promise<typeof import("../wasm/e120_wasm")>`; import of the generated module
+      token.ts            the token: splitFragment (pure), sessionStorage, loadToken at start
+      wasm.ts             `ready: Promise<WasmModule>`; the generated glue typed with api/types.ts, or a stub when it is not built
       state.svelte.ts     the shared store (below)
-      types.ts            Card, Line, Job, Canvas, Panel, Receiver, Generated, Inspection, Diff, Libraries
-      layout.ts           Canvas helpers: snap, bounds, addReceiver, addPanel, validate (wasm)
+      layout.ts           Canvas helpers: snap, bounds, addReceiver, addPanel, the JS validate and example
+      error.ts            errText(e)
       download.ts         save(name, bytes | text) through a Blob URL
       spec.ts             PanelSpec <-> TOML (parse the [table] form the generator accepts; emit the same order as config/panels/*.toml)
     parts/
-      Sidebar.svelte  StatusBar.svelte  Banner.svelte  Field.svelte  Hex.svelte
+      Sidebar.svelte  StatusBar.svelte  Banner.svelte  Field.svelte  Hex.svelte  Lines.svelte
     screens/
       Cards.svelte  Wall.svelte  Builder.svelte  Library.svelte
   src/wasm/               generated, gitignored
-  dist/                   pnpm build output, gitignored, embedded by e120-server when present
+  tests/token.test.ts     node --test: the fragment handling of token.ts
+  dist/                   pnpm build output, gitignored, embedded by daemon when present
 ```
+
+Screens and parts call `api/ops.ts` and nothing else in `api/` or
+`lib/wasm.ts`. `ops.pure` is always there (its functions wait for the WASM
+module; `validateLayout` and `layoutExample` use the JS forms in
+`lib/layout.ts` until it is loaded). `ops.card` is the daemon's operations
+while `app.daemon` is `"present"` and `null` otherwise, so a screen that
+needs the card tests `ops.card` and hides the control when it is null.
 
 Routes are hash fragments: `#/cards`, `#/wall`, `#/builder`, `#/library`.
 The default is `#/cards` when the daemon answered, else `#/builder`.
@@ -372,9 +426,10 @@ sets `position` from the receiver's `x,y`).
 One module of `$state` runes, imported by every screen:
 
 ```ts
-daemon:   "probing" | "absent" | "present";
-health:   Health | null;          // the last GET /health
-settings: { iface: string; brightness: number } | null;
+daemon:   "probing" | "absent" | "locked" | "present";   // locked: health answered without iface and cards
+tokenError: string;               // "bad token" when a token was sent and health stayed minimal
+health:   Health | null;          // the last full GET /health
+settings: { iface: string; brightness: number; card: string | null } | null;
 wall:     Canvas;                 // the editor's document; loaded from GET /wall when present, else localStorage "e120.wall", else single 128x64
 job:      Job | null;             // the job the status bar follows (last started from this page)
 status:   { kind: "idle" | "busy" | "error"; text: string };  // status bar right side
@@ -382,13 +437,13 @@ wasm:     "loading" | "ready" | "failed";
 banner:   boolean;                // standalone banner visible
 ```
 
-`api.ts` sets `status` to `busy` while a request is in flight and to `error`
+`api/daemon.ts` sets `status` to `busy` while a request is in flight and to `error`
 with the `error` text when one fails; screens show the same text next to the
 control that caused it. Starting a job sets `job` and opens its SSE; the
 status bar shows `kind`, the last line, and a cancel button; `end` sets
 `idle` or `error`.
 
-### The layout JSON (`e120-canvas`)
+### The layout JSON (`wall`)
 
 The Wall edits exactly the structure `e120 show ... --layout` reads, serde
 names as written:
@@ -424,14 +479,14 @@ a file download.
 
 ## 5. The daemon crate and the CLI refactor
 
-### `crates/e120-commands`: the commands as functions
+### `crates/ops`: the commands as functions
 
-`e120-cli` cannot both provide the command library and depend on
-`e120-server` (cargo rejects the package cycle), so the command modules
-live in their own crate, `e120-commands`. `e120-cli` keeps clap, `main.rs`
+`cli` cannot both provide the command library and depend on
+`daemon` (cargo rejects the package cycle), so the command modules
+live in their own crate, `ops`. `cli` keeps clap, `main.rs`
 and the `Stdio` sink; its output stays byte for byte the same (checked by
-running every offline command against the previous binary). `e120-server`
-depends on `e120-commands`; `e120-cli` depends on both.
+running every offline command against the previous binary). `daemon`
+depends on `ops`; `cli` depends on both.
 
 ```rust
 /// The former global flags (iface, width, height, order, brightness).
@@ -484,29 +539,32 @@ wrappers print nothing extra:
 `display::show_frame` polls `p.cancelled()` in its `hold` loop, `play_on`
 per frame, `provision` between its five steps, `upgrade::install` per chunk
 and per poll, `flash::read_blocks` (hence `restore::snapshot`) per block.
-`PanelSpec` has `parse(text: &str)`, `generate_with(&self, chip)` and
-`chip_library(&self, load)`; the file-based `load` and `generate` stay for
-the CLI. `ChipLibrary::parse(text)` likewise. `e120_rcvbp::image::compile`
-builds the block-7 image `e120 config gen` writes. The loader is passed by
-the caller: the CLI passes `read_library`, the WASM crate the embedded map,
-the daemon "embedded `config/chips` map, then the filesystem relative to
-the working directory" (`e120_server::state::load_library`).
+`panelspec::PanelSpec` has `parse(text: &str)`, `load(path)` and
+`chip_library(&self, load)`; `rcvbp::spec::generate(&spec, &chip)` builds
+the records and `rcvbp::image::compile(&model.memory.boot_image, ..)` the
+block-7 image `e120 config gen` writes, laid out for a `receivers`
+card model (the daemon's `card` setting, the discovered card, else
+`receivers::default_model()`). `ChipLibrary::parse(text)` likewise. The loader is passed by
+the caller: the CLI passes `read_library`, the WASM crate
+`panelspec::embedded`, the daemon "`panelspec::embedded`, then the
+filesystem relative to the working directory" (`daemon::state::load_library`).
 
-### `crates/e120-server`
+### `crates/daemon`
 
 axum (`http1`, `json`, `multipart`, `query`, `tokio` features only), tokio
 (`rt-multi-thread`, `macros`, `sync`, `time`), tokio-stream, tower-http
 `cors`, include_dir, serde, base64, dirs, mime_guess.
 
 ```
-src/lib.rs        pub fn run(opts: Options) -> Result<()>; Options { port, open, token, iface: Option<String>, data_dir: Option<PathBuf> }; pub fn router(state)
+src/lib.rs        pub fn run(opts: Options) -> Result<()>; Options { port, listen: Ipv4Addr, open, token: Option<String>, iface: Option<String>, data_dir: Option<PathBuf> }; the random token; pub fn router(state)
+src/ifaces.rs     first_non_loopback_v4 (getifaddrs), the host in the printed URL when listening on 0.0.0.0
 src/state.rs      AppState: settings, wall, cards, jobs, the link holder (a job or a command's subject, for the 409 text), data dir, token; command() and start_job(); load_library
-src/routes.rs     one handler per route in section 2; the commit gate; Body/Qs extractors that turn a bad body into 400 {"error"}
+src/routes.rs     one handler per route in section 2; the token layer (X-Token or ?token=) on every route but health; the commit gate; Body/Qs extractors that turn a bad body into 400 {"error"}
 src/jobs.rs       Job, Handle (lines + broadcast + done watch + cancel flag), Sink (impl Progress), Lines (a command's sink), spawn_blocking runner, SSE
 src/assets.rs     include_dir!("$CARGO_MANIFEST_DIR/../../web/dist") behind build.rs's cfg(web_dist); every non-/api path
 src/store.rs      settings.json and wall.json under the data dir
 src/error.rs      ApiError { status, message } -> {"error": message}
-tests/api.rs      the router without a link: health, config/gen against gen_config, the commit gate (flash/restore dry run), 409 with a fake job, CORS, token, wall
+tests/api.rs      the router without a link: health with and without the token, 401 on the other routes, config/gen against gen_config, the commit gate (flash/restore dry run), 409 with a fake job, CORS, wall
 ```
 
 The link holder is a `Mutex<Option<Holder>>`; a command takes it for its
@@ -524,15 +582,15 @@ Static files: when `web/dist/index.html` exists at compile time the whole
 directory is embedded and served at `/` with the right MIME types and
 `index.html` for unknown non-API paths. Otherwise `/` returns
 `text/plain` `build the web app: cd web && pnpm install && pnpm build, then
-rebuild e120`. A rebuild of `e120-server` is needed after `pnpm build`
+rebuild e120`. A rebuild of `daemon` is needed after `pnpm build`
 (`build.rs` emits `rerun-if-changed=../../web/dist`).
 
-`e120 ui [--port 7120] [--no-open] [--token TOKEN] [--data-dir DIR]` in
-`e120-cli` builds `Options` and calls `e120_server::run`, which owns its
-tokio runtime; `--no-open` skips opening the browser. `--iface` typed on
-the command line replaces the saved `settings.iface`; otherwise the saved
-one (default `en24`) applies. It prints one line: `e120 ui:
-http://127.0.0.1:7120` (with `#token=...` appended when a token is set),
+`e120 ui [--port 7120] [--listen 127.0.0.1] [--no-open] [--token TOKEN]
+[--data-dir DIR]` in `cli` builds `Options` and calls `daemon::run`, which
+owns its tokio runtime; `--no-open` skips opening the browser. `--iface`
+typed on the command line replaces the saved `settings.iface`; otherwise
+the saved one (default `en24`) applies. It prints one line: `e120 ui:
+http://127.0.0.1:7120/#token=...` (the token given, or the generated one),
 then discovers for 3 s before serving.
 
 ## 6. Build and run
@@ -540,13 +598,13 @@ then discovers for 3 s before serving.
 ```sh
 # once
 rustup target add wasm32-unknown-unknown
-cargo install wasm-bindgen-cli --version 0.2.127    # the version crates/e120-wasm/Cargo.toml pins for the wasm-bindgen crate
+cargo install wasm-bindgen-cli --version 0.2.127    # the version crates/rcvbp-wasm/Cargo.toml pins for the wasm-bindgen crate
 cd web && pnpm install
 
-# the wasm module (rerun after changes to e120-rcvbp, e120-canvas, e120-wasm, config/)
+# the wasm module (rerun after changes to rcvbp, wall, rcvbp-wasm, config/)
 web/scripts/build-wasm.sh
-#   cargo build -p e120-wasm --release --target wasm32-unknown-unknown
-#   wasm-bindgen --target web --out-dir web/src/wasm target/wasm32-unknown-unknown/release/e120_wasm.wasm
+#   cargo build -p rcvbp-wasm --release --target wasm32-unknown-unknown
+#   wasm-bindgen --target web --out-dir web/src/wasm target/wasm32-unknown-unknown/release/rcvbp_wasm.wasm
 
 # development: the app at http://localhost:5173, API from a running daemon
 cd web && pnpm dev                                      # API base: same origin as the page (proxied to 7120 by vite.config.ts)
@@ -554,17 +612,39 @@ VITE_E120_API=http://127.0.0.1:7121/api/v1 pnpm dev     # or an explicit base
 
 # production
 cd web && pnpm build          # -> web/dist
-cargo build --release -p e120-cli   # embeds web/dist
-cargo install --path crates/e120-cli
-e120 ui                       # opens http://127.0.0.1:7120
+cargo build --release -p cli   # embeds web/dist
+cargo install --path crates/cli
+e120 ui                       # prints and opens http://127.0.0.1:7120/#token=<random>
 e120 ui --iface en24 --port 7120 --no-open --token secret
+e120 ui --listen 0.0.0.0      # reachable from the network; the token is the credential
 ```
 
-`pnpm check` runs `svelte-check`; `cargo build --workspace && cargo test
+`pnpm check` runs `svelte-check`; `pnpm test` runs the node tests under
+`web/tests/`; `cargo build --workspace && cargo test
 --workspace && cargo clippy --workspace --all-targets -- -D warnings` covers
-the three Rust crates as for the rest of the workspace. `e120-wasm` is a
+the three Rust crates as for the rest of the workspace. `rcvbp-wasm` is a
 workspace member and must also pass
-`cargo clippy -p e120-wasm --target wasm32-unknown-unknown -- -D warnings`.
+`cargo clippy -p rcvbp-wasm --target wasm32-unknown-unknown -- -D warnings`.
+
+### Shared types
+
+`web/src/api/types.ts` is generated, not written: every request and
+response struct in `crates/daemon/src/api.rs` and `jobs.rs`, the WASM
+result structs in `crates/rcvbp-wasm/src/api.rs`, `wall`'s layout types
+and `sources::{Fit, Pattern}` derive `ts_rs::TS` behind a `ts` feature in
+each crate, and
+
+```sh
+cargo test -p daemon --features ts
+```
+
+writes them, one `export type` each in the order of this document. The
+test compares what it renders with the committed file: when they differ it
+rewrites the file and fails, so a struct change is a two-step edit (run,
+commit). Optional request fields are `Option<T>` in Rust and `t?: T` in
+TypeScript; `u64` fields are `number`; the WASM byte fields are
+`Uint8Array`. The web app and `lib/wasm.ts` import these types; there is
+no hand-written copy.
 
 ## 7. Design rules for the UI
 

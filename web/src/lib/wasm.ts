@@ -1,11 +1,21 @@
 // The WASM module, loaded lazily. `web/scripts/build-wasm.sh` writes
-// src/wasm/e120_wasm.js; when it is absent the stub below stands in and the
-// functions that need e120-rcvbp throw.
+// src/wasm/rcvbp_wasm.js; when it is absent the stub below stands in and the
+// functions that need rcvbp throw. Only api/ops.ts calls this.
 import { app } from "./state.svelte";
-import type { WasmModule } from "./types";
+import type { Diff, Generated, Inspection, Libraries } from "../api/types";
 import { validateJs, example } from "./layout";
 
 export const NOT_BUILT = "wasm module not built: run web/scripts/build-wasm.sh";
+
+/** The generated glue's exports, with the shapes docs/ui.md section 3 gives them. */
+export type WasmModule = {
+  generate(spec_toml: string): Generated;
+  inspect(rcvbp: Uint8Array): Inspection;
+  diff(a: Uint8Array, b: Uint8Array): Diff;
+  libraries(): Libraries;
+  validate_layout(json: string): string;
+  layout_example(cols: number, rows: number, w: number, h: number): string;
+};
 
 const stub: WasmModule = {
   generate: () => {
@@ -23,12 +33,12 @@ const stub: WasmModule = {
 };
 
 type Glue = WasmModule & { default: () => Promise<unknown> };
-const found = import.meta.glob("../wasm/e120_wasm.js") as Record<string, () => Promise<Glue>>;
+const found = import.meta.glob("../wasm/rcvbp_wasm.js") as Record<string, () => Promise<Glue>>;
 
 let loaded: WasmModule | null = null;
 
 export const ready: Promise<WasmModule> = (async () => {
-  const load = found["../wasm/e120_wasm.js"];
+  const load = found["../wasm/rcvbp_wasm.js"];
   if (!load) {
     app.wasm = "failed";
     app.wasmError = NOT_BUILT;
@@ -51,5 +61,3 @@ export const ready: Promise<WasmModule> = (async () => {
 
 // The module once loaded, for synchronous callers; null before that.
 export const current = (): WasmModule | null => loaded;
-
-export const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));

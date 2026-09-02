@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { ready } from "../lib/wasm";
+  import { ops } from "../api/ops";
   import { app } from "../lib/state.svelte";
   import { header } from "../lib/spec";
-  import type { Libraries } from "../lib/types";
+  import type { Libraries } from "../api/types";
 
   let libs = $state<Libraries | null>(null);
   let q = $state("");
   let open = $state<string | null>(null);
-  void ready.then((m) => (libs = m.libraries()));
+  void ops.pure.libraries().then((l) => (libs = l));
 
   const match = (s: { path: string; name: string; toml: string }) => {
     const t = q.trim().toLowerCase();

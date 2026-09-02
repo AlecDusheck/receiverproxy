@@ -1,4 +1,4 @@
-import type { Canvas, Health, Job, Settings } from "./types";
+import type { Canvas, Health, Job, Settings } from "../api/types";
 
 export type Status = { kind: "idle" | "busy" | "error"; text: string };
 
@@ -21,8 +21,10 @@ function storedWall(): Canvas {
 
 // One shared store; every screen imports it.
 export const app = $state({
-  daemon: "probing" as "probing" | "absent" | "present",
-  health: null as Health | null,
+  daemon: "probing" as "probing" | "absent" | "locked" | "present",
+  tokenError: "",
+  // The full body: `probe` keeps only a health that carried `iface` and `cards`.
+  health: null as Required<Health> | null,
   settings: null as Settings | null,
   wall: storedWall(),
   job: null as Job | null,

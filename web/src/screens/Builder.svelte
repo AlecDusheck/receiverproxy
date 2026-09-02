@@ -3,11 +3,11 @@
   import Hex from "../parts/Hex.svelte";
   import Lines from "../parts/Lines.svelte";
   import { app } from "../lib/state.svelte";
-  import { ready, errText } from "../lib/wasm";
-  import { api } from "../lib/api";
+  import { ops } from "../api/ops";
+  import { errText } from "../lib/error";
   import { save, toB64 } from "../lib/download";
   import { defaultSpec, fromToml, toToml, type PanelSpec } from "../lib/spec";
-  import type { Diff, GatedOutcome, Generated, Inspection, Libraries, Outcome } from "../lib/types";
+  import type { Diff, GatedOutcome, Generated, Inspection, Libraries, Outcome } from "../api/types";
 
   let { query }: { query: URLSearchParams } = $props();
 
@@ -25,8 +25,8 @@
     /* no storage */
   }
 
-  void ready.then((m) => {
-    libs = m.libraries();
+  void ops.pure.libraries().then((l) => {
+    libs = l;
     const p = query.get("panel");
     const c = query.get("chip");
     const lib = p && libs.panels.find((x) => x.path === p);
@@ -69,8 +69,7 @@
     genError = "";
     gen = null;
     try {
-      const m = await ready;
-      gen = m.generate(toml);
+      gen = await ops.pure.generate(toml);
       save(`${gen.name}.rcvbp`, gen.rcvbp);
       save(`${gen.name}-basic-pack.bin`, gen.basic_pack);
       if (gen.block7) save(`${gen.name}-block7.bin`, gen.block7);
@@ -84,10 +83,11 @@
   let sendOut = $state<Outcome | null>(null);
   let sendError = $state("");
   async function send() {
+    if (!ops.card) return;
     sendError = "";
     sendOut = null;
     try {
-      sendOut = await api.configSend(toml);
+      sendOut = await ops.card.configSend({ spec_toml: toml });
     } catch (e) {
       sendError = errText(e);
     }
@@ -95,12 +95,12 @@
   let writeOut = $state<GatedOutcome | null>(null);
   let writeError = $state("");
   async function write(commit: boolean) {
+    if (!ops.card) return;
     writeError = "";
     if (!commit) writeOut = null;
     try {
-      const m = await ready;
-      const g = m.generate(toml);
-      writeOut = await api.configWrite(toB64(g.rcvbp), commit);
+      const g = await ops.pure.generate(toml);
+      writeOut = await ops.card.configWrite({ rcvbp: toB64(g.rcvbp), commit });
     } catch (e) {
       writeError = errText(e);
     }
@@ -118,8 +118,7 @@
     insp = null;
     inspError = "";
     try {
-      const m = await ready;
-      insp = m.inspect(await readFile(f));
+      insp = await ops.pure.inspect(await readFile(f));
     } catch (e) {
       inspError = errText(e);
     }
@@ -139,8 +138,7 @@
     dif = null;
     difError = "";
     try {
-      const m = await ready;
-      dif = m.diff(await readFile(fa), await readFile(fb));
+      dif = await ops.pure.diff(await readFile(fa), await readFile(fb));
     } catch (e) {
       difError = errText(e);
     }
@@ -241,7 +239,7 @@
       <div class="row" style="margin-top: var(--s3)">
         <button class="primary" onclick={generate} disabled={wasmOff || !!tomlError}>Generate</button>
         <button onclick={() => save(`${spec.name}.toml`, toml)}>Download TOML</button>
-        {#if app.daemon === "present"}
+        {#if ops.card}
           <button onclick={send} disabled={busy}>Send to card (RAM)</button>
           <button onclick={() => write(false)} disabled={busy || wasmOff}>Write to card: dry run</button>
           {#if writeOut && !writeOut.committed}

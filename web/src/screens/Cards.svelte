@@ -2,9 +2,9 @@
   import Field from "../parts/Field.svelte";
   import Lines from "../parts/Lines.svelte";
   import { app } from "../lib/state.svelte";
-  import { api, follow, isJob } from "../lib/api";
-  import { errText } from "../lib/wasm";
-  import type { Fit, GatedOutcome, Job, Outcome, PatternName } from "../lib/types";
+  import { ops, type CardOps } from "../api/ops";
+  import { errText } from "../lib/error";
+  import type { Fit, GatedOutcome, Job, Outcome, Pattern } from "../api/types";
 
   let { query }: { query: URLSearchParams } = $props();
 
@@ -12,15 +12,20 @@
   const cards = $derived(app.health?.cards ?? []);
   const hex2 = (n: number) => "0x" + n.toString(16).padStart(2, "0");
 
-  // One error slot and one output slot per section, keyed by name.
+  // One error slot and one output slot per section, keyed by name. A
+  // started job is followed to its end; an outcome is shown as it is.
   let errors = $state<Record<string, string>>({});
   let outs = $state<Record<string, Outcome | GatedOutcome | Job | null>>({});
-  async function run<T>(key: string, f: () => Promise<T>): Promise<T | null> {
+  async function run<T>(key: string, f: (card: CardOps) => Promise<T>): Promise<T | null> {
+    const card = ops.card;
+    if (!card) return null;
     errors[key] = "";
     try {
-      const r = await f();
-      if (isJob(r) && !("lines" in r)) outs[key] = await follow(r.id);
-      else if (r && typeof r === "object" && "lines" in r) outs[key] = r as unknown as Outcome;
+      const r = await f(card);
+      if (r && typeof r === "object") {
+        if ("lines" in r) outs[key] = r as unknown as Outcome;
+        else if ("id" in r && typeof r.id === "string") outs[key] = await card.follow(r.id);
+      }
       return r;
     } catch (e) {
       errors[key] = errText(e);
@@ -37,14 +42,14 @@
   };
 
   // discover
-  const discover = () => run("discover", async () => { const r = await api.discover(); if (app.health) app.health.cards = r.cards; return r; });
+  const discover = () => run("discover", async (c) => { const cards = await c.discover(); if (app.health) app.health.cards = cards; return cards; });
 
   // brightness
   let brightness = $state(app.settings?.brightness ?? 255);
-  const setBrightness = () => run("brightness", async () => { const r = await api.brightness(brightness); if (app.settings) app.settings.brightness = r.value; return r; });
+  const setBrightness = () => run("brightness", async (c) => { const v = await c.brightness(brightness); if (app.settings) app.settings.brightness = v; return v; });
 
   // show
-  let pattern = $state<PatternName>("rgb");
+  let pattern = $state<Pattern>("rgb");
   let hold = $state(false);
   let fit = $state<Fit>("stretch");
   let fill = $state("#ff8000");
@@ -70,7 +75,7 @@
     }
   });
   const provision = (commit: boolean) =>
-    run("provision", () => api.provision({ spec_toml: prov.spec_toml, firmware_path: prov.firmware_path || undefined, position: [prov.x, prov.y], commit }));
+    run("provision", (c) => c.provision({ spec_toml: prov.spec_toml, firmware_path: prov.firmware_path || undefined, position: [prov.x, prov.y], commit }));
 
   // firmware, flash, card state
   let fw = $state("");
@@ -120,29 +125,29 @@
     </Field>
     <Field label="pattern">
       <select bind:value={pattern}>{#each ["rgb", "border", "rows", "gradient", "white"] as n (n)}<option value={n}>{n}</option>{/each}</select>
-      <button onclick={() => run("show", () => api.showPattern(pattern, hold))} disabled={busy}>show</button>
+      <button onclick={() => run("show", (c) => c.showPattern({ name: pattern, hold }))} disabled={busy}>show</button>
     </Field>
     <Field label="fill">
       <input type="color" bind:value={fill} />
       <span class="mono">{fill}</span>
-      <button onclick={() => run("show", () => api.showFill(fill.slice(1), hold))} disabled={busy}>show</button>
+      <button onclick={() => run("show", (c) => c.showFill({ rgb: fill.slice(1), hold }))} disabled={busy}>show</button>
     </Field>
     <Field label="image">
       <input type="file" accept="image/*" onchange={(e) => (imageFile = e.currentTarget.files?.[0] ?? null)} />
-      <button onclick={() => imageFile && run("show", () => api.showImageFile(imageFile!, fit, hold))} disabled={busy || !imageFile}>show file</button>
+      <button onclick={() => imageFile && run("show", (c) => c.showImageFile(imageFile!, fit, hold))} disabled={busy || !imageFile}>show file</button>
     </Field>
     <Field label="image path">
       <input bind:value={imagePath} placeholder="path as the daemon sees it" style="width: 320px" />
-      <button onclick={() => run("show", () => api.showImagePath(imagePath, fit, hold))} disabled={busy || !imagePath}>show</button>
+      <button onclick={() => run("show", (c) => c.showImage({ path: imagePath, fit, hold }))} disabled={busy || !imagePath}>show</button>
     </Field>
     <Field label="video path">
       <input bind:value={video.path} placeholder="clip.mp4" style="width: 320px" />
       <label><input type="checkbox" bind:checked={video.loop} /> loop</label>
       <label>fps <input type="number" bind:value={video.fps} min="1" max="120" /></label>
       <label>fit <select bind:value={video.fit}><option>stretch</option><option>contain</option><option>cover</option></select></label>
-      <button onclick={() => run("show", () => api.showVideo({ path: video.path, loop: video.loop, fps: video.fps, fit: video.fit }))} disabled={busy || !video.path}>play</button>
+      <button onclick={() => run("show", (c) => c.showVideo({ path: video.path, loop: video.loop, fps: video.fps, fit: video.fit }))} disabled={busy || !video.path}>play</button>
     </Field>
-    <Field label="blank"><button onclick={() => run("show", () => api.showBlank())} disabled={busy}>blank</button></Field>
+    <Field label="blank"><button onclick={() => run("show", (c) => c.showBlank())} disabled={busy}>blank</button></Field>
   </div>
   {#if errors.show}<div class="error">{errors.show}</div>{/if}
   {#if outs.show}<Lines lines={outs.show.lines} files={"files" in outs.show ? outs.show.files : []} />{/if}
@@ -173,8 +178,8 @@
   <div class="form">
     <Field label="image path"><input bind:value={fw} placeholder=".hex as the daemon sees it" style="width: 100%" /></Field>
     <Field label="">
-      <button onclick={() => run("firmware", () => api.firmwareInstall(fw, false))} disabled={busy || !fw}>dry run</button>
-      {#if canCommit("firmware")}<button class="primary" onclick={() => run("firmware", () => api.firmwareInstall(fw, true))} disabled={busy}>Write to card</button>{/if}
+      <button onclick={() => run("firmware", (c) => c.firmwareInstall({ path: fw, commit: false }))} disabled={busy || !fw}>dry run</button>
+      {#if canCommit("firmware")}<button class="primary" onclick={() => run("firmware", (c) => c.firmwareInstall({ path: fw, commit: true }))} disabled={busy}>Write to card</button>{/if}
     </Field>
   </div>
   {#if errors.firmware}<div class="error">{errors.firmware}</div>{/if}
@@ -190,12 +195,12 @@
   <div class="form">
     <Field label="snapshot to">
       <input bind:value={snapDir} placeholder="directory; default under the daemon's data dir" style="width: 320px" />
-      <button onclick={() => run("snapshot", () => api.flashSnapshot(snapDir || undefined))} disabled={busy}>snapshot</button>
+      <button onclick={() => run("snapshot", (c) => c.flashSnapshot({ dir: snapDir || undefined }))} disabled={busy}>snapshot</button>
     </Field>
     <Field label="restore from">
       <input bind:value={restoreDir} placeholder="snapshot directory" style="width: 320px" />
-      <button onclick={() => run("restore", () => api.flashRestore(restoreDir, false))} disabled={busy || !restoreDir}>dry run</button>
-      {#if canCommit("restore")}<button class="primary" onclick={() => run("restore", () => api.flashRestore(restoreDir, true))} disabled={busy}>Write to card</button>{/if}
+      <button onclick={() => run("restore", (c) => c.flashRestore({ dir: restoreDir, commit: false }))} disabled={busy || !restoreDir}>dry run</button>
+      {#if canCommit("restore")}<button class="primary" onclick={() => run("restore", (c) => c.flashRestore({ dir: restoreDir, commit: true }))} disabled={busy}>Write to card</button>{/if}
     </Field>
   </div>
   {#each ["snapshot", "restore"] as k (k)}
@@ -213,22 +218,22 @@
   <div class="form">
     <Field label="screen size">
       <input type="number" bind:value={size.width} min="1" /> x <input type="number" bind:value={size.height} min="1" />
-      <button onclick={() => run("size", async () => { const r = await api.getScreenSize(); size = r; return r; })} disabled={busy}>read</button>
-      <button onclick={() => run("size", () => api.putScreenSize(size.width, size.height, false))} disabled={busy}>dry run</button>
-      {#if canCommit("size")}<button class="primary" onclick={() => run("size", () => api.putScreenSize(size.width, size.height, true))} disabled={busy}>Write to card</button>{/if}
+      <button onclick={() => run("size", async (c) => { const r = await c.screenSize(); size = r; return r; })} disabled={busy}>read</button>
+      <button onclick={() => run("size", (c) => c.setScreenSize({ ...size, commit: false }))} disabled={busy}>dry run</button>
+      {#if canCommit("size")}<button class="primary" onclick={() => run("size", (c) => c.setScreenSize({ ...size, commit: true }))} disabled={busy}>Write to card</button>{/if}
     </Field>
     <Field label="test mode">
       <input type="number" bind:value={test} min="0" max="255" />
-      <button onclick={() => run("test", () => api.testMode(test))} disabled={busy}>set</button>
+      <button onclick={() => run("test", (c) => c.testMode({ n: test }))} disabled={busy}>set</button>
       <span class="muted">0 is off</span>
     </Field>
     <Field label="set layout (RAM)">
       <input type="number" bind:value={layout.w} min="1" /> x <input type="number" bind:value={layout.h} min="1" />
-      <button onclick={() => run("layout", () => api.setLayout(layout.w, layout.h))} disabled={busy}>send</button>
+      <button onclick={() => run("layout", (c) => c.setLayout({ panel_width: layout.w, panel_height: layout.h }))} disabled={busy}>send</button>
     </Field>
     <Field label="reload">
-      <button onclick={() => run("reload", () => api.reload(false))} disabled={busy}>reload</button>
-      <button onclick={() => run("reload", () => api.reload(true))} disabled={busy}>full reload</button>
+      <button onclick={() => run("reload", (c) => c.reload())} disabled={busy}>reload</button>
+      <button onclick={() => run("reload", (c) => c.reload({ full: true }))} disabled={busy}>full reload</button>
     </Field>
   </div>
   {#each ["size", "test", "layout", "reload"] as k (k)}

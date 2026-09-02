@@ -1,8 +1,7 @@
 import { mount } from "svelte";
 import "./app.css";
 import App from "./App.svelte";
-import { probe } from "./lib/api";
-import "./lib/wasm";
+import { ops } from "./api/ops";
 
-void probe();
+void ops.probe();
 mount(App, { target: document.getElementById("app")! });

@@ -1,7 +1,7 @@
-// Canvas helpers for the Wall editor. Validation goes through WASM when it is
-// loaded; the JS check below covers the same rules for the stub.
-import type { Canvas, Panel, Receiver, Rotation } from "./types";
-import { current } from "./wasm";
+// Canvas helpers for the Wall editor. `validateJs` and `example` are the
+// JS forms of the WASM module's `validate_layout` and `layout_example`;
+// api/ops.ts uses them until the module is loaded.
+import type { Canvas, Panel, Receiver, Rotation } from "../api/types";
 
 export const rotated = (p: Panel): [number, number] =>
   p.rotation === "cw90" || p.rotation === "ccw90" ? [p.height, p.width] : [p.width, p.height];
@@ -76,14 +76,7 @@ export function validateJs(c: Canvas): string {
   return "ok";
 }
 
-export function validate(c: Canvas): string {
-  const w = current();
-  return w ? w.validate_layout(JSON.stringify(c)) : validateJs(c);
-}
-
 export function example(cols: number, rows: number, w: number, h: number): Canvas {
-  const m = current();
-  if (m) return JSON.parse(m.layout_example(cols, rows, w, h)) as Canvas;
   const c: Canvas = { width: cols * w, height: rows * h, receivers: [], panels: [] };
   for (let r = 0; r < rows; r++)
     for (let col = 0; col < cols; col++) {

@@ -1,6 +1,6 @@
 <script lang="ts">
   // Command output as the CLI printed it; `err` lines in grey.
-  import type { Line } from "../lib/types";
+  import type { Line } from "../api/types";
   let { lines, files = [] }: { lines: Line[]; files?: string[] } = $props();
 </script>
 

@@ -1,11 +1,11 @@
 <script lang="ts">
   import Field from "../parts/Field.svelte";
   import { app } from "../lib/state.svelte";
-  import { api } from "../lib/api";
+  import { ops } from "../api/ops";
   import { save } from "../lib/download";
-  import { ROTATIONS, addPanel, addReceiver, clamp, example, normalize, place, rotated, snap, snapSize, validate } from "../lib/layout";
-  import { errText } from "../lib/wasm";
-  import type { Canvas } from "../lib/types";
+  import { ROTATIONS, addPanel, addReceiver, clamp, normalize, place, rotated, snap, snapSize } from "../lib/layout";
+  import { errText } from "../lib/error";
+  import type { Canvas } from "../api/types";
 
   type Sel = { kind: "receiver" | "panel"; i: number } | null;
   let sel = $state<Sel>(null);
@@ -19,7 +19,7 @@
   const grid = $derived(snapSize(wall));
   const verdict = $derived.by(() => {
     try {
-      return app.wasm === "loading" ? "ok" : validate(wall);
+      return app.wasm === "loading" ? "ok" : ops.pure.validateLayout(wall);
     } catch (e) {
       return errText(e);
     }
@@ -184,8 +184,9 @@
   async function saveDaemon() {
     saveError = "";
     saved = "";
+    if (!ops.card) return;
     try {
-      app.wall = await api.putWall(normalize(wall));
+      app.wall = await ops.card.saveWall(normalize(wall));
       saved = "saved as the daemon's wall";
     } catch (e) {
       saveError = errText(e);
@@ -204,7 +205,7 @@
   <button onclick={remove} disabled={!sel}>remove selected</button>
   <span class="sep"></span>
   <label>example <input type="number" bind:value={ex.cols} min="1" style="width: 56px" /> x <input type="number" bind:value={ex.rows} min="1" style="width: 56px" /> cards of <input type="number" bind:value={ex.w} min="1" /> x <input type="number" bind:value={ex.h} min="1" /></label>
-  <button onclick={() => setWall(example(ex.cols, ex.rows, ex.w, ex.h))}>generate</button>
+  <button onclick={() => setWall(ops.pure.layoutExample(ex.cols, ex.rows, ex.w, ex.h))}>generate</button>
 </div>
 
 <canvas bind:this={canvasEl} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up}></canvas>
@@ -224,7 +225,7 @@
             <td><input type="number" bind:value={r.width} min="1" /></td>
             <td><input type="number" bind:value={r.height} min="1" /></td>
             <td>
-              {#if app.daemon === "present"}
+              {#if ops.card}
                 <a href="#/cards?provision={r.index}">provision this card</a>
               {/if}
             </td>
@@ -275,7 +276,7 @@
     <Field label="import JSON" error={importError}><input type="file" accept=".json,application/json" onchange={(e) => importFile(e.currentTarget.files)} /></Field>
     <Field label="export">
       <button onclick={() => save("wall.json", JSON.stringify(normalize(wall), null, 2) + "\n")}>download wall.json</button>
-      {#if app.daemon === "present"}
+      {#if ops.card}
         <button class="primary" onclick={saveDaemon} disabled={busy || verdict !== "ok"}>save as the daemon's wall</button>
         {#if saved}<span class="ok">{saved}</span>{/if}
       {/if}

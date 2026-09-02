@@ -1,18 +1,18 @@
 // Canned daemon for `VITE_E120_MOCK=1 pnpm dev`: one card, in-memory settings and wall, simulated jobs.
 import type { Canvas, Job, JobKind, Line } from "./types";
-import { single } from "./state.svelte";
+import { single } from "../lib/state.svelte";
 
-const card = { controller: 0, card_id: 3, ver_major: 16, ver_minor: 53, cols: 128, rows: 64 };
-let settings = { iface: "en24", brightness: 255 };
+const card = { controller: 0, card_id: 0x64, model: "E120", ver_major: 16, ver_minor: 53, cols: 128, rows: 64 };
+let settings = { iface: "en24", brightness: 255, card: null as string | null };
 let wall: Canvas = single(128, 64);
 const jobs = new Map<string, Job & { listeners: ((l: Line) => void)[]; enders: ((j: Job) => void)[]; timer: number }>();
 let counter = 0;
 
-const outcome = (lines: string[], committed?: boolean) => ({
+const outcome = (lines: string[]) => ({
   lines: lines.map((text) => ({ stream: "err" as const, text })),
   files: [] as string[],
-  ...(committed === undefined ? {} : { committed }),
 });
+const gatedOutcome = (lines: string[], committed: boolean) => ({ ...outcome(lines), committed });
 
 function fail(status: number, error: string): never {
   const e = new Error(error) as Error & { status: number };
@@ -50,7 +50,7 @@ function startJob(kind: JobKind, script: string[], commit: boolean) {
     } else {
       job.state = "done";
       job.finished = new Date().toISOString();
-      job.result = kind === "show/video" || kind === "show/hold" || kind === "flash/snapshot" ? outcome([]) : outcome([], commit);
+      job.result = kind === "show/video" || kind === "show/hold" || kind === "flash/snapshot" ? outcome([]) : gatedOutcome([], commit);
       job.enders.forEach((f) => f(strip(job)));
     }
   };
@@ -113,7 +113,7 @@ export async function request(method: string, path: string, body?: unknown): Pro
     case "POST /config/read":
       return { rcvbp: btoa("RCVB mock"), lines: [{ stream: "err", text: "read 64 chunks" }] };
     case "POST /config/write":
-      return outcome([commit ? "block 7: written, verified" : "block 7: would write 65536 bytes (dry run)"], commit);
+      return gatedOutcome([commit ? "block 7: written, verified" : "block 7: would write 65536 bytes (dry run)"], commit);
     case "POST /config/send":
       return outcome(["sent 21 records to RAM"]);
     case "POST /provision":
@@ -127,7 +127,7 @@ export async function request(method: string, path: string, body?: unknown): Pro
     case "GET /card/screen-size":
       return { width: 128, height: 64 };
     case "PUT /card/screen-size":
-      return { ...outcome([commit ? "eeprom: written" : "eeprom: would write (dry run)"], commit), width: b.width, height: b.height };
+      return { ...gatedOutcome([commit ? "eeprom: written" : "eeprom: would write (dry run)"], commit), width: b.width, height: b.height };
     case "POST /card/reload":
     case "POST /card/test-mode":
     case "POST /card/set-layout":

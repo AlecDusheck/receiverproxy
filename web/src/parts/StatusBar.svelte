@@ -1,6 +1,6 @@
 <script lang="ts">
   import { app } from "../lib/state.svelte";
-  import { api } from "../lib/api";
+  import { ops } from "../api/ops";
 
   const left = $derived.by(() => {
     if (app.daemon !== "present" || !app.health) return "standalone";
@@ -12,7 +12,7 @@
   const last = $derived(app.job?.lines.at(-1)?.text ?? "");
 
   async function cancel() {
-    if (app.job) await api.cancel(app.job.id).catch(() => {});
+    if (app.job) await ops.card?.cancel(app.job.id).catch(() => {});
   }
 </script>
 

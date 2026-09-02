@@ -86,11 +86,14 @@
   });
 
   const gen = new Action<Generated & { format: string }>("generate");
-  function downloadAs(name: string) {
+  // One file per click: a browser keeps only the last of several saves.
+  function downloadAs(format: string, pick: (name: string) => boolean) {
     void gen.run(async () => {
-      const g = await ops.pure.generate(toml, name);
-      for (const file of g.files) save(file.name, file.bytes);
-      return { ...g, format: name };
+      const g = await ops.pure.generate(toml, format);
+      const file = g.files.find((f) => pick(f.name));
+      if (!file) throw new Error(`${format}: no file among ${g.files.map((f) => f.name).join(", ")}`);
+      save(file.name, file.bytes);
+      return { ...g, format };
     });
   }
   function go(path: string) {
@@ -125,14 +128,20 @@
   <h2>Download</h2>
   <div class="row">
     {#each formats as f (f.name)}
-      <button class="mono" onclick={() => downloadAs(f.name)} disabled={gen.busy || app.wasm === "failed"}>{entry.name}.{f.extension}</button>
+      <button class="primary mono" onclick={() => downloadAs(f.name, (n) => n.endsWith(`.${f.extension}`))} disabled={gen.busy || app.wasm === "failed"}>{entry.name}.{f.extension}</button>
     {/each}
-    <button class="mono" onclick={() => save(`${entry.name}.toml`, toml)}>{entry.name}.toml</button>
-    <button class="primary" onclick={() => go("/builder")}>customize</button>
+    <button onclick={() => go("/builder")}>customize</button>
     {#if ops.card}
       <button onclick={() => go("/control/provision")}>provision</button>
     {/if}
   </div>
+  <p class="caption">Load the {formatLabels} file in the vendor software, or flash it with <code>rxp</code>.</p>
+  <div class="row mt-2">
+    <button class="mono" onclick={() => downloadAs(formats[0]?.name ?? "rcvbp", (n) => n.endsWith("-block7.bin"))} disabled={gen.busy || app.wasm === "failed"}>{entry.name}-block7.bin</button>
+    <button class="mono" onclick={() => downloadAs(formats[0]?.name ?? "rcvbp", (n) => n.endsWith("-basic-pack.bin"))} disabled={gen.busy || app.wasm === "failed"}>{entry.name}-basic-pack.bin</button>
+    <button class="mono" onclick={() => save(`${entry.name}.toml`, toml)}>{entry.name}.toml</button>
+  </div>
+  <p class="caption">The boot image the card loads at power-on, the parameter pack inside it, and this page's spec.</p>
   {#if app.wasm === "failed"}<p class="error">{app.wasmError}</p>{/if}
   {#if gen.error}<p class="error">{gen.error}</p>{/if}
   {#if gen.result}

@@ -6,7 +6,7 @@ Colorlight E120 with a P2.5 128x64 SM16269S panel, driven from the Rust CLI in t
 
 | doc | what |
 |---|---|
-| [../HANDOFF.md](../HANDOFF.md) | current state, the commands, open items |
+| [../CLAUDE.md](../CLAUDE.md) | orientation: hardware, commands, rig rules, code rules |
 | [architecture.md](architecture.md) | spec → boot image → card → frames; which crate owns each step; where every measured default lives |
 | [provisioning.md](provisioning.md) | bring a card to a working state in one command; multi-panel positioning |
 | [rendering.md](rendering.md) | every setting that matters, its value, what pins it, what happened when it was wrong |
@@ -51,4 +51,4 @@ Colorlight E120 with a P2.5 128x64 SM16269S panel, driven from the Rust CLI in t
 | [archive/screen-connection-wire.md](archive/screen-connection-wire.md) | the vendor's card-area pack (not adopted) |
 | [archive/vendor-sdk-analysis.md](archive/vendor-sdk-analysis.md) | how the vendor libraries were read |
 | [archive/config-protocol.md](archive/config-protocol.md) | the first long-form analysis log; superseded where the pages above disagree |
-| [fpga/](fpga/README.md), [own-gateware/PLAN.md](own-gateware/PLAN.md) | gateware analysis detail; feasibility study for a gateware of our own |
+| [fpga/](fpga/README.md) | gateware analysis detail |

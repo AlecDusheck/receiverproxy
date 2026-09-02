@@ -124,8 +124,8 @@ they are the flash mirror of the EEPROM at `0x07F000`.
 
 | | startX | startY | endX | endY | blob `0x0c..0x2b` | `0x41` | `0x42` | `0x4c` |
 |---|---|---|---|---|---|---|---|---|
-| `card-dumps/primary-region.bin` (day one, as shipped) | 0 | 0 | 128 | 64 | all `00` | `00` | `00` | `02` |
-| `build/snapshot-20260901-1734/primary-region.bin` | **65535** | **65535** | 128 | 64 | all `FF` | `FF` | `FF` | `FF` |
+| day-one dump (as shipped) | 0 | 0 | 128 | 64 | all `00` | `00` | `00` | `02` |
+| snapshot after the erase | **65535** | **65535** | 128 | 64 | all `FF` | `FF` | `FF` | `FF` |
 
 The window was `X ∈ [65535, 128)` and `Y ∈ [65535, 64)`, empty. No received
 pixel could be inside it, so nothing was written to the frame buffer and the

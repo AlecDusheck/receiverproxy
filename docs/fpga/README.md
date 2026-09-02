@@ -1,5 +1,7 @@
 # The E120 FPGA gateware — index
 
+Pages here cite raw artefacts under `analysis/fpga/` (pin tables, EBR maps, decode scripts) and the bench card's flash dumps under `card-dumps/`. Neither is kept in the repository; the findings are in the pages, and `decode-method.md` says how to regenerate the artefacts.
+
 Reverse engineering of the Colorlight E120 receiving card's gateware, from the
 vendor firmware images in `third-party/firmware/`.
 
@@ -50,41 +52,4 @@ confident-sounding claim elsewhere about the same thing as suspect.
 
 ## Raw artefacts
 
-Durable data and scripts live in **`analysis/fpga/`**:
-
-| file | what |
-|---|---|
-| `PINTABLE_16.53.txt` | the clean 197-pin table with method and caveats |
-| `pinmap_16.53.txt` | package pin → row/col/PIO/bank/special function + raw IO config lines |
-| `final_*.tsv` | per-pin raw routing evidence, all five images |
-| `bramdump_*_3.txt` | the initialised BRAM, raw 2048 × 9-bit words, all five images |
-| `rom_*_decoded.txt` | the same, decoded as 21-bit opcode + immediate |
-| `lut_hist_16.53.txt` | LUT INIT histogram |
-| `clusters_16.53.txt` | AND-of-one-hot comparator clusters |
-| `chains_16.53.txt` | CCU2 carry-chain constant-compare candidates |
-| `bytecmp_16.53.txt` | exhaustive byte-register comparator sweep |
-| `pll_dump.txt` | verbatim PLL tile text, all five images |
-| `summary_cross_image.txt` | cross-image LUT/comparator counts |
-| `flash-layout.txt`, `flash-address-map.txt` | the annotated flash address map |
-| `image-identity.tsv`, `image-match-matrix.tsv` | which vendor image each dump is |
-| `failing-frames-*.tsv` | the failing frame CRCs, listed |
-| `flash-map.py` | regenerates all the flash artefacts, read-only |
-| `basic-pack-fields.tsv` | the complete 256-byte pack field table |
-| `parameter-transports.tsv` | every wire transport + the boot-image region map |
-| `constants-searched.tsv` | every constant, FOUND / NOT FOUND / NEVER SEARCHED |
-| `sm16269-register-map.tsv` | the 33-register chip file, both vendor tables |
-| `output-stage-arithmetic.tsv` | scan/mapping numbers for this panel, verified |
-| `minoe_corpus_survey.py` | the 370-file corpus survey behind the minOE result |
-| `rgb96_pins.txt` | **the 96 RGB data pins**, with how they were found |
-| `ebr_map_16.53.txt`, `ebr_map_10.81.txt` | **every instantiated block RAM**: driven pins, clocks, write-enable / chip-select / reset sources, and where its address and data generators sit on the die |
-| `scripts/netlist/ebrmap.py` | regenerates those, and documents the CIB-pin → EBR-pin fixed-connection trap |
-| `output_stage_16.53.txt` | the output stage traced from the pads backward |
-| `led_pin_classification_16.53.txt` | LED-side pins grouped by role |
-| `pad_driver_logic_16.53.tsv` | per-pad driver-LUT logic |
-| `build_comparison.txt` | output-stage diff, PWM vs Normal/LS families |
-| `negative_results_and_method.txt` | **searches that are dead and must not be repeated**, plus tracing-reliability limits |
-| `scripts/` | every analysis script, including `repro.sh`; `scripts/netlist/` is the reusable netlist core (`netlist2.py`, `slices.py`, `lut.py`, `deep.py`) |
-
-Large intermediates (`arcs.pkl`, `full_16.53.pkl`) are **not** committed —
-regenerate them with `scripts/netbuild.py` after `scripts/repro.sh`. About a
-minute per image.
+The raw pin tables, EBR maps and decode scripts were not kept in the repository; the pages above carry the findings and decode-method.md says how to regenerate them.

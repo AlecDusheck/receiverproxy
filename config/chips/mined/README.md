@@ -8,7 +8,7 @@ mode of the identity bytes, the chip-control block and the register table
 of each file gives the file count, the agreement and three example sources.
 
 Chip names come from the vendor device library's name tables
-(`analysis/chip-names.json`, 299 ids).
+(`chip-names.json` here, 299 ids).
 
 What "mined" means:
 
@@ -21,6 +21,6 @@ What "mined" means:
 - Register 0x02 is replaced by scan-1 on load; the other registers are the
   corpus mode, with the lowest per-register agreement stated.
 - Families below the file threshold, or whose control block agrees in fewer
-  than half the files, are not emitted; `analysis/corpus-mine.log` names them.
+  than half the files, are not emitted; the miner's output names them.
 
 Regenerate with `python3 scripts/corpus-mine.py`; do not hand-edit.

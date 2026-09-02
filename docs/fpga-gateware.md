@@ -58,8 +58,7 @@ flip-flop, `Q6@9,27`** (`WEA` is strapped high, so `CSA0` is the whole gate).
 **The double-buffer-swap explanation for the dead panel is refuted:** there is
 nowhere for an un-swapped back buffer to live.
 
-→ [pixel-write-path.md](fpga/pixel-write-path.md),
-`analysis/fpga/ebr_map_16.53.txt`
+→ [pixel-write-path.md](fpga/pixel-write-path.md)
 
 ## The bitstream — HIGH
 

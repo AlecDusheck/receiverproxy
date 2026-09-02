@@ -474,7 +474,7 @@ column.
 
 **#2 — The results predate the corrected config.** Nearly as likely, and cheap
 to eliminate.
-*For:* `HANDOFF.md` open item 1 is literally "flash and test the generated
+*For:* the open item at the time was literally "flash and test the generated
 config", and records that the scrambled-content tests "predate the corrected
 serial clock, scan-line length, module positions and double latch now in the
 generator". CardScanLen alone was 512 instead of 256 — a guaranteed raster

@@ -63,7 +63,7 @@ lands at EEPROM byte **0**. The bench evidence agrees: `e120 card screen-size`
 returns 256 bytes whose fields line up exactly with the address map below.
 
 Independently, the card **mirrors the EEPROM to SPI flash at `0x07F000`**:
-`card-dumps/primary-region.bin` and `build/snapshot-20260901-1734/primary-region.bin`
+the day-one dump and a later snapshot of the primary region
 were both taken with page-addressed (type 0x0600) reads, and both show the
 EEPROM image there. So a page dump of block 0x07 is a free read-back of the
 EEPROM, and a whole-block erase of block 0x07 *is visible* in that mirror.

@@ -228,7 +228,7 @@ def main():
     ap.add_argument('--corpus', action='append', help='directory of .rcvbp files, searched recursively (repeatable)')
     ap.add_argument('--out', default='config')
     a = ap.parse_args()
-    names = json.load(open('analysis/chip-names.json'))
+    names = json.load(open('config/chips/mined/chip-names.json'))
     files = []
     for root in a.corpus or CORPUS:
         for p in glob.glob(os.path.join(root, '**', '*.rcvbp'), recursive=True):

@@ -6,3 +6,7 @@ build/
 
 # Python bytecode from the analysis scripts
 __pycache__/
+
+# Flash dumps of the bench card stay local
+/card-dumps
+.DS_Store

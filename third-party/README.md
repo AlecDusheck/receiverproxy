@@ -6,7 +6,7 @@ is the reference file the tests compare against: its records match the card's
 day-one flash (`crates/e120-rcvbp/tests/factory.rs`); where it came from is
 not recorded, and its name says a 256x384 wall, which is not this bench.
 `configs/donor-*.rcvbp` is our own construction, not vendor material. Nothing here is ours; nothing here
-is ever executed. Our own reads of this card's flash live in `../card-dumps/`.
+is ever executed.
 
 ## Firmware archive
 
@@ -45,17 +45,6 @@ per-chip `Custom Series` builds.
 
 Source: Colorlight's own download pages and their per-driver-IC library at
 `ledincloud.com/resouce/Update Program/Colorlight/receiving card/`.
-
-## ../card-dumps/ (our dumps of this card)
-
-Read out of this card's SPI flash over Ethernet. Keep these — they are the only
-copy of what this specific card shipped with.
-
-| File | Notes |
-|---|---|
-| `primary-region.bin` | Blocks 0x00–0x0B as first found. Matches the factory image at 0x00000–0x30000 and 0x80000–0xB0000, but config had been written at 0x070000 **over the bitstream**, so the primary was never a loadable image on this card. |
-| `golden-bank.bin` | Blocks 0x20–0x2A, the golden/backup bitstream, build dated Jul 2022. Untouched. |
-| `primary-after-restore.bin` | The primary after writing the factory image back. 4042 bytes short of the file, all in `0x07f000–0x07ffff`, a page the card refuses to write. |
 
 ## Flash layout
 

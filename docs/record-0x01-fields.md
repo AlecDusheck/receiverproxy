@@ -7,7 +7,7 @@ record loader (`LoadBpBufFromBuffer` @ 0x1c5020, record-0x01 handler at
 0x1ca810, record-0x01 writer 0x1ca8c3-0x1cbbc7), the defaults constructor
 (`SRcvParamBasic` @ 0x1cfcc0), and the pack builder (`GetBasicParam` @
 0x1dfb50). Cross-validated statistically against 1219 unique vendor payloads
-(`analysis/record01-fieldmine/`).
+(a per-field survey of the corpus, not kept in the repo).
 
 Structural fact: the loader memcpys the record including its 4-byte header
 into `SRcvParamBasic`, so payload offset N maps mechanically to stack slot
@@ -92,7 +92,7 @@ GetBasicParam output offset (pack = body offset + 4).
 
 Offsets not listed above are either constants (see the constructor), provenance-
 known-but-meaning-unresolved members, or explicitly NOT RESOLVED; the
-per-byte account is `analysis/record01-fieldmine/fielddict.csv`.
+per-byte survey behind this page was not kept in the repo.
 
 ## Flag word #1 (payload +0x018, u32 LE)
 

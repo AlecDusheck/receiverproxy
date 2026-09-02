@@ -5,8 +5,8 @@ The card applies this image at boot. It is built by the vendor's
 as a fixed-offset scatter of pack *bodies* — no per-region framing, lengths,
 terminators or checksums — driven by a host-side region directory that is not
 itself written to flash. Everything below was recovered from the disassembly
-and verified against the factory dump (`card-dumps/primary-region.bin`
-at 0x70000): `Block7Builder` in `crates/e120-rcvbp/src/image/` rebuilds that
+and verified against the day-one flash dump (block 7 at 0x70000; the dump is
+kept outside the repo and the tests skip without it): `Block7Builder` in `crates/e120-rcvbp/src/image/` rebuilds that
 block byte-exactly from erased flash
 (`crates/e120-rcvbp/tests/factory.rs`).
 

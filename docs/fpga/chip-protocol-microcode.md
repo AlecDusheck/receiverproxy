@@ -24,16 +24,27 @@ Artefacts: `analysis/fpga/rom_*_decoded.txt`, `analysis/fpga/chip-control-corpus
 | # | question | answer |
 |---|---|---|
 | 1 | Which protocol does 16.53's ROM implement? | **None.** The ROM is byte-identical in 16.53, 13.39 (Normal), 9.53 (PWM) and 6.69 (LS0allDA). A block that does not change across the Normal/PWM/LS split cannot encode a chip-specific serial protocol. No LE-tail table, no guard word, no addressed-register structure is present in any build. — **HIGH** |
-| 2 | How is the protocol selected at runtime? | **By parameter data, not by a ROM jump.** `SChipControl` (record 0x01 `+0x0C4..0x0D7`) is a per-chip *serial-protocol descriptor*: pre-activation tail, register-write tail, second-command tail, data-latch tail, VSYNC tail, and two GCLK/RCLK-per-row counts. It is all-zero for non-S-PWM chips and non-zero for every S-PWM chip. — **HIGH on the field decode, MEDIUM on the exact per-byte semantics** |
-| 3 | GCLK | The SM16269 has **no GCLK and no OE pin.** Pin 21 is **RCLK**, and the datasheet block diagram wires RCLK → 16-bit counter → PWM controller, so RCLK *is* the grey clock and also advances the row. The card's counterpart is `SChipControl[10..13]` — two big-endian **GCLK/RCLK-pulses-per-row** counts. Ours is `0x0097` = **151**. — **HIGH** |
+| 2 | How is the protocol selected at runtime? | **By the chip id, but as *data*, not as a ROM jump.** The host tool's `ResetChipControl` jump table (indexed by `chipType − 0x10`) emits a 20-byte `SChipControl` descriptor per id into record 0x01 `+0x0C4`. It is **all-zero for exactly the non-S-PWM chips** and non-zero for every S-PWM chip, and it is the only chip-protocol-shaped payload in the pack. — **HIGH that the id selects it and that the block is what varies; MEDIUM on the per-byte semantics in §2.1** |
+| 3 | GCLK | The SM16269 has **no GCLK and no OE pin.** Pin 21 is **RCLK**, and the datasheet block diagram wires RCLK → 16-bit counter → PWM controller, so RCLK *is* the grey clock and also advances the row. `SChipControl[10..13]` is the card-side "scan cycle level"; ours is `0x0097` = 151, and it is **verified correct** for what we send (§4.2). Record `+0x031` `SetGClock` never reaches the pack at all. — **HIGH** |
 | 4 | Data upload | 16-bit words per output channel, **MSB first**, R/G/B as six parallel lanes, chip-minor / output-major nesting, with a **1-DCLK LE data-latch tail** (`SChipControl[5] = 0x01` in every S-PWM profile in the corpus). — **MEDIUM-HIGH** |
 
 **Single most likely reason data never reaches the SM16269S SRAM:** see §6.
-Short version — the chip self-scans a whole frame out of its own 8 K SRAM and
-advances its internal row pointer from RCLK, so the card's A–E scan and the
-chip's SRAM row pointer are only in step if the RCLK-per-row count is right.
-That count is `SChipControl[10..13]`, it is a **RAM-only, sweepable** pack
-field, and it has never been varied on this bench.
+Short version — **chip id `0x014C` is probably the wrong family entry for this
+silicon, and `0x002F` is the one to try.** Every vendor `.rcvbp` in the corpus
+that drives a 16169-family module uses `0x002F` + sub `0x008A`, and the two ids
+carry *different* protocol descriptors (`[2][3][4]` = `1,5,6` vs `3,4,8`).
+
+> **Read this file together with
+> [`docs/chip-control-block.md`](../chip-control-block.md)**, which decodes the
+> same 20 bytes from the vendor library's disassembly — jump table, per-byte
+> write site, and the exact `GetScanCycleLevel` formula behind bytes 10–13.
+> The two agree on structure and on bytes 10–13. They differ on bytes 1–6:
+> that file marks them NOT RESOLVED (they are per-chip-id literals from
+> `ResetChipControl`, and nothing in the library names them), while §2 here
+> reads them as LE/LAT tail lengths on external evidence. **Where they
+> conflict, `chip-control-block.md` is the harder source** — it is reading the
+> code that writes the bytes. §2 here is the softer, cross-referenced reading
+> of what those literals *mean*, and it is tagged MEDIUM for that reason.
 
 ---
 
@@ -153,6 +164,16 @@ is `0x01` and byte 6 is `0x03` in every non-zero block**.
 
 ### 2.1 The decode
 
+> Bytes 0–9 and 14–19 are per-chip-id **literals** written by
+> `CHWParamRcvGeneral::ResetChipControl()` from a jump table indexed by
+> `chipType − 0x10`; ids absent from the table get all twenty bytes zeroed.
+> Bytes 10–13 are then recomputed at pack-build time by
+> `SetGclkNumsOfChipControlByChipCustom`. All of that is established in
+> [`docs/chip-control-block.md`](../chip-control-block.md) §1–2 from the
+> disassembly, at HIGH confidence, and supersedes anything below that
+> disagrees. What follows is the *meaning* of those literals, which the
+> library does not name.
+
 ```
 [0]      0
 [1]      0x0E = 14   pre-activation LE tail        (universal)          HIGH
@@ -163,8 +184,8 @@ is `0x01` and byte 6 is `0x03` in every non-zero block**.
 [6]      0x03 = 3    VSYNC LE tail                 (universal)          HIGH
 [7..9]   per-colour byte triple (R,G,B): 7F 7F 7F for 3265; 02 00 00
          for 16380; zero otherwise                                      MEDIUM
-[10..11] GCLK / RCLK pulses per row, big-endian, count A                HIGH
-[12..13] GCLK / RCLK pulses per row, big-endian, count B                HIGH
+[10..11] "scan cycle level", big-endian, then repeated at [12..13]       HIGH
+[12..13] (same value; only SM16380 0x00FD has the two differ)           HIGH
 [14..15] a further count: 8 / 16 / 5                                    NOT RESOLVED
 [16]     0 / 1 / 2                                                      NOT RESOLVED
 [17]     0
@@ -299,17 +320,45 @@ under that id is **NOT RESOLVED** — but note that for the SM16269 the two are
 the same signal at different rates, so a *rate* error, not a *presence* error,
 is the failure to look for.
 
-### 4.2 The divider is the pack field, not a gateware constant
+### 4.2 The count is a pack field — and ours is already correct
 
-`SChipControl[10..11]` and `[12..13]` are the two GCLK/RCLK-per-row counts
-(§2.2 check 4). They are **panel-specific, not chip-specific**: chip `0x00BB`
-takes 138 with a `2018` row driver and 33 with a `5958` row driver, and chip
-`0x00E5` takes 47 / 89 / 91 across three panels. SM16380 (`0x00FD`) is the only
-entry where the two counts differ (67 and 70).
+`SChipControl[10..13]` is the "scan cycle level", stored big-endian and
+repeated. It is **not** a per-chip constant: chip `0x00BB` takes 138 with a
+`2018` row driver and 33 with a `5958` row driver, and chip `0x00E5` takes
+47 / 89 / 91 across three panels. SM16380 (`0x00FD`) is the only corpus entry
+where the two halves differ (67 and 70).
 
-Record 0x01 `+0x031` (`SetGClock`, default `0x14` = 20) is a separate,
-one-byte field which we send as 20; the relationship between it and
-`SChipControl[10..13]` is **NOT RESOLVED**.
+**It is computed, not chosen**, and
+[`docs/chip-control-block.md`](../chip-control-block.md) §2 recovers the exact
+formula from `SSM16169SHChipCustomPlus::GetScanCycleLevel` and verifies it:
+with `b = ` register `0x07` red value and sub-id ≠ `0x14D`,
+
+```
+A = (b & 0xC0) ? 2 : (b >> 5) + 1 ;  u = (b>>2)&1 ; v = b&3 ; n = (b>>3)&3
+level = ceil( trunc(128 · 2ⁿ) / A + (v + 10u + 12) + 1 )
+```
+
+and for the seller's file (`reg07 = 0x04`, sub-id `0x0000`) that is exactly
+**151 = 0x97**. Our generated config has the same `reg07` and the same sub-id,
+so **`0x0097` is correct and self-consistent for what we are currently
+sending. This field is not the fault.**
+
+> **Footgun, and it bites two of the experiments already queued in
+> [output-stage.md §6](output-stage.md#6-reconciling-the-bench-facts).**
+> `crates/e120-rcvbp/src/chips.rs` stores `chip_control` as a **literal** from
+> the TOML. Change `reg 0x07` (hypothesis #5) or the sub-id and the vendor
+> would recompute bytes 10–13 — `reg07 = 0x44` with sub `0x14D` gives `0x30`,
+> not `0x97` — while we would keep sending `0x97`, desynchronising the card's
+> scan-cycle count from the chip's own frequency-division setting.
+> `config/chips/sm16269.toml` already ships that impossible combination
+> (`sub_id = 0x14D` + `reg07 = 0x44` + `0x97`); `sm16269s-factory.toml`, which
+> the panel config actually uses, is consistent.
+
+Record 0x01 `+0x031` (`SetGClock`, default `0x14` = 20) is a red herring: an
+exhaustive reference scan of the vendor library
+([chip-control-block.md §3](../chip-control-block.md)) shows it is read only by
+a host-side grey-value display routine and **never reaches the basic pack at
+all**. It is not a GCLK divider and cannot affect what the card emits. — HIGH
 
 ### 4.3 What would stop the clock
 
@@ -393,48 +442,84 @@ to the LE/VSYNC emission, and no waveform has been captured.
 
 Ranked, with the reasoning made explicit so it can be attacked.
 
-**#1 — The RCLK/GCLK-per-row count is wrong for this module, so the chip's
-internal SRAM row pointer never comes into step with the card's A–E scan.**
-*Why:* the SM16269 is not a shift register with a latch. It holds a **whole
-frame** in its 8 K SRAM and self-scans it, advancing its own row pointer from
-RCLK. The card's A–E lines drive the panel's row-select transistors
-independently. Those two only stay aligned if the card issues exactly the right
-number of RCLK pulses per row. Get it wrong and every physical row displays the
-same SRAM row — which is *precisely* the reported symptom, "no pixel data ever
-displays and every scan line shows identical content", and it coexists happily
-with "gain writes work" and "brightness scales current", because both of those
-are command-channel and current-source behaviour that do not involve the row
-pointer at all.
-*The knob:* `SChipControl[10..13]`, currently `0x0097 / 0x0097` = 151 / 151.
-It is a **RAM-only** pack field (`config/chips/*.toml → chip_control`), it has
-**never been varied on this bench**, and the vendor computes it per panel
-(`SetGclkNumsOfChipControlByChipCustom`) rather than per chip — while our
-config copies it verbatim from the seller's 256 × 384 wall file.
-*Experiment:* sweep `chip_control[10..13]` over the corpus ladder — 33, 47, 67,
-74, 89, 91, 129, 131, 138, 151 (current), 257, 259, 513 — one value per
-`send-params`, photographing each. Ten minutes, no flashing, fully reversible.
+**#1 — Chip id `0x014C` is the wrong family entry for this silicon; the id the
+vendor actually uses for 16169-family modules is `0x002F` (+ sub `0x008A`).**
+*For, and it is a stack of independent facts:*
 
-**#2 — The card is emitting the SH addressed-register encoding to a part that
-wants the unaddressed one.** *For:* the SM16269 datasheet publishes exactly one
-configurable word (the 6-bit current gain, `G5..G0` in bits 5:0 of a 16-bit
-word) and **no register map and no address field at all**, while we send 33
-addressed registers. *Against, and it is strong:* the gain register demonstrably
-moves supply current on this bench, which an addressed write should not achieve
-on a part that decodes commands by tail length alone. Either the silicon really
-is an SH variant, or the "gain works" observation needs re-checking.
-*Experiment:* set `chip_control[2..5] = 3, 4, 8` and suppress record 0x84 —
-i.e. present as the `0x002F` SM16169-family / non-SH profile — and see whether
-anything changes. Cheap, RAM-only.
+* **The corpus.** Every vendor `.rcvbp` whose name carries "16169" — P2.5 16S,
+  two P3.91 16S including the E80 build, P6.67 6S, P8 — uses id `0x002F`, and
+  **none** of them uses `0x14C`. Our `0x14C` came from the previous owner's
+  256 × 384 wall config, which is not evidence about this panel.
+* **The two ids carry different protocol descriptors.** `0x002F` gets
+  `[2][3][4] = 3, 4, 8`; `0x014C` gets `1, 5, 6`. On the §2 reading those are
+  *different command encodings* — `4, 8` is the SM16380 non-SH CFG1/CFG2 tail
+  pair, `5, 6` is the addressed-register pair. Even without that reading, the
+  bytes differ, they are the only chip-protocol bytes in the pack, and they
+  are selected by the id.
+* **The vendor library treats the two ids asymmetrically on exactly the GCLK
+  question.** From [chip-control-block.md §3](../chip-control-block.md):
+  `IsHasGCLKRatioSetting()` is **false for `0x14C` and true for `0x2F`**, and
+  `GetGclkCount()` returns **0 for `0x14C`** (the id falls past the table
+  bound) while it computes a value for `0x2F`. For a part whose grey clock and
+  row advance are the same RCLK pin, "this id has no GCLK ratio and a GCLK
+  count of zero" is a pointed thing to be true.
+* **The symptom fits.** The SM16269 is not a shift register with a latch: it
+  holds a whole frame in its 8 K SRAM and self-scans it, advancing its own row
+  pointer from RCLK, while the card's A–E lines drive the panel's row select
+  independently. Wrong RCLK regime → every physical row shows the same SRAM
+  row. That is "no pixel data displays and every scan line shows identical
+  content", and it coexists happily with "gain writes work" and "brightness
+  scales current", which are command-channel and current-source behaviour that
+  never touch the row pointer.
 
-**#3 — A second `SChipControl` field (`[14..15]`, `[16]`, `[18..19]`) is
-wrong.** Unresolved bytes that differ between chip families and between panels;
-ours are `00 08 / 02 / 0a 02`. Sweep after #1 and #2.
+*Against:* the bench has `0x014C` responding and `0x0214` dark, so `0x14C` is
+at least *a* live id; and the seller's wall presumably worked on `0x14C` at
+some point (unverified).
+*Experiment — one line, RAM only, and it is the cheapest decisive test left:*
+point the panel config at `config/chips/sm16169-corpus.toml` (id `0x002F`,
+sub `0x008A`, `chip_control = 00 0e 03 04 08 01 03 00 00 00 00 81 00 81 00 10
+00 00 00 00`, serial clock 10), `send-params`, photograph. Then, since that
+profile ships **without** a register record in the corpus, repeat with record
+0x84 suppressed.
 
-**#4 — Everything already ranked in
+**#2 — The card is emitting the addressed-register ("SH") encoding to a part
+that wants the unaddressed one.** *For:* the SM16269 datasheet publishes
+exactly one configurable word — the 6-bit current gain, `G5..G0` in bits 5:0 —
+and **no register map and no address field at all**, while we send 33 addressed
+registers `0x02..0x22,0xF0`. *Against, and it is strong:* the gain register
+demonstrably moves supply current on this bench, which an addressed write
+should not achieve on a part that decodes commands by tail length alone. Either
+the silicon really is an SH variant, or the "gain works" observation needs
+re-checking against a quiet wire.
+*Experiment:* the same one as #1 — `0x002F` carries `4, 8`, the non-SH tails.
+The two hypotheses are distinguished only by *which* byte did the work, so run
+the experiment first and attribute afterwards.
+
+**#3 — The `chip_control` recompute trap, when you run the experiments already
+queued.** Not a current fault, but it will manufacture one.
+[output-stage.md §6](output-stage.md#6-reconciling-the-bench-facts) hypothesis
+#5 says "bisect the differing registers, starting with `0x07`". Register `0x07`
+red is the **input to the scan-cycle-level formula** (§4.2). Change it without
+recomputing `chip_control[10..13]` and the card's scan-cycle count no longer
+matches the chip's frequency division. Same for the sub-id.
+`config/chips/sm16269.toml` already ships a combination the vendor would never
+emit. **Fix `chips.rs` to compute bytes 10–13 rather than store them, or at
+minimum assert consistency, before sweeping registers.**
+
+**#4 — A second unresolved `SChipControl` field** (`[14..15]`, `[16]`,
+`[18..19]`; ours `00 08 / 02 / 0a 02`). Byte 16 in particular is *not written
+by `ResetChipControl` for chip `0x14C` at all* — the `02` we send is carried
+over from whatever LEDVISION last wrote, and is unexplained. Sweep after #1–#3.
+
+**#5 — Everything already ranked in
 [output-stage.md §6](output-stage.md#6-reconciling-the-bench-facts)** —
-un-flashed corrected config, `CardScanLen`, serial clock 8 vs 15, register
-table, lane map. Those remain valid and #2 there ("the results predate the
-corrected config") is still the cheapest thing to eliminate first.
+un-flashed corrected config, `CardScanLen`, serial clock, register table, lane
+map. Those remain valid, and its #2 ("the results predate the corrected
+config") is still the cheapest thing to eliminate before any of this.
+
+**Refuted here:** "the GCLK/RCLK-per-row count is wrong". `0x0097` = 151 is
+exactly what the vendor's own formula produces for our `reg07 = 0x04` and
+sub-id `0x0000` (§4.2). Do not sweep it in isolation.
 
 ### What this changes about the existing diagnosis
 

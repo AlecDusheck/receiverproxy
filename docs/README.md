@@ -15,6 +15,7 @@ CLAUDE.md: orientation for contributors ([../CLAUDE.md](../CLAUDE.md)).
 | [rendering.md](rendering.md) | every setting that affects the picture, its value, what pins it, the effect of other values |
 | [bench.md](bench.md) | the rig, the measurement method, the meters and their limits, `scripts/bench.py` |
 | [building-a-config.md](building-a-config.md) | the TOML panel spec, the chip library, `e120 config gen` |
+| [cards.md](cards.md) | adding a receiving card: the model file field by field, `e120 card probe`, the bench loop for a new card or panel, adding a vendor through the `Protocol` and `Codec` traits |
 | [ui.md](ui.md) | the web UI, `e120 ui` and its JSON API, the WASM module: the contract they are built against |
 
 ## Formats

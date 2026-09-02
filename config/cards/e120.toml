@@ -1,0 +1,69 @@
+# Colorlight E120 receiving card: the bench card (CLAUDE.md), the card every
+# address below was measured on. Sources: the vendor specification
+# (third-party/datasheets/Colorlight_E120_Receiving_Card_Specification.pdf),
+# the flash dumps (docs/fpga/flash-layout.md) and the 16.53 install
+# (docs/provisioning.md).
+
+name = "E120"
+vendor = "Colorlight"
+family = "colorlight"
+# First byte of the 0x0805 discovery reply; `e120 discover` prints it as id=0x64.
+id = 0x64
+status = "tested"
+notes = "Gateware builds are named E320: one line for the whole classic family (third-party/README.md)."
+
+# Panels driven on the bench with this card (docs/rendering.md).
+[[tested]]
+panel = "config/panels/p25-128x64-sm16269s.toml"
+firmware = "16.53"
+
+[limits]
+# The specification's control area for PWM chips, 192 x 1024 pixels; 1024 is
+# the load along the data line (docs/compiled-image-format.md, large load).
+max_width = 1024
+max_height = 192
+# HUB75 headers J1 to J12.
+hub_ports = 12
+# The specification does not state a chain length; omitted.
+
+[memory]
+block_bytes = 0x10000
+# The primary bitstream bank, blocks 0x00 to 0x0A; 0x030000 to 0x07FFFF inside
+# it is reserved for configuration and the golden copy sits at 0x200000.
+primary_bank = 0x000000
+bank_bytes = 0x0B0000
+golden_bank = 0x200000
+# The 64 KB block holding the receiver parameters: the boot image below.
+parameter_block = 0x07
+# The 256-byte record the card redirects to its EEPROM; the screen-size
+# record and the control area live there (docs/eeprom-map.md).
+eeprom_mirror = 0x07F000
+
+# Blocks the firmware write-protects from the host page-write path; only the
+# card's SDRAM self-program writes them (docs/provisioning.md).
+[[memory.guarded]]
+from = "16.53"
+blocks = [0x00, 0x01, 0x02, 0x08]
+
+# Region offsets inside the parameter block (docs/compiled-image-format.md).
+[memory.boot_image]
+basic_pack = 0x0000
+data_swap = 0x0500
+module_positions = 0x0600
+chip_page = 0x0900
+void_line = 0x1000
+void_line_columns = 0x1400
+anti_void = 0x1800
+mapping = 0x3000
+scan_table = 0x6000
+rcvbp = 0x8000
+# The mapping region holds 0x3000 bytes of 3-byte entries.
+map_entries = 4096
+# The vendor clamps the embedded .rcvbp at this many bytes.
+rcvbp_max = 0x6FFC
+
+[firmware]
+# Vendor image names; {version} is what the card reports after the install.
+image_pattern = "E320_PWM_FPGA{version}_*.hex"
+# The card stages the image in SDRAM and programs itself (type 0x1a00).
+sdram_staging = true

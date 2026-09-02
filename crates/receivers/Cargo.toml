@@ -1,0 +1,14 @@
+[package]
+name = "receivers"
+description = "Receiving-card models as data: config/cards/*.toml, embedded at build time"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[dependencies]
+serde.workspace = true
+toml.workspace = true
+
+[lints]
+workspace = true

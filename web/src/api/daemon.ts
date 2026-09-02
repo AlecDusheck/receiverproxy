@@ -3,11 +3,9 @@
 // this. Nothing runs at import time: the layout calls `ops.probe()` once on
 // the client, which reads the token first.
 import type { Job, Line } from "./types";
-import * as mock from "./mock";
 import { loadToken, setToken } from "../lib/token";
 
-const MOCK = import.meta.env.VITE_RXP_MOCK === "1";
-export const base: string = MOCK ? "mock" : ((import.meta.env.VITE_RXP_API as string | undefined) ?? "/api/v1");
+export const base: string = (import.meta.env.VITE_RXP_API as string | undefined) ?? "/api/v1";
 
 // The daemon's token: from the fragment or the tab's storage at load, or typed into the field under the title row.
 let token: string | null = null;
@@ -34,7 +32,6 @@ export class ApiError extends Error {
 }
 
 export async function request<T>(method: string, path: string, body?: unknown, timeoutMs?: number): Promise<T> {
-  if (MOCK) return mock.request(method, path, body) as Promise<T>;
   const headers: Record<string, string> = {};
   if (token) headers["X-Token"] = token;
   let payload: BodyInit | undefined;
@@ -64,7 +61,6 @@ export const call = <T>(method: string, path: string, body?: unknown): Promise<T
 
 // Follow a job's event stream. Returns a function that stops listening.
 export function sse(jobId: string, onLine: (l: Line) => void, onEnd: (j: Job) => void): () => void {
-  if (MOCK) return mock.sse(jobId, onLine, onEnd);
   const url = `${base}/jobs/${jobId}/events${token ? `?token=${encodeURIComponent(token)}` : ""}`;
   const es = new EventSource(url);
   es.addEventListener("line", (e) => onLine(JSON.parse((e as MessageEvent).data) as Line));

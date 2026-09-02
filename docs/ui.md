@@ -471,7 +471,6 @@ web/
       types.ts            generated from the Rust structs (section 5, "Shared types"); never edited
       ops.ts              the one interface: `ops.pure` (WASM), `ops.card` (daemon, null when absent), `ops.start`, `ops.probe`, `ops.connect`
       daemon.ts           the transport: base URL, token, request/call ({error} handling), sse(jobId, onLine, onEnd); nothing runs at import
-      mock.ts             the canned daemon behind `VITE_RXP_MOCK=1`
     lib/
       server/config.ts    the build-time loader: panels(), cards(), firmware() from the repository's config/ with smol-toml, the field names of the files; `FORMATS` is the codec registry by hand, pinned by tests/config.test.ts
       site.ts             the origin (canonical URLs, the sitemap), the repository URL, the title form `<route> · receiverproxy`

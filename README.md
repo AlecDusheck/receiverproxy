@@ -2,21 +2,17 @@
 
 ![A Raspberry Pi drives chained Colorlight E120 cards over Ethernet; each card drives part of an LED wall over HUB75 ribbons](docs/readme-header.png)
 
-`receiverproxy` is a command-line tool (`rxp`) and a web app that drive a Colorlight E120 LED receiving card and its modules over raw Ethernet: they generate and flash the module configuration, then put images, video and live streams on the panel.
+`receiverproxy` is a command-line tool (`rxp`) and a web app that drive LED receiving cards and their panels over raw Ethernet: they generate and flash the module configuration, then put images, video and live streams on the panel.
 
-The aim is to drive any LED receiving card and its panels from a computer with an Ethernet port, without a sender card, vendor software or an account.
-
-**Drive receiving cards without a sender card and without vendor software.** `rxp` discovers the card, backs up and installs firmware, generates and flashes the configuration from a text file, sets the card's place in a wall, and streams to it. Useful for cards and panels the vendor supports badly or not at all.
-
-The card speaks a layer-2 protocol with fixed MAC addresses and no IP, so `rxp` writes whole Ethernet frames itself (BPF on macOS, a packet socket on Linux) and needs no vendor software. It reads and writes the card's flash and EEPROM, with address allowlists that keep configuration writes inside the parameter block and firmware writes on the card's own staging path. It installs FPGA firmware. It generates the receiver configuration (the `.rcvbp` file and the 64 KB boot image the card loads at power-on) from a short TOML panel spec plus a chip library, and ships libraries for common driver chips and module classes mined from 2,381 vendor config files. It shows still images, plays video through ffmpeg, reads raw rgb24 frames from stdin, and serves a unix socket other programs can write frames to. Every command that writes flash or EEPROM prints its plan and stops unless `--commit` is given.
+**No sender card, no vendor software, no account.** A computer with an Ethernet port, the receiving card and the panels are the whole requirement. `rxp` discovers the card, backs up and installs firmware, generates and flashes the configuration from a text file, sets the card's place in a wall, and streams to it.
 
 ## Motivation
 
-Colorlight's own software is the only official way to drive its receiving cards, and LEDVISION dropped the ability to send content to a receiving card directly: a sender card or box is required, and the software itself is a large Windows install. `rxp` works with zero Colorlight software. A Mac or Linux machine with an Ethernet port talks to the card directly, provisions it from a text file, and plays whatever ffmpeg can decode.
+Vendor control systems require a sender card or box and their own software; Colorlight's LEDVISION dropped direct receiving-card output altogether. receiverproxy talks to the card directly and aims to be the open-source reference for driving any vendor's receiving card.
 
 ## Project status
 
-Tested only on the hardware listed under [Tested](#tested), one card and one module. Other cards and firmware builds may behave differently, and a firmware or flash write to an untested card can leave it unbootable: take `rxp flash snapshot` first and keep the result. If you run this on other hardware, whatever the outcome, open a pull request or an issue with the card model, the module, and what you saw.
+Tested on one card and one module, listed under [Tested](#tested). A firmware or flash write to an untested card can leave it unbootable: take `rxp flash snapshot` first. Other hardware, whatever the outcome, is worth a pull request or an issue with the card model, the module, and what you saw.
 
 ## Install
 
@@ -161,7 +157,7 @@ rxp firmware install E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex --commit
 rxp flash restore --dir before --commit           # configuration back, not firmware
 ```
 
-`config/firmware.toml` lists the five vendor images archived under `third-party/firmware/` with version, board revision, build kind, driver chips, size and sha256. `provision --firmware`, `firmware install` and `firmware write` take a name from it or a path; a name is looked for under `third-party/firmware/` and then in the config directory's `firmware/` cache, and an image that is in the manifest is checked against its sha256 before any write (a mismatch is refused). A path outside the manifest is written as is, with a warning. `rxp firmware fetch NAME` downloads `base_url/NAME` with `curl` into the cache and checks it; the manifest's `base_url` is empty, so `fetch` only reports where the image is expected.
+`config/firmware.toml` lists the vendor images at assets.receiverproxy.com with version, board revision, build kind, driver chips, size and sha256. `provision --firmware`, `firmware install` and `firmware write` take a name from it or a path; a name is looked for under `third-party/firmware/` and then in the config directory's `firmware/` cache, and an image that is in the manifest is checked against its sha256 before any write (a mismatch is refused). A path outside the manifest is written as is, with a warning. `rxp firmware fetch NAME` downloads `base_url/NAME` with `curl` into the cache and checks it; the manifest's `base_url` is empty, so `fetch` only reports where the image is expected.
 
 `rxp ui` serves the same commands as a web UI and a JSON API on `http://127.0.0.1:7120`; see [Web app](#web-app).
 
@@ -188,27 +184,24 @@ rxp-demo comet --seconds 30 --brightness 40 --iface en24 --layout wall.json
 
 ## Web app
 
-`web/` is a browser front end for the same commands, with four screens:
+`web/` is the site at [receiverproxy.com](https://receiverproxy.com) and the front end for the daemon:
 
-- Gallery: every panel spec under `config/panels/` as a table (pitch, module, scan, chip, the formats it generates, how many vendor files it came from, tested or generates), with a filter row. Selecting a row shows the spec field by field, with one "download as" button per output format (`rcvbp` today: the `.rcvbp`, the basic pack and the boot image) and "open in Builder". A file dropped on the Gallery or the Builder is read back into a spec: the format is detected from the bytes, the chip library is picked by the file's chip id, and the fields the file does not carry are listed by name.
-- Builder: the panel spec as a form and as TOML, kept in sync; generate for a chosen format, inspect and diff `.rcvbp` files.
-- Wall: an editor for the layout JSON, as a drawing and as tables.
-- Cards: discovered cards, brightness, show, provision, firmware, flash snapshot and restore.
+- Gallery: every panel spec under `config/panels/` as a table; each spec has its own page with the fields, the TOML, one download per output format, import of a vendor file back into a spec, and "open in Builder".
+- Cards: every receiver model under `config/cards/` with its limits, memory map, status, tested panels and firmware downloads.
+- Builder and Wall: the spec as a form and TOML; the layout as a drawing and a table. Both run in the browser through `rcvbp` and `wall` compiled to WebAssembly.
+- Control: discovered cards, brightness, show, provision, firmware, flash. Needs the daemon.
 
-The site runs on its own: Gallery, Builder and Wall work in the browser through `rcvbp` and `wall` compiled to WebAssembly (`crates/rcvbp-wasm`), and nothing touches a card. The daemon is optional: `rxp ui` starts `crates/daemon`, which holds the Ethernet link, serves the built site and a JSON API under `/api/v1`, and runs the long operations as jobs, one at a time. With it the Cards screen appears, and the Gallery, Builder and Wall gain their card actions (provision this card, send to card, write to card, show on the wall). Without it the sidebar says so and how to install it.
-
-Build and run (needs [pnpm](https://pnpm.io), the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.127, the version `crates/rcvbp-wasm/Cargo.toml` pins):
+The daemon is optional. `rxp ui` holds the Ethernet link, serves the site and a JSON API under `/api/v1`, and runs long operations as jobs, one at a time. Every request needs the token `rxp ui` prints in the URL it opens; the daemon binds 127.0.0.1 unless `--listen ADDR` is given. Writes keep the CLI's `--commit` gate. Without the daemon the site says so and how to install it.
 
 ```sh
-web/scripts/build-wasm.sh                 # cargo build -p rcvbp-wasm for wasm32, then wasm-bindgen into web/src/wasm
-cd web && pnpm install && pnpm build:embed   # svelte-check, then the static build into web/build-static
-cargo install --path crates/cli      # embeds web/build-static; rerun after every pnpm build:embed
-rxp ui                                   # http://127.0.0.1:7120/#token=...; --port, --listen ADDR, --no-open, --token TOKEN, --data-dir DIR, --iface
+web/scripts/build-wasm.sh                    # rcvbp-wasm for wasm32, then wasm-bindgen into web/src/wasm
+cd web && pnpm install && pnpm build:embed   # static build the daemon embeds
+cargo install --path crates/cli              # rerun after every build:embed
+rxp ui                                       # opens http://127.0.0.1:7120/#token=...
+pnpm build && pnpm deploy                    # the site (adapter-cloudflare, web/wrangler.jsonc)
 ```
 
-The same app is the site at [receiverproxy.com](https://receiverproxy.com): `pnpm build` (adapter-cloudflare) and `pnpm deploy` (`wrangler deploy`, `web/wrangler.jsonc`). Its Gallery and Cards pages are prerendered from `config/` at build time; the Builder and Wall run in the browser.
-
-Every API request needs a token. `rxp ui` generates a random one at start (or takes `--token TOKEN`), prints the URL with it in the fragment and opens that URL; the app keeps the token for the tab and sends it as `X-Token`. A request without it gets 401. The token is what keeps other pages open in the same browser, which can reach loopback too, from driving the panel or writing the card's flash while the daemon runs. The daemon binds 127.0.0.1 unless `--listen ADDR` names another address (`0.0.0.0` for every interface); then the token is what keeps other machines out, and it crosses the network in clear HTTP. Writes keep the CLI's gate: the API returns the plan unless the request carries `commit: true`. The API, the WASM surface and the app are specified in [docs/ui.md](docs/ui.md).
+The API, the WASM surface and the app are specified in [docs/ui.md](docs/ui.md); the design rules in [docs/ui-design.md](docs/ui-design.md).
 
 ## Tested
 
@@ -309,11 +302,11 @@ How the generator derives each record, and its limits, is in [docs/building-a-co
 
 ## Notes and evidence
 
-[docs/README.md](docs/README.md) indexes the notes: the `.rcvbp` container and record 0x01 byte by byte, the boot image region by region, the pixel map, the chip-control block, the EEPROM records, the pixel protocol recovered from the vendor sender DLL, the FPGA bitstream and flash layout, and the firmware 16.53 install. `crates/rcvbp/tests/factory.rs` pins the generator to the card: the factory basic pack and boot image regenerate byte for byte from the card's factory flash dump (kept outside the repository; those tests skip without it). Bench results were taken with PSU current readings and averaged camera captures ([docs/bench.md](docs/bench.md)); the values that mattered and what each alternative did are in [docs/rendering.md](docs/rendering.md), and the claims that measurement disproves are in [docs/retracted-findings.md](docs/retracted-findings.md).
+[docs/README.md](docs/README.md) indexes the reference: formats, protocol, card internals, gateware, the bench method, and [docs/retracted-findings.md](docs/retracted-findings.md), the claims that measurement disproved. The generator is pinned to the card's factory flash by `crates/rcvbp/tests/factory.rs`. Developed against one Colorlight E120 on firmware 16.53 with one P2.5 128x64 SM16269S module, on macOS; Linux builds and lints for x86_64 and aarch64 but has not been run against a card.
 
-## Hardware
+## Contributing
 
-Developed against one Colorlight E120 receiving card running firmware 16.53 (`E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex`), one P2.5 128x64 SMD1415 module, 1/16 scan, with SM16269S driver chips, on macOS. Linux is supported through a packet socket and builds and lints for that target, but has not been run against the card.
+The aim is the open-source source of truth for driving vendor receiver cards, and pull requests from anyone are welcome. Adding support is meant to be easy: a panel, a chip or a card is a data file (`config/panels`, `config/chips`, `config/cards`), and [docs/cards.md](docs/cards.md) is the bench procedure, read-only probe first, with the harness in `scripts/`. Anyone with a card, panels, a webcam, a bench supply and an assistant such as Claude or Codex can add support for their hardware and record what they measured.
 
 ## License
 

@@ -10,6 +10,8 @@ else here is vendor material, and none of it is ever executed.
 
 ## Firmware archive
 
+The images are not in the repository. `rxp firmware fetch NAME` downloads one from assets.receiverproxy.com into the tool's cache and verifies the sha256 recorded in `config/firmware.toml`; a copy under `firmware/` here is used first when present.
+
 Colorlight ships a **different FPGA bitstream per LED driver chip**. There is no
 runtime setting for this: the driver-chip protocol is in gateware, so no
 configuration will make a card drive a panel its firmware was not built for.

@@ -167,14 +167,18 @@ fn fetch_in(root: &Path, name: &str, p: &mut dyn Progress) -> Result<()> {
     let cache = cache_dir()?;
     let dest = cache.join(name);
     let m = manifest();
-    if m.base_url.is_empty() {
-        let archive = root.join(ARCHIVE).join(name);
-        for path in [&archive, &dest] {
-            if path.is_file() {
+    // A local copy that verifies is used before anything is downloaded.
+    let archive = root.join(ARCHIVE).join(name);
+    for path in [&archive, &dest] {
+        if path.is_file() {
+            let bytes = std::fs::read(path).with_context(|| format!("read {}", path.display()))?;
+            if image.verify(&bytes).is_ok() {
                 p.out(&path.display().to_string());
                 return Ok(());
             }
         }
+    }
+    if m.base_url.is_empty() {
         bail!(
             "base_url is empty in config/firmware.toml; {name} is expected at {} or {}",
             archive.display(),
@@ -267,7 +271,7 @@ mod tests {
     }
 
     #[test]
-    fn fetch_with_an_empty_base_url_names_the_expected_places() {
+    fn fetch_prefers_a_verified_local_copy_and_names_unknown_images() {
         let mut lines = Lines::default();
         fetch_in(&root(), NAME, &mut lines).unwrap();
         assert_eq!(lines.out, [root().join(ARCHIVE).join(NAME).display().to_string()]);

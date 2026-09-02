@@ -18,3 +18,6 @@ __pycache__/
 # Flash dumps of the bench card stay local
 /card-dumps
 .DS_Store
+
+# Vendor firmware images: fetched by `rxp firmware fetch` from the manifest
+/third-party/firmware/*.hex

@@ -1,4 +1,4 @@
-# The vendor firmware images under third-party/firmware, one entry each
+# The vendor firmware images, one entry each; the bytes live at base_url
 # (third-party/README.md says where they come from and how they are named).
 # `rxp firmware list` prints this table; `provision --firmware NAME` and
 # `firmware install NAME` take a name from it and verify the sha256 before
@@ -7,8 +7,8 @@
 #
 # `base_url` is where `rxp firmware fetch NAME` downloads base_url/NAME from
 # into the config directory's firmware cache. Empty means local only: the
-# image is expected under third-party/firmware or in that cache.
-base_url = ""
+# image is expected under third-party/firmware (local archive) or in the cache.
+base_url = "https://assets.receiverproxy.com/firmware"
 
 [[image]]
 name = "E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex"

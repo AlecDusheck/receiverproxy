@@ -142,18 +142,21 @@ Multi-panel walls: provision each card with its own `--position x,y`, describe t
 
 ## Tested
 
-✅ driven on the bench · ⚠️ config generates, never driven · ❌ not supported
+✅ driven on the bench · ⚠️ configuration generates, never driven · ❌ not supported
 
-| receiving card | panel / driver chip | |
-|---|---|---|
-| Colorlight E120, firmware 16.53 | P2.5 128x64 1/16, SM16269S | ✅ |
-| Colorlight E120 | the 87 module classes in `config/panels/mined/` (ICN2053, ICN2038S, ICN2055, ICN2065, MBI5124, MBI5153, SM16380, SM16389, LS9929/9930, DP5525, …) | ⚠️ |
-| Colorlight E120 | SM16369S, ICND2263 (register record layout not decoded) | ❌ |
-| Colorlight E120 | snake-wired low-scan outdoor modules (1/2, 1/4, 1/5, 1/10 scan) | ❌ |
-| other Colorlight E-series cards (the 16.53 image is named E320) | any | ⚠️ |
-| Linsn, Novastar, Huidu cards | any | ❌ |
+| panel (driver chip) | Colorlight E120 | other Colorlight E-series | Linsn · Novastar · Huidu |
+|---|:---:|:---:|:---:|
+| P2.5 128x64 1/16, SM16269S | ✅ | ⚠️ | ❌ |
+| ICN2053 · ICN2055 · ICN2065 | ⚠️ | ⚠️ | ❌ |
+| ICN2038S · ICND2163 | ⚠️ | ⚠️ | ❌ |
+| MBI5124 · MBI5124N · MBI5153 | ⚠️ | ⚠️ | ❌ |
+| SM16380 · SM16389 · SM16259 · SM16237DS · SM16169S | ⚠️ | ⚠️ | ❌ |
+| LS9929 · LS9929C · LS9930 · LS9935B · LS9936 | ⚠️ | ⚠️ | ❌ |
+| MY9862 · MY9868 · DP5525 | ⚠️ | ⚠️ | ❌ |
+| SM16369S · ICND2263 (register record not decoded) | ❌ | ❌ | ❌ |
+| snake-wired outdoor modules (1/2, 1/4, 1/5, 1/10 scan) | ❌ | ❌ | ❌ |
 
-Host: macOS ✅, Linux ⚠️ (builds and lints for x86_64 and aarch64, not run against a card).
+The ⚠️ rows are the 87 module classes in `config/panels/mined/`; other E-series cards are ⚠️ because the 16.53 firmware image is itself named E320 and the protocol is shared, but none has been tried. Host: macOS ✅, Linux ⚠️ (builds and lints for x86_64 and aarch64, not run against a card).
 
 ## Configuration
 

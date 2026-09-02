@@ -146,6 +146,8 @@ e120 firmware install image.hex --commit
 e120 flash restore --dir before --commit           # configuration back, not firmware
 ```
 
+`e120 ui` serves the same commands as a web UI and a JSON API on `http://127.0.0.1:7120`; see [Web app](#web-app).
+
 Multi-panel walls: provision each card with its own `--position x,y`, put the same `x,y` on that card's receiver entry in a layout file (`e120 card layout-example` prints a two-card one; panels are placed inside their receiver) and stream it with `e120 show video --layout wall.json`. Every card hears the whole screen and keeps its own window of it.
 
 ## Demos
@@ -166,6 +168,24 @@ e120-demo comet --seconds 30 --brightness 40 --iface en24 --layout wall.json
 - `scanner`: a bright row then a column sweeping at 240 fps, sending only the rows that changed; a phone camera's rolling shutter slices the sweep into bands the eye does not see.
 
 `--fps` defaults to 30, or 240 where an effect asks (`comet`, `scanner`); the card's own scan sets what the panel can follow. Row-only updates apply to the default single panel; with `--layout` every frame is sent whole. Whether the per-channel gain bytes change anything on the card has not been measured.
+
+## Web app
+
+`web/` is a browser front end for the same commands, with four screens: Cards (discovered cards, brightness, show, provision, firmware, flash snapshot and restore), Wall (an editor for the layout JSON), Builder (the panel spec as a form and as TOML; generate, inspect and diff `.rcvbp` files) and Library (the chip and panel files under `config/`). It runs in two modes:
+
+- Standalone: the built site alone. Builder, Wall and Library work in the browser through `e120-rcvbp` and `e120-canvas` compiled to WebAssembly (`crates/e120-wasm`); nothing touches a card. A banner says the daemon is not running and how to get it.
+- With the daemon: `e120 ui` starts `crates/e120-server`, which holds the Ethernet link, serves the built site and a JSON API under `/api/v1`, and runs the long operations as jobs, one at a time. Cards and the card actions of the other screens appear.
+
+Build and run (needs [pnpm](https://pnpm.io), the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.127, the version `crates/e120-wasm/Cargo.toml` pins):
+
+```sh
+web/scripts/build-wasm.sh                 # cargo build -p e120-wasm for wasm32, then wasm-bindgen into web/src/wasm
+cd web && pnpm install && pnpm build      # svelte-check, then vite build into web/dist
+cargo install --path crates/e120-cli      # embeds web/dist; rerun after every pnpm build
+e120 ui                                   # http://127.0.0.1:7120; --port, --no-open, --token TOKEN, --data-dir DIR, --iface
+```
+
+The daemon binds to 127.0.0.1 only, but a web page open in the same browser can reach loopback too, so while `e120 ui` runs any page can drive the panel and write the card's flash through the API. `e120 ui --token TOKEN` makes the daemon reject every request without an `X-Token: TOKEN` header. Writes keep the CLI's gate: the API returns the plan unless the request carries `commit: true`. The API, the WASM surface and the app are specified in [docs/ui.md](docs/ui.md).
 
 ## Tested
 

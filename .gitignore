@@ -1,4 +1,10 @@
 /target
+/target/wasm32*
+
+# The web app: dependencies, the built site and the wasm-bindgen output
+/web/node_modules
+/web/dist
+/web/src/wasm
 
 # Third-party config archives kept locally for research, not source.
 /vendor

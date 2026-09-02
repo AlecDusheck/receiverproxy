@@ -335,6 +335,54 @@ def bands(name):
         f'crop={w}:{h}:{x}:{y},scale=160:-1', '-y', f'{DIR}/band-{name}.png'])
 
 
+def glitch(name, seconds=4.0):
+    """Find brief events via the rolling shutter: one frame in N with a band.
+
+    Records the panel crop at full resolution, smooths each frame's row
+    profile over the LED pitch, and flags frames whose profile departs from
+    the run's median profile by more than the quiet frames do. Prints the
+    flagged frames and their spacing.
+    """
+    mp4 = f'{DIR}/gl-{name}.mp4'
+    dev = os.environ.get('E120_CAMERA', '0')
+    n = int(seconds * 30)
+    w, h, x, y = (int(v) for v in crop().split(':'))
+    sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'avfoundation',
+        '-pixel_format', 'uyvy422', '-framerate', '30', '-video_size', '1920x1080',
+        '-i', dev, '-frames:v', str(n), '-vf', f'crop={w}:{h}:{x}:{y},scale=16:{h}',
+        '-c:v', 'libx264', '-qp', '0', '-y', mp4], check=True)
+    raw = os.path.join(tempfile.mkdtemp(), 'f.rgb')
+    sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', mp4, '-f', 'rawvideo',
+        '-pix_fmt', 'gray', '-y', raw], check=True)
+    d = open(raw, 'rb').read()
+    fr = 16 * h
+    frames = len(d) // fr
+    k = 21
+    profs = []
+    for i in range(frames):
+        rows = [sum(d[i * fr + r * 16:i * fr + (r + 1) * 16]) / 16 for r in range(h)]
+        profs.append([statistics.mean(rows[max(0, j - k // 2):j + k // 2 + 1]) for j in range(h)])
+    profs = profs[6:]            # drop the auto-exposure settling
+    med = [statistics.median(p[j] for p in profs) for j in range(h)]
+    dev_ = [max(abs(p[j] - med[j]) for j in range(h)) for p in profs]
+    floor = statistics.median(dev_)
+    thr = max(floor * 3, 6)
+    flagged = [i for i, v in enumerate(dev_) if v > thr]
+    print(f'{name}: {len(profs)} frames, quiet max-row-deviation {floor:.1f}, threshold {thr:.1f}')
+    print(f'  flagged frames: {flagged}')
+    if len(flagged) > 1:
+        gaps = [b - a for a, b in zip(flagged, flagged[1:])]
+        print(f'  spacing (frames): {gaps}  ->  ~{statistics.median(gaps) / 30 * 1000:.0f} ms')
+    # keep the worst frame for viewing
+    if dev_:
+        worst = max(range(len(dev_)), key=lambda i: dev_[i]) + 6
+        sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'avfoundation',
+            '-pixel_format', 'uyvy422', '-framerate', '30', '-video_size', '1920x1080',
+            '-i', dev, '-frames:v', '1', '-y', '/dev/null'])
+        sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', mp4, '-vf',
+            f"select='eq(n\,{worst})',scale=64:{h // 2}", '-frames:v', '1', '-y', f'{DIR}/gl-{name}-worst.png'])
+
+
 def locate():
     """Difference a lit frame against a blanked one; only the panel changes."""
     kill_streams()
@@ -442,6 +490,7 @@ def main():
     sub.add_parser('locate')
     p = sub.add_parser('flicker'); p.add_argument('name'); p.add_argument('--seconds', type=float, default=3.0)
     p = sub.add_parser('bands'); p.add_argument('name')
+    p = sub.add_parser('glitch'); p.add_argument('name'); p.add_argument('--seconds', type=float, default=4.0)
     p = sub.add_parser('capture'); p.add_argument('name'); p.add_argument('--frames', type=int, default=90)
     p = sub.add_parser('compare'); p.add_argument('names', nargs='+')
     p = sub.add_parser('tile'); p.add_argument('names', nargs='+'); p.add_argument('--out', default=f'{DIR}/tile.png')
@@ -469,6 +518,8 @@ def main():
         flicker(a.name, a.seconds)
     elif a.cmd == 'bands':
         bands(a.name)
+    elif a.cmd == 'glitch':
+        glitch(a.name, a.seconds)
     elif a.cmd == 'capture':
         capture(a.name, a.frames)
     elif a.cmd == 'compare':

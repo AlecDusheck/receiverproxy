@@ -34,6 +34,19 @@ with a fixed pattern (`mapping.gate_phantom_positions`; `docs/black-floor.md`,
 pattern renders. Remaining: row band order reads reversed on the rotated
 panel; a faint perceived flicker not measurable with this camera.
 
+**Provisioning a card** (new or this one) is one command, documented in
+[`docs/provisioning.md`](docs/provisioning.md):
+
+```
+e120 provision --spec config/panels/p25-128x64-sm16269s.toml \
+    --firmware third-party/firmware/E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex \
+    --position 0,0 --commit          # then power-cycle; e120 image / e120 play
+```
+
+`--position` is the cabinet's place in the wall (the EEPROM control area), so
+more panels are more cards each provisioned with their own position, then
+`e120 play --layout`. The research log index is [`docs/README.md`](docs/README.md).
+
 Use `scripts/bench.py run` for every experiment (one continuous stream, or
 `--restart` for per-condition `image` flags), and `--boot` before any
 configuration change so the card starts from a known state.

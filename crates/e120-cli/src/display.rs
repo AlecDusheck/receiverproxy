@@ -197,10 +197,16 @@ pub fn send_frame_as(
     // Rows may be resent before each of the first `writes` latches, so both
     // of a double-buffered driver's pages carry the current frame.
     let writes = std::env::var("E120_WRITES").ok().and_then(|v| v.parse().ok()).unwrap_or(1u32);
+    // Gap between the last row and the latch, so the card has stored the
+    // last row before it latches; E120_LATCH_GAP_US overrides it.
+    let gap = std::env::var("E120_LATCH_GAP_US").ok().and_then(|v| v.parse().ok()).unwrap_or(0u64);
     if raster == Raster::Rows {
         for i in 0..latches {
             if i < writes {
                 send_rows(dev, cli, fb, w, h, row_base)?;
+                if gap > 0 {
+                    std::thread::sleep(Duration::from_micros(gap));
+                }
             }
             dev.send(&protocol::sync(cli.brightness))?;
         }

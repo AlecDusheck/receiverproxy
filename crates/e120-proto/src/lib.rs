@@ -11,6 +11,7 @@
 //!   0x55rr       pixel row data (rr = row number MSB)
 
 pub mod discovery;
+pub mod eeprom;
 pub mod flash;
 pub mod params;
 pub mod pixel;

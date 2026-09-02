@@ -5,6 +5,7 @@ mod flash;
 mod params;
 mod restore;
 mod screen;
+mod provision;
 mod upgrade;
 mod util;
 
@@ -186,6 +187,26 @@ enum Cmd {
         /// a card expecting another screen would ignore every row we send.
         #[arg(long, default_value_t = 0)]
         row_base: u16,
+    },
+    /// Bring a card to a working state: snapshot, firmware, config, EEPROM, verify
+    Provision {
+        /// Panel spec, see config/panels/*.toml
+        #[arg(long)]
+        spec: String,
+        /// Vendor firmware image to install (skipped when absent)
+        #[arg(long)]
+        firmware: Option<String>,
+        /// Cabinet position in the whole screen, "x,y" in pixels
+        #[arg(long, default_value = "0,0")]
+        position: String,
+        /// Where to keep the pre-provisioning snapshot (default build/snapshot-<time>)
+        #[arg(long)]
+        snapshot_dir: Option<String>,
+        /// Actually write. Without this it only reports the plan
+        #[arg(long)]
+        commit: bool,
+        #[arg(long, default_value_t = 3)]
+        wait: u64,
     },
     /// Blank the panel
     Blank,
@@ -525,6 +546,13 @@ fn run_display(cli: &Cli) -> Result<Option<()>> {
             let raster: display::Raster =
                 raster.parse().map_err(|e: String| anyhow::anyhow!(e))?;
             show_as(cli, &fb, *hold, raster, *row_base).map(Some)
+        }
+        Cmd::Provision { spec, firmware, position, snapshot_dir, commit, wait } => {
+            let (x, y) = position
+                .split_once(',')
+                .and_then(|(a, b)| Some((a.trim().parse().ok()?, b.trim().parse().ok()?)))
+                .ok_or_else(|| anyhow::anyhow!("--position must be x,y"))?;
+            provision::provision(cli, spec, firmware.as_deref(), (x, y), snapshot_dir.as_deref(), *commit, *wait).map(Some)
         }
         Cmd::Blank => {
             let fb = solid(cli, 0, 0, 0);

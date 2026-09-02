@@ -101,6 +101,25 @@ SM16169SH register set with the sub-variant id unset. Its pixel mapping
 The single-module spec keeps the mapping and the register table and replaces
 the wall geometry: CardScanLen 256, one module, a generated position table.
 
+## Reading a file back
+
+`e120 config import FILE --out spec.toml` is the generator run backwards
+(`rcvbp::spec::spec_from_rcvbp`): record 0x01 gives `[module]`, `[screen]`,
+`[color]`, `[current]` and `[timing]` field by field; the chip id at
++0x036/+0x204 picks the library among `config/chips/` (a library a shipped
+spec names wins over one none does, so 0x14C lands on
+`sm16269s-factory.toml`); `serial_clock` and `gray_bits` are written only
+when they differ from what the library gives; `[mapping]` is fitted to
+record 0x03 by trying `block` in `width, width/2, width/4, width/8`,
+reversed groups then not, top-down lines then reversed, the way
+`scripts/corpus-mine.py` `fit_map` does. The recovered spec is then
+generated and compared with the file: a difference at +0x02F or +0x043
+becomes a `[record01_overrides]` entry, any other difference is reported by
+record and offset as `not recovered`. The bench spec survives the trip
+byte for byte and the reference file imports as the spec
+`crates/rcvbp/tests/factory.rs` describes (`the_bench_spec_survives_a_round_trip_through_its_file`,
+`the_reference_config_imports_as_the_spec_that_regenerates_it`).
+
 ## Limits
 
 * Eleven record-0x01 bytes and a few small-record bytes are literals whose

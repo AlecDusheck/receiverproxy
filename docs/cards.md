@@ -211,10 +211,22 @@ confined the same way.
 
 | method | does |
 |---|---|
+| `format(&self) -> Format` | the registry entry: `name` (what `--format` takes), `vendor`, `extension`, and whether `generate` and `import` are implemented |
+| `matches(&self, file) -> bool` | true when the file starts with the format's signature; `rcvbp::detect(file)` asks each codec in turn |
 | `generate(&self, spec, chip) -> Result<Encoded>` | the file the card's tooling loads for a `PanelSpec` and its `ChipLibrary`, plus one source line per byte range placed |
 | `inspect(&self, file) -> Result<Vec<String>>` | one line per record of a file, as `e120 config info` lists them |
+| `import(&self, file, chips) -> Result<(PanelSpec, Vec<String>)>` | the spec that regenerates the file and the fields it could not recover, by name; `chips` maps a chip id to a library `(path, text)`. The default fails as not implemented; a codec whose `Format::import` is true overrides it |
 
-`RcvbpCodec` implements it over `rcvbp::spec::generate` and `Rcvbp::from_bytes`.
+`RcvbpCodec` implements it over `rcvbp::spec::generate`, `Rcvbp::from_bytes`
+and `rcvbp::spec::spec_from_rcvbp`.
+The registry is `rcvbp::codecs()`, a static list of the implementations;
+`rcvbp::formats()` iterates their entries, `rcvbp::codec(name)` looks one
+up, failing with the known names, and `rcvbp::detect(file)` picks one by
+signature. `e120 config formats` and the site's
+format list print that table; `e120 config gen --format NAME` and the WASM
+`generate(spec_toml, format)` look the name up before generating;
+`e120 config import FILE` and the WASM `import(bytes, format?)` detect it
+unless told. A new codec is one more element in `codecs()`.
 The boot image is not part of the trait: it is the E320 gateware line's
 flash layout (`rcvbp::image`, laid out from `boot_image`), and a vendor
 whose card loads the file directly needs none.

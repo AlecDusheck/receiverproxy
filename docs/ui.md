@@ -6,8 +6,8 @@ else is built against the shapes here; a shape that changes changes here first.
 ## 1. Overview and the two modes
 
 The UI is a static site (Svelte 5, Vite, TypeScript, hand-written CSS) with
-four screens: **Cards**, **Wall**, **Builder**, **Library**. It has two sources
-of function:
+four screens: **Gallery**, **Builder**, **Wall**, **Cards** (the design is
+[ui-design.md](ui-design.md)). It has two sources of function:
 
 - **WASM** (`crates/rcvbp-wasm`): `rcvbp` and `wall` compiled to
   `wasm32-unknown-unknown`. Generates, inspects and diffs configurations and
@@ -22,14 +22,15 @@ token when it has one (section 2, "The token").
 
 | | daemon absent (standalone) | daemon answers, no token (locked) | daemon present |
 |---|---|---|---|
-| Banner | shown: "The e120 daemon is not running. Install with `cargo install --path crates/cli`, then run `e120 ui`." Dismissible per session. | a token field and "connect"; "bad token" next to it when one was sent | not shown |
-| Cards screen | hidden from the sidebar | hidden | enabled |
-| Wall screen | editor, table, import/export | as standalone | plus "provision this card" per receiver, "save as the daemon's wall" |
-| Builder, Library | full, through WASM | full, through WASM | full, through WASM; Builder gains "send to card" and "write to card" |
+| Under the title row | on the first visit one line: "Card actions need the daemon: `cargo install --path crates/cli`, then `e120 ui`." with "retry" and "dismiss"; dismissed once, remembered in localStorage `e120.install` | a token field and "connect"; "bad token" next to it when one was sent | nothing |
+| Sidebar foot | "daemon not running: install" | "daemon: token required" | "daemon: HOST:PORT" |
+| Cards screen | absent from the sidebar; `#/cards` shows one sentence and the install command | as absent | enabled |
+| Wall screen | editor, table, import/export | as standalone | plus "provision this card" per receiver, "save as the daemon's wall", "show on the wall" |
+| Gallery, Builder | full, through WASM | full, through WASM | full, through WASM; Gallery gains "provision this card", Builder "send to card" and "write to card" |
 | Status bar | "standalone" | "standalone" | "iface en24 · 1 card: E120 16.53 128x64" and the running job |
 
 The probe runs once at load and again when the user clicks "retry" or
-"connect" in the banner. Health answers `{ version }` alone without the
+"connect" under the title row. Health answers `{ version }` alone without the
 token; that answer is what tells the app it is locked. When served by the
 daemon the API base is the page's own origin; a `VITE_E120_API` build
 variable overrides it for `pnpm dev`.
@@ -57,8 +58,8 @@ locked out of from no daemon at all.
 The built app reads `#token=` from the fragment once, stores it in
 `sessionStorage` (`e120.token`, one browser tab, gone when the tab closes),
 removes it from the address bar with `history.replaceState`, and sends
-`X-Token` on every request. A token typed into the banner is stored the
-same way.
+`X-Token` on every request. A token typed into the field under the title
+row is stored the same way.
 
 **Network exposure**: the daemon binds `127.0.0.1` unless `--listen ADDR`
 names another address (`0.0.0.0` for every interface); the printed URL uses
@@ -310,20 +311,57 @@ at the time of writing: 0.2.127; the crate and the CLI must match exactly).
 
 export default function init(): Promise<void>;   // loads the .wasm; call once
 
-export function generate(spec_toml: string): Generated;
+export function gallery(): Entry[];
+export function formats(): Format[];
+export function generate(spec_toml: string, format: string): Generated;
+export function import(bytes: Uint8Array, format?: string): Imported;   // the glue exports it as `_import`; lib/wasm.ts maps it back
 export function inspect(rcvbp: Uint8Array): Inspection;
 export function diff(a: Uint8Array, b: Uint8Array): Diff;
 export function libraries(): Libraries;
 export function validate_layout(json: string): string;   // "ok" or the LayoutError text
 export function layout_example(cols: number, rows: number, w: number, h: number): string; // Canvas JSON
 
+// One embedded panel spec (panelspec::embedded::specs), in embedding order.
+type Entry = {
+  path: string;                 // "config/panels/mined/icn2053.toml"
+  name: string;                 // spec.name
+  meta: Meta;                   // the spec's [meta] table, defaults filled in
+  module: { width: number; height: number; scan: number };
+  chip: { library: string; name: string; family_id: number };   // [chip].library, the library's name and family_id
+  formats: string[];            // registry formats with generate: true
+};
+type Meta = {                   // panelspec::Meta
+  pitch_mm?: number;
+  status: "tested" | "generates";
+  origin: "bench" | "mined";
+  sources: number;              // vendor files the values came from
+  agreement?: number;           // 0..1, share of the module class's files that agree
+  examples: string[];           // a few source file names
+  vendors: string[];
+  notes?: string;
+};
+
+// rcvbp::Format, one per registered Codec (rcvbp::formats()); what
+// `e120 config formats` prints.
+type Format = {
+  name: string;                 // "rcvbp", the value `generate` and `--format` take
+  vendor: string;               // "Colorlight"
+  extension: string;            // "rcvbp", without the dot
+  generate: boolean;            // Codec::generate is implemented
+  import: boolean;              // a file can be read back into a spec
+};
+
 type Generated = {
   name: string;
-  rcvbp: Uint8Array;            // Rcvbp::to_file_bytes
-  basic_pack: Uint8Array;       // 256 bytes
-  block7: Uint8Array | null;    // 65536 bytes, or null with the reason in notes
+  files: { name: string; bytes: Uint8Array }[];   // <name>.<extension>, <name>-basic-pack.bin (256 bytes), and <name>-block7.bin (65536 bytes) when it builds
   sources: string[];            // Generated.sources
-  notes: string[];              // Block7.notes, plus "pages written: N: ..."
+  notes: string[];              // Block7.notes, plus "pages written: N: ..."; the builder's error when block 7 is absent
+};
+
+type Imported = {
+  spec_toml: string;            // PanelSpec::to_toml, what the Builder edits
+  unresolved: string[];         // fields the file did not determine, by name
+  format: string;               // the registry format read, or "spec" for a TOML spec passed through
 };
 
 type Inspection = {
@@ -372,6 +410,25 @@ non-mined first, then mined, each alphabetical by path.
 `generate` resolves `[chip].library` against the embedded set by exact path;
 a path not in the set is an error `chip library config/chips/x.toml: not in
 the embedded library`. The Builder's chip picker only offers embedded paths.
+`format` must name a registry entry; otherwise the error is `format x:
+unknown; known formats: rcvbp`. The files are the ones `e120 config gen
+--format` writes, named as it names them, so the two are byte-identical
+(`generate_matches_the_cli_byte_for_byte`). `gallery()` parses every
+embedded spec and its chip library; `formats()` is `rcvbp::formats()`, the
+same table `e120 config formats` prints.
+
+`import` is `e120 config import` in memory: `Codec::import` of the codec
+named by `format`, or, without it, of the one whose signature the bytes
+start with (`rcvbp::detect`; the error names the known formats). Chip
+libraries are chosen by the file's chip id from the embedded set
+(`panelspec::embedded::chip_by_family`). `unresolved` lists what the file
+does not carry (`meta`, `mapping.gate_phantom_positions`, `boot.arm_at_boot`
+for every `.rcvbp`) and whatever the regenerated file would still differ
+in, by record and offset; a chip id with no embedded library leaves
+`[chip].library` empty and says so. Bytes no codec recognises that parse
+as a panel spec come back unchanged as format `spec`, so the Builder's
+drop target takes a spec file too. The spec is named `<w>x<h>-<scan>s-<chip
+library stem>`; the CLI names it after the file instead.
 
 `inspect` accepts either `.rcvbp` form `Rcvbp::from_bytes` accepts
 (compressed or the legacy inline stream).
@@ -384,8 +441,9 @@ web/
   scripts/build-wasm.sh
   src/
     main.ts               mounts App, starts the daemon probe and the wasm load in parallel
-    App.svelte            sidebar + content + status bar; hash router
-    app.css               tokens, reset, form controls, layout
+    App.svelte            sidebar + content (960 px, the Wall unbounded) + status bar; hash router
+    tokens.css            the colour tokens of ui-design.md, light and dark; the only file that writes a colour
+    app.css               reset, type, spacing scale, controls, forms, tables, drop target
     api/
       types.ts            generated from the Rust structs (section 5, "Shared types"); never edited
       ops.ts              the one interface: `ops.pure` (WASM), `ops.card` (daemon, null when absent), `ops.probe`, `ops.connect`
@@ -393,16 +451,21 @@ web/
       mock.ts             the canned daemon behind `VITE_E120_MOCK=1`
     lib/
       token.ts            the token: splitFragment (pure), sessionStorage, loadToken at start
-      wasm.ts             `ready: Promise<WasmModule>`; the generated glue typed with api/types.ts, or a stub when it is not built
-      state.svelte.ts     the shared store (below)
+      wasm.ts             `ready: Promise<WasmModule>`; the generated glue typed with api/types.ts, or a stub when it is not built; a build missing a function throws a rebuild message for it
+      state.svelte.ts     the shared store (below); handSpec(toml) hands a spec to the Builder and the Cards provision form (localStorage `e120.builder.toml`)
+      action.svelte.ts    Action<T>: one action's idle/busy/done/error state, the status bar driven with it
       layout.ts           Canvas helpers: snap, bounds, addReceiver, addPanel, the JS validate and example
       error.ts            errText(e)
       download.ts         save(name, bytes | text) through a Blob URL
-      spec.ts             PanelSpec <-> TOML (parse the [table] form the generator accepts; emit the same order as config/panels/*.toml)
+      spec.ts             PanelSpec <-> TOML (parse the [table] form the generator accepts; emit the same order as config/panels/*.toml; tables the form does not edit, [meta] among them, pass through)
     parts/
-      Sidebar.svelte  StatusBar.svelte  Banner.svelte  Field.svelte  Hex.svelte  Lines.svelte
+      Sidebar.svelte  StatusBar.svelte  TitleRow.svelte (title, primary action, the install line or the token field)
+      Field.svelte  KeyValue.svelte  Drop.svelte  Hex.svelte  Lines.svelte
     screens/
-      Cards.svelte  Wall.svelte  Builder.svelte  Library.svelte
+      Gallery.svelte  GalleryEntry.svelte
+      Builder.svelte  BuilderForm.svelte  BuilderTools.svelte (inspect, diff)
+      Wall.svelte  WallCanvas.svelte  WallTables.svelte
+      Cards.svelte  CardsWrite.svelte (provision, firmware, flash, card state)
   src/wasm/               generated, gitignored
   tests/token.test.ts     node --test: the fragment handling of token.ts
   dist/                   pnpm build output, gitignored, embedded by daemon when present
@@ -415,11 +478,13 @@ module; `validateLayout` and `layoutExample` use the JS forms in
 while `app.daemon` is `"present"` and `null` otherwise, so a screen that
 needs the card tests `ops.card` and hides the control when it is null.
 
-Routes are hash fragments: `#/cards`, `#/wall`, `#/builder`, `#/library`.
-The default is `#/cards` when the daemon answered, else `#/builder`.
-`#/builder?panel=<path>` opens a library spec; `#/cards?provision=<index>`
-opens the provision form for a receiver (the Wall's "provision this card"
-sets `position` from the receiver's `x,y`).
+Routes are hash fragments: `#/gallery`, `#/gallery/<name>` (the entry open
+beneath the table), `#/builder`, `#/wall`, `#/cards`; the default is
+`#/gallery`. `#/builder?panel=<path>` opens a library spec;
+`#/cards?provision=<index>` opens the provision form for a receiver (the
+Wall's "provision this card" sets `position` from the receiver's `x,y`).
+The Gallery's "open in Builder" and "provision this card", and a file
+import, hand the spec over through `handSpec` and navigate.
 
 ### Shared state (`state.svelte.ts`)
 
@@ -434,7 +499,7 @@ wall:     Canvas;                 // the editor's document; loaded from GET /wal
 job:      Job | null;             // the job the status bar follows (last started from this page)
 status:   { kind: "idle" | "busy" | "error"; text: string };  // status bar right side
 wasm:     "loading" | "ready" | "failed";
-banner:   boolean;                // standalone banner visible
+install:  boolean;                // the first-visit install line under the title row is visible
 ```
 
 `api/daemon.ts` sets `status` to `busy` while a request is in flight and to `error`
@@ -648,56 +713,37 @@ no hand-written copy.
 
 ## 7. Design rules for the UI
 
-No component library, no CSS framework, no icon font, no emoji. System font
-stack, native controls, `prefers-color-scheme`. Plain short prose; errors
-verbatim from the API or WASM.
+The design is [ui-design.md](ui-design.md): principles, layout, type,
+spacing, the colour tokens, components, states and the review checklist.
+What follows is how the code meets it.
 
-**Layout.** A 160 px left sidebar with the four screen names and, at the
-bottom, the daemon state. A content pane that scrolls on its own. A 28 px
-status bar across the bottom: left the interface and cards, right the job or
-status text and a cancel button while a job runs. The banner, when shown,
-sits above everything and pushes the layout down.
+**Layout.** `App.svelte`: the 180 px sidebar (`parts/Sidebar.svelte`, the
+daemon state at its foot), a content pane 960 px wide that scrolls on its
+own (the Wall's drawing may be wider), the 28 px status bar
+(`parts/StatusBar.svelte`, monospace). Every screen starts with
+`parts/TitleRow.svelte`, which renders the title, the primary action, and
+under them the first-visit install line or the token field.
 
-**Spacing.** One scale, in `app.css` as `--s1: 4px`, `--s2: 8px`, `--s3:
-12px`, `--s4: 16px`, `--s5: 24px`, `--s6: 32px`. Controls are 28 px tall;
-form rows are a two-column grid, label 160 px, gap `--s2`; sections are
-separated by `--s5`.
+**Spacing and type.** `app.css` holds the scale as `--s1: 4px` to `--s5:
+24px`, the font stacks as `--font` and `--mono`, 32 px controls, 28 px table
+rows, and the form as `parts/Field.svelte`: label above the control, the
+range or unit in the caption, the message in `--err` under it.
 
-**Type.** `font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto,
-sans-serif`. Headings 15 px/600 for a screen, 13 px/600 for a section. Code,
-hex, TOML and paths in `ui-monospace, SFMono-Regular, Menlo, Consolas,
-monospace` at 12 px. No other sizes.
+**Colour.** `tokens.css` defines the nine tokens of ui-design.md for both
+schemes (plus `--accent-text`, the primary button's text) and nothing else
+writes a colour; components use `var(--token)`. The Wall drawing reads the
+tokens from its element's computed style: receivers as 1 px `--line` boxes
+with `card N x,y` at top left, panels filled `--bg-2` with a 1 px `--text`
+border, the selected one `--accent`, rotation as a small arrow, flips as a
+mirrored arrow, the grid at 1 px `--line` at 50 % opacity.
 
-**Colour.** Take it from the system where a value exists: `Canvas`,
-`CanvasText`, `Field`, `FieldText`, `ButtonFace`, `ButtonText`,
-`AccentColor`, `AccentColorText`, `GrayText`. Own tokens only for what the
-system has no name for, defined for both schemes:
+**States.** `lib/action.svelte.ts` gives every action the four states of
+ui-design.md: `run` sets busy and the status bar, done clears the status bar
+and keeps the result where the action was, error keeps the message verbatim
+under the action and in the status bar. Controls are `disabled` while their
+action is busy, the label unchanged; the cursor is `progress`.
 
-| token | light | dark | use |
-|---|---|---|---|
-| `--line` | `#d0d0d0` | `#3a3a3a` | borders, table rules |
-| `--muted` | `#f3f3f3` | `#1e1e1e` | sidebar, status bar, table header |
-| `--error` | `#b3261e` | `#f2857a` | error text, invalid field border |
-| `--ok` | `#1b7f3b` | `#6cc57c` | done state |
-| `--busy` | `AccentColor` | `AccentColor` | running job, progress |
+Confirmation before a commit is one line above a second button, `commit`,
+that appears only after a dry run finished, under its plan; not a dialog.
 
-Wall editor canvas: receivers as 1 px `--line` boxes with the index at top
-left, panels filled `--muted` with a 1 px `CanvasText` border, the selected
-one `AccentColor`, rotation shown as a small arrow, flips as a mirrored
-arrow. The grid at 1 px `--line` at 50 % opacity.
-
-**States.** Every screen and every control that talks to the daemon or WASM
-is in one of three states, and shows it the same way:
-
-- idle: default rendering;
-- busy: the control is `disabled`, the status bar shows the running text,
-  the cursor is `progress`; a job also shows its last line in the status bar;
-- error: the text in `--error` directly under the control that failed, and
-  in the status bar until the next action; never a modal.
-
-Confirmation before a commit is a second button, `Write to card`, that
-appears only after a dry run finished, next to its plan; not a dialog.
-
-Downloads name files as the CLI does: `<name>.rcvbp`,
-`<name>-basic-pack.bin`, `<name>-block7.bin`, `<name>-sources.txt`,
-`wall.json`.
+Downloads are named by the module (`Generated.files`) and `wall.json`.

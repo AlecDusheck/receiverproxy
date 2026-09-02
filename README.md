@@ -2,7 +2,9 @@
 
 ![A Raspberry Pi drives chained Colorlight E120 cards over Ethernet; each card drives part of an LED wall over HUB75 ribbons](docs/readme-header.png)
 
-Drive a Colorlight E120 LED receiving card and its modules over raw Ethernet: generate and flash the module configuration yourself, then put images, video and live streams on the panel.
+`e120` is a command-line tool and a web app that drive a Colorlight E120 LED receiving card and its modules over raw Ethernet: they generate and flash the module configuration, then put images, video and live streams on the panel.
+
+The aim is to drive any LED receiving card and its panels from a computer with an Ethernet port, without a sender card, vendor software or an account.
 
 **Drive receiving cards without a sender card and without vendor software.** `e120` discovers the card, backs up and installs firmware, generates and flashes the configuration from a text file, sets the card's place in a wall, and streams to it. Useful for cards and panels the vendor supports badly or not at all.
 
@@ -139,11 +141,15 @@ Configuration without a full provision:
 
 ```sh
 e120 config gen --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
+e120 config formats                                # the formats --format takes; rcvbp today
 e120 config info build/p25-128x64-sm16269s.rcvbp
 e120 config read --out card.rcvbp                  # what the card holds
 e120 config diff card.rcvbp build/p25-128x64-sm16269s.rcvbp
+e120 config import card.rcvbp --out card.toml      # the spec that regenerates a file
 e120 config send --spec config/panels/p25-128x64-sm16269s.toml   # RAM only, no flash
 ```
+
+`config import` reads record 0x01 field by field, picks the chip library by the file's chip id from the ones under `config/chips/`, fits the wiring knobs to the pixel map, and puts whatever the regenerated file would still differ in on stderr as `not recovered: ...` lines, by name (`meta`, `boot.arm_at_boot` and the phantom-position gate always, since no `.rcvbp` carries them). A `config read` of the card followed by `config import` gives the spec the card is running.
 
 Flash and firmware. Reads are always safe; writes need `--commit`:
 
@@ -178,10 +184,14 @@ e120-demo comet --seconds 30 --brightness 40 --iface en24 --layout wall.json
 
 ## Web app
 
-`web/` is a browser front end for the same commands, with four screens: Cards (discovered cards, brightness, show, provision, firmware, flash snapshot and restore), Wall (an editor for the layout JSON), Builder (the panel spec as a form and as TOML; generate, inspect and diff `.rcvbp` files) and Library (the chip and panel files under `config/`). It runs in two modes:
+`web/` is a browser front end for the same commands, with four screens:
 
-- Standalone: the built site alone. Builder, Wall and Library work in the browser through `rcvbp` and `wall` compiled to WebAssembly (`crates/rcvbp-wasm`); nothing touches a card. A banner says the daemon is not running and how to get it.
-- With the daemon: `e120 ui` starts `crates/daemon`, which holds the Ethernet link, serves the built site and a JSON API under `/api/v1`, and runs the long operations as jobs, one at a time. Cards and the card actions of the other screens appear.
+- Gallery: every panel spec under `config/panels/` as a table (pitch, module, scan, chip, the formats it generates, how many vendor files it came from, tested or generates), with a filter row. Selecting a row shows the spec field by field, with one "download as" button per output format (`rcvbp` today: the `.rcvbp`, the basic pack and the boot image) and "open in Builder". A file dropped on the Gallery or the Builder is read back into a spec: the format is detected from the bytes, the chip library is picked by the file's chip id, and the fields the file does not carry are listed by name.
+- Builder: the panel spec as a form and as TOML, kept in sync; generate for a chosen format, inspect and diff `.rcvbp` files.
+- Wall: an editor for the layout JSON, as a drawing and as tables.
+- Cards: discovered cards, brightness, show, provision, firmware, flash snapshot and restore.
+
+The site runs on its own: Gallery, Builder and Wall work in the browser through `rcvbp` and `wall` compiled to WebAssembly (`crates/rcvbp-wasm`), and nothing touches a card. The daemon is optional: `e120 ui` starts `crates/daemon`, which holds the Ethernet link, serves the built site and a JSON API under `/api/v1`, and runs the long operations as jobs, one at a time. With it the Cards screen appears, and the Gallery, Builder and Wall gain their card actions (provision this card, send to card, write to card, show on the wall). Without it the sidebar says so and how to install it.
 
 Build and run (needs [pnpm](https://pnpm.io), the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.127, the version `crates/rcvbp-wasm/Cargo.toml` pins):
 
@@ -224,6 +234,13 @@ A panel is one TOML file in `config/panels/`. `e120 config gen` turns it into th
 
 ```toml
 name = "p25-128x64-sm16269s"
+
+[meta]
+pitch_mm = 2.5
+status = "tested"
+origin = "bench"
+sources = 1
+vendors = ["Colorlight"]
 
 [module]
 gray_bits = 12
@@ -269,6 +286,7 @@ arm_at_boot = true
 "0x02F" = 0x01
 ```
 
+- `[meta]` where the values came from and how far they are trusted: `status` `tested` (driven from flash) or `generates`, `origin` `bench` or `mined`, the number of vendor files behind it and, for a mined spec, the share that agree and a few of them by name. Optional; a spec without it counts as mined from nothing.
 - `[module]` the module: size, scan (1/16 here), line direction, data groups, grey depth, serial clock.
 - `[screen]` the whole screen this card drives.
 - `[chip]` the driver-chip library file: chip ids, the 20-byte chip-control block, the register table.
@@ -279,7 +297,7 @@ arm_at_boot = true
 - `[boot]` whether the card arms the drivers from flash at power-on.
 - `[record01_overrides]` individual record 0x01 bytes applied last.
 
-Chip libraries are in `config/chips/`, panel specs in `config/panels/`. `config/chips/mined/` (21 chip families) and `config/panels/mined/` (87 module classes) were generated by `scripts/corpus-mine.py` from the vendor config corpus; each file's header states how many files agreed. Only the P2.5 128x64 SM16269S module on firmware 16.53, with `config/panels/p25-128x64-sm16269s.toml`, has been driven on a bench. Everything mined is a vendor default, not a measurement; use it as a starting point and check it against a vendor file for the exact module when one exists.
+Chip libraries are in `config/chips/`, panel specs in `config/panels/`. `config/chips/mined/` (21 chip families) and `config/panels/mined/` (87 module classes) were generated by `scripts/corpus-mine.py` from the vendor config corpus; a chip library's header and a panel spec's `[meta]` table state how many files agreed. Only the P2.5 128x64 SM16269S module on firmware 16.53, with `config/panels/p25-128x64-sm16269s.toml`, has been driven on a bench. Everything mined is a vendor default, not a measurement; use it as a starting point and check it against a vendor file for the exact module when one exists.
 
 How the generator derives each record, and its limits, is in [docs/building-a-config.md](docs/building-a-config.md).
 

@@ -8,10 +8,10 @@
   import SubNav from "$parts/SubNav.svelte";
   import KeyValue, { type Row } from "$parts/KeyValue.svelte";
   import Module from "$parts/Module.svelte";
-  import { ops, type Generated } from "$api/ops";
+  import Generate from "$parts/Generate.svelte";
+  import { ops } from "$api/ops";
   import { app, handSpec } from "$lib/state.svelte";
   import { repoFile } from "$lib/site";
-  import { Action } from "$lib/action.svelte";
   import { chipLabel, formatLabel, panelTitle } from "$lib/panel";
   import { parseToml, type Tables } from "$lib/spec";
   import { save } from "$lib/download";
@@ -85,17 +85,6 @@
     return `Download the ${formatLabels} receiving card config file for a ${module}, or customize it. ${tail}`;
   });
 
-  const gen = new Action<Generated & { format: string }>("generate");
-  // One file per click: a browser keeps only the last of several saves.
-  function downloadAs(format: string, pick: (name: string) => boolean) {
-    void gen.run(async () => {
-      const g = await ops.pure.generate(toml, format);
-      const file = g.files.find((f) => pick(f.name));
-      if (!file) throw new Error(`${format}: no file among ${g.files.map((f) => f.name).join(", ")}`);
-      save(file.name, file.bytes);
-      return { ...g, format };
-    });
-  }
   function go(path: string) {
     handSpec(toml);
     void goto(path);
@@ -126,28 +115,14 @@
 
 <section id="download">
   <h2>Download</h2>
-  <div class="row">
-    {#each formats as f (f.name)}
-      <button class="primary mono" onclick={() => downloadAs(f.name, (n) => n.endsWith(`.${f.extension}`))} disabled={gen.busy || app.wasm === "failed"}>{entry.name}.{f.extension}</button>
-    {/each}
+  <Generate {toml} {formats} />
+  <div class="row mt-2">
     <button onclick={() => go("/builder")}>customize</button>
+    <button class="mono" onclick={() => save(`${entry.name}.toml`, toml)}>{entry.name}.toml</button>
     {#if ops.card}
       <button onclick={() => go("/control/provision")}>provision</button>
     {/if}
   </div>
-  <p class="caption">Load the {formatLabels} file in the vendor software, or flash it with <code>rxp</code>.</p>
-  <div class="row mt-2">
-    <button class="mono" onclick={() => downloadAs(formats[0]?.name ?? "rcvbp", (n) => n.endsWith("-block7.bin"))} disabled={gen.busy || app.wasm === "failed"}>{entry.name}-block7.bin</button>
-    <button class="mono" onclick={() => downloadAs(formats[0]?.name ?? "rcvbp", (n) => n.endsWith("-basic-pack.bin"))} disabled={gen.busy || app.wasm === "failed"}>{entry.name}-basic-pack.bin</button>
-    <button class="mono" onclick={() => save(`${entry.name}.toml`, toml)}>{entry.name}.toml</button>
-  </div>
-  <p class="caption">The boot image the card loads at power-on, the parameter pack inside it, and this page's spec.</p>
-  {#if app.wasm === "failed"}<p class="error">{app.wasmError}</p>{/if}
-  {#if gen.error}<p class="error">{gen.error}</p>{/if}
-  {#if gen.result}
-    <p class="ok">{gen.result.files.map((f) => `${f.name} (${f.bytes.length} bytes)`).join(", ")}</p>
-    {#if gen.result.notes.length}<pre>{gen.result.notes.join("\n")}</pre>{/if}
-  {/if}
   {#if data.tested.length}
     <div class="scroll mt-3">
       <table>

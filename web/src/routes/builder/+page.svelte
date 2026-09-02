@@ -14,6 +14,7 @@
   import { Action } from "$lib/action.svelte";
   import { errText } from "$lib/error";
   import { save, toB64 } from "$lib/download";
+  import Generate from "$parts/Generate.svelte";
   import { defaultSpec, fromToml, toToml, type PanelSpec } from "$lib/spec";
   import type { GatedOutcome, Libraries, Outcome } from "$api/types";
   import { BUILDER_NAV } from "./nav";
@@ -22,7 +23,6 @@
 
   let libs = $state.raw<Libraries | null>(null);
   let formats = $state.raw<Format[]>([]);
-  let format = $state("rcvbp");
   let spec = $state<PanelSpec>(defaultSpec());
   let toml = $state(toToml(defaultSpec()));
   let tomlError = $state("");
@@ -80,8 +80,6 @@
     if (p || c) void goto("/builder", { replaceState: true });
   });
 
-  const gen = new Action<Generated>("generate");
-  const generate = () => gen.run(() => ops.pure.generate(toml, format));
 
   const send = new Action<Outcome>("config send");
   const write = new Action<GatedOutcome>("config write");
@@ -102,9 +100,6 @@
 <Head title="Builder" noindex />
 
 <TitleRow title="Builder">
-  {#snippet action()}
-    <button class="primary" onclick={generate} disabled={wasmOff || !!tomlError || gen.busy}>Generate</button>
-  {/snippet}
 </TitleRow>
 <SubNav links={BUILDER_NAV} />
 
@@ -126,34 +121,7 @@
 
 <section class="generate">
   <h2>Generate</h2>
-  <div class="row">
-    <label>format <select bind:value={format} aria-label="output format">
-        {#each formats as f (f.name)}<option value={f.name}>{f.name} (.{f.extension}, {f.vendor})</option>{/each}
-        {#if !formats.length}<option value="rcvbp">rcvbp</option>{/if}
-      </select></label>
-    <button class="primary" onclick={generate} disabled={wasmOff || !!tomlError || gen.busy}>Generate</button>
-  </div>
-  {#if gen.error}<p class="error">{gen.error}</p>{/if}
-  {#if gen.result}
-    {@const g = gen.result}
-    <div class="scroll mt-3">
-      <table class="files">
-        <thead><tr><th>file</th><th class="num">bytes</th><th></th></tr></thead>
-        <tbody>
-          {#each g.files as f (f.name)}
-            <tr><td class="mono">{f.name}</td><td class="num">{f.bytes.length}</td><td><button onclick={() => save(f.name, f.bytes)}>download</button></td></tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
-    <div class="actions">
-      <button onclick={() => g.files.forEach((f) => save(f.name, f.bytes))}>download all</button>
-      <button onclick={() => save(`${g.name}-sources.txt`, g.sources.join("\n") + "\n")}>{g.name}-sources.txt</button>
-    </div>
-    {#if g.notes.length}<pre>{g.notes.join("\n")}</pre>{/if}
-    <h2 class="sources">Sources</h2>
-    <pre>{g.sources.join("\n")}</pre>
-  {/if}
+  <Generate {toml} {formats} disabled={!!tomlError} disabledReason={tomlError ?? ""} />
 </section>
 
 {#if ops.card}
@@ -192,16 +160,5 @@
   }
   .toml textarea {
     width: 100%;
-  }
-  .files {
-    width: auto;
-  }
-  .sources {
-    margin-top: var(--s3);
-  }
-  label {
-    display: flex;
-    gap: var(--s2);
-    align-items: center;
   }
 </style>

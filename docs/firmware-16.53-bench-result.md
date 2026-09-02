@@ -54,7 +54,7 @@ produce visibly different displays.
 ## What it did not fix: the raster is still wrong — HIGH
 
 The panel still does not show sent content, and the current draw is now
-*exactly* content-independent — interleaved and repeated (`scripts/compare.py`,
+*exactly* content-independent — interleaved and repeated (`scripts/bench.py run`,
 3 reps), all-black and all-white differ by 0.001 A against a within-condition
 spread of 0.033 A.
 
@@ -76,6 +76,6 @@ disconnected from the picture path.
 Do not trust a single supply reading on this bench, on either firmware. The
 supply drifts over tens of seconds and readings taken right after a stream
 starts run high. Compare conditions **interleaved and repeated**, and judge a
-difference against the within-condition spread — `scripts/compare.py` does
+difference against the within-condition spread — `scripts/bench.py run` does
 this and prints the verdict. Two false breakthroughs in this project came from
 comparing one condition measured now against another measured a minute ago.

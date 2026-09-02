@@ -1,0 +1,99 @@
+# Driver-chip library: SM16269S = chip id 0x0214.
+#
+# *** THERE IS NO VENDOR CHIP LIBRARY FOR 0x0214. IT IS A NAME-TABLE STUB. ***
+#
+# This file exists to record that result and the exact bytes a config that
+# declares 0x0214 would carry. Do NOT use it to drive a panel: everything the
+# driver silicon needs would be sent as zeros.
+#
+# ---------------------------------------------------------------------------
+# What was checked, and where
+# ---------------------------------------------------------------------------
+# Binary: CLTInterface.dll from LEDSetting 2.2.6 (the only vendor build whose
+# chip-name tables know 0x0214 at all — record at file offset 0xD70EA0,
+# group 2, name "SM16269S"; the neighbours are SM16269SW 0x0217 @ 0xD70F24 and
+# SM16386S 0x0187 @ 0xD71554). Image base 0x180000000. Disassembly by
+# .pdata-driven capstone dump (ls226/disasm_i.py -> itext.dis in the session
+# scratchpad). libCLTDevice.1.dylib / LEDVISION 9.6 CLTDevice.dll cannot
+# express 0x0214 at all — their chip tables stop at 0x015D.
+#
+# 1. ResetChipCustom @ 0x18029CE00. Bound check `cmp eax, 0x25d` @ 0x18029CFBB;
+#    two-level dispatch: byte index table @ 0x1802A5E8C (index = chipType),
+#    dword target table @ 0x1802A5A90, `jmp rcx` @ 0x18029CFDF.
+#      index[0x0DE] = 105 -> 0x18029E722   (real case)
+#      index[0x14C] = 164 -> 0x18029EB69   (real case)
+#      index[0x187] = 254 -> 0x1802A5A4E   (the default arm)
+#      index[0x214] = 254 -> 0x1802A5A4E   (the default arm)
+#      index[0x216] = 254 -> 0x1802A5A4E   (0x216 has no name-table entry
+#                                           either — the control case)
+#    => 0x0214 gets NO chip-custom block and NO SChipCustomPlus (record 0x84)
+#       register defaults.
+#
+# 2. ResetChipControl @ 0x18028A600. Bound `cmp eax, 0x24a` @ 0x18028A61B,
+#    index = chipType-0x10; byte table @ 0x18028B8D8, dword table @
+#    0x18028B784.
+#      0x0DE -> 0x18028A7C1 (real case)   0x14C -> 0x18028AEC5 (real case)
+#      0x187 -> 0x18028B766   0x214 -> 0x18028B766   0x216 -> 0x18028B766
+#    0x18028B766 is `xor eax,eax; mov [rbx+0x25FD], rax; mov [rbx+0x2605],
+#    rax; mov [rbx+0x260D], eax` — it zeroes all 20 bytes of SChipControl.
+#
+# 3. Every other chip-id-indexed jump table in the DLL. A sweep of all 180
+#    two-level dispatch sites (`movzx r, byte [b+i+T1]` followed by
+#    `mov r, dword [b+i*4+T2]`), keeping the 12 whose bound is >= 0x200, gives
+#    0x0214 the SAME target as 0x0216 in eleven of them, i.e. the default arm.
+#    The twelfth (site 0x1801DB518, table 0x1801DBB90, function
+#    0x1801DB4A0) sends 0x14C, 0x187 and 0x214 alike to 0x1801DBAC1, which is
+#    `or eax, 0xffffffff; ret` — a -1 "no handler" return (the shape of
+#    GetISSpecialParamSetType, which also returns -1 for 0x14C in the macOS
+#    build @ 0xFD440).
+#
+# 4. There is not one `cmp <reg>, 0x214` anywhere in CLTInterface.dll's or
+#    CLTDevice.dll's code.
+#
+# CONCLUSION: the earlier note was right. LEDSet 2.26 knows the *name*
+# SM16269S and nothing else. Selecting it yields, from the reset path:
+#   SChipControl   = 20 zero bytes
+#   SChipCustom    = 16 zero bytes (see below — even the PWM prologue is
+#                    skipped, because IsPWMChip() is a literal id list and
+#                    0x214 is not on it)
+#   SChipCustomEX  = 4 zero bytes
+#   record 0x84    = absent / all zero
+# ---------------------------------------------------------------------------
+
+name = "SM16269S (0x0214) — NO VENDOR DATA; stub only"
+family_id = 0x0214
+sub_id = 0x0000
+
+# ResetIS @ 0x1307F0 gates the serial-clock default on IsPWMChip(), which for
+# an id absent from its literal list falls through to 0 (the list ends
+# `orb %cl,%al; andb $0x1,%al; retq` @ 0xF8E70-0xF8E73). The next arm,
+# IsNormalChipInclueSerail(), is likewise a literal list that excludes 0x214.
+# So ResetIS leaves the serial clock at whatever it was — there is no vendor
+# default. 15 below is OUR carry-over from the 0x14C library, not a vendor
+# value.
+serial_clock = 15
+
+# All zeros — ResetChipControl default arm 0x18028B766.
+chip_control = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+
+# All zeros. ResetChipCustom's prologue zeroes chipCustom[2..15] unconditionally
+# (macOS 0x156FCA/0x156FD5) and only sets [0]/[1] inside `if (IsPWMChip())`
+# (0x156F17 `je 0x156FB0`), which 0x214 fails. The default arm then adds
+# nothing. Note in particular that bit 7 of byte 0 — "use self GCK" — stays
+# CLEAR, unlike 0x0DE and 0x14C.
+chip_custom = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+chip_custom_ex = [0x00, 0x00, 0x00, 0x00]
+
+emit_record_84 = false
+
+# Basic-pack consequences of the id itself (GetBasicParam @ 0x1DFB50 ->
+# ResetChipType @ 0x1E5130): 0x214 >= 0x100, so pack +0x1B (body +0x17) takes
+# the 0xFE escape and the real id rides big-endian at pack +0xE7 (body +0xE3)
+# as 02 14. Compare 0x14C -> FE / 01 4C and 0x0DE -> DE / 00 00.
+[record01_overrides]
+"0x036" = 0x14
+"0x204" = 0x02
+"0x0E9" = 0x00
+"0x205" = 0x00

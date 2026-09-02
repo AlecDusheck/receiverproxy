@@ -78,18 +78,44 @@ Ranked by how much they resist the traps above:
 | instrument | good for | fails at |
 |---|---|---|
 | all-black frame | is the pixel path connected at all | nothing much — use this first |
-| `compare.py` current | quantitative, unattended | needs interleaving; blind to spatial structure |
+| `bench.py run` current | quantitative, unattended | needs interleaving; blind to spatial structure |
 | photo structure | geometry, mapping | exposure, gain, reflections, rotation |
 | single current reading | nothing | everything |
 
 ## Tools
 
-| script | what it does |
+Everything is in one tool, `scripts/bench.py`, because every experiment has the
+same shape and every past mistake was in one of its steps.
+
+| command | what it does |
 |---|---|
-| `scripts/compare.py` | interleaved, repeated current comparison with a verdict |
-| `scripts/locate.py` | finds the panel by differencing lit against blanked |
-| `scripts/axis-test.sh` | does the panel resolve position along each axis, with a control |
-| `scripts/rowsweep.sh` | how many LEDs each single-row frame actually lights |
-| `scripts/psu.sh` | power with a dead-man timer (max 10 min); never changes V/I |
-| `scripts/mapdump.py`, `mapstruct.py` | decode record 0x03 as structure, not bytes |
-| `scripts/chipregs.py` | decode/compare record 0x84 driver registers |
+| `bench.py power on\|off\|cycle\|status` | supply with the dead-man timer (`psu.sh` underneath); `cycle` waits for discovery |
+| `bench.py boot --spec S` | power-cycle, wait for the card, push the spec's packs, report the armed current |
+| `bench.py locate` | find the panel in frame by differencing lit against blanked; remembers the crop |
+| `bench.py capture NAME` | 90-frame primed average, cropped, clip fraction reported |
+| `bench.py compare A B…` | structure correlation of captures against A |
+| `bench.py run [--boot --spec S] label=pattern[@bright] …` | the experiment, see below |
+
+`run` is the one to reach for. It shows each condition and prints supply
+current, panel mean, clip fraction and correlation against the first
+condition, then a tile. Two properties are built in and should not be turned
+off without a reason:
+
+* **the same-content control** — the first condition is repeated at the end;
+  a difference between conditions only counts if it clears that number;
+* **one continuous stream** — the conditions become segments of a looping
+  video played by `e120 play`, captured mid-segment. Nothing restarts between
+  conditions, so the card's per-restart state toggle cannot masquerade as a
+  result. `--restart` exists only for conditions that need different `image`
+  flags (raster layout, row base).
+
+Built-in patterns: `black white red green blue top bottom left right rgbrows
+gray-N row-N col-N`, or any PNG path.
+
+```
+scripts/bench.py run --boot --spec config/panels/p25-128x64-sm16269s.toml \
+    --brightness 40 black white top left
+```
+
+Config-side tools stay separate: `flash-review.py`, `eeprom-restore.py`,
+`mapdump.py`, `mapstruct.py`, `chipregs.py`.

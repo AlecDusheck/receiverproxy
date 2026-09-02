@@ -123,7 +123,7 @@ vendor SDK file inspection to an Opus subagent.
   ignores a write spanning record boundaries. A few records (`0x041`, `0x042`,
   `0x092`) did not take via opcode `0x85` and the vendor library reaches them
   by other paths; they are still `0xFF`.
-* **Photos:** `scripts/snap-avg.sh` silently took single frames until
+* **Photos:** `scripts/bench.py capture` silently took single frames until
   2026-09-01. The panel multiplexes 1/16, so one exposure is scan phase, not
   content. It now primes the average; keep it that way.
 

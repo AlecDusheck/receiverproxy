@@ -123,7 +123,7 @@ ethertype are equally invisible — so *this design does not build constant
 comparisons out of LUT4s at all*. Searching harder cannot work.
 
 **What would settle it:** the empirical sweep (`scripts/chipsweep.sh` with
-`scripts/panel-score.py`). Cheap, because the id is excluded from the pack
+`scripts/bench.py compare`). Cheap, because the id is excluded from the pack
 CRC-32.
 
 ### 1.4 Is the data-swap / lane map identity correct for 1/16 on this module?

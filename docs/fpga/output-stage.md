@@ -484,7 +484,7 @@ corruption.
 
 **#3 — The test-pattern "failure" is an artefact of concurrent streaming.**
 Likely, and it is the fact that makes #1/#2 hard to hold.
-*For:* `scripts/safe-boot.sh` and `chipsweep.sh` both leave
+*For:* `scripts/bench.py boot` and `chipsweep.sh` both leave
 `e120 … fill --hold` running in the background; a card-internal pattern
 written into the framebuffer would be overwritten immediately, and the
 `0x01 0x07` latch frames come from our streamer.

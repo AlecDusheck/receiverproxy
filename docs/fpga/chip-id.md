@@ -224,7 +224,7 @@ Ranked by cost:
 
 1. **Bench sweep — do this first.** Sweep the whole vendor id table and
    measure the card's response (current draw + camera). `scripts/chipsweep.sh`
-   already does this, with `scripts/panel-score.py` locating the panel in
+   already does this, with `scripts/bench.py compare` locating the panel in
    frame so a bumped camera fails loudly. This answers the question that
    actually matters ("which id should we send") without resolving the
    gateware at all.

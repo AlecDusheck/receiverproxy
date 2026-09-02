@@ -98,7 +98,7 @@ wire.
 
 ## "Our photos are 24-frame averages" — WRONG until 2026-09-01
 
-`scripts/snap-avg.sh` claimed to average 24 frames and did not. `tmix=frames=N`
+`scripts/bench.py capture` claimed to average 24 frames and did not. `tmix=frames=N`
 emits one output frame per *input* frame, and its early outputs average only
 the frames seen so far — the very first is a single frame. The script then took
 `-frames:v 1`, i.e. exactly that first output. **Every photo in this project
@@ -146,7 +146,7 @@ Lessons kept in the tooling:
   taken under the same conditions.
 * **Thresholding a single frame to find the panel finds the window and the
   turntable lid instead.** Locate the panel by differencing lit against
-  blanked: `scripts/locate.py`.
+  blanked: `scripts/bench.py locate`.
 * The panel light reflects off nearby surfaces, so even the difference image
   includes reflections; take the brightest connected region, not the bounding
   box of everything above a threshold.

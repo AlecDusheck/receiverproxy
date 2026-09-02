@@ -1,0 +1,250 @@
+# ============================================================================
+# Colorlight E120 receiving card -- Lattice ECP5 LFE5U-25F-6CABGA256
+# Physical constraints for nextpnr-ecp5 / prjtrellis.
+#
+# PROVENANCE. Every pin below is taken from the decode of the vendor
+# bitstreams recorded in docs/fpga/pinout.md and
+# analysis/fpga/PINTABLE_16.53.txt (197 package pins, direction taken from the
+# ROUTING GRAPH, byte-identical across all five vendor images on 196 of 197
+# pins). Nothing here is guessed. Where the group is known but the
+# signal-within-group assignment is not, the pins are present but the mapping
+# is marked UNVERIFIED and must be resolved by the experiments in
+# docs/own-gateware/PLAN.md before it is trusted.
+#
+# CONFIDENCE TAGS, used literally:
+#   HIGH        read from the bitstream and cross-checked; safe to build on.
+#   MEDIUM      a strong pattern resting on one stated assumption.
+#   UNVERIFIED  the pin is real and its direction is HIGH, but which signal it
+#               carries is a hypothesis. Do not trust silently.
+#   TODO        not known at all; left commented out. DO NOT INVENT A PIN HERE.
+#
+# ALL EIGHT IO BANKS ARE 3.3 V (BANK.VCCIO 3V3 in all 35 BANKREF tiles of all
+# five vendor images) -- HIGH. Every IO_TYPE below is therefore LVCMOS33.
+# Ignore any SSTL18/SSTL15 label you may see in a prjtrellis decode: that is
+# the BASE_TYPE aliasing artefact documented in docs/fpga/pinout.md.
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# 1. Clocks -- HIGH
+# ----------------------------------------------------------------------------
+# P6 is the dedicated PLL reference pad (R47C0C, bank 6, LLC_GPLL0T_IN).
+# Traced: PLL0_LL REFCLK1 <- JREFCLK1_3 <- JPADDIC_PIO@(0,47) = P6.
+# The vendor PLL is CLKI_DIV=1, CLKFB_DIV=CLKOP_DIV=5 -> CLKOP = 5 x REF,
+# VCO = 25 x REF. For gigabit RGMII CLKOP must be 125 MHz, so REF = 25 MHz.
+# Independent confirmation: `ecppll -i 25 -o 125` emits exactly those divisors.
+LOCATE COMP "clk25"    SITE "P6";
+IOBUF   PORT "clk25"   IO_TYPE=LVCMOS33;
+FREQUENCY PORT "clk25" 25 MHZ;
+
+# ----------------------------------------------------------------------------
+# 2. Ethernet PHY-A (left edge, RJ45 #1) -- RGMII, gigabit -- HIGH as a group
+# ----------------------------------------------------------------------------
+# The 24 DDR/clock pins form two perfectly symmetric 12-pin groups: 4 data +
+# 1 control per direction, DDR on all ten, zero tri-state, zero DQS. That is
+# the RGMII signature exactly. There is NO MDIO/MDC anywhere in this design
+# (the earlier "T4 = MDIO" claim is retracted; T4 is an RGB data pin), so the
+# PHYs are STRAPPED, not managed -- we cannot configure them, only observe.
+#
+# Because the vendor design contains no DELAYF/DQSBUF/DDRDLL anywhere, the
+# RX clock delay must come from the PHY (RGMII-ID strapping). We therefore
+# clock the RX IDDRs straight from the RXC pad, exactly as the vendor does.
+
+# RXC -- dedicated clock input, R23C0A, PCLKT7_1. HIGH.
+LOCATE COMP "rgmii_a_rxc"  SITE "J1";
+IOBUF   PORT "rgmii_a_rxc" IO_TYPE=LVCMOS33;
+FREQUENCY PORT "rgmii_a_rxc" 125 MHZ;
+
+# RXD[3:0] + RX_CTL -- the five IDDR pins of the left group. HIGH that these
+# five pins are the RX group; UNVERIFIED which is which.
+#   J2, K1, K2 = R23C0 B/C/D    J3, K3 = R20C0 C/D
+# RESOLVE BY EXPERIMENT E-RGMII (PLAN.md S6.2): RX_CTL is the only one of the
+# five that is high for exactly the duration of a frame, so the gateware can
+# self-identify it; the remaining 4! = 24 data orderings are then recovered by
+# matching the known preamble/SFD (55 55 ... D5) and the known destination MAC
+# 11:22:33:44:55:66, or by the raw-nibble echo loopback.
+LOCATE COMP "rgmii_a_rx_raw[0]" SITE "J2";
+LOCATE COMP "rgmii_a_rx_raw[1]" SITE "K1";
+LOCATE COMP "rgmii_a_rx_raw[2]" SITE "K2";
+LOCATE COMP "rgmii_a_rx_raw[3]" SITE "J3";
+LOCATE COMP "rgmii_a_rx_raw[4]" SITE "K3";
+IOBUF PORT "rgmii_a_rx_raw[0]" IO_TYPE=LVCMOS33;
+IOBUF PORT "rgmii_a_rx_raw[1]" IO_TYPE=LVCMOS33;
+IOBUF PORT "rgmii_a_rx_raw[2]" IO_TYPE=LVCMOS33;
+IOBUF PORT "rgmii_a_rx_raw[3]" IO_TYPE=LVCMOS33;
+IOBUF PORT "rgmii_a_rx_raw[4]" IO_TYPE=LVCMOS33;
+
+# TXC -- ODDR clock output, R26C0A, PCLKT6_1. HIGH.
+# The vendor launches TXC from CLKOS3 (~+9 deg ~= +0.2 ns) and TXD from CLKOP:
+# a deliberate RGMII TXC/TXD skew. Reproduce that if TX is ever needed.
+LOCATE COMP "rgmii_a_txc"  SITE "L1";
+IOBUF   PORT "rgmii_a_txc" IO_TYPE=LVCMOS33 DRIVE=8;
+
+# TXD[3:0] + TX_CTL -- L2, M1, M2 = R26C0 B/C/D ; P1, R1 = R35C0 A/B.
+# HIGH as a group, UNVERIFIED which is which. Same resolution path as RX.
+LOCATE COMP "rgmii_a_tx_raw[0]" SITE "L2";
+LOCATE COMP "rgmii_a_tx_raw[1]" SITE "M1";
+LOCATE COMP "rgmii_a_tx_raw[2]" SITE "M2";
+LOCATE COMP "rgmii_a_tx_raw[3]" SITE "P1";
+LOCATE COMP "rgmii_a_tx_raw[4]" SITE "R1";
+IOBUF PORT "rgmii_a_tx_raw[0]" IO_TYPE=LVCMOS33 DRIVE=8;
+IOBUF PORT "rgmii_a_tx_raw[1]" IO_TYPE=LVCMOS33 DRIVE=8;
+IOBUF PORT "rgmii_a_tx_raw[2]" IO_TYPE=LVCMOS33 DRIVE=8;
+IOBUF PORT "rgmii_a_tx_raw[3]" IO_TYPE=LVCMOS33 DRIVE=8;
+IOBUF PORT "rgmii_a_tx_raw[4]" IO_TYPE=LVCMOS33 DRIVE=8;
+
+# ----------------------------------------------------------------------------
+# 3. Ethernet PHY-B (right edge, RJ45 #2) -- HIGH as a group. NOT USED IN v1.
+# ----------------------------------------------------------------------------
+# Left here as documentation so the pins are never re-derived. Uncomment only
+# when the daisy-chain / pass-through port is implemented.
+#   RXC  = M16 (R26C72C, PCLKT3_0)
+#   RXD/RX_CTL = L16, L15, M15 (R26C72 A/B/D), P16, R16 (R35C72 A/B)
+#   TXC  = J16 (R23C72A, PCLKT2_1)
+#   TXD/TX_CTL = J15, K16, K15 (R23C72 B/C/D), J14, K14 (R20C72 C/D)
+
+# ----------------------------------------------------------------------------
+# 4. SPI configuration flash, bank 8 (bottom edge) -- HIGH
+# ----------------------------------------------------------------------------
+# The vendor sets CCLK.MODE = USRMCLK: the running design drives the flash
+# clock after configuration and reads its own parameters back out of the same
+# flash it booted from. We do the same. CCLK is a DEDICATED pin and is NOT
+# located here -- it is reached only through the USRMCLK primitive.
+#
+# Pin functions come from the sysCONFIG names in the decode, not from guesses.
+LOCATE COMP "flash_csn"   SITE "R8";   # SN/CSN     -- chip select
+LOCATE COMP "flash_mosi"  SITE "T8";   # D0/MOSI/IO0
+LOCATE COMP "flash_miso"  SITE "T7";   # D1/MISO/IO1  (input in every image)
+IOBUF PORT "flash_csn"  IO_TYPE=LVCMOS33 DRIVE=4;
+IOBUF PORT "flash_mosi" IO_TYPE=LVCMOS33 DRIVE=8;
+IOBUF PORT "flash_miso" IO_TYPE=LVCMOS33 PULLMODE=UP;
+# Remaining bank-8 pins, all HIGH, used only for quad/dual mode or as strap
+# holds. Drive D2/D3 (and HOLDN) high if the flash is left in single-SPI mode.
+#   M7 = D2/IO2      N7 = D3/IO3      P7 = D4/MOSI2/IO4   R7 = D5/MISO2/IO5
+#   R6 = D6/IO6      T6 = D7/IO7      M9 = WRITEN         P8 = CS1N
+#   N8 = HOLDN/DI/BUSY/CSSPIN/CEN     M8 = DOUT/CSON
+LOCATE COMP "flash_holdn" SITE "N8";
+LOCATE COMP "flash_wpn"   SITE "M7";
+IOBUF PORT "flash_holdn" IO_TYPE=LVCMOS33 DRIVE=8;
+IOBUF PORT "flash_wpn"   IO_TYPE=LVCMOS33 DRIVE=4;
+
+# ----------------------------------------------------------------------------
+# 5. HUB75E connector J1 -- **THE BLOCKING UNKNOWN** -- TODO, NOTHING LOCATED
+# ----------------------------------------------------------------------------
+# What IS known, all HIGH:
+#   * 96 pads on the LEFT and RIGHT edges are the serial RGB data lines
+#     (32 serial RGB groups x 3 colours, matching the E120 spec exactly).
+#     The full list is analysis/fpga/rgb96_pins.txt and is reproduced in
+#     section 7 below as commented candidates.
+#   * The TOP-edge pads are the HUB75 control signals. They share one global
+#     synchronous blank (Q4@23,18) and one 2:1 source select (Q5@23,18) and
+#     are ACTIVE LOW.
+#   * Five top pads -- A3, B4, B11, E5, E10 -- have the IDENTICAL driver LUT
+#     (INIT 0011000000100010, pad = G2 ? ~legBRAM : ~legCOUNTER), one leg a
+#     CCU2 counter and the other a block RAM. Five identical pads muxing a
+#     counter against a table is the signature of the A..E scan address
+#     lines. MEDIUM.
+#   * One contiguous run of 14 top pads at DRIVE 8 / SLEWRATE FAST spans
+#     R0C27..R0C44 and is the only such run on the top edge; 14 is exactly a
+#     HUB75E port's signal count. MEDIUM, and see the caveat below.
+#
+# What is NOT known, and cannot be derived from any bitstream:
+#   * WHICH pad carries which HUB75 signal (A/B/C/D/E vs CLK vs LAT vs OE).
+#   * WHICH pads form WHICH of the twelve physical connectors J1..J12.
+#     Nothing in a bitstream ties a pad to a connector.
+#
+# DO NOT FILL THESE IN BY GUESSING. They are resolved by experiments E-ADDR,
+# E-CLK and E-DATA in docs/own-gateware/PLAN.md, each of which is a bitstream
+# sweep photographed with scripts/panelcap.py. Until then the design builds
+# with the HUB75 ports left unlocated, which nextpnr will place arbitrarily --
+# that is intentional and it is why the LED build is gated behind an explicit
+# `make hub75` target that refuses to run without a resolved pin file.
+#
+# LOCATE COMP "hub_clk"   SITE "??";   # DCLK  -> chip DCLK
+# LOCATE COMP "hub_lat"   SITE "??";   # LAT   -> chip LE
+# LOCATE COMP "hub_oe"    SITE "??";   # OE    -> chip RCLK  (a PULSE TRAIN,
+#                                      #          not a blanking level: the
+#                                      #          SM16269 has no OE pin)
+# LOCATE COMP "hub_addr[0]" SITE "??"; # A
+# LOCATE COMP "hub_addr[1]" SITE "??"; # B
+# LOCATE COMP "hub_addr[2]" SITE "??"; # C
+# LOCATE COMP "hub_addr[3]" SITE "??"; # D
+# LOCATE COMP "hub_addr[4]" SITE "??"; # E   (unused at 1/16, drive 0)
+# LOCATE COMP "hub_rgb[0]"  SITE "??"; # R1  upper half
+# LOCATE COMP "hub_rgb[1]"  SITE "??"; # G1
+# LOCATE COMP "hub_rgb[2]"  SITE "??"; # B1
+# LOCATE COMP "hub_rgb[3]"  SITE "??"; # R2  lower half
+# LOCATE COMP "hub_rgb[4]"  SITE "??"; # G2
+# LOCATE COMP "hub_rgb[5]"  SITE "??"; # B2
+
+# ----------------------------------------------------------------------------
+# 6. Top-edge control candidates -- MEDIUM, for the sweep only
+# ----------------------------------------------------------------------------
+# The 14-pin DRIVE 8 / SLEWRATE FAST contiguous run, in pad order R0C27..R0C44:
+#   C7  B7  A8   E8  D8   C8  B8   B9  C9   D9  E9   A9   B10 C10
+# CAVEAT, and it matters: this run was noticed BEFORE the 96 RGB pins were
+# located on the left/right edges. Now that the RGB lines are known not to be
+# on the top edge, "14 = 6 RGB + 5 addr + CLK + LAT + OE" is a coincidence that
+# must not be over-read. Treat the run as 14 fast control pads, not as one
+# port's worth of HUB75.
+#
+# The five identical-driver pads (the A..E candidates, MEDIUM):
+#   A3  B4  B11  E5  E10
+#
+# Three top-edge pads are genuine fabric INPUTS (HIGH that they are inputs,
+# function NOT RESOLVED). One of them is very likely the physical test button
+# named in the E120 spec:
+#   A10 (R0C42B)   A12 (R0C53B)   D12 (R0C58A)
+# LOCATE COMP "btn[0]" SITE "A10";
+# LOCATE COMP "btn[1]" SITE "A12";
+# LOCATE COMP "btn[2]" SITE "D12";
+#
+# Six pads are strapped to constants through the CIB input mux at
+# DRIVE 16 / SLEWRATE FAST. HIGH that they are static-level outputs; their
+# meaning is NOT RESOLVED (enables, mode straps, or possibly status LEDs --
+# no dedicated LED pin was identified anywhere in the design):
+#   constant 0 : A15, K12, M6
+#   constant 1 : E12, E13, M13
+# **Reproduce these levels in any bitstream you flash.** If one of them is a
+# board-level enable (level shifter OE, panel power gate), getting it wrong is
+# the cheapest way to see nothing at all and blame the wrong thing.
+LOCATE COMP "strap0[0]" SITE "A15";
+LOCATE COMP "strap0[1]" SITE "K12";
+LOCATE COMP "strap0[2]" SITE "M6";
+LOCATE COMP "strap1[0]" SITE "E12";
+LOCATE COMP "strap1[1]" SITE "E13";
+LOCATE COMP "strap1[2]" SITE "M13";
+IOBUF PORT "strap0[0]" IO_TYPE=LVCMOS33 DRIVE=16;
+IOBUF PORT "strap0[1]" IO_TYPE=LVCMOS33 DRIVE=16;
+IOBUF PORT "strap0[2]" IO_TYPE=LVCMOS33 DRIVE=16;
+IOBUF PORT "strap1[0]" IO_TYPE=LVCMOS33 DRIVE=16;
+IOBUF PORT "strap1[1]" IO_TYPE=LVCMOS33 DRIVE=16;
+IOBUF PORT "strap1[2]" IO_TYPE=LVCMOS33 DRIVE=16;
+
+# ----------------------------------------------------------------------------
+# 7. The 96 serial-RGB data pads -- HIGH as a SET, unassigned to connectors
+# ----------------------------------------------------------------------------
+# Reference list only; not located. Source: analysis/fpga/rgb96_pins.txt.
+# The 6 pads belonging to J1 are 6 of these 96 and are found by experiment
+# E-DATA. The pad order below is prjtrellis tile order R2->R47, which is the
+# most likely candidate ordering for "group 0, group 1, ..." and is therefore
+# the order the sweep should walk.
+#
+# LEFT edge (bank 6/7), 48 pads:
+#   B1  D3  C1  C2  E3  F3  D1  E2  F4  F5  G5  G4  F2  E1  F1  G2  G3  H3
+#   H5  H4  J4  J5  G1  H2  K4  K5  L4  L5  N1  P2  L3  M3  M4  N3  N4  P3
+#   R2  T2  P4  R3  R4  T3  R5  T4  M5  N5  N6  P5
+# RIGHT edge (bank 2/3), 48 pads:
+#   B16 B15 C14 C16 C15 E14 F14 D16 E15 F13 F12 G12 G13 F15 E16 F16 G15 G14
+#   H14 H12 H13 J13 J12 G16 H15 K13 L13 L12 P15 L14 M14 N14 N13 P14 R15 T15
+#   P13 R14 R13 T14 R12 T13 M12 N12 M11 N11 P11 P12
+
+# ----------------------------------------------------------------------------
+# 8. sysCONFIG
+# ----------------------------------------------------------------------------
+# COMPRESS_CONFIG=ON keeps the image small; the vendor images are uncompressed.
+# MASTER_SPI_PORT / SLAVE_SPI_PORT govern whether the dedicated SPI pins stay
+# owned by the configuration engine after DONE. To drive the flash from user
+# logic we need the port released and USRMCLK instantiated.
+# TODO: confirm the exact keyword set your prjtrellis build accepts before
+# relying on this line; a rejected SYSCONFIG line is a silent behaviour change.
+SYSCONFIG MASTER_SPI_PORT=DISABLE SLAVE_SPI_PORT=DISABLE COMPRESS_CONFIG=ON;

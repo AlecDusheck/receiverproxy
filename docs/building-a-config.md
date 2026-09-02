@@ -39,6 +39,12 @@ gray depth is derived from registers 0x07/0x03 (`GetSupporttedGray`).
 own "Default Parameter" table. `sm16169sh.toml` — the plain 0x14C table the
 seller's file actually carried (with their reg 0x07 edit).
 
+Not every chip works this way. Non-SH parts such as SM16169S (0x00DE) have no
+register table at all — no record 0x84 — and carry their whole configuration
+in the 16-byte `SChipCustom` block of record 0x01. `sm16169s-vendor.toml` and
+`sm16269s-vendor-0x214.toml` hold those, and `docs/chip-libraries-non-sh.md`
+describes the shape and the `chips.rs` change they need before they will load.
+
 ## What is derived, and from where
 
 | Output | Source | Confidence |

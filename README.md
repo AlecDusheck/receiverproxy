@@ -58,9 +58,9 @@ e120 blank
 
 ## Bench
 
-`scripts/safe-boot.sh` powers the panel on without railing the supply,
-`scripts/strobe.sh` turns flicker into a measured waveform, `scripts/snap-avg.sh`
-takes strobe-proof stills, `scripts/trial.sh` / `ab.sh` run one experiment with
+`scripts/bench.py boot` powers the panel on without railing the supply,
+`scripts/bench.py capture` turns flicker into a measured waveform, `scripts/bench.py capture`
+takes strobe-proof stills, `scripts/bench.py run --boot` / `ab.sh` run one experiment with
 current readings and photos.
 
 ## Flash and firmware

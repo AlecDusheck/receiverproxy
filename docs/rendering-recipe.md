@@ -16,7 +16,7 @@ pinned in `config/panels/p25-128x64-sm16269s.toml`; the method is in
 | `+0x0FC` table, `+0x19A` lane map | inherited (non-zero) | zeroing them (as the 16169 corpus has) breaks rendering on this card. |
 | firmware | 16.53 | 9.53 arms nothing; 10.81 free-runs. Install via `e120 upgrade install` (SDRAM self-program, blocks 0–2 and 8) **plus** `flash-firmware --from-block 3 --to-block 7`: 16.53 write-protects its header/trailer sectors from the host path. |
 | EEPROM | control area `0,0,128,64` | check with `scripts/flash-review.py` after any flash operation; restore with `scripts/eeprom-restore.py` (one record at a time, broadcast index, paced). |
-| boot | push packs ≥ 12 s after power-on | the card answers discovery before it has loaded its own parameters. |
+| boot | **configure from flash** (`arm_at_boot = true`, `restore-flash` the block-7 image, then `eeprom-restore`) | three of three power-cycles render identically (black 0.73–0.77 A, white 1.74–1.76 A, control returns). Pushing the same parameters into RAM with `send-params` after boot renders on roughly one boot in three: the 34 unacknowledged packs are evidently not all landing. Use RAM pushes for experiments only, and prefer pushing twice with `--gap-ms 25`. |
 
 ## Open
 

@@ -12,7 +12,10 @@ spec is emitted only on an exact fit.
 Everything emitted says it was mined and from how many files. None of it is
 bench-verified except where docs/rendering-recipe.md says so.
 
-Usage: corpus-mine.py [--min-files 5] [--out config]
+Only the popular options are kept: chip families and module classes below
+the file thresholds are left out so the database stays a shortlist.
+
+Usage: corpus-mine.py [--min-files 20] [--min-panel-files 6] [--out config]
 """
 import argparse
 import collections
@@ -232,7 +235,8 @@ def panel_spec(key, files, chip_path, names, out_dir):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--min-files', type=int, default=5)
+    ap.add_argument('--min-files', type=int, default=20, help='chip families with fewer vendor files are left out')
+    ap.add_argument('--min-panel-files', type=int, default=6, help='module classes with fewer vendor files are left out')
     ap.add_argument('--min-agree', type=float, default=0.5)
     ap.add_argument('--out', default='config')
     a = ap.parse_args()
@@ -264,7 +268,7 @@ def main():
             by_geo[(f['w'], f['h'], f['scan'], f['chip'])].append(f)
     print()
     for key, fs in sorted(by_geo.items(), key=lambda kv: -len(kv[1])):
-        if len(fs) < 3:
+        if len(fs) < a.min_panel_files:
             continue
         _, msg = panel_spec(key, fs, chip_paths.get(key[3]), names, a.out)
         print(msg)

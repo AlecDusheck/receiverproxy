@@ -169,9 +169,11 @@ impl Wall {
         }
 
         // Latch everything sent so far onto the panels. FPP sends the latch
-        // frame twice per refresh on firmware v13+ (this card runs 16.53).
-        self.dev.send(&proto::sync(self.settings.brightness))?;
-        self.dev.send(&proto::sync(self.settings.brightness))?;
+        // twice per refresh on firmware v13+; on this card two is borderline
+        // (the picture decays and returns on a ~10 s period) and three holds.
+        for _ in 0..3 {
+            self.dev.send(&proto::sync(self.settings.brightness))?;
+        }
         self.frames_sent += 1;
         Ok(())
     }

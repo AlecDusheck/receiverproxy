@@ -190,10 +190,15 @@ pub fn send_frame_as(
     dev.send(&protocol::brightness(cli.brightness))?;
     let w = cli.width as usize;
     let h = cli.height as usize;
+    // Latches after the rows. One never starts the display; two renders but
+    // the picture decays into noise and back on a ~10 s period; three or four
+    // hold it steady for as long as measured (docs/bench-measurement.md).
+    let latches = std::env::var("E120_LATCHES").ok().and_then(|v| v.parse().ok()).unwrap_or(3u32);
     if raster == Raster::Rows {
         send_rows(dev, cli, fb, w, h, row_base)?;
-        dev.send(&protocol::sync(cli.brightness))?;
-        dev.send(&protocol::sync(cli.brightness))?;
+        for _ in 0..latches {
+            dev.send(&protocol::sync(cli.brightness))?;
+        }
         return Ok(());
     }
     let half = h / 2;
@@ -217,8 +222,9 @@ pub fn send_frame_as(
             offset += chunk.len();
         }
     }
-    dev.send(&protocol::sync(cli.brightness))?;
-    dev.send(&protocol::sync(cli.brightness))?;
+    for _ in 0..latches {
+        dev.send(&protocol::sync(cli.brightness))?;
+    }
     Ok(())
 }
 

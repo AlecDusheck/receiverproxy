@@ -36,8 +36,8 @@ FIELDDICT = os.path.join(HERE, "fielddict.csv")
 REPORT = os.path.join(HERE, "report.md")
 
 VENDOR_DIRS = ("ledvision/", "lv/", "lv88/", "lv96/", "ex/", "ex2/", "corpus/")
-CORPUS_ROOT = ("/private/tmp/claude-501/-Users-amd-e120/"
-               "261c3dad-ba97-45d2-8ea3-ab7a950a8ff9/scratchpad/")
+# Directory holding the extracted vendor installers (LEDVISION etc.); volatile.
+CORPUS_ROOT = os.environ.get("E120_CORPUS_ROOT", os.path.expanduser("~/e120-corpus/"))
 
 SIG_COMPRESSED = bytes([0x20, 0x20, 0x19, 0xBE])
 PAYLOAD_LEN = 764

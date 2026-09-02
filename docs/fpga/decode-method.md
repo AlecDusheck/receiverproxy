@@ -235,10 +235,4 @@ current directory (or edit the path at the top).
 and are **not** committed. Regenerate with `netbuild.py` / `full.py` after
 running `repro.sh`; it takes about a minute per image.
 
-Scratchpad root used for this work:
-
-```
-/private/tmp/claude-501/-Users-amd-e120/eebf5407-0aa9-43c6-b991-a4285ce428a5/scratchpad/trellis/
-```
-
-It is volatile. Everything durable was copied into `analysis/fpga/`.
+The Trellis working directory was a temporary scratch area; everything durable was copied into `analysis/fpga/`.

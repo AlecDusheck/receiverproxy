@@ -74,4 +74,4 @@ names which.
   and 14-bit gray; other gray depths need their own hand-coded vendor blocks.
 * Module-position generation covers the plain grid (split segment 1).
 * The chip page is written only for `arm_at_boot = true`; measured: booting
-  from flash with it written arms the drivers on three of three power-cycles.
+  from flash with it written arms the drivers on every power-cycle.

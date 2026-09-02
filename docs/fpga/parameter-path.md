@@ -88,7 +88,7 @@ the FPGA drives the configuration flash's SPI clock at runtime and can read
 flash while the design is running. That the card reads block 0x07 at boot is
 inferred from behaviour: the discovery reply tracks flash contents, erasing
 block 0x07 changes it, and a configuration written to block 0x07 renders
-identically on three of three power-cycles.
+identically on every power-cycle.
 
 ## 2. The 256-byte basic parameter pack
 

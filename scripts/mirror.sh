@@ -52,8 +52,10 @@ EOF
 fi
 
 # Both grabbers draw the cursor by default. macOS asks for Screen Recording
-# permission for the terminal the first time.
+# permission for the terminal the first time. The screen grabber only emits a
+# frame when the display changes; cfr output repeats the last one so the
+# panel keeps refreshing at $fps.
 exec ffmpeg -hide_banner -loglevel error \
     -f "$grab" $infmt -framerate "$fps" -i "$device" \
-    -vf "$filter" -f rawvideo -pix_fmt rgb24 - \
+    -vf "$filter" -fps_mode cfr -r "$fps" -f rawvideo -pix_fmt rgb24 - \
     | "$e120" show stream --size "$size" --fps "$fps" "$@"

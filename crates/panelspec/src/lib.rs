@@ -12,6 +12,8 @@ pub use chips::{ChipLibrary, ScanPatch};
 /// The path is relative to the repository root. Non-mined files first,
 /// then `mined/`, each alphabetical.
 pub mod embedded {
+    use anyhow::Context as _;
+
     include!(concat!(env!("OUT_DIR"), "/libraries.rs"));
 
     /// The chip library at `path` (`config/chips/...`).
@@ -33,9 +35,79 @@ pub mod embedded {
         path.contains("/mined/")
     }
 
+    /// Every embedded panel spec, parsed, as `(path, spec)` in embedding
+    /// order.
+    ///
+    /// # Errors
+    /// Fails on a spec that does not parse; the crate's tests keep that from
+    /// being embedded.
+    pub fn specs() -> anyhow::Result<Vec<(&'static str, crate::PanelSpec)>> {
+        PANELS
+            .iter()
+            .map(|&(path, text)| {
+                let spec = crate::PanelSpec::parse(text)
+                    .with_context(|| format!("parse {path}"))?;
+                Ok((path, spec))
+            })
+            .collect()
+    }
+
+    /// The embedded chip library for a chip family id, as `(path, text)`:
+    /// a library an embedded panel spec names wins over one none does
+    /// (the SM16269S family has four), then embedding order.
+    #[must_use]
+    pub fn chip_by_family(family_id: u16) -> Option<(&'static str, &'static str)> {
+        let named: Vec<String> = specs()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, spec)| spec.chip.library)
+            .collect();
+        let has_id = |&&(_, text): &&(&str, &str)| {
+            crate::ChipLibrary::parse(text).is_ok_and(|c| c.family_id == family_id)
+        };
+        CHIPS
+            .iter()
+            .filter(|(path, _)| named.iter().any(|n| n == path))
+            .chain(CHIPS.iter())
+            .find(has_id)
+            .copied()
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn every_embedded_spec_parses_and_carries_meta() {
+            let specs = specs().unwrap();
+            assert_eq!(specs.len(), PANELS.len());
+            for (path, text) in PANELS {
+                let table: toml::Table = text.parse().unwrap();
+                assert!(table.contains_key("meta"), "{path}: no [meta] table");
+            }
+            let (path, bench) = &specs[0];
+            assert_eq!(*path, "config/panels/p25-128x64-sm16269s.toml");
+            assert_eq!(bench.meta.status, crate::Status::Tested);
+            assert_eq!(bench.meta.origin, crate::Origin::Bench);
+            assert_eq!(bench.meta.pitch_mm, Some(2.5));
+            for (path, spec) in &specs[1..] {
+                assert!(is_mined(path));
+                assert_eq!(spec.meta.status, crate::Status::Generates, "{path}");
+                assert_eq!(spec.meta.origin, crate::Origin::Mined, "{path}");
+                assert!(spec.meta.sources > 0, "{path}");
+                assert!(!spec.meta.examples.is_empty(), "{path}");
+            }
+        }
+
+        #[test]
+        fn a_chip_id_finds_the_library_the_shipped_specs_use() {
+            // Four libraries carry 0x14C; the bench spec's is the one chosen.
+            let (path, text) = chip_by_family(0x14C).unwrap();
+            assert_eq!(path, "config/chips/sm16269s-factory.toml");
+            assert_eq!(crate::ChipLibrary::parse(text).unwrap().family_id, 0x14C);
+            assert_eq!(chip_by_family(0x85).unwrap().0, "config/chips/mined/icn2053.toml");
+            assert!(chip_by_family(0xFFFF).is_none());
+        }
 
         #[test]
         fn the_bench_files_are_embedded_before_the_mined_ones() {
@@ -63,7 +135,7 @@ pub mod embedded {
 }
 
 use anyhow::{bail, Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize, Serializer};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -83,11 +155,14 @@ pub fn read_library(path: &str) -> Result<String> {
     std::fs::read_to_string(path).with_context(|| format!("read {path}"))
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PanelSpec {
     /// Name used for output files.
     pub name: String,
+    /// Where the values came from and how far they are trusted.
+    #[serde(default)]
+    pub meta: Meta,
     pub module: Module,
     pub screen: Screen,
     pub chip: Chip,
@@ -103,11 +178,89 @@ pub struct PanelSpec {
     pub boot: Boot,
     /// Raw record 0x01 byte overrides (`"0x043" = 0x20`), applied last. The
     /// bench spec's `+0x02F = 1` lives here; nothing displays without it.
-    #[serde(default, deserialize_with = "chips::record01_offsets")]
+    #[serde(
+        default,
+        deserialize_with = "chips::record01_offsets",
+        serialize_with = "chips::hex_offsets",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
     pub record01_overrides: BTreeMap<usize, u8>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+/// An `f32` written as its shortest decimal (`2.8`, not the f64 expansion
+/// of the nearest binary value); it parses back to the same `f32`.
+struct Short(f32);
+
+impl Serialize for Short {
+    fn serialize<S: Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        let text = self.0.to_string();
+        s.serialize_f64(text.parse().unwrap_or_else(|_| f64::from(self.0)))
+    }
+}
+
+// serde's `serialize_with` passes the field by reference.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn short<S: Serializer>(v: &f32, s: S) -> std::result::Result<S::Ok, S::Error> {
+    Short(*v).serialize(s)
+}
+
+fn shorts<S: Serializer>(v: &[f32], s: S) -> std::result::Result<S::Ok, S::Error> {
+    s.collect_seq(v.iter().map(|&x| Short(x)))
+}
+
+/// The `[meta]` table: provenance and trust. Every field has a default, so
+/// a spec without the table is a mined one no file agreed with yet.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(default, deny_unknown_fields)]
+pub struct Meta {
+    /// Pixel pitch in millimetres, when the spec describes one physical module.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub pitch_mm: Option<f32>,
+    pub status: Status,
+    pub origin: Origin,
+    /// Vendor files the values were taken from.
+    pub sources: u32,
+    /// Share (0..1) of the files for this module class that agree with the
+    /// values; absent when nothing was counted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub agreement: Option<f32>,
+    /// A few of the source files by name.
+    pub examples: Vec<String>,
+    /// Vendors whose files the sources are.
+    pub vendors: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub notes: Option<String>,
+}
+
+/// How far a spec has been shown to work.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "lowercase")]
+pub enum Status {
+    /// Driven on a bench from flash.
+    Tested,
+    /// The configuration generates; never driven.
+    #[default]
+    Generates,
+}
+
+/// Where a spec's values came from.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "lowercase")]
+pub enum Origin {
+    /// Measured against a panel.
+    Bench,
+    /// The vendor default for the module class, from the config corpus.
+    #[default]
+    Mined,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Module {
     /// Pixels across one module.
@@ -118,8 +271,10 @@ pub struct Module {
     pub scan: u8,
     /// Serial (data) clock setting, the vendor's SetSerialClockFrequency unit;
     /// the chip library's default when absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub serial_clock: Option<u16>,
     /// Grayscale depth override; derived from the chip registers when absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub gray_bits: Option<u8>,
     /// Data line direction: 0/1 vertical, 2/3 horizontal (vendor GetLineDir).
     #[serde(default)]
@@ -129,7 +284,7 @@ pub struct Module {
     pub data_groups: u8,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Screen {
     /// Whole screen this card drives, in pixels (MaxWidth/MaxHeight).
@@ -137,14 +292,14 @@ pub struct Screen {
     pub height: u16,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Chip {
     /// Chip library (`config/chips/*.toml`): ids, register defaults, chip control.
     pub library: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Color {
     /// Colour-swap index (record +0x02B).
@@ -162,12 +317,13 @@ impl Default for Color {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Current {
     /// Red, green, blue, virtual-red current gain, 0-63.
     pub gains: [u8; 4],
     /// Per-channel current percent (record +0x0B4/B8/BC, f32).
+    #[serde(serialize_with = "shorts")]
     pub percent: [f32; 3],
 }
 
@@ -180,14 +336,17 @@ impl Default for Current {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Timing {
+    #[serde(serialize_with = "short")]
     pub gamma: f32,
+    #[serde(serialize_with = "short")]
     pub refresh_hz: f32,
     /// GCLK setting (record +0x031); vendor default 0x14.
     pub gclock: u8,
     /// Minimum OE time (record +0x0AE); the PWM bit-time solver's floor.
+    #[serde(serialize_with = "short")]
     pub min_oe: f32,
     /// Luminance level (record +0x026), split across the colour percents.
     pub luminance_level: u16,
@@ -210,7 +369,7 @@ impl Default for Timing {
 
 /// How the module's pixels are wired into the card's scan-line buffer
 /// (record 0x03). The vendor corpus shows two knobs beyond geometry.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Mapping {
     /// Data groups (`stored height / scan` of them) in reverse order in the
@@ -221,7 +380,7 @@ pub struct Mapping {
     /// Columns per run of the shift chain before it switches data group:
     /// `[lower 0..b][upper 0..b][lower b..2b]...`. Default (module width) gives
     /// each group one contiguous half; the bench panel's own file uses 64.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub block: Option<u16>,
     /// Displace line positions `width..2*width` off the chain via the void-line
     /// column table; otherwise the card drives them with a fixed pattern that
@@ -245,7 +404,7 @@ impl Default for Mapping {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Boot {
     /// Install the chip-register page so the card arms the drivers at
@@ -275,6 +434,15 @@ impl PanelSpec {
     /// Fails on malformed TOML or an unknown field.
     pub fn parse(text: &str) -> Result<Self> {
         Ok(toml::from_str(text)?)
+    }
+
+    /// The spec as TOML, tables in the order `config/panels/*.toml` use;
+    /// `parse` reads it back to the same values.
+    ///
+    /// # Errors
+    /// Fails when a value cannot be written as TOML.
+    pub fn to_toml(&self) -> Result<String> {
+        toml::to_string(self).context("write spec")
     }
 
     /// The spec's chip library, with `load` mapping `[chip].library` to TOML
@@ -425,5 +593,30 @@ mod tests {
     #[test]
     fn unknown_fields_are_refused() {
         assert!(PanelSpec::parse("name = \"t\"\nextra = 1\n").is_err());
+    }
+
+    #[test]
+    fn a_spec_written_as_toml_reads_back_to_the_same_values() {
+        let text = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../config/panels/p25-128x64-sm16269s.toml"
+        ))
+        .unwrap();
+        let spec = PanelSpec::parse(&text).unwrap();
+        let out = spec.to_toml().unwrap();
+        assert!(out.starts_with("name = \"p25-128x64-sm16269s\"\n\n[meta]\n"), "{out}");
+        assert!(out.contains("\n[record01_overrides]\n0x02F = 1\n"), "{out}");
+        assert!(out.contains("gamma = 2.8\n") && out.contains("min_oe = 0.0001\n"), "{out}");
+        let back = PanelSpec::parse(&out).unwrap();
+        assert_eq!(back.to_toml().unwrap(), out);
+        assert_eq!(back.record01_overrides, spec.record01_overrides);
+        assert_eq!(back.timing.min_oe.to_bits(), spec.timing.min_oe.to_bits());
+        assert_eq!(back.module.serial_clock, Some(8));
+
+        let mut bare = spec;
+        bare.record01_overrides.clear();
+        bare.mapping.block = None;
+        let out = bare.to_toml().unwrap();
+        assert!(!out.contains("record01_overrides") && !out.contains("block"), "{out}");
     }
 }

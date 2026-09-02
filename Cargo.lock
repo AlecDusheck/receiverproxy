@@ -732,6 +732,7 @@ dependencies = [
  "anyhow",
  "serde",
  "toml",
+ "ts-rs",
 ]
 
 [[package]]
@@ -801,6 +802,7 @@ dependencies = [
  "receivers",
  "serde",
  "toml",
+ "ts-rs",
 ]
 
 [[package]]

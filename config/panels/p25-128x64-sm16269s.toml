@@ -8,6 +8,15 @@
 
 name = "p25-128x64-sm16269s"
 
+[meta]
+pitch_mm = 2.5
+status = "tested"
+origin = "bench"
+sources = 1
+examples = ["P2.5-32S-128X64-SM16269S-256X384I.rcvbp"]
+vendors = ["Colorlight"]
+notes = "Driven from flash on firmware 16.53; record 0x01 differs from the reference file at 0x023, 0x02F and 0x0C0..0x0C3 (docs/rendering.md)."
+
 [module]
 # The card arrived saying 14. Kept at 12 because it is what was measured most;
 # 12-16 render alike from flash (docs/rendering.md).

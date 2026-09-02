@@ -84,6 +84,14 @@ where
     Ok(map)
 }
 
+/// The reverse of `record01_offsets`: keys written as `"0x02F"`.
+pub(crate) fn hex_offsets<S>(map: &BTreeMap<usize, u8>, s: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    s.collect_map(map.iter().map(|(at, v)| (format!("{at:#05X}"), v)))
+}
+
 pub(crate) trait HexKey: Ord {
     fn parse_hex(s: &str) -> Result<Self>
     where

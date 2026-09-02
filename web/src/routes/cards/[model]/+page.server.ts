@@ -3,7 +3,7 @@ import { cards, firmware, imageLocation, panels } from "$lib/server/config";
 
 export const prerender = true;
 
-export const entries = () => cards().map((c) => ({ model: c.name }));
+export const entries = () => cards().map((c) => ({ model: c.name.toLowerCase() }));
 
 export function load({ params }) {
   const card = cards().find((c) => c.name.toLowerCase() === params.model.toLowerCase());

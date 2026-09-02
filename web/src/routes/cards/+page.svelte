@@ -20,7 +20,7 @@
     <tbody>
       {#each data.cards as c (c.name)}
         <tr>
-          <td><a href="/cards/{encodeURIComponent(c.name)}">{c.name}</a></td>
+          <td><a href="/cards/{encodeURIComponent(c.name.toLowerCase())}">{c.name}</a></td>
           <td>{c.vendor}</td>
           <td class="mono">{c.family}</td>
           <td class="mono">{hex(c.id)}</td>

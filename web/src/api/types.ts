@@ -247,13 +247,103 @@ export type SetLayoutReq = {
   panel_height: number;
   index?: number;
 };
+export type Status = "tested" | "generates";
+export type Origin = "bench" | "mined";
+export type Meta = {
+  /**
+   * Pixel pitch in millimetres, when the spec describes one physical module.
+   */
+  pitch_mm?: number;
+  status: Status;
+  origin: Origin;
+  /**
+   * Vendor files the values were taken from.
+   */
+  sources: number;
+  /**
+   * Share (0..1) of the files for this module class that agree with the
+   * values; absent when nothing was counted.
+   */
+  agreement?: number;
+  /**
+   * A few of the source files by name.
+   */
+  examples: Array<string>;
+  /**
+   * Vendors whose files the sources are.
+   */
+  vendors: Array<string>;
+  notes?: string;
+};
+export type EntryModule = {
+  width: number;
+  height: number;
+  scan: number;
+};
+export type EntryChip = {
+  /**
+   * The `[chip].library` path.
+   */
+  library: string;
+  /**
+   * The library's `name`.
+   */
+  name: string;
+  family_id: number;
+};
+export type Entry = {
+  path: string;
+  name: string;
+  meta: Meta;
+  module: EntryModule;
+  chip: EntryChip;
+  /**
+   * Registry formats that can generate for the entry.
+   */
+  formats: Array<string>;
+};
+export type Format = {
+  /**
+   * The name `--format` and the site use.
+   */
+  name: string;
+  vendor: string;
+  /**
+   * File extension without the dot.
+   */
+  extension: string;
+  /**
+   * The codec writes a file from a spec.
+   */
+  generate: boolean;
+  /**
+   * The codec reads a file back into a spec.
+   */
+  import: boolean;
+};
+export type GenFile = {
+  name: string;
+  bytes: Uint8Array;
+};
 export type Generated = {
   name: string;
-  rcvbp: Uint8Array;
-  basic_pack: Uint8Array;
-  block7: Uint8Array | null;
+  files: Array<GenFile>;
   sources: Array<string>;
   notes: Array<string>;
+};
+export type Imported = {
+  /**
+   * The spec as TOML, the form the Builder edits.
+   */
+  spec_toml: string;
+  /**
+   * Fields the file did not determine, by name.
+   */
+  unresolved: Array<string>;
+  /**
+   * The registry format the file was read as, or `spec` for a TOML spec.
+   */
+  format: string;
 };
 export type Record01 = {
   module_width: number;

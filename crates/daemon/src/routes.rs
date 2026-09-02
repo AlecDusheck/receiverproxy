@@ -394,7 +394,7 @@ async fn config_gen(State(state): State<Shared>, Body(req): Body<SpecReq>) -> Ap
     // No hardware: the boot image is laid out for the settings' card, the
     // discovered one, else the first tested model.
     let card = state.ctx().model.unwrap_or_else(receivers::default_model);
-    let g = config::generate(card, &spec, &label, &load_library)
+    let g = config::generate(card, &spec, &label, "rcvbp", &load_library)
         .map_err(|e| ApiError::command("config gen", &e))?;
     Ok(Json(GenFiles {
         name: g.name,

@@ -15,10 +15,33 @@ fn js<T: Serialize>(r: anyhow::Result<T>) -> Result<JsValue, JsError> {
     v.serialize(&s).map_err(|e| JsError::new(&e.to_string()))
 }
 
-/// `Generated` from a panel spec's TOML text; chip libraries come from the embedded set.
+/// `Generated` from a panel spec's TOML text in `format` (one of `formats()`);
+/// chip libraries come from the embedded set.
 #[wasm_bindgen]
-pub fn generate(spec_toml: &str) -> Result<JsValue, JsError> {
-    js(api::generate(spec_toml))
+pub fn generate(spec_toml: &str, format: &str) -> Result<JsValue, JsError> {
+    js(api::generate(spec_toml, format))
+}
+
+/// `Imported` from a vendor file's bytes.
+///
+/// `format` names one of `formats()` or is left out to detect it from the
+/// bytes. The glue exports it as `_import` (a JavaScript function cannot be
+/// named `import`); web/src/lib/wasm.ts maps it back.
+#[wasm_bindgen]
+pub fn import(bytes: &[u8], format: Option<String>) -> Result<JsValue, JsError> {
+    js(api::import(bytes, format.as_deref()))
+}
+
+/// `Entry[]`: the embedded panel specs with their `[meta]`, module, chip and formats.
+#[wasm_bindgen]
+pub fn gallery() -> Result<JsValue, JsError> {
+    js(api::gallery())
+}
+
+/// `Format[]`: the codec registry.
+#[wasm_bindgen]
+pub fn formats() -> Result<JsValue, JsError> {
+    js(Ok(api::formats()))
 }
 
 /// `Inspection` of a `.rcvbp` file's bytes, compressed or legacy.

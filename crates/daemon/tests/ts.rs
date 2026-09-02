@@ -6,9 +6,11 @@
 
 use daemon::api::*;
 use daemon::jobs::{GatedOutcome, Job, JobKind, JobResult, JobState, Line, Outcome, Stream};
+use panelspec::{Meta, Origin, Status};
+use rcvbp::Format;
 use rcvbp_wasm::api::{
-    Diff, Generated, Inspection, Libraries, LibraryChip, LibraryPanel, Record01, RecordDiff,
-    RecordInfo,
+    Diff, Entry, EntryChip, EntryModule, GenFile, Generated, Imported, Inspection, Libraries,
+    LibraryChip, LibraryPanel, Record01, RecordDiff, RecordInfo,
 };
 use sources::{Fit, Pattern};
 use std::path::Path;
@@ -48,8 +50,8 @@ fn render() -> String {
         ConfigWriteReq, ConfigSendReq, ProvisionReq, SnapshotReq, RestoreReq, FirmwareReq,
         ScreenSizeQuery, Size, ScreenSizeReq, SizeOutcome, ReloadReq, TestModeReq, SetLayoutReq,
         // section 3: the WASM surface
-        Generated, Record01, RecordInfo, Inspection, RecordDiff, Diff, LibraryChip, LibraryPanel,
-        Libraries,
+        Status, Origin, Meta, EntryModule, EntryChip, Entry, Format, GenFile, Generated, Imported, Record01,
+        RecordInfo, Inspection, RecordDiff, Diff, LibraryChip, LibraryPanel, Libraries,
         // section 4: the layout JSON
         Rotation, Receiver, Panel, Canvas,
     ];

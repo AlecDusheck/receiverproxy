@@ -25,8 +25,11 @@ pub mod off {
     pub const CHIP_LO: usize = 0x036;
     pub const LINE_DIR: usize = 0x03C;
     pub const SPLIT: usize = 0x03E;
+    pub const DATA_GROUPS: usize = 0x044;
     pub const SERIAL_CLOCK_HALF: usize = 0x049;
     pub const SERIAL_CLOCK_DUP: usize = 0x04B;
+    /// Bit 0: 8 ns OE.
+    pub const OE_8NS: usize = 0x050;
     pub const GRID_W_LO: usize = 0x057;
     pub const GRID_H_LO: usize = 0x058;
     pub const HR_STYLE: usize = 0x059;

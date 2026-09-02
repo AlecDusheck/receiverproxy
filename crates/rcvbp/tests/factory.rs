@@ -215,6 +215,83 @@ fn the_reference_mapping_is_reproduced_by_the_block_knob() {
     assert_eq!(spec::mapping_record(&our_panel()), *record(&reference, 0x03));
 }
 
+/// The embedded set, as the CLI and the site resolve a chip id.
+fn embedded_chip(id: u16) -> Option<(String, String)> {
+    panelspec::embedded::chip_by_family(id).map(|(p, t)| (p.to_owned(), t.to_owned()))
+}
+
+#[test]
+fn the_bench_spec_survives_a_round_trip_through_its_file() {
+    let spec = our_panel();
+    let bytes = generate(&spec).unwrap().rcvbp.to_file_bytes().unwrap();
+    let (back, unresolved) = spec::spec_from_rcvbp(&bytes, &embedded_chip).unwrap();
+    // Only what the file does not carry is left over.
+    assert_eq!(unresolved, ["meta", "mapping.gate_phantom_positions", "boot.arm_at_boot"]);
+    assert_eq!(back.chip.library, "config/chips/sm16269s-factory.toml");
+    assert_eq!(back.module.serial_clock, Some(8));
+    assert_eq!(back.module.gray_bits, Some(12));
+    assert_eq!(back.mapping.block, Some(64));
+    assert_eq!(back.record01_overrides.iter().collect::<Vec<_>>(), [(&0x02F, &1)]);
+    assert_eq!(back.name, "128x64-16s-sm16269s-factory");
+    // The TOML the CLI writes parses back to a spec that generates the same file.
+    let again = PanelSpec::parse(&back.to_toml().unwrap()).unwrap();
+    assert_eq!(generate(&again).unwrap().rcvbp.to_file_bytes().unwrap(), bytes);
+}
+
+#[test]
+fn the_reference_config_imports_as_the_spec_that_regenerates_it() {
+    let bytes = std::fs::read(repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
+    let (spec, unresolved) = spec::spec_from_rcvbp(&bytes, &embedded_chip).unwrap();
+    assert_eq!(unresolved, ["meta", "mapping.gate_phantom_positions", "boot.arm_at_boot"]);
+    let want = reference_panel();
+    assert_eq!((spec.module.width, spec.module.height, spec.module.scan), (128, 64, 16));
+    assert_eq!((spec.module.line_dir, spec.module.data_groups), (0, 1));
+    assert_eq!(spec.module.serial_clock, want.module.serial_clock);
+    assert_eq!(spec.module.gray_bits, None, "14 bits is what the library derives");
+    assert_eq!((spec.screen.width, spec.screen.height), (256, 384));
+    assert_eq!((spec.color.swap, spec.color.source), (want.color.swap, want.color.source));
+    assert_eq!(spec.current.gains, want.current.gains);
+    assert_eq!(spec.current.percent.map(f32::to_bits), want.current.percent.map(f32::to_bits));
+    assert_eq!(spec.timing.gamma.to_bits(), want.timing.gamma.to_bits());
+    assert_eq!(spec.timing.refresh_hz.to_bits(), want.timing.refresh_hz.to_bits());
+    assert_eq!(spec.timing.gclock, want.timing.gclock);
+    assert_eq!(spec.timing.min_oe.to_bits(), want.timing.min_oe.to_bits());
+    assert_eq!(spec.timing.luminance_level, want.timing.luminance_level);
+    assert_eq!(spec.timing.oe_8ns, want.timing.oe_8ns);
+    assert_eq!(
+        (spec.mapping.reversed_groups, spec.mapping.reversed_lines, spec.mapping.block),
+        (true, false, Some(64))
+    );
+    assert!(spec.record01_overrides.is_empty(), "+0x02F is 0 in that file, the generator's default");
+    // Same family as the test's library, so the file regenerates record for record.
+    let reference = Rcvbp::from_bytes(&bytes).unwrap();
+    let g = generate(&spec).unwrap();
+    for rec in &reference.records {
+        assert_eq!(record(&g.rcvbp, rec.id()), &rec.payload[..], "record 0x{:02x}", rec.id());
+    }
+}
+
+#[test]
+fn an_unknown_chip_id_imports_without_a_library() {
+    let bytes = generate(&our_panel()).unwrap().rcvbp.to_file_bytes().unwrap();
+    let (spec, unresolved) = spec::spec_from_rcvbp(&bytes, &|_| None).unwrap();
+    assert_eq!(spec.chip.library, "");
+    assert_eq!(spec.name, "128x64-16s-chip-0x014c");
+    assert_eq!(spec.module.gray_bits, Some(12));
+    assert_eq!(spec.mapping.block, Some(64));
+    assert_eq!(
+        unresolved,
+        [
+            "meta",
+            "chip.library (no library for chip id 0x014c)",
+            "record01_overrides, record 0x84 (no chip library)",
+            "mapping.gate_phantom_positions",
+            "boot.arm_at_boot"
+        ]
+    );
+    assert!(spec::spec_from_rcvbp(b"not a config", &|_| None).is_err());
+}
+
 #[test]
 fn a_scan_that_does_not_divide_the_module_is_refused() {
     let mut spec = our_panel();

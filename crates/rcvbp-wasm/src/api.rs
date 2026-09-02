@@ -3,44 +3,81 @@
 //! results with the CLI's files.
 
 use anyhow::{anyhow, Context, Result};
-use wall::Canvas;
-use panelspec::{embedded, PanelSpec};
+use panelspec::{embedded, ChipLibrary, Meta, PanelSpec};
 use rcvbp::record01::{View, LEN as RECORD01_LEN};
-use rcvbp::{image, Rcvbp};
+use rcvbp::{image, Format, Rcvbp};
 use serde::{Serialize, Serializer};
 use std::fmt::Write as _;
-
+use wall::Canvas;
 
 fn bytes<S: Serializer>(v: &[u8], s: S) -> Result<S::Ok, S::Error> {
     s.serialize_bytes(v)
 }
 
-// serde's `serialize_with` hands over `&Option<_>`; the signature is its.
-#[allow(clippy::ref_option)]
-fn opt_bytes<S: Serializer>(v: &Option<Vec<u8>>, s: S) -> Result<S::Ok, S::Error> {
-    match v {
-        Some(b) => s.serialize_bytes(b),
-        None => s.serialize_none(),
-    }
-}
-
-/// The bytes fields cross into JavaScript as `Uint8Array` (`serialize_bytes`),
-/// which is what the `ts` attributes say.
+/// What `generate` produced: the files `e120 config gen` would write, named
+/// as it names them, minus the sources report (`sources` and `notes` are
+/// its two lists).
 #[derive(Debug, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Generated {
     pub name: String,
-    #[serde(serialize_with = "bytes")]
-    #[cfg_attr(feature = "ts", ts(type = "Uint8Array"))]
-    pub rcvbp: Vec<u8>,
-    #[serde(serialize_with = "bytes")]
-    #[cfg_attr(feature = "ts", ts(type = "Uint8Array"))]
-    pub basic_pack: Vec<u8>,
-    #[serde(serialize_with = "opt_bytes")]
-    #[cfg_attr(feature = "ts", ts(type = "Uint8Array | null"))]
-    pub block7: Option<Vec<u8>>,
+    pub files: Vec<GenFile>,
     pub sources: Vec<String>,
     pub notes: Vec<String>,
+}
+
+/// One output file. The bytes cross into JavaScript as a `Uint8Array`
+/// (`serialize_bytes`), which is what the `ts` attribute says.
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct GenFile {
+    pub name: String,
+    #[serde(serialize_with = "bytes")]
+    #[cfg_attr(feature = "ts", ts(type = "Uint8Array"))]
+    pub bytes: Vec<u8>,
+}
+
+/// What `import` recovered from a vendor file.
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Imported {
+    /// The spec as TOML, the form the Builder edits.
+    pub spec_toml: String,
+    /// Fields the file did not determine, by name.
+    pub unresolved: Vec<String>,
+    /// The registry format the file was read as, or `spec` for a TOML spec.
+    pub format: &'static str,
+}
+
+/// One embedded panel spec as the gallery lists it.
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Entry {
+    pub path: &'static str,
+    pub name: String,
+    pub meta: Meta,
+    pub module: EntryModule,
+    pub chip: EntryChip,
+    /// Registry formats that can generate for the entry.
+    pub formats: Vec<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct EntryModule {
+    pub width: u16,
+    pub height: u16,
+    pub scan: u8,
+}
+
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct EntryChip {
+    /// The `[chip].library` path.
+    pub library: String,
+    /// The library's `name`.
+    pub name: String,
+    pub family_id: u16,
 }
 
 #[derive(Debug, Serialize)]
@@ -144,18 +181,34 @@ fn embedded_chip(path: &str) -> Result<String> {
         .ok_or_else(|| anyhow!("chip library {path}: not in the embedded library"))
 }
 
-/// What `e120 config gen` writes, in memory.
+/// What `e120 config gen --format FORMAT` writes, in memory: the file, the
+/// basic pack, and the boot image when it builds.
 ///
 /// The boot image is laid out for the first tested card model. A block-7
-/// build failure leaves `block7` empty and puts the reason in `notes`; the
-/// `.rcvbp` and the pack are still returned.
-pub fn generate(spec_toml: &str) -> Result<Generated> {
+/// build failure leaves it out and puts the reason in `notes`; the file and
+/// the pack are still returned.
+///
+/// # Errors
+/// An unknown `format` names the known ones; a spec or chip library the
+/// format cannot hold fails as `rcvbp::spec::generate` does.
+pub fn generate(spec_toml: &str, format: &str) -> Result<Generated> {
+    // One codec is registered; the lookup is what refuses an unknown name.
+    let format = rcvbp::codec(format)?.format();
     let spec = PanelSpec::parse(spec_toml).context("parse spec")?;
     let chip = spec.chip_library(&embedded_chip)?;
     let g = rcvbp::spec::generate(&spec, &chip)?;
-    let rcvbp = g.rcvbp.to_file_bytes()?;
+    let mut files = vec![
+        GenFile {
+            name: format!("{}.{}", spec.name, format.extension),
+            bytes: g.rcvbp.to_file_bytes()?,
+        },
+        GenFile {
+            name: format!("{}-basic-pack.bin", spec.name),
+            bytes: g.basic_pack.to_vec(),
+        },
+    ];
     let card = &receivers::default_model().memory.boot_image;
-    let (block7, notes) = match image::compile(card, &spec, &g) {
+    let notes = match image::compile(card, &spec, &g) {
         Ok(b) => {
             let mut notes = b.notes;
             notes.push(format!(
@@ -163,18 +216,91 @@ pub fn generate(spec_toml: &str) -> Result<Generated> {
                 b.changed_pages.len(),
                 hex(&b.changed_pages)
             ));
-            (Some(b.image), notes)
+            files.push(GenFile {
+                name: format!("{}-block7.bin", spec.name),
+                bytes: b.image,
+            });
+            notes
         }
-        Err(e) => (None, vec![format!("{e:#}")]),
+        Err(e) => vec![format!("{e:#}")],
     };
     Ok(Generated {
         name: spec.name,
-        rcvbp,
-        basic_pack: g.basic_pack.to_vec(),
-        block7,
+        files,
         sources: g.sources,
         notes,
     })
+}
+
+/// `e120 config import`, in memory: the spec that regenerates `bytes`.
+///
+/// `format` names a registry entry; without it the codec is the one whose
+/// signature the bytes start with. A TOML panel spec is passed through as
+/// format `spec`, so the Builder's drop target takes either.
+///
+/// # Errors
+/// An unknown `format` names the known ones; bytes no codec recognises and
+/// that do not parse as a spec fail as `rcvbp::detect` does.
+pub fn import(bytes: &[u8], format: Option<&str>) -> Result<Imported> {
+    let codec = match format {
+        Some(name) => rcvbp::codec(name)?,
+        None => match rcvbp::detect(bytes) {
+            Ok(c) => c,
+            Err(e) => {
+                if let Some(spec) = std::str::from_utf8(bytes).ok().filter(|t| PanelSpec::parse(t).is_ok()) {
+                    return Ok(Imported { spec_toml: spec.to_owned(), unresolved: Vec::new(), format: "spec" });
+                }
+                return Err(e);
+            }
+        },
+    };
+    let chips = |id: u16| embedded::chip_by_family(id).map(|(p, t)| (p.to_owned(), t.to_owned()));
+    let (spec, unresolved) = codec.import(bytes, &chips)?;
+    Ok(Imported {
+        spec_toml: spec.to_toml()?,
+        unresolved,
+        format: codec.format().name,
+    })
+}
+
+/// The embedded panel specs as the gallery shows them.
+///
+/// # Errors
+/// Fails on an embedded spec or chip library that does not parse, which the
+/// `panelspec` tests keep from being embedded.
+pub fn gallery() -> Result<Vec<Entry>> {
+    let generators: Vec<&'static str> = rcvbp::formats()
+        .filter(|f| f.generate)
+        .map(|f| f.name)
+        .collect();
+    embedded::specs()?
+        .into_iter()
+        .map(|(path, spec)| {
+            let chip = ChipLibrary::parse(&embedded_chip(&spec.chip.library)?)
+                .with_context(|| format!("parse {}", spec.chip.library))?;
+            Ok(Entry {
+                path,
+                name: spec.name,
+                meta: spec.meta,
+                module: EntryModule {
+                    width: spec.module.width,
+                    height: spec.module.height,
+                    scan: spec.module.scan,
+                },
+                chip: EntryChip {
+                    library: spec.chip.library,
+                    name: chip.name,
+                    family_id: chip.family_id,
+                },
+                formats: generators.clone(),
+            })
+        })
+        .collect()
+}
+
+/// The codec registry, as `e120 config formats` lists it.
+pub fn formats() -> Vec<Format> {
+    rcvbp::formats().collect()
 }
 
 /// Lowercase hex bytes separated by spaces, as `e120 config gen` lists pages.
@@ -383,16 +509,30 @@ mod tests {
         out
     }
 
+    /// The bytes of the output file `name` in `g`.
+    fn produced<'a>(g: &'a Generated, name: &str) -> &'a [u8] {
+        &g.files.iter().find(|f| f.name == name).unwrap_or_else(|| panic!("no {name}")).bytes
+    }
+
     #[test]
     fn generate_matches_the_cli_byte_for_byte() {
         let out = cli_gen();
         let spec = std::fs::read_to_string(root().join(SPEC)).unwrap();
-        let g = generate(&spec).unwrap();
+        let g = generate(&spec, "rcvbp").unwrap();
         assert_eq!(g.name, "p25-128x64-sm16269s");
+        let names: Vec<&str> = g.files.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "p25-128x64-sm16269s.rcvbp",
+                "p25-128x64-sm16269s-basic-pack.bin",
+                "p25-128x64-sm16269s-block7.bin"
+            ]
+        );
+        for name in names {
+            assert_eq!(produced(&g, name), std::fs::read(out.join(name)).unwrap(), "{name}");
+        }
         let file = |suffix: &str| std::fs::read(out.join(format!("{}{suffix}", g.name))).unwrap();
-        assert_eq!(g.rcvbp, file(".rcvbp"));
-        assert_eq!(g.basic_pack, file("-basic-pack.bin"));
-        assert_eq!(g.block7.as_deref(), Some(file("-block7.bin").as_slice()));
 
         // The sources file is the two lists under fixed headings.
         let mut text = format!("spec: {SPEC}\n\n# record and pack sources\n");
@@ -413,7 +553,7 @@ mod tests {
         let spec = std::fs::read_to_string(root().join(SPEC))
             .unwrap()
             .replace("config/chips/sm16269s-factory.toml", "config/chips/x.toml");
-        let err = generate(&spec).unwrap_err();
+        let err = generate(&spec, "rcvbp").unwrap_err();
         assert_eq!(
             format!("{err:#}"),
             "chip library config/chips/x.toml: not in the embedded library"
@@ -421,10 +561,43 @@ mod tests {
     }
 
     #[test]
+    fn generate_refuses_a_format_the_registry_lacks() {
+        let spec = std::fs::read_to_string(root().join(SPEC)).unwrap();
+        let err = generate(&spec, "novastar").unwrap_err();
+        assert_eq!(format!("{err:#}"), "format novastar: unknown; known formats: rcvbp");
+    }
+
+    #[test]
+    fn formats_and_gallery_read_the_embedded_sets() {
+        let f = formats();
+        assert_eq!(f.len(), 1);
+        assert_eq!((f[0].name, f[0].vendor, f[0].extension), ("rcvbp", "Colorlight", "rcvbp"));
+        assert!(f[0].generate && f[0].import);
+
+        let g = gallery().unwrap();
+        assert_eq!(g.len(), embedded::PANELS.len());
+        let bench = &g[0];
+        assert_eq!(bench.path, SPEC);
+        assert_eq!(bench.name, "p25-128x64-sm16269s");
+        assert_eq!(bench.meta.status, panelspec::Status::Tested);
+        assert_eq!(bench.meta.pitch_mm, Some(2.5));
+        assert_eq!((bench.module.width, bench.module.height, bench.module.scan), (128, 64, 16));
+        assert_eq!(bench.chip.library, "config/chips/sm16269s-factory.toml");
+        assert_eq!(bench.chip.name, "SM16269S (factory values)");
+        assert_eq!(bench.chip.family_id, 0x14C);
+        assert_eq!(bench.formats, ["rcvbp"]);
+        let mined = g.iter().find(|e| e.path == "config/panels/mined/64x64-16s-icn2053.toml").unwrap();
+        assert_eq!(mined.meta.origin, panelspec::Origin::Mined);
+        assert_eq!(mined.meta.sources, 25);
+        assert_eq!(mined.meta.examples.len(), 3);
+        assert_eq!(mined.chip.name, "ICN2053 (mined)");
+    }
+
+    #[test]
     fn inspect_lists_the_records_the_cli_lists() {
         let spec = std::fs::read_to_string(root().join(SPEC)).unwrap();
-        let g = generate(&spec).unwrap();
-        let i = inspect(&g.rcvbp).unwrap();
+        let g = generate(&spec, "rcvbp").unwrap();
+        let i = inspect(produced(&g, "p25-128x64-sm16269s.rcvbp")).unwrap();
         assert_eq!(i.version, 4);
         assert_eq!(
             i.cabinet,
@@ -483,8 +656,9 @@ mod tests {
     #[test]
     fn diff_reports_what_the_cli_reports() {
         let spec = std::fs::read_to_string(root().join(SPEC)).unwrap();
-        let g = generate(&spec).unwrap();
-        let d = diff(&g.rcvbp, &read(REFERENCE)).unwrap();
+        let g = generate(&spec, "rcvbp").unwrap();
+        let rcvbp = produced(&g, "p25-128x64-sm16269s.rcvbp");
+        let d = diff(rcvbp, &read(REFERENCE)).unwrap();
         assert_eq!((d.a_records, d.b_records), (17, 17));
         assert_eq!(d.only_a, ["0x0a07"]);
         assert_eq!(d.only_b, ["0x0907"]);
@@ -495,8 +669,37 @@ mod tests {
         assert_eq!(d.records[1].rtype, "0x0a8a");
         assert_eq!(d.records[1].offsets, [0x10, 0x11, 0x12, 0x13]);
 
-        let same = diff(&g.rcvbp, &g.rcvbp).unwrap();
+        let same = diff(rcvbp, rcvbp).unwrap();
         assert!(same.records.is_empty() && same.only_a.is_empty() && same.only_b.is_empty());
+    }
+
+    #[test]
+    fn import_reads_a_file_back_into_the_spec_that_generates_it() {
+        let spec = std::fs::read_to_string(root().join(SPEC)).unwrap();
+        let g = generate(&spec, "rcvbp").unwrap();
+        let rcvbp = produced(&g, "p25-128x64-sm16269s.rcvbp");
+        let i = import(rcvbp, None).unwrap();
+        assert_eq!(i.format, "rcvbp");
+        assert_eq!(i.unresolved, ["meta", "mapping.gate_phantom_positions", "boot.arm_at_boot"]);
+        assert!(i.spec_toml.starts_with("name = \"128x64-16s-sm16269s-factory\"\n"), "{}", i.spec_toml);
+        let again = generate(&i.spec_toml, "rcvbp").unwrap();
+        assert_eq!(produced(&again, "128x64-16s-sm16269s-factory.rcvbp"), rcvbp);
+        assert_eq!(import(rcvbp, Some("rcvbp")).unwrap().spec_toml, i.spec_toml);
+
+        let reference = import(&read(REFERENCE), None).unwrap();
+        assert!(reference.spec_toml.contains("\nwidth = 256\nheight = 384\n"), "{}", reference.spec_toml);
+        assert!(!reference.spec_toml.contains("record01_overrides"));
+
+        let passed = import(spec.as_bytes(), None).unwrap();
+        assert_eq!((passed.format, passed.spec_toml.as_str()), ("spec", spec.as_str()));
+        assert!(passed.unresolved.is_empty());
+        let err = import(b"neither", None).unwrap_err();
+        assert_eq!(
+            format!("{err:#}"),
+            "format: not recognised from the file's first bytes; known formats: rcvbp"
+        );
+        let err = import(rcvbp, Some("novastar")).unwrap_err();
+        assert_eq!(format!("{err:#}"), "format novastar: unknown; known formats: rcvbp");
     }
 
     #[test]

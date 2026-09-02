@@ -111,10 +111,10 @@ pub fn build(spec: &PanelSpec, chip: &ChipLibrary, prov: &mut Vec<String>) -> Re
     put(off::SUB_CHIP_LO, &[(sub & 0xFF) as u8], "chip sub-id low byte");
     put(off::SUB_CHIP_HI, &[(sub >> 8) as u8], "chip sub-id high byte");
     put(off::LINE_DIR, &[m.line_dir], "module.line_dir");
-    put(0x044, &[spec.module.data_groups], "module.data_groups");
+    put(off::DATA_GROUPS, &[spec.module.data_groups], "module.data_groups");
     put(off::SERIAL_CLOCK_HALF, &(sck / 2).to_le_bytes(), "serial clock / 2");
     put(off::SERIAL_CLOCK_DUP, &sck.to_le_bytes(), "serial clock (duplicate)");
-    put(0x050, &[u8::from(spec.timing.oe_8ns)], "timing.oe_8ns");
+    put(off::OE_8NS, &[u8::from(spec.timing.oe_8ns)], "timing.oe_8ns");
     // PWM flag | the chip's reset serial clock; the vendor does not refresh
     // this when the clock is edited later.
     let reset_sck = chip.serial_clock;

@@ -16,9 +16,11 @@ pub mod record01;
 pub mod spec;
 
 pub use panelspec;
+pub use spec::ChipLookup;
 
 use anyhow::{bail, Context, Result};
 use panelspec::{ChipLibrary, PanelSpec};
+use serde::Serialize;
 use std::borrow::Cow;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -252,12 +254,33 @@ pub struct Encoded {
     pub sources: Vec<String>,
 }
 
+/// A registry entry: what a format is called and what its codec can do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Format {
+    /// The name `--format` and the site use.
+    pub name: &'static str,
+    pub vendor: &'static str,
+    /// File extension without the dot.
+    pub extension: &'static str,
+    /// The codec writes a file from a spec.
+    pub generate: bool,
+    /// The codec reads a file back into a spec.
+    pub import: bool,
+}
+
 /// One vendor's configuration format: a panel spec in, the card's file out,
 /// and that file read back.
 ///
 /// [`RcvbpCodec`] is the Colorlight implementation; a second vendor
-/// implements this in its own crate (docs/cards.md).
-pub trait Codec {
+/// implements this in its own crate (docs/cards.md) and adds it to
+/// [`codecs`].
+pub trait Codec: Sync {
+    /// The registry entry.
+    fn format(&self) -> Format;
+    /// True when `file` starts the way this format's files start; what
+    /// [`detect`] reads.
+    fn matches(&self, file: &[u8]) -> bool;
     /// The file for `spec` and its chip library.
     ///
     /// # Errors
@@ -268,6 +291,16 @@ pub trait Codec {
     /// # Errors
     /// Fails when `file` is not in the format.
     fn inspect(&self, file: &[u8]) -> Result<Vec<String>>;
+    /// The spec that regenerates `file`, with `chips` mapping a chip id to
+    /// a library, and the fields it could not recover by name. Implemented
+    /// when [`Format::import`] says so.
+    ///
+    /// # Errors
+    /// Fails when `file` is not in the format, or the codec cannot import.
+    fn import(&self, file: &[u8], chips: ChipLookup) -> Result<(PanelSpec, Vec<String>)> {
+        let _ = (file, chips);
+        bail!("format {}: import is not implemented", self.format().name)
+    }
 }
 
 /// The `.rcvbp` format behind [`Codec`].
@@ -275,6 +308,20 @@ pub trait Codec {
 pub struct RcvbpCodec;
 
 impl Codec for RcvbpCodec {
+    fn format(&self) -> Format {
+        Format {
+            name: "rcvbp",
+            vendor: "Colorlight",
+            extension: "rcvbp",
+            generate: true,
+            import: true,
+        }
+    }
+
+    fn matches(&self, file: &[u8]) -> bool {
+        file.starts_with(&SIG_COMPRESSED)
+    }
+
     fn generate(&self, spec: &PanelSpec, chip: &ChipLibrary) -> Result<Encoded> {
         let g = spec::generate(spec, chip)?;
         Ok(Encoded {
@@ -290,6 +337,52 @@ impl Codec for RcvbpCodec {
             .map(|r| format!("0x{:04x} {:5} bytes  {}", r.type_u16(), r.payload.len(), r.describe()))
             .collect())
     }
+
+    fn import(&self, file: &[u8], chips: ChipLookup) -> Result<(PanelSpec, Vec<String>)> {
+        spec::spec_from_rcvbp(file, chips)
+    }
+}
+
+/// The registered codecs, one per format; `e120 config formats` and the
+/// site's format list read this.
+#[must_use]
+pub fn codecs() -> &'static [&'static dyn Codec] {
+    &[&RcvbpCodec]
+}
+
+/// The registry entries, in registration order.
+pub fn formats() -> impl Iterator<Item = Format> {
+    codecs().iter().map(|c| c.format())
+}
+
+/// The codec registered under `name`.
+///
+/// # Errors
+/// Names the known formats when `name` is not one of them.
+pub fn codec(name: &str) -> Result<&'static dyn Codec> {
+    codecs()
+        .iter()
+        .copied()
+        .find(|c| c.format().name == name)
+        .with_context(|| {
+            let known: Vec<&str> = formats().map(|f| f.name).collect();
+            format!("format {name}: unknown; known formats: {}", known.join(", "))
+        })
+}
+
+/// The codec whose signature `file` starts with.
+///
+/// # Errors
+/// Names the known formats when none matches.
+pub fn detect(file: &[u8]) -> Result<&'static dyn Codec> {
+    codecs()
+        .iter()
+        .copied()
+        .find(|c| c.matches(file))
+        .with_context(|| {
+            let known: Vec<&str> = formats().map(|f| f.name).collect();
+            format!("format: not recognised from the file's first bytes; known formats: {}", known.join(", "))
+        })
 }
 
 /// CRC-32, reflected polynomial 0xEDB88320. The file trailer and the basic
@@ -404,6 +497,27 @@ mod tests {
         assert_eq!(lines.len(), 17);
         assert_eq!(lines[0], "0x0a01   764 bytes  main receiver parameters (geometry, scan, timing)");
         assert!(RcvbpCodec.inspect(&[0; 8]).is_err());
+    }
+
+    #[test]
+    fn the_registry_names_its_formats_and_refuses_others() {
+        let names: Vec<&str> = formats().map(|f| f.name).collect();
+        assert_eq!(names, ["rcvbp"]);
+        let f = codec("rcvbp").unwrap().format();
+        assert_eq!((f.vendor, f.extension, f.generate, f.import), ("Colorlight", "rcvbp", true, true));
+        let err = codec("novastar").err().map(|e| format!("{e:#}"));
+        assert_eq!(err.as_deref(), Some("format novastar: unknown; known formats: rcvbp"));
+    }
+
+    #[test]
+    fn the_signature_bytes_pick_the_codec() {
+        let file = sample().to_file_bytes().unwrap();
+        assert_eq!(detect(&file).unwrap().format().name, "rcvbp");
+        let err = detect(b"name = \"t\"\n").err().map(|e| format!("{e:#}"));
+        assert_eq!(
+            err.as_deref(),
+            Some("format: not recognised from the file's first bytes; known formats: rcvbp")
+        );
     }
 
     #[test]

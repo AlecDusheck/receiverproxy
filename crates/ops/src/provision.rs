@@ -228,7 +228,7 @@ pub fn provision(ctx: &Ctx, a: &Args, load: Loader, p: &mut dyn Progress) -> Res
     check(p)?;
     p.err(&format!("[4/5] config: {spec_path}"));
     let out = format!("{snap}/config");
-    config::gen_config(m, spec_path, &out, load, p)?;
+    config::gen_config(m, spec_path, &out, "rcvbp", load, p)?;
     let img = format!("{out}/{}-block7.bin", spec.name);
     restore_flash(ctx, &img, true, 0, p)?;
 

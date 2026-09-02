@@ -115,6 +115,7 @@ async fn config_gen_returns_what_the_cli_writes() {
         ops::receivers::default_model(),
         &repo().join(spec_path).to_string_lossy(),
         &out.to_string_lossy(),
+        "rcvbp",
         &loader,
         &mut lines,
     )
@@ -152,7 +153,7 @@ async fn a_gated_command_without_commit_returns_the_plan() {
         ops::panelspec::PanelSpec::load(repo().join("config/panels/p25-128x64-sm16269s.toml"))
             .unwrap();
     let card = ops::receivers::default_model();
-    let g = ops::config::generate(card, &spec, "spec.toml", &daemon::state::load_library)
+    let g = ops::config::generate(card, &spec, "spec.toml", "rcvbp", &daemon::state::load_library)
         .unwrap();
     let config = snap.join("config.rcvbp");
     std::fs::write(&config, &g.rcvbp).unwrap();

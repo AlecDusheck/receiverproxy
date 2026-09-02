@@ -27,7 +27,7 @@ ts-rs = { workspace = true, optional = true }
 
 [features]
 # `#[derive(TS)]` on the response structs, for web/src/api/types.ts.
-ts = ["dep:ts-rs", "wall/ts"]
+ts = ["dep:ts-rs", "wall/ts", "rcvbp/ts"]
 
 [lints]
 workspace = true

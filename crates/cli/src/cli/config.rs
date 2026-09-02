@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Subcommand;
-use ops::config::{config_build, config_diff, gen_config, rcvbp_info};
+use ops::config::{config_build, config_diff, gen_config, import_config, list_formats, rcvbp_info};
 use ops::flash::{read_config, save_config, write_config};
 use ops::params::send_params;
 use ops::{read_library, Ctx, Progress};
@@ -15,7 +15,23 @@ pub enum Config {
         /// Directory for the outputs (created if missing)
         #[arg(long, default_value = "build")]
         out_dir: String,
+        /// Configuration format, one of `e120 config formats`
+        #[arg(long, default_value = "rcvbp")]
+        format: String,
     },
+    /// Write the panel spec (TOML) that regenerates a configuration file
+    Import {
+        /// The file to read, e.g. a .rcvbp from `config read` or a vendor tool
+        file: String,
+        /// Where to write the spec
+        #[arg(long, default_value = "spec.toml")]
+        out: String,
+        /// Configuration format, one of `e120 config formats` [default: detected from the file]
+        #[arg(long)]
+        format: Option<String>,
+    },
+    /// List the configuration formats and what each codec can do
+    Formats,
     /// Build a .rcvbp by combining and editing existing ones
     Build {
         /// Starting point: the config to modify
@@ -106,10 +122,19 @@ impl Config {
 
 pub fn run(ctx: &Ctx, cmd: &Config, p: &mut dyn Progress) -> Result<()> {
     match cmd {
-        Config::Gen { spec, out_dir } => {
+        Config::Gen {
+            spec,
+            out_dir,
+            format,
+        } => {
             // Offline: the boot image is laid out for --card, else the first tested model.
             let card = ctx.model.unwrap_or_else(ops::receivers::default_model);
-            gen_config(card, spec, out_dir, &read_library, p).map(drop)
+            gen_config(card, spec, out_dir, format, &read_library, p).map(drop)
+        }
+        Config::Import { file, out, format } => import_config(file, out, format.as_deref(), p),
+        Config::Formats => {
+            list_formats(p);
+            Ok(())
         }
         Config::Build {
             base,

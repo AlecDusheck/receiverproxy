@@ -6,11 +6,13 @@
 
 mod basic_pack;
 mod generate;
+mod import;
 mod mapping;
 mod record01;
 mod records;
 
 pub use basic_pack::verify as verify_basic_pack;
 pub use generate::{generate, Generated};
+pub use import::{spec_from_rcvbp, ChipLookup};
 pub use mapping::record as mapping_record;
 pub use panelspec::{ChipLibrary, PanelSpec};

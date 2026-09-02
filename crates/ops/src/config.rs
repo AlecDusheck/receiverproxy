@@ -169,11 +169,54 @@ pub fn rcvbp_info(path: &str, dump: bool, p: &mut dyn Progress) -> Result<()> {
     Ok(())
 }
 
+/// `e120 config formats`: the codec registry as a table.
+pub fn list_formats(p: &mut dyn Progress) {
+    p.out(&format!("{:<8} {:<12} {:<10} {:<9} import", "format", "vendor", "extension", "generate"));
+    let yes_no = |b: bool| if b { "yes" } else { "no" };
+    for f in rcvbp::formats() {
+        p.out(&format!(
+            "{:<8} {:<12} .{:<9} {:<9} {}",
+            f.name,
+            f.vendor,
+            f.extension,
+            yes_no(f.generate),
+            yes_no(f.import)
+        ));
+    }
+}
+
+/// `e120 config import`: the spec that regenerates `path`, written to `out`.
+///
+/// The spec is named after the file. `format` names a codec; without it the
+/// codec is the one whose signature the file starts with. Chip libraries are
+/// chosen by chip id from the embedded set, as the site does. Every field
+/// the file did not determine is warned by name.
+pub fn import_config(path: &str, out: &str, format: Option<&str>, p: &mut dyn Progress) -> Result<()> {
+    let bytes = std::fs::read(path).with_context(|| format!("read {path}"))?;
+    let codec = match format {
+        Some(name) => rcvbp::codec(name)?,
+        None => rcvbp::detect(&bytes).with_context(|| path.to_owned())?,
+    };
+    let chips = |id: u16| panelspec::embedded::chip_by_family(id).map(|(p, t)| (p.to_owned(), t.to_owned()));
+    let (mut spec, unresolved) = codec.import(&bytes, &chips).with_context(|| path.to_owned())?;
+    spec.name = std::path::Path::new(path)
+        .file_stem()
+        .map_or_else(|| spec.name.clone(), |s| s.to_string_lossy().into_owned());
+    std::fs::write(out, spec.to_toml()?).with_context(|| format!("write {out}"))?;
+    for u in &unresolved {
+        warn(p, format!("{path}: not recovered: {u}"));
+    }
+    p.out(out);
+    Ok(())
+}
+
 /// Everything `e120 config gen` produces for a spec.
 pub struct GenOutputs {
     /// `spec.name`, the stem of the output files.
     pub name: String,
-    /// The `.rcvbp` file bytes.
+    /// The format the file is in.
+    pub format: rcvbp::Format,
+    /// The configuration file bytes (`.rcvbp` for the Colorlight codec).
     pub rcvbp: Vec<u8>,
     /// The 256-byte basic-pack body.
     pub basic_pack: Vec<u8>,
@@ -194,13 +237,23 @@ pub struct GenOutputs {
 /// Generate a spec's configuration in memory.
 ///
 /// The `.rcvbp`, the basic pack, the boot image laid out for `card` and the
-/// sources report. `label` names the spec in the report; `load` resolves
-/// `[chip].library`.
+/// sources report. `label` names the spec in the report; `format` names a
+/// codec in `rcvbp::formats()`; `load` resolves `[chip].library`.
 ///
 /// # Errors
-/// Fails on an invalid spec or chip library. A boot-image build failure is
-/// not an error here: `block7` is `None` and the reason is the last note.
-pub fn generate(card: &CardModel, spec: &PanelSpec, label: &str, load: Loader) -> Result<GenOutputs> {
+/// Fails on an unknown format, an invalid spec or chip library. A boot-image
+/// build failure is not an error here: `block7` is `None` and the reason is
+/// the last note.
+pub fn generate(
+    card: &CardModel,
+    spec: &PanelSpec,
+    label: &str,
+    format: &str,
+    load: Loader,
+) -> Result<GenOutputs> {
+    // One codec is registered; the lookup is what refuses an unknown name.
+    // The pack and the boot image are the E320 line's, built beside the file.
+    let format = rcvbp::codec(format)?.format();
     let g = rcvbp::spec::generate(spec, &spec.chip_library(load)?)?;
     let rcvbp = g.rcvbp.to_file_bytes()?;
 
@@ -235,6 +288,7 @@ pub fn generate(card: &CardModel, spec: &PanelSpec, label: &str, load: Loader) -
 
     Ok(GenOutputs {
         name: spec.name.clone(),
+        format,
         rcvbp,
         basic_pack: g.basic_pack.to_vec(),
         block7,
@@ -252,15 +306,16 @@ pub fn gen_config(
     card: &CardModel,
     spec_path: &str,
     out_dir: &str,
+    format: &str,
     load: Loader,
     p: &mut dyn Progress,
 ) -> Result<GenOutputs> {
     let spec = PanelSpec::load(spec_path)?;
-    let mut g = generate(card, &spec, spec_path, load)?;
+    let mut g = generate(card, &spec, spec_path, format, load)?;
 
     std::fs::create_dir_all(out_dir).with_context(|| format!("create {out_dir}"))?;
     let stem = format!("{out_dir}/{}", g.name);
-    let rcvbp_path = format!("{stem}.rcvbp");
+    let rcvbp_path = format!("{stem}.{}", g.format.extension);
     std::fs::write(&rcvbp_path, &g.rcvbp).with_context(|| format!("write {rcvbp_path}"))?;
     let pack_path = format!("{stem}-basic-pack.bin");
     std::fs::write(&pack_path, &g.basic_pack).with_context(|| format!("write {pack_path}"))?;

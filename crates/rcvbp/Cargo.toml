@@ -13,6 +13,11 @@ anyhow.workspace = true
 flate2.workspace = true
 serde.workspace = true
 toml.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[features]
+# `#[derive(TS)]` on `Format`, for web/src/api/types.ts.
+ts = ["dep:ts-rs", "panelspec/ts"]
 
 [lints]
 workspace = true

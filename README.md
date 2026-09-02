@@ -10,6 +10,10 @@ The card speaks a layer-2 protocol with fixed MAC addresses and no IP, so `e120`
 
 Colorlight's own software is the only official way to drive its receiving cards, and recent versions of LEDVISION dropped the ability to send content to a receiving card directly: a sender card or box is now required, and the software itself has grown into a large Windows install. `e120` works with zero Colorlight software. A Mac or Linux machine with an Ethernet port talks to the card directly, provisions it from a text file, and plays whatever ffmpeg can decode.
 
+## Project status
+
+Tested only on the hardware listed under [Tested](#tested), one card and one module. Other cards and firmware builds may behave differently, and a firmware or flash write to an untested card can leave it unbootable: take `e120 flash snapshot` first and keep the result. Playback still flickers on some module types; fixing that is the current focus. If you run this on other hardware, whatever the outcome, open a pull request or an issue with the card model, the module, and what you saw.
+
 ## Install
 
 Rust stable via [rustup](https://rustup.rs) (`rust-toolchain.toml` pins the channel), then:

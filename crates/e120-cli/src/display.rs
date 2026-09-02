@@ -26,6 +26,7 @@ pub fn wall_settings(cli: &Cli) -> e120_driver::Settings {
     e120_driver::Settings {
         brightness: cli.brightness,
         color_order: cli.order,
+        raster: e120_driver::Raster::Rows,
         announce_layout: true,
     }
 }
@@ -37,9 +38,11 @@ pub fn play(
     fps: u32,
     fit: &str,
     looping: bool,
+    raster: &str,
     layout: Option<&str>,
 ) -> Result<()> {
     let canvas = load_canvas(cli, layout)?;
+    let raster: e120_driver::Raster = raster.parse().map_err(|e: String| anyhow::anyhow!(e))?;
     let fit = match fit {
         "stretch" => e120_video::Fit::Stretch,
         "contain" => e120_video::Fit::Contain,
@@ -53,7 +56,9 @@ pub fn play(
 
     let mut source =
         e120_video::VideoSource::open(input, canvas.width, canvas.height, fps, fit, looping)?;
-    let mut wall = e120_driver::Wall::open(&cli.iface, canvas, wall_settings(cli))?;
+    let mut settings = wall_settings(cli);
+    settings.raster = raster;
+    let mut wall = e120_driver::Wall::open(&cli.iface, canvas, settings)?;
     let mut pacer = e120_driver::Pacer::new(fps);
 
     while let Some(frame) = source.next_frame()? {

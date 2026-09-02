@@ -319,6 +319,9 @@ enum Cmd {
         /// Loop forever
         #[arg(long, name = "loop")]
         looping: bool,
+        /// How to cut frames into row packets: rows|halves|halves-swapped|interleaved
+        #[arg(long, default_value = "rows")]
+        raster: String,
         /// Wall layout JSON; defaults to a single panel of --width x --height
         #[arg(long)]
         layout: Option<String>,
@@ -539,8 +542,9 @@ fn run_display(cli: &Cli) -> Result<Option<()>> {
             fps,
             fit,
             looping,
+            raster,
             layout,
-        } => play(cli, input, *fps, fit, *looping, layout.as_deref()).map(Some),
+        } => play(cli, input, *fps, fit, *looping, raster, layout.as_deref()).map(Some),
         Cmd::Pattern { name, hold, layout } => {
             show_pattern(cli, name, *hold, layout.as_deref()).map(Some)
         }

@@ -104,6 +104,10 @@ def pattern_png(spec):
             return (255,) * 3 if x >= W // 2 else (0,) * 3
         if name == 'rgbrows':
             return [(255, 0, 0), (0, 255, 0), (0, 0, 255)][(y // 4) % 3]
+        if name == 'hbands':      # four row bands: R G B W, 16 rows each
+            return [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)][y // 16]
+        if name == 'vbands':      # four column bands: R G B W, 32 columns each
+            return [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)][x // 32]
         if name.startswith('gray-'):
             v = int(name[5:])
             return (v, v, v)
@@ -283,7 +287,7 @@ def run(args):
         sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'concat', '-safe', '0',
             '-i', lst, '-c', 'copy', '-y', video], check=True)
         kill_streams()
-        subprocess.Popen(f'{E120} --brightness {conds[0][2]} play {video} --looping --fps 30 >/dev/null 2>&1', shell=True)
+        subprocess.Popen(f'{E120} --brightness {conds[0][2]} play {video} --looping --fps 30 --raster {args.raster} >/dev/null 2>&1', shell=True)
         t0 = time.time()
         for k, (label, _, _) in enumerate(conds):
             mid = k * seg + seg * 0.3
@@ -333,6 +337,7 @@ def main():
     m.add_argument('--continuous', dest='continuous', action='store_true', default=True)
     m.add_argument('--restart', dest='continuous', action='store_false')
     p.add_argument('--stream-flags', default='', help='extra flags for `image` in --restart mode, e.g. "--raster halves"')
+    p.add_argument('--raster', default='rows', help='row packing for the continuous stream: rows|halves|halves-swapped|interleaved')
     a = ap.parse_args()
 
     if a.cmd == 'power':

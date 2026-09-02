@@ -10,11 +10,38 @@ use e120_net::Bpf;
 use e120_proto as proto;
 use std::time::{Duration, Instant};
 
+/// How a frame is cut into row packets. The card's pixel map covers the
+/// stored height (half the panel) at double width, so the wire may want one
+/// packet per panel row or one double-width packet per stored row; which
+/// panel row supplies the second half is a bench measurement.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum Raster {
+    #[default]
+    Rows,
+    Halves,
+    HalvesSwapped,
+    Interleaved,
+}
+
+impl std::str::FromStr for Raster {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "rows" => Ok(Self::Rows),
+            "halves" => Ok(Self::Halves),
+            "halves-swapped" => Ok(Self::HalvesSwapped),
+            "interleaved" => Ok(Self::Interleaved),
+            o => Err(format!("unknown raster {o:?} (rows|halves|halves-swapped|interleaved)")),
+        }
+    }
+}
+
 /// How a wall should be driven.
 #[derive(Clone, Copy, Debug)]
 pub struct Settings {
     pub brightness: u8,
     pub color_order: proto::ColorOrder,
+    pub raster: Raster,
     /// Send a layout frame before the first frame, so the card knows its size.
     pub announce_layout: bool,
 }
@@ -24,6 +51,7 @@ impl Default for Settings {
         Self {
             brightness: 255,
             color_order: proto::ColorOrder::Bgr,
+            raster: Raster::Rows,
             announce_layout: true,
         }
     }
@@ -111,15 +139,26 @@ impl Wall {
 
         for (_, fb) in self.canvas.render(frame) {
             let width = fb.width as usize;
-            let mut row_pixels = vec![[0u8; 3]; width];
-            for y in 0..fb.height {
-                for (x, px) in row_pixels.iter_mut().enumerate() {
-                    *px = fb.pixel(x as u32, y);
+            let height = fb.height as usize;
+            // (wire row, panel rows it carries): one row, or two side by side.
+            let lines: Vec<(u16, Vec<u32>)> = match self.settings.raster {
+                Raster::Rows => (0..height).map(|y| (y as u16, vec![y as u32])).collect(),
+                Raster::Halves => (0..height / 2).map(|r| (r as u16, vec![r as u32, (r + height / 2) as u32])).collect(),
+                Raster::HalvesSwapped => (0..height / 2).map(|r| (r as u16, vec![(r + height / 2) as u32, r as u32])).collect(),
+                Raster::Interleaved => (0..height / 2).map(|r| (r as u16, vec![2 * r as u32, 2 * r as u32 + 1])).collect(),
+            };
+            let mut row_pixels = vec![[0u8; 3]; width * 2];
+            for (wire_row, panel_rows) in lines {
+                let n = panel_rows.len() * width;
+                for (k, &y) in panel_rows.iter().enumerate() {
+                    for x in 0..width {
+                        row_pixels[k * width + x] = fb.pixel(x as u32, y);
+                    }
                 }
                 let mut offset = 0usize;
-                for chunk in row_pixels.chunks(proto::MAX_PIXELS_PER_PACKET) {
+                for chunk in row_pixels[..n].chunks(proto::MAX_PIXELS_PER_PACKET) {
                     self.dev.send(&proto::pixel_row(
-                        y as u16,
+                        wire_row,
                         offset as u16,
                         chunk,
                         self.settings.color_order,

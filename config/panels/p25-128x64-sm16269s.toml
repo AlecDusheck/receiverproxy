@@ -9,6 +9,11 @@
 name = "p25-128x64-sm16269s"
 
 [module]
+# 12-bit grey is what makes the SM16269S accept the SH data stream. The
+# configuration the card arrived with said 14; at 14 (and 16) pixel data never
+# reaches the chips' SRAM at all, at 12 the panel renders sent patterns.
+# Measured 2026-09-01 (docs/bench-measurement.md for the method).
+gray_bits = 12
 width = 128
 height = 64
 scan = 16
@@ -53,3 +58,9 @@ block = 64
 # Arming at boot with the current config lights the panel unmodulated at
 # full brightness and rails the 5.1 A supply. Leave off until it boots dark.
 arm_at_boot = true
+
+[record01_overrides]
+# The vendor's own Reset() default and 961 of 1146 corpus files; the
+# configuration the card arrived with had cleared it, and with it cleared no
+# pixel data is displayed. Meaning not resolved (docs/chip-control-block.md §5).
+"0x02F" = 0x01

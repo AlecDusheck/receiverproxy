@@ -41,6 +41,11 @@ fn our_panel() -> PanelSpec {
 /// they actually shipped, and the 256x384 wall they compiled for.
 fn sellers_panel() -> PanelSpec {
     let mut spec = our_panel();
+    // The file the card arrived with says 14-bit grey and +0x02F = 0; our
+    // spec deliberately departs from both (docs/bench-measurement.md: at 14
+    // no pixel data reaches the drivers, at 12 the panel renders).
+    spec.module.gray_bits = None;
+    spec.record01_overrides.remove("0x02F");
     spec.chip.library = "config/chips/sm16169sh.toml".into();
     spec.screen.width = 256;
     spec.screen.height = 384;
@@ -94,7 +99,10 @@ fn our_panel_differs_from_the_sellers_only_where_intended() {
     // writes none, and claiming one (0x14D) would declare max scan 64 on a
     // 1/16 module, so config/chips/sm16269s-factory.toml leaves it clear.
     let d = differing_bytes(record(&ours.rcvbp, 0x01), record(&seller, 0x01));
-    assert_eq!(d, vec![0x0C0, 0x0C1, 0x0C2, 0x0C3]);
+    // +0x023 grey depth 12 (theirs 14) and +0x02F = 1 (theirs 0) are the two
+    // deliberate departures that make the panel display; the rest is the
+    // single-module screen size.
+    assert_eq!(d, vec![0x023, 0x02F, 0x0C0, 0x0C1, 0x0C2, 0x0C3]);
     // The mapping and the chip registers now agree with theirs exactly.
     assert!(differing_bytes(record(&ours.rcvbp, 0x03), record(&seller, 0x03)).is_empty());
     assert!(differing_bytes(record(&ours.rcvbp, 0x84), record(&seller, 0x84)).is_empty());
@@ -106,7 +114,9 @@ fn our_panel_differs_from_the_sellers_only_where_intended() {
     // fields and left the rest at the wall's values), plus the layout-derived
     // fields the hand patch missed, plus a real CRC.
     let v2 = std::fs::read(fixture("basic-pack-single-module-v2.bin")).unwrap();
-    let layout_derived = [0x25, 0x2A, 0x39, 0x3A, 0x3B, 0x3C, 0xE3, 0xE4, 0xE5, 0xE6];
+    // +0x08 (grey depth 12) and +0x19 (record +0x02F = 1) are the deliberate
+    // departures from the wall's values — see our_panel above.
+    let layout_derived = [0x08, 0x19, 0x25, 0x2A, 0x39, 0x3A, 0x3B, 0x3C, 0xE3, 0xE4, 0xE5, 0xE6];
     let d: Vec<usize> = (0..0xFC)
         .filter(|i| !layout_derived.contains(i))
         .filter(|&i| ours.basic_pack[i] != v2[i])

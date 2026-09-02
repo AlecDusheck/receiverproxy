@@ -3,7 +3,7 @@
 use crate::util::{await_reply, contains_lattice_header, has_lattice_header, hex, open, warn};
 use crate::{protocol, rcvbp, Cli};
 use anyhow::{Context, Result};
-use e120_net::Bpf;
+use e120_net::Link;
 use std::time::Duration;
 
 /// Record type of the driver-chip register table.
@@ -92,7 +92,7 @@ pub fn read_config(
 }
 
 /// Request one 1024-byte chunk of flash and return it.
-fn read_chunk(dev: &mut Bpf, index: u16, page: u16, wait: u64) -> Result<Vec<u8>> {
+fn read_chunk(dev: &mut Link, index: u16, page: u16, wait: u64) -> Result<Vec<u8>> {
     dev.send(&protocol::read_flash(index, page))?;
     await_reply(dev, Duration::from_secs(wait), |f| {
         protocol::flash_reply_data(f).map(<[u8]>::to_vec)
@@ -101,7 +101,7 @@ fn read_chunk(dev: &mut Bpf, index: u16, page: u16, wait: u64) -> Result<Vec<u8>
 }
 
 /// Read the firmware region back and count bytes that differ from `img`.
-fn verify_firmware(dev: &mut Bpf, index: u16, img: &[u8], wait: u64) -> Result<usize> {
+fn verify_firmware(dev: &mut Link, index: u16, img: &[u8], wait: u64) -> Result<usize> {
     let mut bad = 0usize;
     for block in protocol::FIRMWARE_BLOCKS {
         for lo in (0u16..0x100).step_by(protocol::FLASH_PAGES_PER_CHUNK as usize) {
@@ -339,7 +339,7 @@ const PARAM_OFFSET: usize = 0x8000;
 const PARAM_MAX: usize = 0x6ffc;
 
 /// Read the whole primary firmware bank into memory.
-pub fn read_primary_bank(dev: &mut Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
+pub fn read_primary_bank(dev: &mut Link, index: u16, wait: u64) -> Result<Vec<u8>> {
     read_blocks(
         dev,
         index,
@@ -350,7 +350,7 @@ pub fn read_primary_bank(dev: &mut Bpf, index: u16, wait: u64) -> Result<Vec<u8>
 }
 
 /// Read the whole parameter block into memory.
-fn read_block(dev: &mut Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
+fn read_block(dev: &mut Link, index: u16, wait: u64) -> Result<Vec<u8>> {
     read_blocks(dev, index, protocol::PARAM_BLOCK, 1, wait)
 }
 
@@ -358,7 +358,7 @@ fn read_block(dev: &mut Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
 ///
 /// # Errors
 /// Fails if the card stops answering partway through.
-pub fn read_blocks(dev: &mut Bpf, index: u16, first: u8, count: u16, wait: u64) -> Result<Vec<u8>> {
+pub fn read_blocks(dev: &mut Link, index: u16, first: u8, count: u16, wait: u64) -> Result<Vec<u8>> {
     let mut image = Vec::with_capacity(64 * 1024 * count as usize);
     for b in 0..count {
         let block = first.wrapping_add(b as u8);
@@ -376,7 +376,7 @@ pub fn read_blocks(dev: &mut Bpf, index: u16, first: u8, count: u16, wait: u64) 
 /// Pages that did not take are rewritten. A page can only be rewritten while
 /// still erased, so a mismatched page holding other data re-erases the block.
 pub fn rewrite_block(
-    dev: &mut Bpf,
+    dev: &mut Link,
     index: u16,
     image: &[u8],
     wait: u64,
@@ -447,7 +447,7 @@ pub fn rewrite_block(
 }
 
 /// Erase the parameter block and wait for the chip to finish.
-fn erase_and_settle(dev: &mut Bpf, index: u16) -> Result<()> {
+fn erase_and_settle(dev: &mut Link, index: u16) -> Result<()> {
     eprintln!("flash: erase 0x{:02x}", protocol::PARAM_BLOCK);
     dev.send(&protocol::erase_block(index, protocol::PARAM_BLOCK)?)?;
     // Pages written while the erase is still running are silently dropped.

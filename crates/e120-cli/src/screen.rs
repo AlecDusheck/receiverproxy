@@ -7,7 +7,7 @@
 use crate::util::{await_reply, open};
 use crate::{protocol, Cli};
 use anyhow::{Context, Result};
-use e120_net::Bpf;
+use e120_net::Link;
 use std::time::Duration;
 
 /// Byte offsets of the geometry fields within the record.
@@ -18,7 +18,7 @@ const HEIGHT: usize = 8;
 ///
 /// # Errors
 /// Fails if the card does not answer.
-pub fn read(dev: &mut Bpf, index: u16, wait: u64) -> Result<Vec<u8>> {
+pub fn read(dev: &mut Link, index: u16, wait: u64) -> Result<Vec<u8>> {
     // The card answers the unrestricted linear read here; the guarded
     // screen-record read frame goes unanswered because of its length field.
     dev.send(&protocol::read_flash_linear(

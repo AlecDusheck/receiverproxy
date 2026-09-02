@@ -8,7 +8,7 @@ are in [rendering.md](rendering.md), the claims we withdrew in
 
 ## The pipeline
 
-Two things reach the card over one raw Ethernet link (`en24`, `/dev/bpf`):
+Two things reach the card over one raw Ethernet link (`en24` here; `/dev/bpf` on macOS, an `AF_PACKET` socket on Linux):
 
 1. **Configuration**, once per card: a TOML panel spec is compiled into the
    receiver's boot image and written to flash block 7 together with firmware
@@ -46,7 +46,7 @@ flowchart LR
   end
   DRV["e120-driver Wall::show"]
   CANVAS["e120-canvas / e120-video"]
-  NET["e120-net Bpf"]
+  NET["e120-net Link"]
   CARD["E120 card<br/>firmware 16.53"]
   PANEL["P2.5 128x64 SM16269S"]
 
@@ -104,7 +104,7 @@ same image into the vendor's 34 real-time RAM packs (`params.rs`).
 Tests in `crates/e120-rcvbp/tests/factory.rs` pin all of this to reality: the
 reference `.rcvbp` regenerates record for record, the factory basic
 pack and block-7 image regenerate byte for byte from
-`card-dumps/primary-region.bin`, and our spec differs from the reference record
+the day-one flash dump (kept outside the repo; the tests skip without it), and our spec differs from the reference record
 0x01 at exactly `[0x023, 0x02F, 0x0C0..0x0C3]`.
 
 ### 2. Card provisioning (`e120 provision`, `e120-cli/src/provision.rs`)
@@ -152,9 +152,9 @@ brightness (0x0A, 77 B)  →  one 0x55 row packet per panel row (64 × 128 px)
   fps. `e120-video` supplies frames (ffmpeg rawvideo pipe, test patterns).
   `e120-cli/src/display.rs::wall_settings` builds the `Settings` once, with
   the env-var overrides below.
-* `e120-net::Bpf` is a dumb pipe: one `send` = one wire frame, `recv` returns
+* `e120-net::Link` is a dumb pipe: one `send` = one wire frame, `recv` returns
   within the timeout with whatever arrived (frames borrowed from one reused
-  kernel-sized buffer), always promiscuous so card replies to the vendor
+  kernel-sized buffer; one frame per call on Linux), always promiscuous so card replies to the vendor
   sender MAC are seen. No protocol knowledge lives there. `read_pcap` yields
   a `Pcap` whose `packets()` borrow the file bytes the same way.
 
@@ -178,11 +178,11 @@ and leaves the panel as it is.
 | crate | owns | must not |
 |---|---|---|
 | `e120-proto` | frame builders and reply parsers for every packet type; flash/EEPROM/firmware address allowlists | open sockets, sleep, sequence frames |
-| `e120-net` | `/dev/bpf` open/send/recv on Darwin; classic pcap reader | know any Colorlight framing or MAC |
+| `e120-net` | `Link` open/send/recv over `/dev/bpf` (macOS) or `AF_PACKET` (Linux); classic pcap reader | know any Colorlight framing or MAC |
 | `e120-rcvbp` | `.rcvbp` parse/write, record 0x01 view, chip library, spec → records/pack/boot image | touch the network or PSU |
 | `e120-canvas` | RGB8 `Frame` (bytes private; `row`/`as_bytes` accessors), wall topology, `validate` → `LayoutError`, canvas → per-receiver framebuffers (`render`, or `render_into` reusing them; unrotated panels are row copies) | — |
 | `e120-video` | `FrameSource` (`next_frame` refills a caller-owned `Frame`): `VideoSource` (ffmpeg rawvideo pipe) and `raw::RawSource` (rgb24 from any `Read`); `raw::Header`/`raw::Writer` for socket clients; `Pattern`s, `Fit`/`Pattern` name parsing | — |
-| `e120-driver` | `Wall::show` (the measured frame recipe), `Pacer`, layout announce; `FrameSink` (`Bpf` in production, a recording `Vec` in tests) so the recipe is pinned offline | — |
+| `e120-driver` | `Wall::show` (the measured frame recipe), `Pacer`, layout announce; `FrameSink` (`Link` in production, a recording `Vec` in tests) so the recipe is pinned offline | — |
 | `e120-cli` | the `e120` binary: clap tree (`main.rs` holds the top-level commands, `cli/` one enum per group), command modules, Block7 assembly order, still-image send path, flash discipline (dry-run/backup/verify), provisioning sequence. Unix conventions: results only on stdout (a value, a path per line, a table), progress and step lines on stderr, warnings as `e120: warning: …`, errors as `e120: <subcommand>: …` with exit 1 (`main.rs` wraps every command's error in its subcommand path), usage errors exit 2 | hold byte layouts (they belong in proto/rcvbp) |
 | `scripts/` | the bench (`bench.py`, `psu.sh`) and read-only config inspection; EEPROM repair | build pixel frames |
 

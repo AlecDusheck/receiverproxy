@@ -8,7 +8,7 @@ edition = "2021"
 license = "MIT"
 
 # Fat LTO so the per-row frame builders inline into the driver's send loop.
-# `panic` stays at unwind: Drop (the BPF fd) must still run on a panic.
+# `panic` stays at unwind: Drop (the raw link fd) must still run on a panic.
 [profile.release]
 lto = "fat"
 codegen-units = 1

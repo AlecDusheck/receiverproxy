@@ -2,7 +2,7 @@
 
 use crate::{protocol, Cli};
 use anyhow::{Context, Result};
-use e120_net::Bpf;
+use e120_net::Link;
 use std::fmt::Write as _;
 use std::time::{Duration, Instant};
 
@@ -19,18 +19,18 @@ pub fn is_card_frame(d: &[u8]) -> bool {
     d.len() >= 14 && d[6..12] == protocol::CARD_MAC
 }
 
-/// True for our own transmissions, which BPF loops back to us.
+/// True for our own transmissions, which the kernel loops back to us.
 pub fn is_our_frame(d: &[u8]) -> bool {
     d.len() >= 12 && d[6..12] == protocol::SENDER_MAC
 }
 
-pub fn open(cli: &Cli) -> Result<Bpf> {
-    Bpf::open(&cli.iface, RECV_TIMEOUT)
+pub fn open(cli: &Cli) -> Result<Link> {
+    Link::open(&cli.iface, RECV_TIMEOUT)
 }
 
 /// Poll `dev` until `wait` runs out or `pick` accepts a frame from the card.
 pub fn await_reply<T>(
-    dev: &mut Bpf,
+    dev: &mut Link,
     wait: Duration,
     mut pick: impl FnMut(&[u8]) -> Option<T>,
 ) -> Result<Option<T>> {
@@ -39,7 +39,7 @@ pub fn await_reply<T>(
 
 /// Like [`await_reply`] but offers every frame, not only the card's.
 pub fn await_any_frame<T>(
-    dev: &mut Bpf,
+    dev: &mut Link,
     wait: Duration,
     mut pick: impl FnMut(&[u8]) -> Option<T>,
 ) -> Result<Option<T>> {

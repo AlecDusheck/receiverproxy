@@ -170,7 +170,7 @@ pub fn discover(cli: &Cli, wait: u64) -> Result<()> {
     let mut found = 0;
     while Instant::now() < deadline {
         for f in dev.recv()? {
-            // BPF loops our own transmissions back.
+            // The kernel loops our own transmissions back.
             if is_our_frame(f) {
                 continue;
             }

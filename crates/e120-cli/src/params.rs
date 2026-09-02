@@ -7,7 +7,7 @@
 use crate::util::open;
 use crate::{protocol, rcvbp, Cli};
 use anyhow::Result;
-use e120_net::Bpf;
+use e120_net::Link;
 use rcvbp::image;
 use std::time::Duration;
 
@@ -27,7 +27,7 @@ struct Pack<'a> {
 impl Pack<'_> {
     /// Frame the pack the way `SendRealTimePacks` does: the pack's first two
     /// bytes are the EtherType, the body sits at the type's header offset.
-    fn send(&self, dev: &mut Bpf, gap: Duration) -> Result<()> {
+    fn send(&self, dev: &mut Link, gap: Duration) -> Result<()> {
         let mut p = vec![0u8; self.header - 2 + self.body.len()];
         p[1] = self.sub;
         p[self.header - 2..].copy_from_slice(self.body);

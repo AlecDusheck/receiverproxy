@@ -1,6 +1,6 @@
-//! Raw Ethernet I/O on macOS through a `/dev/bpf` device bound to one
-//! interface. The protocol is layer 2 only, so frames go out whole, header
-//! included. Needs read/write access to `/dev/bpf*` (root or `chmod o+rw`).
+//! macOS backend of [`Link`]: a `/dev/bpf` device bound to one interface.
+//! The protocol is layer 2 only, so frames go out whole, header included.
+//! Needs read/write access to `/dev/bpf*` (root or `chmod o+rw`).
 
 // std has no safe ioctl; the unsafety is confined to `ioctl` and its callers.
 #![allow(unsafe_code)]
@@ -21,13 +21,13 @@ const HDR_HDRLEN: usize = 16;
 const HDR_MIN_LEN: usize = 18;
 
 #[derive(Debug)]
-pub struct Bpf {
+pub struct Link {
     file: File,
     /// BIOCGBLEN bytes, reused across `recv` calls.
     buf: Vec<u8>,
 }
 
-impl Bpf {
+impl Link {
     /// Open the first free `/dev/bpf*` and bind it to `iface`, promiscuous:
     /// the card replies to `SENDER_MAC`, not to the host's own address.
     ///
@@ -114,7 +114,7 @@ impl Bpf {
     ///
     /// # Errors
     /// Fails on any other read error.
-    pub fn recv(&mut self) -> Result<Records<'_>> {
+    pub fn recv(&mut self) -> Result<Frames<'_>> {
         let n = match self.file.read(&mut self.buf) {
             Ok(n) => n,
             Err(e)
@@ -125,16 +125,16 @@ impl Bpf {
             }
             Err(e) => return Err(e).context("read from bpf"),
         };
-        Ok(Records(&self.buf[..n]))
+        Ok(Frames(&self.buf[..n]))
     }
 }
 
 /// The frames packed into one BPF read buffer; a truncated trailing record
 /// ends the walk (`truncated_tail_is_dropped`).
 #[derive(Clone, Debug)]
-pub struct Records<'a>(pub &'a [u8]);
+pub struct Frames<'a>(pub &'a [u8]);
 
-impl<'a> Iterator for Records<'a> {
+impl<'a> Iterator for Frames<'a> {
     type Item = &'a [u8];
 
     fn next(&mut self) -> Option<&'a [u8]> {
@@ -180,7 +180,7 @@ mod tests {
     }
 
     fn split_records(buf: &[u8]) -> Vec<Vec<u8>> {
-        Records(buf).map(<[u8]>::to_vec).collect()
+        Frames(buf).map(<[u8]>::to_vec).collect()
     }
 
     #[test]

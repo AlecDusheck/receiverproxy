@@ -6,7 +6,7 @@
 
 use anyhow::{Context, Result};
 use e120_canvas::{Canvas, Frame};
-use e120_net::Bpf;
+use e120_net::Link;
 use e120_proto as proto;
 use std::time::{Duration, Instant};
 
@@ -61,7 +61,7 @@ impl Default for Settings {
     }
 }
 
-/// Where a [`Wall`] sends its frames: the BPF device in production, a
+/// Where a [`Wall`] sends its frames: the raw link in production, a
 /// recording sink in tests so the frame recipe can be pinned offline.
 pub trait FrameSink {
     /// Send one raw Ethernet frame.
@@ -71,14 +71,14 @@ pub trait FrameSink {
     fn send(&mut self, frame: &[u8]) -> Result<()>;
 }
 
-impl FrameSink for Bpf {
+impl FrameSink for Link {
     fn send(&mut self, frame: &[u8]) -> Result<()> {
         Self::send(self, frame)
     }
 }
 
 /// A wall of panels on one network interface.
-pub struct Wall<S: FrameSink = Bpf> {
+pub struct Wall<S: FrameSink = Link> {
     dev: S,
     canvas: Canvas,
     settings: Settings,
@@ -92,14 +92,14 @@ pub struct Wall<S: FrameSink = Bpf> {
     sync_frame: [u8; 112],
 }
 
-impl Wall<Bpf> {
+impl Wall<Link> {
     /// Open the interface and bind it to a canvas.
     ///
     /// # Errors
     /// Fails if the interface cannot be opened, or the canvas is inconsistent.
     pub fn open(iface: &str, canvas: Canvas, settings: Settings) -> Result<Self> {
         canvas.validate()?;
-        let dev = Bpf::open(iface, RECV_TIMEOUT).with_context(|| format!("open {iface}"))?;
+        let dev = Link::open(iface, RECV_TIMEOUT).with_context(|| format!("open {iface}"))?;
         Self::with_sink(dev, canvas, settings)
     }
 }

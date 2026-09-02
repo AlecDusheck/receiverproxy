@@ -1,6 +1,6 @@
 # e120
 
-![A Raspberry Pi, Mac or Linux machine drives a Colorlight E120 over Ethernet; the card drives a P2.5 LED module over a HUB75 ribbon](docs/readme-header.png)
+![A Raspberry Pi drives chained Colorlight E120 cards over Ethernet; each card drives part of an LED wall over HUB75 ribbons](docs/readme-header.png)
 
 Drive a Colorlight E120 LED receiving card and its modules over raw Ethernet: generate and flash the module configuration yourself, then put images, video and live streams on the panel.
 
@@ -241,4 +241,4 @@ Developed against one Colorlight E120 receiving card running firmware 16.53 (`E3
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). The Raspberry Pi photo in the header is from Wikimedia Commons, CC BY-SA 4.0.

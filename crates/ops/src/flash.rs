@@ -156,6 +156,7 @@ fn describe_image(img: &[u8], p: &mut dyn Progress) {
 ///
 /// `blocks` limits the write to part of the bank, so a partially-programmed
 /// image can be repaired without disturbing what is already correct.
+/// `image` is a manifest name or a path (`crate::firmware`).
 #[allow(clippy::too_many_arguments)]
 pub fn flash_firmware(
     ctx: &Ctx,
@@ -178,9 +179,11 @@ pub fn flash_firmware(
         blocks.end
     );
 
-    let img = std::fs::read(image).with_context(|| format!("read {image}"))?;
+    let loaded = crate::firmware::load(image, p)?;
+    let checked = crate::firmware::checked(&loaded);
+    let (image, img) = (loaded.path.as_str(), loaded.bytes.as_slice());
     anyhow::ensure!(
-        has_lattice_header(&img),
+        has_lattice_header(img),
         "{image} does not look like a Lattice bitstream"
     );
     let span = bank_bytes(m);
@@ -200,7 +203,7 @@ pub fn flash_firmware(
     );
 
     p.err(&format!(
-        "firmware: {image} -> blocks 0x{:02x}..0x{:02x}, recovery {backup}",
+        "firmware: {image} ({checked}) -> blocks 0x{:02x}..0x{:02x}, recovery {backup}",
         blocks.start,
         blocks.end - 1
     ));
@@ -248,7 +251,7 @@ pub fn flash_firmware(
             p,
             format!(
                 "{bad} bytes differ after writing; golden bank at 0x{:02x} untouched; \
-             recover with: e120 firmware write {backup} --backup {backup} --commit",
+             recover with: rxp firmware write {backup} --backup {backup} --commit",
                 map.golden_block
             ),
         );
@@ -559,7 +562,7 @@ pub fn write_config(
     let last = (at + 4 + file.len()).div_ceil(protocol::FLASH_PAGE_BYTES);
     rewrite_block(m, &mut dev, index, &image, wait, first..last, p).with_context(|| {
         format!(
-            "original block saved at {backup}; restore with: e120 flash restore-block {backup} --commit"
+            "original block saved at {backup}; restore with: rxp flash restore-block {backup} --commit"
         )
     })?;
 

@@ -1,0 +1,55 @@
+# The vendor firmware images under third-party/firmware, one entry each
+# (third-party/README.md says where they come from and how they are named).
+# `rxp firmware list` prints this table; `provision --firmware NAME` and
+# `firmware install NAME` take a name from it and verify the sha256 before
+# any write. `version` is what the card reports after the install; `size`
+# and `sha256` are the file on disk.
+#
+# `base_url` is where `rxp firmware fetch NAME` downloads base_url/NAME from
+# into the config directory's firmware cache. Empty means local only: the
+# image is expected under third-party/firmware or in that cache.
+base_url = ""
+
+[[image]]
+name = "E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex"
+version = "16.53"
+kind = "PWM"
+chips = ["SM16386S", "SM16269SH"]
+size = 721024
+sha256 = "c4926274fffb8425c16af47437896177fef42eb90f01e477620003c3913eed1c"
+
+[[image]]
+name = "E320_PCB6.0_Normal_FPGA13.39_20221101.hex"
+version = "13.39"
+pcb = "6.0"
+kind = "Normal"
+chips = []
+size = 721024
+sha256 = "f4d33a4293cd47a9dc41b175a7fff7e6cf329bc9c6116522b1aa3d6ec36639d9"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA10.81_20230907.hex"
+version = "10.81"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "9f46e6f5c8492b37a2e77645017c88f8d7fdbfcef255624c33d68ffa3d077511"
+
+[[image]]
+name = "E320_PCB6.0_PWM_FPGA9.53_20221031.hex"
+version = "9.53"
+pcb = "6.0"
+kind = "PWM"
+chips = []
+size = 721024
+sha256 = "cb7c264231d7123bbf3fba4a9ec964a410b20e284db5715e46f50da0eeaffa19"
+
+[[image]]
+name = "E320_PCB6.1_LS0allDA_FPGA6.69_20220907.hex"
+version = "6.69"
+pcb = "6.1"
+kind = "LS0allDA"
+chips = []
+size = 721024
+sha256 = "a8022e04fbcf11b34e6e8dc640ebcaf561cea2ec286a74ae37ec5b45979eb47f"

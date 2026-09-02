@@ -1,6 +1,6 @@
 # Adding a receiving card
 
-How a receiving card is described to `e120`, how the description is checked
+How a receiving card is described to `rxp`, how the description is checked
 against the card, how a new card or panel is brought up on the bench, and
 what a second vendor needs. The E120 is the worked example throughout:
 `config/cards/e120.toml` is the only model file, and the values quoted here
@@ -18,14 +18,14 @@ is required unless marked optional.
 | field | meaning |
 |---|---|
 | `name` | what `--card` takes, matched without regard to case (`E120`) |
-| `vendor` | the maker, as printed by `e120 card models` (`Colorlight`) |
+| `vendor` | the maker, as printed by `rxp card models` (`Colorlight`) |
 | `family` | the protocol family; `colorlight` is the only one implemented (section 4) |
-| `id` | the first byte of the discovery reply; `e120 discover` prints it as `id=0x64` |
+| `id` | the first byte of the discovery reply; `rxp discover` prints it as `id=0x64` |
 | `status` | `tested` (driven on a bench), `generates` (configurations build, never driven), `unsupported` |
 | `notes` | optional free text shown nowhere but the file |
 | `[[tested]]` | one entry per panel driven on a bench with this card; a `tested` card has at least one, the others none |
 | `tested.panel` | the panel spec it was driven with, relative to the repository root (`config/panels/p25-128x64-sm16269s.toml`); must be a file the build embeds |
-| `tested.firmware` | the firmware the card ran, `major.minor` (`16.53`) |
+| `tested.firmware` | the image the card ran, by its name in `config/firmware.toml` (`E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex`); the version comes from the manifest entry |
 | `limits.max_width` | pixels across the card's control area, from the specification (1024) |
 | `limits.max_height` | pixels down it (192) |
 | `limits.hub_ports` | HUB75 headers on the card (12) |
@@ -55,9 +55,9 @@ is required unless marked optional.
 | `firmware.image_pattern` | the vendor's image file names with `{version}` for `major.minor` (`E320_PWM_FPGA{version}_*.hex`); `provision --firmware` reads the version it must wait for from the file name through this |
 | `firmware.sdram_staging` | true when the card stages an image in SDRAM and programs the guarded blocks itself (type 0x1a00) |
 
-Where the values come from: the id byte from `e120 discover`; the limits and
+Where the values come from: the id byte from `rxp discover`; the limits and
 port count from the vendor specification; the banks, the parameter block and
-the mirror from a flash dump (`e120 flash dump-range`, then `e120 flash
+the mirror from a flash dump (`rxp flash dump-range`, then `rxp flash
 scan` to see where the bitstream headers and the `.rcvbp` signature sit);
 the guarded blocks from a firmware install that leaves blocks differing
 after the host path ([provisioning.md](provisioning.md)); the boot-image
@@ -75,7 +75,7 @@ its own values and, where the regions differ in shape, its own builders in
 ## 2. The probe
 
 ```
-e120 card probe [--card NAME] [--out DIR] [--index N] [--wait S]
+rxp card probe [--card NAME] [--out DIR] [--index N] [--wait S]
 ```
 
 Read-only: the frames it sends are one discovery and flash reads, which
@@ -117,7 +117,7 @@ screen size against the embedded record 0x01; the mirror programmed, with
 its control area. The guarded blocks stay `not checked`: proving a block
 is write-protected means writing to it. The checker is a pure function over
 the bytes read (`ops::probe::check_block`), unit-tested against the image
-`e120 config gen` builds for the bench spec.
+`rxp config gen` builds for the bench spec.
 
 On a card configured by the vendor tool the chip page and the embedded
 file reflect that tool's version: the older tool leaves the chip page
@@ -133,28 +133,28 @@ supply is only ever switched through `scripts/psu.sh`, brightness stays at
 or below 40 until content is right, and nothing is flashed while the supply
 shows constant-current.
 
-1. **Probe.** `e120 discover` for the id byte and firmware; `e120 card probe`
+1. **Probe.** `rxp discover` for the id byte and firmware; `rxp card probe`
    for the model, with `--card` naming the closest existing model when the
    id is new. Every `mismatch` is a value to measure before anything is
    written.
-2. **Snapshot.** `e120 flash snapshot --dir snapshots/<card>-<date>` for
-   the primary and golden banks, and `e120 flash dump-range` for the whole
+2. **Snapshot.** `rxp flash snapshot --dir snapshots/<card>-<date>` for
+   the primary and golden banks, and `rxp flash dump-range` for the whole
    flash of a new card. Keep them outside the repository; they are the only
    way back.
 3. **Model file.** Copy `config/cards/e120.toml`, set the id byte, the
    limits from the specification and the addresses from the dump, and
-   `status = "generates"`. `cargo test -p receivers` and `e120 card models`
-   accept it; `e120 card probe` now runs against it without `--card`.
+   `status = "generates"`. `cargo test -p receivers` and `rxp card models`
+   accept it; `rxp card probe` now runs against it without `--card`.
 4. **Spec.** A panel spec in `config/panels/` ([building-a-config.md](building-a-config.md)),
    started from the closest class in `config/panels/mined/` or from a vendor
-   file for the exact module when one exists. `e120 config gen --card NAME
+   file for the exact module when one exists. `rxp config gen --card NAME
    --spec ...` builds the file, the pack, the boot image and the sources
    report offline.
-5. **Provision.** `e120 provision --card NAME --spec ... --position 0,0`
+5. **Provision.** `rxp provision --card NAME --spec ... --position 0,0`
    prints the plan; with `--commit` it snapshots, installs firmware when
    given, writes the boot image, rewrites the EEPROM records and verifies
    the control area. Power-cycle; the card configures itself from flash.
-   `e120 card probe` afterwards should read all `ok`, and
+   `rxp card probe` afterwards should read all `ok`, and
    `scripts/flash-review.py` names every run of block 7 that differs from
    the reference dump.
 6. **Capture.** `scripts/bench.py locate` once per rig to find the panel in
@@ -163,19 +163,19 @@ shows constant-current.
    photographed and metered mid-segment, the first condition repeated as
    the control. An all-black frame that stays lit is conclusive on its own.
 7. **Meters.** The supply current per condition from the run, the averaged
-   captures (`bench.py capture`, `compare`, `tile`), and `e120 discover` for
+   captures (`bench.py capture`, `compare`, `tile`), and `rxp discover` for
    the reported size. A difference is a finding only when it exceeds what the
    control shows against itself, and only after the run is repeated.
 8. **Adjust.** Change one spec field, or one `record01_overrides` byte, per
    run; rerun from step 5 (`flash restore-block` plus a power-cycle when only
-   the boot image changed, `e120 config send` for a RAM-only try that lands
+   the boot image changed, `rxp config send` for a RAM-only try that lands
    on about one boot in three). Record the value, the run and its readings
    in [rendering.md](rendering.md); record what did not work in
    [retracted-findings.md](retracted-findings.md).
 
 When the panel renders from flash after a power-cycle, the model file
 gains a `[[tested]]` entry naming the spec and the firmware, `status`
-becomes `tested`, and `e120 card models --markdown` regenerates the README's
+becomes `tested`, and `rxp card models --markdown` regenerates the README's
 matrix (a unit test fails until it is pasted between the `<!-- tested -->`
 markers).
 
@@ -214,7 +214,7 @@ confined the same way.
 | `format(&self) -> Format` | the registry entry: `name` (what `--format` takes), `vendor`, `extension`, and whether `generate` and `import` are implemented |
 | `matches(&self, file) -> bool` | true when the file starts with the format's signature; `rcvbp::detect(file)` asks each codec in turn |
 | `generate(&self, spec, chip) -> Result<Encoded>` | the file the card's tooling loads for a `PanelSpec` and its `ChipLibrary`, plus one source line per byte range placed |
-| `inspect(&self, file) -> Result<Vec<String>>` | one line per record of a file, as `e120 config info` lists them |
+| `inspect(&self, file) -> Result<Vec<String>>` | one line per record of a file, as `rxp config info` lists them |
 | `import(&self, file, chips) -> Result<(PanelSpec, Vec<String>)>` | the spec that regenerates the file and the fields it could not recover, by name; `chips` maps a chip id to a library `(path, text)`. The default fails as not implemented; a codec whose `Format::import` is true overrides it |
 
 `RcvbpCodec` implements it over `rcvbp::spec::generate`, `Rcvbp::from_bytes`
@@ -222,10 +222,10 @@ and `rcvbp::spec::spec_from_rcvbp`.
 The registry is `rcvbp::codecs()`, a static list of the implementations;
 `rcvbp::formats()` iterates their entries, `rcvbp::codec(name)` looks one
 up, failing with the known names, and `rcvbp::detect(file)` picks one by
-signature. `e120 config formats` and the site's
-format list print that table; `e120 config gen --format NAME` and the WASM
+signature. `rxp config formats` and the site's
+format list print that table; `rxp config gen --format NAME` and the WASM
 `generate(spec_toml, format)` look the name up before generating;
-`e120 config import FILE` and the WASM `import(bytes, format?)` detect it
+`rxp config import FILE` and the WASM `import(bytes, format?)` detect it
 unless told. A new codec is one more element in `codecs()`.
 The boot image is not part of the trait: it is the E320 gateware line's
 flash layout (`rcvbp::image`, laid out from `boot_image`), and a vendor

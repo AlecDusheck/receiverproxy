@@ -8,6 +8,7 @@ build = "build.rs"
 
 [dependencies]
 serde.workspace = true
+sha2 = "0.10"
 toml.workspace = true
 
 [lints]

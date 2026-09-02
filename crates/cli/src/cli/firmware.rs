@@ -1,10 +1,17 @@
 use anyhow::Result;
 use clap::Subcommand;
 use ops::flash::flash_firmware;
-use ops::{protocol, upgrade, Ctx, Progress};
+use ops::{firmware, protocol, upgrade, Ctx, Progress};
 
 #[derive(Subcommand)]
 pub enum Firmware {
+    /// The images in config/firmware.toml and where each one is
+    List,
+    /// Download an image named in config/firmware.toml into the config directory's cache, checking its sha256
+    Fetch {
+        /// An image name from `rxp firmware list`
+        name: String,
+    },
     /// Report the image the card expects and its upgrade capabilities
     Info {
         /// Seconds to wait for the reply
@@ -13,7 +20,7 @@ pub enum Firmware {
     },
     /// Install a firmware image through the card's SDRAM staging
     Install {
-        /// The .hex bitstream to install
+        /// The .hex bitstream to install: a name from config/firmware.toml or a path
         image: String,
         /// Send it; without this only the plan is printed
         #[arg(long)]
@@ -33,7 +40,7 @@ pub enum Firmware {
     },
     /// Write an FPGA bitstream into the primary bank with host page writes
     Write {
-        /// The .hex bitstream to install
+        /// The .hex bitstream to install: a name from config/firmware.toml or a path
         image: String,
         /// A prior dump of the primary bank, kept as the recovery path
         #[arg(long)]
@@ -64,6 +71,11 @@ impl Firmware {
 
 pub fn run(ctx: &Ctx, cmd: &Firmware, p: &mut dyn Progress) -> Result<()> {
     match cmd {
+        Firmware::List => {
+            firmware::list(p);
+            Ok(())
+        }
+        Firmware::Fetch { name } => firmware::fetch(name, p),
         Firmware::Info { wait } => upgrade::info(ctx, *wait, p),
         Firmware::Install {
             image,

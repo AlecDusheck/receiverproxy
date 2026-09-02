@@ -7,15 +7,16 @@
 name = "E120"
 vendor = "Colorlight"
 family = "colorlight"
-# First byte of the 0x0805 discovery reply; `e120 discover` prints it as id=0x64.
+# First byte of the 0x0805 discovery reply; `rxp discover` prints it as id=0x64.
 id = 0x64
 status = "tested"
 notes = "Gateware builds are named E320: one line for the whole classic family (third-party/README.md)."
 
-# Panels driven on the bench with this card (docs/rendering.md).
+# Panels driven on the bench with this card (docs/rendering.md); `firmware`
+# names an image in config/firmware.toml.
 [[tested]]
 panel = "config/panels/p25-128x64-sm16269s.toml"
-firmware = "16.53"
+firmware = "E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex"
 
 [limits]
 # The specification's control area for PWM chips, 192 x 1024 pixels; 1024 is

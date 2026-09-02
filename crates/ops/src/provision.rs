@@ -48,7 +48,7 @@ fn install_firmware(
     p: &mut dyn Progress,
 ) -> Result<bool> {
     let m = ctx.model()?;
-    let img = std::fs::read(image).with_context(|| format!("read {image}"))?;
+    let img = crate::firmware::load(image, p)?.bytes;
     let want = &img[..bank_bytes(m).min(img.len())];
 
     let current = read_primary_bank(m, &mut open(ctx)?, 0, wait, p)?;
@@ -100,12 +100,13 @@ fn install_firmware(
     Ok(true)
 }
 
-/// What `e120 provision` takes.
+/// What `rxp provision` takes.
 #[derive(Clone, Debug)]
 pub struct Args<'a> {
     /// Panel spec file.
     pub spec_path: &'a str,
-    /// Vendor firmware image to install; skipped when absent.
+    /// Vendor firmware image to install, a `config/firmware.toml` name or a
+    /// path; skipped when absent.
     pub firmware: Option<&'a str>,
     /// Cabinet position in the whole screen, in pixels.
     pub position: (u16, u16),
@@ -167,11 +168,19 @@ pub fn provision(ctx: &Ctx, a: &Args, load: Loader, p: &mut dyn Progress) -> Res
     ));
     let want_version = match firmware {
         Some(fw) => {
-            let want = m
-                .firmware
-                .version_in_name(fw)
-                .with_context(|| format!("no version in the firmware file name {fw} ({})", m.firmware.image_pattern))?;
-            p.err(&format!("plan: firmware {fw}, card to report {want} afterwards"));
+            let r = crate::firmware::resolve(fw)?;
+            let want = match r.image {
+                Some(i) => i.version,
+                None => m
+                    .firmware
+                    .version_in_name(fw)
+                    .with_context(|| format!("no version in the firmware file name {fw} ({})", m.firmware.image_pattern))?,
+            };
+            p.err(&format!(
+                "plan: firmware {} ({}), card to report {want} afterwards",
+                r.path.display(),
+                if r.image.is_some() { "in config/firmware.toml" } else { "not in config/firmware.toml" }
+            ));
             Some(want)
         }
         None => None,

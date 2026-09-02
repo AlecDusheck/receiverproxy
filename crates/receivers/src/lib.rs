@@ -3,6 +3,8 @@
 //! holds firmware and parameters, and how far it has been tested. The files
 //! are embedded at build time; nothing here reads the filesystem.
 
+pub mod firmware;
+
 use serde::Deserialize;
 use std::fmt;
 use std::ops::Range;
@@ -61,8 +63,22 @@ impl fmt::Display for Status {
 pub struct Tested {
     /// The spec it was driven with, relative to the repository root.
     pub panel: String,
-    /// The firmware the card ran.
-    pub firmware: Version,
+    /// The firmware the card ran: an image name from `config/firmware.toml`.
+    pub firmware: String,
+}
+
+impl Tested {
+    /// The manifest entry `firmware` names.
+    #[must_use]
+    pub fn image(&self) -> Option<&'static firmware::Image> {
+        firmware::image(&self.firmware)
+    }
+
+    /// The version the card reported, from the manifest.
+    #[must_use]
+    pub fn version(&self) -> Option<Version> {
+        self.image().map(|i| i.version)
+    }
 }
 
 /// What the card can drive, as its specification states it.
@@ -302,17 +318,24 @@ mod tests {
         assert_eq!(all[0].status, Status::Tested);
         for m in all {
             assert_eq!(m.status == Status::Tested, !m.tested.is_empty(), "{}: status and tested disagree", m.name);
+            for t in &m.tested {
+                assert!(t.image().is_some(), "{}: tested firmware {} is not in config/firmware.toml", m.name, t.firmware);
+            }
         }
     }
 
     #[test]
     fn the_e120_is_found_by_id_and_by_name() {
-        let m = by_id(0x64).expect("e120 by id");
+        let m = by_id(0x64).expect("E120 by id");
         assert_eq!(m.name, "E120");
         assert_eq!(
             m.tested,
-            [Tested { panel: "config/panels/p25-128x64-sm16269s.toml".into(), firmware: Version(16, 53) }]
+            [Tested {
+                panel: "config/panels/p25-128x64-sm16269s.toml".into(),
+                firmware: "E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex".into()
+            }]
         );
+        assert_eq!(m.tested[0].version(), Some(Version(16, 53)));
         assert!(std::ptr::eq(by_name("e120").unwrap(), m));
         assert!(std::ptr::eq(default_model(), m));
         assert!(by_id(0x03).is_none());

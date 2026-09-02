@@ -50,15 +50,16 @@ pub fn info(ctx: &Ctx, wait: u64, p: &mut dyn Progress) -> Result<()> {
 }
 
 /// Install a firmware image through SDRAM staging and wait for the card to
-/// report done.
+/// report done. `image` is a manifest name or a path (`crate::firmware`).
 ///
 /// # Errors
-/// Fails if the image does not match what the card expects, if the card does
-/// not support SDRAM staging, or if programming does not complete in time.
+/// Fails if the image is not what the manifest says, does not match what the
+/// card expects, if the card does not support SDRAM staging, or if
+/// programming does not complete in time.
 #[allow(clippy::too_many_arguments)]
 pub fn install(
     ctx: &Ctx,
-    image_path: &str,
+    image: &str,
     commit: bool,
     partition: Partition,
     timeout_s: u64,
@@ -66,9 +67,11 @@ pub fn install(
     wait: u64,
     p: &mut dyn Progress,
 ) -> Result<()> {
-    let img = std::fs::read(image_path).with_context(|| format!("read {image_path}"))?;
+    let loaded = crate::firmware::load(image, p)?;
+    let checked = crate::firmware::checked(&loaded);
+    let (image_path, img) = (loaded.path.as_str(), loaded.bytes.as_slice());
     anyhow::ensure!(
-        has_lattice_header(&img),
+        has_lattice_header(img),
         "{image_path} does not look like a Lattice bitstream"
     );
 
@@ -92,7 +95,7 @@ pub fn install(
 
     let staged = &img[..d.image_len as usize];
     p.err(&format!(
-        "upgrade: {image_path} -> {} image, {} chunks of {} bytes {chunk_delay_us}us apart, ~{:.1}s to program",
+        "upgrade: {image_path} ({checked}) -> {} image, {} chunks of {} bytes {chunk_delay_us}us apart, ~{:.1}s to program",
         match partition {
             Partition::Primary => "primary",
             Partition::Golden => "golden",
@@ -154,6 +157,6 @@ pub fn install(
 
     anyhow::bail!(
         "no completion report within {timeout_s}s; the card may still be programming, \
-         do not power it off; check with: e120 firmware info"
+         do not power it off; check with: rxp firmware info"
     )
 }

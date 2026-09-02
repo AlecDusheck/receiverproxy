@@ -1,4 +1,4 @@
-//! The `e120` commands as functions. `cli` wraps them in clap and prints
+//! The `rxp` commands as functions. `cli` wraps them in clap and prints
 //! through [`Stdio`]; `daemon` runs them as jobs and collects their lines.
 //! Every command takes a [`Ctx`] (the former global flags) and, when it has
 //! anything to say, a `&mut dyn Progress`.
@@ -6,6 +6,7 @@
 pub mod capture;
 pub mod config;
 pub mod display;
+pub mod firmware;
 pub mod flash;
 pub mod ingest;
 pub mod model;

@@ -13,6 +13,12 @@ use std::path::Path;
 #[serde(deny_unknown_fields)]
 pub struct ChipLibrary {
     pub name: String,
+    /// Who makes the chip.
+    #[serde(default)]
+    pub vendor: Option<String>,
+    /// Datasheet.
+    #[serde(default)]
+    pub datasheet: Option<String>,
     pub family_id: u16,
     pub sub_id: Option<u16>,
     /// Vendor default serial clock for the chip (record +0x021).

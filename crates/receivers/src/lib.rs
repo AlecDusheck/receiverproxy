@@ -34,6 +34,9 @@ pub struct CardModel {
     /// Where the photo came from.
     #[serde(default)]
     pub image_source: Option<String>,
+    /// Specification sheet.
+    #[serde(default)]
+    pub datasheet: Option<String>,
     /// Panels driven on a bench with this card, one entry per measurement.
     #[serde(default)]
     pub tested: Vec<Tested>,

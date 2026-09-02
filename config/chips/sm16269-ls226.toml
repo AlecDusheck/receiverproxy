@@ -13,6 +13,8 @@
 # max scan, and the clock follows from that: sub 0x14D -> max scan 64 -> 7;
 # sub 0x217/0x218 -> max scan 32 -> 8; no sub-id -> max scan 16 -> 15.
 
+vendor = "Sunmoon"
+datasheet = "https://assets.receiverproxy.com/datasheets/chips/sm16269.pdf"
 name = "SM16269 (LEDSetting 2.2.6)"
 family_id = 0x014C
 sub_id = 0x014D

@@ -19,6 +19,8 @@
 # despite the "32S" in the factory file's name. It is overwritten from the
 # panel spec's scan on load, as in every other library.
 
+vendor = "Sunmoon"
+datasheet = "https://assets.receiverproxy.com/datasheets/chips/sm16269.pdf"
 name = "SM16269S (factory values)"
 family_id = 0x014C
 # The factory file writes no secondary chip id at all (record 0x01 +0x0E9 and

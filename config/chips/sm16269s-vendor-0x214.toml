@@ -60,6 +60,8 @@
 #   record 0x84    = absent / all zero
 # ---------------------------------------------------------------------------
 
+vendor = "Sunmoon"
+datasheet = "https://assets.receiverproxy.com/datasheets/chips/sm16269.pdf"
 name = "SM16269S (0x0214) — NO VENDOR DATA; stub only"
 family_id = 0x0214
 sub_id = 0x0000

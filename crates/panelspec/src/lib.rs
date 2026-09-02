@@ -229,11 +229,35 @@ pub struct Meta {
     pub agreement: Option<f32>,
     /// A few of the source files by name.
     pub examples: Vec<String>,
-    /// Vendors whose files the sources are.
+    /// Control-system vendors whose config files the sources are (the
+    /// format the values were mined from), not who makes the panel.
     pub vendors: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts", ts(optional))]
     pub notes: Option<String>,
+    /// Who makes the panel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub maker: Option<String>,
+    /// The maker's model name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub product: Option<String>,
+    /// Product page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub url: Option<String>,
+    /// Specification sheet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub datasheet: Option<String>,
+    /// Photo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub image: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub image_source: Option<String>,
 }
 
 /// How far a spec has been shown to work.

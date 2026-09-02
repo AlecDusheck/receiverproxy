@@ -14,6 +14,7 @@ notes = "Gateware builds are named E320: one line for the whole classic family (
 # The photo the web app shows, under web/static.
 image = "cards/e120.jpg"
 image_source = "eager-led.com product photo"
+datasheet = "https://assets.receiverproxy.com/datasheets/cards/colorlight-e120.pdf"
 
 # Panels driven on the bench with this card (docs/rendering.md); `firmware`
 # names an image in config/firmware.toml.

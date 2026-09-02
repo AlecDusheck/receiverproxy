@@ -7,6 +7,8 @@
 # scan 16 -> 15); LEDVISION 9.6 ChipSetting.dll dialog IDD20174 for the
 # register field layout (docs/building-a-config.md).
 
+vendor = "Sunmoon"
+datasheet = "https://assets.receiverproxy.com/datasheets/chips/sm16269.pdf"
 name = "SM16269"
 family_id = 0x014C
 sub_id = 0x014D

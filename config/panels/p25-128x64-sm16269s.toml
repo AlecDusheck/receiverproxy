@@ -16,6 +16,12 @@ sources = 1
 examples = ["P2.5-32S-128X64-SM16269S-256X384I.rcvbp"]
 vendors = ["Colorlight"]
 notes = "Driven from flash on firmware 16.53; record 0x01 differs from the reference file at 0x023, 0x02F and 0x0C0..0x0C3 (docs/rendering.md)."
+maker = "Eager LED"
+product = "P2.5-O16S-SMD1415-128x64-E"
+url = "https://eager-led.com/products/outdoor-hd-p2-5-320x160mm-led-screen-module"
+datasheet = "https://assets.receiverproxy.com/datasheets/panels/eager-p25-outdoor-smd1415-320x160.pdf"
+image = "https://assets.receiverproxy.com/images/panels/eager-p25-o16s-smd1415-128x64.jpg"
+image_source = "eager-led.com product photo"
 
 [module]
 # The card arrived saying 14. Kept at 12 because it is what was measured most;

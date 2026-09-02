@@ -270,10 +270,32 @@ export type Meta = {
    */
   examples: Array<string>;
   /**
-   * Vendors whose files the sources are.
+   * Control-system vendors whose config files the sources are (the
+   * format the values were mined from), not who makes the panel.
    */
   vendors: Array<string>;
   notes?: string;
+  /**
+   * Who makes the panel.
+   */
+  maker?: string;
+  /**
+   * The maker's model name.
+   */
+  product?: string;
+  /**
+   * Product page.
+   */
+  url?: string;
+  /**
+   * Specification sheet.
+   */
+  datasheet?: string;
+  /**
+   * Photo.
+   */
+  image?: string;
+  image_source?: string;
 };
 export type EntryModule = {
   width: number;

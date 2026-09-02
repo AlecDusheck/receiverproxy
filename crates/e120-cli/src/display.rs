@@ -5,6 +5,7 @@ use crate::util::open;
 use crate::{protocol, Cli};
 use anyhow::{Context, Result};
 use e120_canvas::{Canvas, Frame};
+use e120_video::FrameSource;
 use std::io::{IsTerminal, Write};
 use std::time::Duration;
 
@@ -39,8 +40,6 @@ pub fn wall_settings(cli: &Cli) -> e120_driver::Settings {
         timing: e120_driver::Timing {
             latches: env_or("E120_LATCHES", t.latches),
             latch_gap: micros("E120_LATCH_GAP_US", t.latch_gap),
-            // The card's receive FIFO is 1 KB; a gap here is the experiment
-            // for a line-rate burst dropping its tail. None was needed.
             row_gap: micros("E120_ROW_GAP_US", t.row_gap),
         },
     }

@@ -1,13 +1,12 @@
 #!/bin/sh
-# Mirror this Mac's screen (or a region of it) onto the panel.
+# Mirror this Mac's screen, or a region of it, onto the panel through `e120 show stream`.
 #
+# Usage:
 #   scripts/mirror.sh                      whole screen, scaled to 128x64
 #   scripts/mirror.sh -s 256x64 -f 30      panel size and frame rate
 #   scripts/mirror.sh -c 0,0,640,320       crop x,y,w,h from the top-left first
-#
-# Captures with ffmpeg's avfoundation device ("Capture screen 0"), scales to
-# the panel and pipes raw rgb24 frames into `e120 stream`. Grant the terminal
-# Screen Recording permission the first time macOS asks.
+#   scripts/mirror.sh -d "Capture screen 1"  another avfoundation device
+#   extra arguments are passed to `e120 show stream`
 set -eu
 
 size=128x64
@@ -33,7 +32,8 @@ EOF
     filter="crop=${w}:${h}:${x}:${y},${filter}"
 fi
 
+# macOS asks for Screen Recording permission for the terminal the first time.
 exec ffmpeg -hide_banner -loglevel error \
     -f avfoundation -capture_cursor 1 -framerate "$fps" -i "$device" \
     -vf "$filter" -f rawvideo -pix_fmt rgb24 - \
-    | e120 stream --size "$size" --fps "$fps" "$@"
+    | e120 show stream --size "$size" --fps "$fps" "$@"

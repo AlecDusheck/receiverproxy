@@ -1,15 +1,23 @@
-//! Frame sources: ffmpeg video decoded into wall-sized frames, and built-in
-//! test patterns.
-//!
-//! Video decoding is delegated to `ffmpeg`, which is asked for raw RGB24 frames
-//! already scaled to the wall's size, so nothing here has to understand
-//! container or codec formats.
+//! Frame sources: ffmpeg video, raw rgb24 streams from other processes, and
+//! built-in test patterns. ffmpeg is asked for rgb24 already scaled to the
+//! wall size, so nothing here parses containers or codecs.
+
+pub mod raw;
 
 use anyhow::{Context, Result};
 use e120_canvas::Frame;
-use std::io::Read;
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::str::FromStr;
+
+/// Anything that refills a caller-owned frame, one image per call.
+pub trait FrameSource {
+    /// Fill `frame` with the next image, resizing it to the source's size if
+    /// needed. `Ok(false)` at the end of the stream.
+    ///
+    /// # Errors
+    /// Fails if the underlying stream cannot be read.
+    fn next_frame(&mut self, frame: &mut Frame) -> Result<bool>;
+}
 
 /// A name that is not one of the allowed spellings for a type.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,9 +82,7 @@ impl Fit {
 /// Decodes a video file (or any URL ffmpeg understands) into wall-sized frames.
 pub struct VideoSource {
     child: Child,
-    stdout: ChildStdout,
-    width: u32,
-    height: u32,
+    frames: raw::RawSource<ChildStdout>,
 }
 
 impl VideoSource {
@@ -112,32 +118,16 @@ impl VideoSource {
         let stdout = child.stdout.take().context("ffmpeg stdout not piped")?;
         Ok(Self {
             child,
-            stdout,
-            width,
-            height,
+            frames: raw::RawSource::new(stdout, width, height),
         })
-    }
-
-    /// Fill `frame` with the next decoded image, resizing it to the source's
-    /// size if needed. Returns `false` at the end of the stream.
-    ///
-    /// # Errors
-    /// Fails if the ffmpeg pipe cannot be read.
-    pub fn next_frame(&mut self, frame: &mut Frame) -> Result<bool> {
-        if (frame.width, frame.height) != (self.width, self.height) {
-            *frame = Frame::black(self.width, self.height);
-        }
-        read_frame(&mut self.stdout, frame)
     }
 }
 
-/// Read one raw RGB24 image into `frame`; `false` on a clean end of stream.
-fn read_frame(r: &mut impl Read, frame: &mut Frame) -> Result<bool> {
-    match r.read_exact(frame.as_bytes_mut()) {
-        Ok(()) => Ok(true),
-        // A short read means the stream ended.
-        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(false),
-        Err(e) => Err(e).context("read frame from ffmpeg"),
+impl FrameSource for VideoSource {
+    fn next_frame(&mut self, frame: &mut Frame) -> Result<bool> {
+        self.frames
+            .read_frame(frame)
+            .context("read frame from ffmpeg")
     }
 }
 
@@ -193,8 +183,8 @@ pub fn pattern(p: Pattern, width: u32, height: u32) -> Frame {
     match p {
         Pattern::Rgb => {
             if width > 0 && height > 0 {
-                // Bands at w/3 and 2w/3 (not 2*(w/3)): what `e120 test rgb`
-                // has always drawn, so the boundary column does not move.
+                // Bands at w/3 and 2w/3, not 2*(w/3); the boundary column is
+                // pinned by rgb_pattern_puts_red_left_and_blue_right.
                 for (x, px) in f.row_mut(0).iter_mut().enumerate() {
                     let x = x as u32;
                     *px = if x < width / 3 {
@@ -258,7 +248,6 @@ pub fn pattern(p: Pattern, width: u32, height: u32) -> Frame {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
 
     #[test]
     fn patterns_are_the_requested_size() {
@@ -272,8 +261,7 @@ mod tests {
         let f = pattern(Pattern::Rgb, 30, 2);
         assert_eq!(f.pixel(0, 0), [255, 0, 0]);
         assert_eq!(f.pixel(29, 0), [0, 0, 255]);
-        // The second boundary is at 2w/3, not 2*(w/3): on the 128-wide panel
-        // column 84 is green and 85 is blue.
+        // 2w/3 = 85 on the 128-wide panel; 2*(w/3) would give 84.
         let f = pattern(Pattern::Rgb, 128, 1);
         assert_eq!(f.pixel(84, 0), [0, 255, 0]);
         assert_eq!(f.pixel(85, 0), [0, 0, 255]);
@@ -285,7 +273,6 @@ mod tests {
         assert_eq!(f.pixel(0, 0), [255, 0, 0]);
         assert_eq!(f.pixel(7, 0), [0, 255, 0]);
         assert_eq!(f.pixel(0, 3), [0, 0, 255]);
-        // Interior stays dark.
         assert_eq!(f.pixel(3, 2), [0, 0, 0]);
     }
 
@@ -356,23 +343,6 @@ mod tests {
             "fill".parse::<Fit>().unwrap_err().to_string(),
             "unknown fit \"fill\" (stretch|contain|cover)"
         );
-    }
-
-    #[test]
-    fn frames_are_read_back_to_back_until_the_stream_ends() {
-        let (w, h) = (4, 2);
-        let a = pattern(Pattern::Rgb, w, h);
-        let b = pattern(Pattern::Gradient, w, h);
-        let mut bytes = a.as_bytes().to_vec();
-        bytes.extend_from_slice(b.as_bytes());
-        bytes.extend_from_slice(&[7; 5]); // a truncated trailing frame
-        let mut r = Cursor::new(bytes);
-        let mut f = Frame::black(w, h);
-        assert!(read_frame(&mut r, &mut f).unwrap());
-        assert_eq!(f, a);
-        assert!(read_frame(&mut r, &mut f).unwrap());
-        assert_eq!(f, b);
-        assert!(!read_frame(&mut r, &mut f).unwrap());
     }
 
     #[test]

@@ -53,7 +53,7 @@
   const description = $derived(`${c.vendor} ${c.name} receiving card, id ${hex(c.id)}, ${c.limits.max_width}x${c.limits.max_height} control area, ${c.limits.hub_ports} HUB75 ports; ${c.status}, ${c.tested.length} panel${c.tested.length === 1 ? "" : "s"} tested.`);
 </script>
 
-<Head title="{c.vendor} {c.name}" {description} path="/cards/{encodeURIComponent(c.name)}" />
+<Head title="{c.vendor} {c.name}" {description} path="/cards/{encodeURIComponent(c.name.toLowerCase())}" />
 
 <TitleRow title="{c.vendor} {c.name}">
   {#snippet action()}

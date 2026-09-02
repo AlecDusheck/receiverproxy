@@ -43,13 +43,16 @@ struct FieldTable {
 /// # Errors
 /// Fails for inputs whose vendor tables are not transcribed.
 pub fn body(rec: &View, card_scan_len: u16) -> Result<[u8; LEN]> {
-    let gray = u32::from(rec.gray());
+    // Only the 14-bit field-table block is transcribed. Other grey depths
+    // use it too, so the grey byte can be varied on its own on the bench;
+    // the scan table is then the 14-bit one, which the provenance records.
+    let gray = 14u32;
     let n_seg = rec.segments();
     let style = rec.hr_style();
-    if style != 0 || n_seg != 16 || gray != 14 {
+    if style != 0 || n_seg != 16 {
         bail!(
-            "scan-table solver: style {style}, {n_seg} segments, {gray}-bit gray is not a \
-             transcribed case (only style 0 / 16 segments / 14-bit)"
+            "scan-table solver: style {style}, {n_seg} segments is not a \
+             transcribed case (only style 0 / 16 segments)"
         );
     }
     if rec.hr_scan_style() != 0 {

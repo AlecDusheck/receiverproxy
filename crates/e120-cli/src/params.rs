@@ -43,17 +43,18 @@ pub fn send_params(cli: &Cli, spec_path: &str, chip_only: bool, gap_ms: u64) -> 
     let gap = Duration::from_millis(gap_ms);
     let mut dev = open(cli)?;
 
-    let chip = g
-        .rcvbp
-        .records
-        .iter()
-        .find(|r| r.rtype[1] == 0x84)
-        .context("config has no chip-register record (0x84)")?
-        .payload
-        .clone();
-    Pack { kind: 0x05, sub: protocol::params::SUB_CHIP, header: 4, body: &chip, what: "chip registers" }
-        .send(&mut dev, gap)?;
-    println!("chip-register pack");
+    // Addressed-register chips get their table as the chip pack. A
+    // non-addressed chip carries its configuration inside the basic pack's
+    // chip-custom block and has no record 0x84 to send.
+    match g.rcvbp.records.iter().find(|r| r.rtype[1] == 0x84) {
+        Some(r) => {
+            let chip = r.payload.clone();
+            Pack { kind: 0x05, sub: protocol::params::SUB_CHIP, header: 4, body: &chip, what: "chip registers" }
+                .send(&mut dev, gap)?;
+            println!("chip-register pack");
+        }
+        None => println!("no chip-register pack: this chip is configured through the basic pack"),
+    }
     if chip_only {
         return Ok(());
     }

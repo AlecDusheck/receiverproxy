@@ -19,10 +19,45 @@ pub struct ChipLibrary {
     /// The 20-byte `SChipControl` block the vendor's `ResetChipControl`
     /// emits for this chip (record 0x01 +0x0C4).
     pub chip_control: [u8; 20],
-    /// Register ids in record order.
+    /// Register ids in record order. Absent for chips without an addressed
+    /// register table (the non-SH S-PWM parts, e.g. SM16169S).
+    #[serde(default)]
     pub order: Vec<u8>,
     /// Register id (as `0x..` string) → R, G, B values.
+    #[serde(default)]
     pub registers: BTreeMap<String, [u8; 3]>,
+    /// The 16-byte `SChipCustom` block (record 0x01 +0x06A) when the chip's
+    /// configuration lives there instead of in record 0x84. When absent the
+    /// generator writes only the PWM-flag/serial-clock pair the SH chips use.
+    pub chip_custom: Option<[u8; 16]>,
+    /// The scan patch the vendor applies to `chip_custom` on load:
+    /// `byte = base | ((scan - 1) & mask)` for each listed byte.
+    pub chip_custom_scan_patch: Option<ScanPatch>,
+    /// `SChipCustomEX` (record 0x01 +0x0E0..+0x0E3).
+    pub chip_custom_ex: Option<[u8; 4]>,
+    /// Whether record 0x84 exists for this chip at all. The vendor omits it
+    /// for non-addressed chips; a zeroed record is not the same file.
+    #[serde(default = "default_true")]
+    pub emit_record_84: bool,
+    /// Grey depth as a literal, for chips whose depth is not derived from
+    /// registers 0x07/0x03.
+    pub gray_bits: Option<u8>,
+    /// Record 0x01 bytes this chip id sets differently from the 0x14C
+    /// baseline; applied before the spec's own overrides.
+    #[serde(default)]
+    pub record01_overrides: BTreeMap<String, u8>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScanPatch {
+    pub bytes: Vec<usize>,
+    pub mask: u8,
+    pub base: u8,
+}
+
+const fn default_true() -> bool {
+    true
 }
 
 impl ChipLibrary {
@@ -46,7 +81,10 @@ impl ChipLibrary {
     ///
     /// # Errors
     /// Fails if the order names a register the table lacks, or overflows.
-    pub fn record_84(&self, scan: u8) -> Result<[u8; 256]> {
+    pub fn record_84(&self, scan: u8) -> Result<Option<[u8; 256]>> {
+        if !self.emit_record_84 || self.order.is_empty() {
+            return Ok(None);
+        }
         if self.order.len() * 4 > 256 {
             bail!("{}: {} registers do not fit a 256-byte record", self.name, self.order.len());
         }
@@ -56,7 +94,22 @@ impl ChipLibrary {
             out[i * 4] = reg;
             out[i * 4 + 1..i * 4 + 4].copy_from_slice(&rgb);
         }
-        Ok(out)
+        Ok(Some(out))
+    }
+
+    /// The `SChipCustom` block for a scan count, with the vendor's load-time
+    /// patch applied; `None` for chips configured through record 0x84.
+    #[must_use]
+    pub fn chip_custom_block(&self, scan: u8) -> Option<[u8; 16]> {
+        let mut block = self.chip_custom?;
+        if let Some(p) = &self.chip_custom_scan_patch {
+            for &i in &p.bytes {
+                if i < 16 {
+                    block[i] = p.base | (scan.wrapping_sub(1) & p.mask);
+                }
+            }
+        }
+        Some(block)
     }
 
     /// Grayscale depth the vendor derives from the registers
@@ -66,6 +119,9 @@ impl ChipLibrary {
     /// # Errors
     /// Fails if registers 0x03 or 0x07 are missing.
     pub fn gray_bits(&self) -> Result<u8> {
+        if let Some(g) = self.gray_bits {
+            return Ok(g);
+        }
         let r07 = self.reg(0x07)?[0];
         let r03 = self.reg(0x03)?[0];
         let g = 128u32 << ((r07 >> 3) & 3);
@@ -104,7 +160,7 @@ mod tests {
 
     #[test]
     fn quads_land_in_order_with_scan_patch_and_zero_fill() {
-        let r = lib().record_84(16).unwrap();
+        let r = lib().record_84(16).unwrap().unwrap();
         assert_eq!(&r[..4], &[0x02, 15, 15, 15], "reg 0x02 = scan - 1");
         assert_eq!(&r[12..16], &[0xf0, 4, 5, 6]);
         assert!(r[16..].iter().all(|&b| b == 0));

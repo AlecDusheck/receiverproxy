@@ -1,0 +1,54 @@
+# One Eager LED P2.5-O16S-SMD1415-128x64-E module on hub J1 of the E120.
+# Module spec: 128x64, 1/16 duty. Driver ICs read off the module: SM16269S.
+#
+# Generate with:  e120 gen-config --spec config/panels/p25-128x64-sm16269s.toml --out-dir build
+# Push to RAM:    e120 send-params --spec config/panels/p25-128x64-sm16269s.toml
+# Every byte of the output is a vendor default, a field below, a chip-library
+# value, or a documented literal — see build/*-provenance.txt.
+
+name = "p25-128x64-sm16169s-vendor"
+
+[module]
+width = 128
+height = 64
+scan = 16
+line_dir = 0
+data_groups = 1
+# The seller's config ran the serial clock at 8; the chip's vendor default is
+# 15 (config/chips/sm16269.toml). Remove this line to use the default.
+
+[screen]
+width = 128
+height = 64
+
+[chip]
+library = "config/chips/sm16169s-vendor.toml"
+
+[color]
+swap = 3
+source = [2, 1, 0]
+
+[current]
+gains = [43, 43, 43, 43]
+percent = [0.1, 0.1, 0.1]
+
+[timing]
+gamma = 2.8
+refresh_hz = 60.0
+gclock = 0x14
+min_oe = 0.0001
+luminance_level = 188
+oe_8ns = true
+
+[mapping]
+reversed_groups = true
+reversed_lines = false
+# Read straight out of the seller's own file for this panel: the two row-halves
+# alternate along the shift chain every 64 columns, not once at the midpoint.
+# Without this the columns land scrambled however correct the pixel data is.
+block = 64
+
+[boot]
+# Arming at boot with the current config lights the panel unmodulated at
+# full brightness and rails the 5.1 A supply. Leave off until it boots dark.
+arm_at_boot = true

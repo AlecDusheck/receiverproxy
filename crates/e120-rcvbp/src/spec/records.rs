@@ -55,9 +55,9 @@ fn table_8e() -> Vec<u8> {
 
 /// Assemble the config in the vendor's record order.
 #[must_use]
-pub fn assemble(spec: &PanelSpec, rec01: Vec<u8>, mapping: Vec<u8>, chip_regs: Vec<u8>) -> Rcvbp {
+pub fn assemble(spec: &PanelSpec, rec01: Vec<u8>, mapping: Vec<u8>, chip_regs: Option<Vec<u8>>) -> Rcvbp {
     let rec = |t: u16, payload: Vec<u8>| Record::new(t, payload);
-    let records = vec![
+    let mut records = vec![
         rec(0x0a01, rec01),
         rec(0x0a8d, vec![0; 4096]),   // void row/column table
         rec(0x0a91, vec![0; 6144]),   // gamma-cali gray
@@ -71,11 +71,17 @@ pub fn assemble(spec: &PanelSpec, rec01: Vec<u8>, mapping: Vec<u8>, chip_regs: V
         rec(0x0a89, rgb_trio(0x80)),
         rec(0x0a86, vec![0; 5]),      // switch-status bitfield
         rec(0x0a8a, secondary_params(spec)),
-        rec(0x0a84, chip_regs),
         rec(0x0acd, vec![0; 270]),    // cabinet identity strings
         rec(0x008f, vec![0; 580]),    // 8-bit gamma control points
         rec(0x0aca, geometry_wide(spec)),
     ];
+    // Record 0x84 sits between the secondary parameters and the cabinet
+    // strings when the chip has one; non-addressed chips get no record at all,
+    // exactly as the vendor writes them.
+    if let Some(regs) = chip_regs {
+        let at = records.iter().position(|r| r.type_u16() == 0x0acd).unwrap_or(records.len());
+        records.insert(at, rec(0x0a84, regs));
+    }
     Rcvbp {
         version: 4,
         blob: Vec::new(),

@@ -31,8 +31,11 @@ pub fn generate(spec: &PanelSpec, chip: &ChipLibrary) -> Result<Generated> {
         if spec.mapping.reversed_groups { "reversed" } else { "forward" },
         if spec.mapping.reversed_lines { "reversed" } else { "top-down" },
     ));
-    let regs = chip.record_84(spec.module.scan)?.to_vec();
-    prov.push(format!("rcvbp record 0x84 <- chip library {} (reg 0x02 = scan-1)", chip.name));
+    let regs = chip.record_84(spec.module.scan)?.map(|r| r.to_vec());
+    match &regs {
+        Some(_) => prov.push(format!("rcvbp record 0x84 <- chip library {} (reg 0x02 = scan-1)", chip.name)),
+        None => prov.push(format!("rcvbp record 0x84 omitted: {} has no addressed register table", chip.name)),
+    }
     prov.push("rcvbp other records <- decoded vendor defaults (records.rs)".into());
     let rcvbp = records::assemble(spec, rec01.clone(), mapping, regs);
     let basic_pack = basic_pack::body(spec, &View::new(&rec01)?, &mut prov);

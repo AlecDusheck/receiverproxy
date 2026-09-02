@@ -104,10 +104,15 @@ impl Block7Builder {
     /// factory image never wrote this page, which is why the drivers do not
     /// arm at boot.
     ///
+    /// A config without record 0x84 (a non-addressed chip, configured
+    /// through the basic pack's chip-custom block) leaves the page erased.
+    ///
     /// # Errors
-    /// Fails if the config lacks record 0x84 or it is not one page.
+    /// Fails if record 0x84 is present but not one page.
     pub fn chip_registers_from(&mut self, cfg: &Rcvbp) -> Result<()> {
-        let rec = record(cfg, 0x84)?;
+        let Ok(rec) = record(cfg, 0x84) else {
+            return Ok(());
+        };
         if rec.len() != 0x100 {
             bail!("record 0x84 is {} bytes, need 256", rec.len());
         }

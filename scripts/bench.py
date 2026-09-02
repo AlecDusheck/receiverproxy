@@ -272,7 +272,10 @@ def run(args):
         for label, png, _ in conds:
             mp4 = f'{DIR}/seg-{label}.mp4'
             sh(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-loop', '1', '-i', png,
-                '-t', str(seg), '-r', '10', '-pix_fmt', 'yuv420p', '-y', mp4], check=True)
+                # 30 fps, matching `play --fps 30`: a 10 fps source played at
+                # 30 ran the segments three times too fast and the captures
+                # landed in the wrong conditions.
+                '-t', str(seg), '-r', '30', '-pix_fmt', 'yuv420p', '-y', mp4], check=True)
             clips.append(mp4)
         lst = f'{DIR}/segs.txt'
         open(lst, 'w').write(''.join(f"file '{c}'\n" for c in clips))

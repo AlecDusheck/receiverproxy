@@ -13,12 +13,25 @@ milestones. This file is just the map of the directory.
 
 ## Nothing here programs the card
 
-There is no `flash` target in the Makefile and there will not be one until the
-recovery question in PLAN.md §3 is settled. Programming the primary flash bank
-is currently an **irreversible** act on this board: every path that writes it
-today needs the vendor gateware to be running, so a bitstream that fails to
-bring up Ethernet cannot be replaced by the thing it replaced. Building is
-safe; flashing is not, yet.
+There is no `flash` target in the Makefile, deliberately. Programming is a
+separate, manual act.
+
+Over Ethernet, writing the primary flash bank is **irreversible**: every path
+that writes it today needs the vendor gateware running, so a bitstream that
+fails to bring up Ethernet cannot be replaced by the thing it replaced.
+
+Over **JTAG** it is not irreversible at all — and that is the whole
+development story. A bad bitstream cannot brick an ECP5 (failure leaves `INITN`
+low, `DONE` low, SRAM erased, nothing written), and the ECP5's JTAG-to-SPI
+bridge is enabled by default in exactly that unconfigured state, so a card that
+refuses to configure is the *easy* case to recover. Better still, `ecpprog -S`
+/ `openFPGALoader -m` load a bitstream into **SRAM only** — the flash is never
+touched and a power cycle restores the vendor image.
+
+**So: find the JTAG pads first (PLAN.md §6.1, experiment E-JTAG), then develop
+entirely in SRAM, and write flash only when something works.** The one thing
+still needed is knowing where TCK/TMS/TDI/TDO come out on this board, which the
+spec photo cannot resolve.
 
 ## Layout
 

@@ -136,14 +136,20 @@ pub fn build(spec: &PanelSpec, chip: &ChipLibrary, prov: &mut Vec<String>) -> Re
     }
     put(off::MAX_W, &spec.screen.width.to_le_bytes(), "screen.width (MaxWidth)");
     put(off::MAX_H, &spec.screen.height.to_le_bytes(), "screen.height (MaxHeight)");
+    if let Some(block) = chip.chip_custom_block(m.scan) {
+        put(off::CHIP_CUSTOM, &block, "chip library chip_custom (SChipCustom, scan-patched)");
+    }
+    if let Some(ex) = &chip.chip_custom_ex {
+        put(0x0E0, ex, "chip library chip_custom_ex (SChipCustomEX)");
+    }
     put(0x0C4, &chip.chip_control, "chip library chip_control (SChipControl)");
-    for (key, value) in &spec.record01_overrides {
+    for (key, value) in chip.record01_overrides.iter().chain(&spec.record01_overrides) {
         let at = usize::from_str_radix(key.trim_start_matches("0x"), 16)
             .with_context(|| format!("bad record01_overrides offset {key:?}"))?;
         if at >= LEN {
             bail!("record01_overrides offset {key} is past the record");
         }
-        put(at, &[*value], "record01_overrides (experiment)");
+        put(at, &[*value], "record01_overrides (chip library, then spec)");
     }
     Ok(p)
 }

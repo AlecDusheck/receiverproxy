@@ -44,15 +44,18 @@ top-edge control pads as a *group*; which six of the 96 and which eight of the
 ~52 are J1's is unresolved and must be found on the bench. This is the largest
 single body of work in the plan and §6 is mostly about doing it cheaply.
 
-And underneath both: **the card currently has no proven recovery path.** Every
-way of writing the primary flash bank requires the vendor gateware to be
-running, so a bitstream that fails to bring up Ethernet cannot be replaced by
-the image it replaced. §3 is therefore first, and its conclusion is that the
-project should not proceed past building until a hardware-level recovery path
-exists.
+**And the recovery question, which looked like the project-killer, has a good
+answer.** A bad bitstream cannot brick an ECP5: every failure mode converges on
+`INITN` low, `DONE` low, the config clock stopped and SRAM erased — nothing is
+written and no fuses burn. More importantly, the ECP5 has a **documented
+JTAG-to-Master-SPI bridge that is enabled by default precisely in the
+unconfigured state**, so a card whose primary image failed to configure is the
+*easy* case for recovery, not the hard one. Four wires and ground reach the
+flash. §3 has the detail, and it upgrades this project from "irreversible" to
+"routine" — but only once the JTAG pads on this specific board are located.
 
-**Recommendation: proceed, in the order §3 → §2 → §6 → §7, and buy a SOIC-8
-test clip before flashing anything.**
+**Recommendation: proceed, in the order §3 → §2 → §6 → §7. Locate the JTAG pads
+and run one read-only `ecpprog -t` before writing anything.**
 
 ---
 
@@ -137,6 +140,26 @@ simulation. Simulating the RGMII → MAC → parser chain against a captured pca
 of our own CLI's output costs an afternoon and removes an entire class of
 "is it the host or the card" question from the bench.
 
+### Programming tools — needed before the first flash, see §3
+
+```sh
+brew install openfpgaloader          # homebrew-core has 1.1.1
+```
+
+`ecpprog` is not in Homebrew; build it from source
+(`github.com/gregdavill/ecpprog`, needs `libftdi`). Either will do — they
+implement the same ECP5 JTAG-to-SPI bridge. `ecpprog`'s README example output
+is literally this part:
+
+```
+IDCODE: 0x41111043 (LFE5U-25)
+ECP5 Status Register: 0x00200000
+flash ID: 0xEF 0x40 0x18 0x00
+```
+
+Hardware: any FT2232H-based JTAG adapter, or a Raspberry Pi bit-banging the
+four pins. About $10–15.
+
 ### The fit
 
 | resource | LFE5U-25F has | vendor uses | our v1 estimate |
@@ -157,6 +180,13 @@ produced on the way out. 8 bpc leaves room for double buffering (39 % of EBR);
 
 ## 3. RECOVERY — and why it comes first
 
+This section was written expecting to conclude "do not flash anything." It
+concludes the opposite, and the reason is worth stating up front: **the ECP5
+cannot be bricked by a bad bitstream, and its JTAG-to-SPI-flash bridge is
+enabled by default in exactly the state a failed configuration leaves the
+device in.** A card that refuses to configure is the *easiest* case to recover,
+not the hardest.
+
 ### 3.1 The situation, stated plainly
 
 Today the primary bank (flash blocks 0x00–0x0A at `0x000000`) is written two
@@ -166,167 +196,347 @@ ways, and **both require the vendor gateware to be running**:
   and 8);
 * direct host writes (type `0x0600` / `0x2600`; blocks 3–7, 9–10).
 
-So the failure mode is circular: if our bitstream does not bring up RGMII
-receive and a flash write path, there is nothing left on the board that can
-accept a replacement image.
+So over Ethernet the failure mode is circular: if our bitstream does not bring
+up RGMII receive and a flash write path, there is nothing left on the board
+that can accept a replacement image. Everything below is about getting off that
+circle.
 
-### 3.2 Will the ECP5 fall back to the golden bank? Almost certainly not
+### 3.2 What the ECP5 actually does when configuration fails — HIGH
 
-There is a complete, valid, hole-free bitstream at flash `0x200000`
-(`card-dumps/golden-bank.bin`, header date 2022-07-09, all 7562 frame CRCs
-valid). It is tempting to treat that as a safety net. Three pieces of evidence
-say it is not one:
+Every failure mode — frame CRC mismatch, ID mismatch, preamble timeout, blank
+flash — converges on the same end state: **`INITN` low, `DONE` low, the master
+config clock stopped, SRAM erased. Nothing is written to flash. No fuses are
+burned.** The device makes exactly one fallback attempt and then stops.
 
-1. **Neither bank contains a second `BD B3` preamble or any jump command**
-   (`docs/fpga/flash-layout.md` §5). ECP5 multiboot is reached by an explicit
-   jump embedded in the image the device loads first, not by the device
-   searching flash. With no jump anywhere, nothing tells the device that
-   `0x200000` exists. — HIGH that the jump is absent; the inference that this
-   makes golden unreachable is MEDIUM-HIGH.
-2. **The vendor's own upgrade descriptor for this card says "has a golden bank:
-   false."** Whatever the E120 spec's marketing claim of "firmware program
-   backup … no need to worry about loss of firmware program due to cable
-   disconnection or power interruption during the upgrade" refers to, this
-   card's descriptor says the feature is off.
-3. **The golden image is not even the firmware the card reports.** Its 2304-byte
-   EBR init block is byte-identical to 13.39/9.53/6.69/16.53 and *differs* from
-   10.81, so it is very unlikely to be a 10.81 build — yet when the primary
-   bank contained 4113 bad frames the card ran and reported 10.81. That is an
-   argument that the card was *not* booting golden.
+Two consequences follow immediately.
 
-There is a live alternative reading, and it is not resolved: that
-`0x030000`–`0x07FFFF` is not the boot flash at all and the card's flash-access
-firmware redirects host reads and writes in that range to a separate parameter
-store — which we *know* it does for `0x07F000`. Under that reading the primary
-bank was never actually corrupt. **`docs/fpga/flash-layout.md` §5 leaves (A)
-versus (B) open and this plan does not close it.**
+**Nothing about a bad bitstream is destructive.** The worst outcome of flashing
+a broken image is a card that sits there doing nothing — not a card that has
+damaged itself.
 
-Either way the conclusion for us is the same: **do not treat the golden bank as
-a recovery path.** It has never been observed to load and there is no mechanism
-in the flash by which it could.
+**The failure is diagnosable without guessing.** The ECP5 status register
+encodes what went wrong: bit 22 is *"SPIm Fail 1 — failed to configure from the
+primary pattern"*, and bits [25:23] are the BSE error code (`001` ID, `010`
+CMD, `011` **CRC**, `100` preamble, `101` abort, `110` overflow, `111` size).
+Both `ecpprog` and `openFPGALoader` decode it. So "did our image fail, and
+why" is a single read-only JTAG command, not an inference from a dark panel.
 
-Second point, and it is separate: even if golden *did* load, it is a
-Normal-family-lineage build we do not otherwise possess. Whether it speaks the
-Ethernet flash-agent protocol our CLI uses is unverified. It is the same design
-lineage, so it probably does — but "probably" is not what you want from a
-parachute.
+### 3.3 JTAG reaches the flash directly, with no proxy bitstream — HIGH
 
-### 3.3 Is there a JTAG header?
+The mechanism, verified identically in **three independent open-source
+codebases**: ECP5 JTAG instruction **`0x3A`** hard-wires the TAP's data-register
+shift path onto the Master SPI pins.
 
-**Yes, very likely.** The E120 spec's board photo shows a **clearly visible
-unpopulated 2×10 through-hole header footprint** immediately to the right of
-the dual RJ45 stack, between the RJ45 and the left TSOP package: continuous
+* `ecpprog` — `enter_spi_background_mode()`: IR shift `0x3A`, DR shift
+  `FE 68` (source comment: *"These bytes seem to be required to un-lock the SPI
+  interface"*), then `RUN_TEST_IDLE` (*"Entering IDLE is essential"*).
+* `openFPGALoader` — `Lattice::prepare_flash_access()`, same sequence.
+* OpenOCD — `lattice_cmd.h`: `#define PROGRAM_SPI 0x3A`;
+  `lattice_ecp5_connect_spi_to_jtag()`.
+
+`0x3A` does not appear in the opcode tables of Lattice TN-02039, but the
+capability is documented twice. TN-02039 §6.5 lists the JTAG port's functions
+as *"Offline external Flash memory programming / Background external Flash
+memory programming / Direct SRAM configuration / Full access to the … 
+Configuration Logic"*. And TN-02050 §1 states the decisive part outright:
+
+> *"**As a blank device, the ECP5 hardware default settings enable the JTAG to
+> Master SPI Port interface within the device.** When the ECP5 is configured
+> with a user defined bitstream, the FPGA designer has to make sure that the
+> Master SPI Port is enabled…"*
+
+**A device that failed configuration is in the blank-device state.** Both tools
+additionally erase SRAM first (`ISC_ENABLE 0xC6` → `ISC_ERASE 0x0E` →
+`ISC_DISABLE 0x26`) specifically to guarantee the MSPI pins are free.
+
+**JTAG cannot be turned off.** Every security mechanism TN-02039 names was
+checked and none disables the TAP: the security bit blocks SRAM *readback* only
+and is explicitly reversible by reprogramming; `LSC_PROG_FEABITS` lists no
+JTAG-disable bit, and its "port persistence" covers only the dual-purpose
+SSPI/MSPI/SPCM pins, which the JTAG pins are not; `PWD_EN` and `DEC_ONLY` leave
+the TAP enumerating and answering `READ_ID` and `LSC_READ_STATUS`; the feature-
+row OTP makes the row unchangeable but kills nothing.
+
+`PWD_EN` with an unknown password *would* leave JTAG alive but block config
+writes. Almost certainly not our case — stock Colorlight cards are routinely
+reflashed by this ecosystem and stock status registers read `0x00200000` (bit
+21, "Std Preamble", only). **One `ecpprog -t` prints the status register and
+bits 15/16 settle it.**
+
+### 3.4 Where the JTAG pads probably are
+
+The E120 spec's board photo shows a **clearly visible unpopulated 2×10
+through-hole footprint** immediately right of the dual RJ45 stack: continuous
 silkscreen outline, ~0.1" pitch, **square pad at pin 1**, a triangular pin-1
-arrow, a key notch, and silkscreen `J25` above / `J24` below. Bare plated
-holes, no connector fitted. It is absent from the mechanical drawing, which is
-consistent with an unfitted footprint.
+arrow, a key notch, `J25` above and `J24` below. Bare plated holes, no
+connector fitted, and absent from the mechanical drawing — consistent with an
+unfitted footprint.
 
-**But nothing labels it.** No `TCK` / `TMS` / `TDI` / `TDO` / `PROGRAMN` /
-`INITN` / `DONE` / `CFG` silkscreen is legible anywhere in the document, and
-the spec text never mentions JTAG. The photo is a single 652×379 JPEG placed at
-134 DPI across a 145 mm board — about 4.5 pixels per millimetre — so 1 mm
-reference designators are one to two pixels tall and unrecoverable at any
-upscaling. The FPGA itself is covered by a paper "E120" sticker.
+Separately, the photo shows a **2×2 cluster of large through-holes near the
+FPGA** whose designators are not confidently legible but *look like* `J26`/`J27`
+over `J31`/`J32`.
 
-Also present and possibly relevant: a `T1` label beside a pair of large plated
-through-hole pads below the left TSOP, and a 2×2 cluster of large
-through-holes near the FPGA whose designators are not confidently legible.
+That second observation is the strong lead, because on the sibling **Colorlight
+5A-75B V7.0/V8.0** the JTAG header is a 4-pin unpopulated header beside the
+FPGA with exactly these designators: **`J27` = TCK, `J31` = TMS, `J32` = TDI,
+`J30` = TDO**, plus `J33` = 3.3 V and `J34` = GND. The 5A-75E V7.1 has a 4-pin
+header in the same area; its V6.0 has a 2×2 near the flash instead — so expect
+revision-dependent layout, but expect *something*.
 
-**Confidence: MEDIUM-HIGH that J24/J25 is a programming header; NOT RESOLVED
-what its pinout is.** Resolving it needs the physical board and a multimeter,
-not another document — see experiment **E-JTAG** in §6.
+Caveat on the photo: it is a single 652×379 JPEG at 134 DPI across a 145 mm
+board, about 4.5 pixels per millimetre, so 1 mm designators are one to two
+pixels tall and unrecoverable at any upscaling. The FPGA is covered by a paper
+"E120" sticker. **No `TCK`/`TMS`/`TDI`/`TDO`/`PROGRAMN`/`INITN`/`DONE`/`CFG`
+silkscreen is legible anywhere, and the spec text never mentions JTAG.** The
+`chubby75` project has no E120 directory, so nobody has documented this board's
+pads.
 
-### 3.4 The two accessible connectors that change the picture
+**Confidence: MEDIUM-HIGH that a JTAG header exists; NOT RESOLVED which pads.**
+Resolving it needs the physical board — experiment **E-JTAG** in §6.1.
 
-Two things in the spec are worth more than they first appear.
+> **Wiring note if you solder a header** (TN-02039 §4.8): TDI, TDO and TMS have
+> internal pull-ups to VCCIO8, but **TCK has none**, and Lattice recommends an
+> external 4.7 kΩ pull-down *"to avoid inadvertently clocking the TAP
+> controller as power is applied."*
 
-**J19, the 5-pin external interface**, brings off the board:
-`KEY-/GND`, `KEY+`, `POWER_LED-`, `LED+/3V3`, `DATA_LED-`.
+### 3.5 The golden bank: probably real insurance after all — MEDIUM
 
-That means the FPGA-driven signal LED (D2, the one that "flashes 1×/sec = normal
-working, Ethernet connection normal") and the test button are both available on
-a header we can probe and drive. **This gives us a free output oracle and a
-free input oracle that do not involve the panel at all.** A bitstream that
-blinks D2 proves it configured, that the PLL locked, and that our clock is the
-frequency we think it is — measured with the webcam we already have, with the
-panel unplugged and the 5 A supply barely loaded. That is milestone M1 and it
-is worth a great deal.
+`docs/fpga/flash-layout.md` §5 records that **neither dumped bank contains a
+second `BD B3` preamble or any jump command**, and concludes there is no
+in-bitstream multiboot redirect. That observation is correct but its coverage is
+not: **we have only ever dumped `0x000000`–`0x0BFFFF` and the golden bank at
+`0x200000`–`0x2AFFFF`.** The ECP5 does not look for a jump inside the primary
+image — it looks at a fixed page near the **top of the flash**, which we have
+never read.
 
-Note this also **corrects** `docs/fpga/pinout.md` §5's "no dedicated status-LED
-or button pins were identified": a `DATA_LED-` net driven at 1 Hz must come
-from somewhere, and the three top-edge fabric inputs (`A10`, `A12`, `D12`) are
-now much stronger candidates for `KEY+` than they were.
+For a 4 MiB flash that page is `0x3FFF00` = `(flash_size − 1) & ~0xFF`. And two
+numbers then line up exactly:
 
-**J28, the physical test button**, drives four monochrome fields plus scan
-patterns entirely inside the card. It bypasses the host, the Ethernet stack and
-the `0x33` command path. It has still not been pressed on this bench and it is
-the cheapest unrun experiment in the whole project — see §7, M0.
+* golden at `0x200000` is precisely the first sector of the **upper half** of a
+  4 MiB device — the layout Lattice's Deployment Tool produces for its
+  "Protect Golden Sector" option;
+* the sibling 5A-75B/5A-75E carry a **Winbond W25Q32JVSIQ, 32 Mbit = 4 MiB**
+  (designator U31).
 
-### 3.5 The recovery strategy, ranked
+If the E120 carries the same part, dual boot is real and armed, and the golden
+bank is genuine insurance rather than decoration. The `addrHi = 0xE9` evidence
+in `docs/fpga/flash-layout.md` that implied a ≥16 MB device is then just the
+vendor library's address *space*, not the populated density.
 
-**R1 — SOIC-8 test clip and an external SPI programmer. Do this first.**
-Cost about $15 (CH341A or a Pi/FT232H, plus a clip). It gives:
+Against this: the vendor's own upgrade descriptor for this card says **"has a
+golden bank: false"**, and the golden image's EBR init block matches
+13.39/9.53/6.69/16.53 and differs from 10.81 — so it is unlikely to be a 10.81
+build, yet the card reported 10.81 when the primary contained 4113 bad frames.
+The competing reading in `docs/fpga/flash-layout.md` §5 — that
+`0x030000`–`0x07FFFF` is not boot flash at all and host access there is
+redirected to a parameter store, so the primary was never actually corrupt —
+remains open and this plan does not close it.
 
-* a **full offline dump of the entire flash**, which we do not have — we hold
-  only `0x000000`–`0x0BFFFF` and the golden bank, while the vendor library
-  targets addresses up to `0xE90000`, implying a ≥16 MB device;
-* an unconditional restore of the vendor image regardless of what the FPGA is
-  doing;
-* independence from JTAG, from Ethernet, and from anything we might break.
+**Two read-only commands settle nearly all of it**, and they are free:
 
-Procedure: power the board down, clip the flash, dump twice and compare, keep
-the dump under `card-dumps/`. Hold `PROGRAMN` low or simply leave the board
-unpowered so the FPGA does not contend for the bus (the running design drives
-the flash — `CCLK.MODE USRMCLK`). **This single purchase converts the entire
-project from irreversible to reversible and it should happen before any other
-step.**
+1. `ecpprog -t` prints the flash JEDEC ID. `EF 40 18` = Winbond 32 Mbit → 4 MiB
+   → the jump page is `0x3FFF00`.
+2. Read page `0x3FFF00` (and `0xFFFF00`, in case the part is larger). If a jump
+   command is there, dual boot is armed and the golden bank is live.
 
-**R2 — JTAG on J24/J25, if E-JTAG identifies it.** ECP5 JTAG is available even
-when configuration has failed and `DONE` is low, which is exactly the case that
-matters. With four wires plus ground it gives: volatile SRAM configuration
-(load a bitstream without touching flash *at all* — the ideal iteration loop),
-and flash programming through an SRAM-resident proxy. `openFPGALoader` speaks
-ECP5 and runs on macOS (`brew install openfpgaloader`, or build from source).
+Until then: **plan as if there is no fallback, and be pleasantly surprised.**
 
-If R2 works, **the iteration loop becomes "load to SRAM over JTAG, power-cycle
-to get the vendor image back"**, and the flash is never written during
-development at all. That is by far the best outcome and E-JTAG is worth real
-effort.
+### 3.6 The recovery strategy, ranked
 
-**R3 — our own gateware's first feature is an Ethernet flash programmer.**
-Valuable, and it is milestone M3, but be honest about what it buys: it protects
-against the *second* through *n*th flash, not the first. If the first image
-fails, the flash agent inside it fails with it. Treat R3 as a convenience, not
-as the safety net.
+**R1 — JTAG. This is the answer.** Once E-JTAG locates the pads, four wires and
+ground give:
 
-**R4 — multiboot staging.** Put our image at a high flash address (say
-`0x400000`), leave the vendor primary untouched, and make address 0 a small
-header that jumps to it. `ecppack --bootaddr` and `ecpmulti` both exist locally
-and support this. Two problems:
+* `ecpprog -t` / `openFPGALoader --detect` — a **10-second, zero-write** proof
+  that the card is reachable, plus the status register and the flash JEDEC ID;
+* a full flash backup, which we do not currently have (`ecpprog -R 4M
+  backup.bin`);
+* **volatile SRAM configuration** — `ecpprog -S test.bit`, or
+  `openFPGALoader -m file.bit`. This loads a bitstream without touching flash
+  at all, and a power cycle restores the vendor image. **This is the entire
+  development loop**: every experiment in §6.1 becomes a non-destructive
+  ten-second operation, and the flash is never written during bring-up;
+* unconditional flash program and verify when we do want persistence.
 
-* it still requires erasing and rewriting sector 0, which is the one
-  irreversible step, and afterwards the vendor's own header and command stream
-  are gone;
-* whether the ECP5 falls *back* to another address on a CRC failure, as opposed
-  to jumping *forward* on an explicit reconfiguration request, is exactly the
-  question `docs/fpga/flash-layout.md` §5 flags as unverified. Do not build a
-  safety argument on `--bootaddr` until that is settled against Lattice TN1260.
+**The right order, read-only until step 4:**
 
-There is a genuinely useful sub-step, though, and it costs nothing:
-**verify that we can write and read back an arbitrary non-primary flash region**
-(e.g. `0x400000`) through the existing CLI, before caring whether anything can
-boot from it. Reads at `0x200000` already work — `e120 snapshot` captures the
-golden bank. If writes work too, our image can be staged and verified byte for
-byte long before address 0 is touched.
+```sh
+ecpprog -t                       # 1. proves reachability. writes nothing.
+ecpprog -R 4M backup.bin         # 2. full flash backup, twice, compare
+ecpprog -S build/blink.bit       # 3. volatile SRAM bring-up. flash untouched.
+ecpprog -o 0x200000 golden.bin   # 4. install/verify golden FIRST, so the next
+                                 #    mistake is self-healing
+ecpprog -a build/hub75.bit       # 5. only now rewrite the primary at 0
+```
 
-**R5 — desolder the flash.** The last resort, listed only so the ranking is
-complete. R1 makes it unnecessary.
+openFPGALoader equivalents: `--detect`; `--read-flash --file-size … -o 0`;
+`-m file.bit`; `-f -o 0x200000 golden.bin`; `-f file.bit`; `-r` to refresh.
+If an erase silently no-ops, the flash block-protect bits are set —
+`ecpprog -p` or `openFPGALoader -f --unprotect-flash`.
 
-### 3.6 The rule this section produces
+**R2 — SOIC-8 test clip on the flash.** Still worth $15 as a belt-and-braces
+backstop, and it is the only path that works if E-JTAG comes up empty. Power the
+board down, clip the flash, dump twice and compare.
 
-> **Do not overwrite flash address 0 until either R1 or R2 is in place and has
-> been demonstrated on this specific board.** Building, simulating, and
-> planning are all free. The first write is not.
+One caveat that has to travel with it: the common advice is to hold `PROGRAMN`
+low so the FPGA releases the flash bus. TN-02039 documents MSPI tristate in
+exactly two situations — after all configuration data is retrieved (§6.1) and in
+user mode (§6.1.2) — and **does not state that holding `PROGRAMN` low tristates
+MSPI**. That follows from §4.6.2 and §5.2 and is the universal practical trick,
+but treat it as strong inference rather than a quoted guarantee. Simply leaving
+the board unpowered avoids the question, since the running design does drive
+the flash (`CCLK.MODE USRMCLK`).
+
+**R3 — our own gateware's Ethernet flash programmer** (milestone M3). Real
+value, but be honest about what it buys: it protects against the second through
+*n*th flash, not the first. If the first image fails, the agent inside it fails
+with it. A convenience, not the safety net.
+
+**R4 — multiboot staging.** Stage our image high (say `0x400000`), leave the
+vendor primary untouched, and point the jump page at it. `ecppack --bootaddr`
+and `ecpmulti` are both installed and support this. Genuinely useful *after*
+R1 exists, because it makes a bad image self-healing rather than merely
+recoverable. Not a substitute for R1, because arranging it still means writing
+flash.
+
+A free sub-step regardless: **verify that we can write and read back an
+arbitrary non-primary flash region** (e.g. `0x400000`) through the existing CLI.
+Reads at `0x200000` already work — `e120 snapshot` captures the golden bank. If
+writes work too, our image can be staged and byte-verified over Ethernet long
+before anything irreversible happens.
+
+**R5 — desolder the flash.** Listed only so the ranking is complete. R1 and R2
+make it unnecessary.
+
+### 3.7 The rule this section produces
+
+> **Locate the JTAG pads and run `ecpprog -t` before writing flash.** It costs
+> a $10 adapter and an hour with a multimeter, it writes nothing, and it turns
+> three inferences — that JTAG is present, that it is not locked, and that the
+> flash is a 4 MiB Winbond with an armed golden bank — into facts. After that,
+> develop entirely in SRAM and write flash only when something works.
+>
+> No reports exist anywhere of a Colorlight card permanently bricked by flash
+> corruption, which is consistent with JTAG being unremovable.
+
+### 3.8 Reference numbers, so nobody re-derives them
+
+**Dedicated configuration and JTAG balls, LFE5U-25F-6CABGA256.** Not from
+DS-02012 — the datasheet has no per-ball table, only the "11 dedicated pins for
+TAP and sysCONFIG" statement. These are cross-checked across three sources: the
+Lattice ECP5U-25 pinout CSV (rev 1.1, Oct 2017), the BSDL
+`lfe5u25fcabga256.bsm` `PIN_MAP_STRING`, and a completeness check against
+prjtrellis's `iodb.json` — its 197 IO pads plus the CSV's 59 power/GND/dedicated
+balls partition all 256 with zero left over.
+
+| signal | ball | | signal | ball |
+|---|---|---|---|---|
+| TCK | `T10` | | PROGRAMN | `R9` |
+| TMS | `T11` | | INITN | `T9` |
+| TDI | `R11` | | DONE | `P9` |
+| TDO | `M10` | | MCLK/CCLK | `N9` |
+| CFG0 | `N10` | | CSSPIN | `N8` |
+| CFG1 | `P10` | | SN/CSN | `R8` |
+| CFG2 | `R10` | | VCCIO8 | `L6` (single ball, powers all JTAG + config pins) |
+
+`CFG[2:0] = 010` selects Master SPI (TN-02039 Table 4.6). The straps are
+sampled on the **rising edge of INITN**, not at power-on.
+
+**JTAG does not care about the straps.** TN-02039 §4.6.1: *"The JTAG TAP port
+remains operative at all times, independent of the CFGMDN[2:0] setting."* §4.8:
+*"The JTAG port is always an available port."* The only precondition is that
+power-on reset has triggered.
+
+> **A correction to `docs/fpga/pinout.md` §3.** That file lists "CSN" among the
+> bank-8 outputs without disambiguating, and `gateware/e120.lpf` initially
+> followed it. **`N8` (CSSPIN) is the chip select the FPGA drives to the boot
+> flash; `R8` (SN/CSN) is the SSPI *slave*-select input.** The vendor decode's
+> own function strings agree — `N8` carries `HOLDN/DI/BUSY/CSSPIN/CEN` and is
+> the only bank-8 pin at `DRIVE 8` besides the data lines. Both are driven as
+> outputs in every vendor image, so the bitstream alone does not settle it.
+> **Treat the flash chip select as UNVERIFIED and resolve it with a multimeter
+> against the flash package before the M3 flash agent is trusted.**
+
+**The multiboot jump header, 58 bytes.** Structure from TN-02203 Table A.4;
+bytes read off prjtrellis `Bitstream.cpp` `generate_jump()`. Targeting
+`0x0B0000`:
+
+```
+FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF   16 dummy (mandatory: the
+                                                  device ignores the first
+                                                  128 bits from SPI flash)
+FF FF BD B3                                       preamble
+FF FF FF FF                                       4 dummy
+22 00 00 00  00 00 00 00                          LSC_PROG_CNTRL0, CR0 = 0
+7E 00 00 00  03                                   JUMP (ECP5 opcode 0x7E),
+                                                  24-bit cmd info = 0,
+                                                  SPI read opcode 0x03
+0B 00 00                                          24-bit address, big-endian
+FF ... FF                                         18 dummy
+```
+
+No CRC anywhere — the jump frame is not CRC-protected. Read opcode choices are
+`0x03` (read), `0x0B` (fast read), `0xBB` (dual), `0xEB` (quad).
+
+**It does not live at address 0.** TN-02203 §A.2: *"The LatticeECP3, ECP5 and
+ECP5-5G devices changed the location of Jump command to the last page."* The
+silicon issues the read at the maximum 24-bit address `0xFFFF00` and relies on
+the flash wrapping modulo its density — every row of TN-02203 Table A.3 is
+exactly `0xFFFF00 mod density`, and prjtrellis implements the same rule
+independently (`ecpmulti.cpp`: `jump_addr = (flash_size_bytes - 1) & ~0x00ff`).
+So: 16 Mbit → `0x1FFF00`, **32 Mbit → `0x3FFF00`**, 64 Mbit → `0x7FFF00`.
+
+Two caveats carried from the research rather than papered over: these bytes
+were read from source, not executed (the Homebrew prjtrellis 1.4's `pytrellis`
+segfaults on import under every python3 here — ABI mismatch), and TN-02203
+Table A.4's CR0 row reads `0xC4 / 0xFF (ECP5)` where prjtrellis writes `0x22`,
+which is either a real "ECP5 uses NOOP here" statement or a PDF table-alignment
+artefact. **UNRESOLVED.**
+
+Also: the locally installed `ecpmulti` 1.4 **lacks `--golden` / `--goldenaddr`**,
+which is the only prjtrellis path that emits a jump header. Upstream master has
+them. So today you either upgrade or hand-assemble the 58 bytes above.
+
+**Control register 0 = `0x40000020`**, the value command `0x22` writes at
+`0x16A` in four of the five vendor images (6.69 writes `0x40000000`). Per
+TN-02039 Table 4.3: bits `[5:0]` are the Master SPI clock divider, and
+prjtrellis maps `0x20` → **9.7 MHz** — i.e. `ecppack --freq 9.7`, deliberately
+just under the 10 MHz ceiling TN-02203 §6 imposes *"due to Lattice device speed
+limitation on frame by frame CRC check feature"*. Bit 30 is called Reserved and
+is **actively contradicted** by TN-02039 Appendix B Note 8 (*"Control Register 0
+bits [31..30] = [0..0]"*), yet Diamond emits it and prjtrellis hard-codes it
+(`Chip.hpp`: `uint32_t ctrl0 = 0x40000000;`). Treat as a known
+documentation-versus-silicon discrepancy.
+
+Three things this settles, and one of them corrects an easy misreading:
+
+* **Multiboot enable is bit 20, not bit 30.** (prjtrellis `Bitstream.cpp`:
+  `multiboot_flag = 1 << 20`.) The `0x40000000` in every ECP5 bitstream is a
+  Diamond default, and reading it as "multiboot on" would be wrong.
+* **Bit 20 is CLEAR in both our primary and our golden image**, and there is no
+  `SPI_MODE` command anywhere. So the card does not *declare* multiboot. §3.5's
+  optimistic reading survives only if the fallback jump-read is inherent to
+  MSPI mode rather than gated on the flag — which is exactly the ambiguity
+  TN-02203 §5.1 ("When Dual Boot mode is selected…") versus TN-02039 §6.1.3
+  ("a blank external Flash device causes a dual-boot event") leaves open.
+  **NOT RESOLVED**, and it is why §3.5 says to plan as if there is no fallback.
+* **CRC checking is not in CR0 at all.** It is bit 23 of the 24-bit command
+  information field of `LSC_PROG_INCR_RTI` (`0x82`), with bit 22 selecting
+  per-frame versus at-end comparison. Our images emit flags `0x91`, so
+  per-frame CRC is on — and a bitstream *could* legally disable CRC checking by
+  clearing bit 23, though `ecppack` never does.
+
+**On a CRC mismatch** (TN-02039 §4.6.3, TN-02203 §5.1 and Fig. 5.1): INITN is
+driven low briefly, the config engine resets, **all SRAM fuses are cleared**,
+INITN returns high, and the device reads the jump command from the last page.
+If that jump is valid it clears again and loads the golden pattern at the named
+address. **Exactly one attempt** — the flowchart reads `Count = Count + 1` →
+`Count > 1?` → drive INITN low → FAIL. If golden is also corrupt, the clock
+stops and INITN stays low. Nothing is written, no fuses burn, and the device
+sits there until a power cycle, PROGRAMN, or a JTAG REFRESH.
+
+Source documents are mirrored at `0x04.net/~mwk/doc/lattice/ecp5/`
+(latticesemi.com 404s on direct fetch): FPGA-TN-02039 v2.3 (sysCONFIG usage),
+FPGA-TN-02203 v1.8 (Deployment Tool / dual boot), FPGA-TN-02050, DS-02012.
 
 ---
 
@@ -356,7 +566,7 @@ in Normal 13.39). That is what makes it safe to build on.
 | **PHY-B RXD+RX_CTL** | `L16 L15 M15 P16 R16` | order UNVERIFIED |
 | **PHY-B TXC** | `J16` | R23C72A, `PCLKT2_1` |
 | **PHY-B TXD+TX_CTL** | `J15 K16 K15 J14 K14` | order UNVERIFIED |
-| **SPI flash CS** | `R8` | `SN/CSN` |
+| **SPI flash CS** | `N8` **or** `R8` | **UNVERIFIED.** `N8` = CSSPIN, the boot-flash select per the CABGA256 ball assignment; `R8` = SN/CSN, the SSPI *slave* select. Both are driven as outputs in every vendor image, so the bitstream cannot settle it. Buzz it. |
 | **SPI flash MOSI** | `T8` | `D0/MOSI/IO0` |
 | **SPI flash MISO** | `T7` | `D1/MISO/IO1`, input in every image |
 | **SPI flash others** | `M7 N7 P7 R7 R6 T6 M9 P8 N8 M8` | D2/D3/D4/D5/D6/D7, WRITEN, CS1N, HOLDN, DOUT |
@@ -649,14 +859,39 @@ never change its settings**, and **keep brightness ≤ 40 until content is right
 
 ### 6.1 The blocking unknowns — pins
 
-**E-JTAG — is J24/J25 a JTAG header?** *Cost: an hour and a multimeter.*
-With the board unpowered, buzz the 20 holes against: the SPI flash pins (known
-package pins, and the flash is a standard SOIC-8 that a clip can reach), ground
-(the RJ45 shells and the screw terminal), and 3.3 V. A JTAG header will show
-one pin at ground, one at 3.3 V, and four pins that are isolated from
-everything else on the board. Then compare the survivors against the ECP5
-CABGA256 JTAG ball assignment. Success unlocks the entire safe iteration loop
-in §3.5 R2 and is the highest-value hour in this plan.
+**E-JTAG — find the JTAG pads.** *Cost: an hour, a multimeter, and a $10
+adapter. This is the highest-value hour in the whole plan* — it unlocks the
+SRAM-only development loop in §3.6 R1, after which nothing else in this
+document can damage anything.
+
+Look in two places, in this order:
+
+1. **The 2×2 cluster of large through-holes near the FPGA.** Its designators
+   are illegible in the spec photo but *look like* `J26`/`J27` over `J31`/`J32`
+   — and on the sibling Colorlight 5A-75B V7.0/V8.0 the JTAG header is
+   **`J27` = TCK, `J31` = TMS, `J32` = TDI, `J30` = TDO**, with `J33` = 3.3 V
+   and `J34` = GND. That is close enough to be the lead, not a coincidence.
+2. **The unpopulated 2×10 header `J24`/`J25`** beside the RJ45 stack.
+
+Method, board unpowered: buzz each candidate hole against ground (RJ45 shells,
+screw terminal), against 3.3 V, and against the SPI flash pins (a standard
+SOIC-8 a clip can reach). A JTAG group shows one pin at ground, one at 3.3 V,
+and four isolated from everything else. Then confirm against the ball
+assignment in §3.8: **TCK `T10`, TMS `T11`, TDI `R11`, TDO `M10`**, all powered
+from `VCCIO8` on ball `L6`.
+
+Solder a header, add the **4.7 kΩ pull-down on TCK** that TN-02039 §4.8
+recommends (TDI/TDO/TMS have internal pull-ups; TCK does not), and run:
+
+```sh
+ecpprog -t          # or: openFPGALoader --detect
+```
+
+**Acceptance:** `IDCODE: 0x41111043 (LFE5U-25)`. That one line converts three
+inferences into facts — that JTAG is present, that it is not password-locked
+(check status bits 15/16), and what the flash actually is (JEDEC ID; `EF 40 18`
+= Winbond 32 Mbit = 4 MiB, which would put the multiboot jump page at
+`0x3FFF00`).
 
 **E-LED — which pad drives `DATA_LED-` on J19?** *Cost: one bitstream per
 candidate group, but they can be batched.*
@@ -770,22 +1005,35 @@ a test that can fail. The ordering is a risk ordering, not a feature ordering.
    button lights the panel, the vendor output stage is proven good and the whole
    diagnosis changes — and it means our gateware has a working reference to
    match rather than a mystery to solve.
-2. **Acquire a SOIC-8 clip and an SPI programmer.** Take a full offline dump.
-   **Acceptance:** two independent dumps of the whole device compare equal, and
-   the first `0xC0000` matches `card-dumps/primary-region.bin`.
-3. **E-JTAG.** Buzz J24/J25.
-   **Acceptance:** a documented pin assignment, or a documented negative.
-4. **Verify a non-primary flash write.** Write a known pattern at `0x400000`
-   through the CLI and read it back.
+2. **E-JTAG** (§6.1) — locate the pads, solder a header, `ecpprog -t`.
+   **Acceptance:** `IDCODE: 0x41111043`, plus a recorded status register and
+   flash JEDEC ID. Or a documented negative, in which case fall back to a
+   SOIC-8 clip (§3.6 R2) before going any further.
+3. **Full flash backup.** `ecpprog -R 4M backup.bin`, twice, compared.
+   **Acceptance:** the two dumps are identical and the first `0xC0000` matches
+   `card-dumps/primary-region.bin`. We do not currently have a full-device dump
+   and everything downstream assumes one exists.
+4. **Read the multiboot jump page.** `0x3FFF00` for a 4 MiB part (and
+   `0xFFFF00` if the JEDEC ID says the device is larger).
+   **Acceptance:** either a `BD B3` preamble followed by a `7E` jump — in which
+   case dual boot is armed and the golden bank is live insurance — or `FF`s,
+   which settles §3.5 the other way. Either answer is worth having, and this is
+   the read that `docs/fpga/flash-layout.md` §5 never made because it only ever
+   looked inside the two banks.
+5. **Verify a non-primary flash write.** Write a known pattern at `0x400000`
+   through the existing CLI and read it back.
    **Acceptance:** byte-exact readback, and the primary region unchanged
    (`e120 dump-flash` + `scripts/flash-review.py`).
 
-> Do not skip 2. Everything after this point assumes it.
+> Do not skip 2 and 3. Everything after this point assumes them.
 
 ### M1 — proof of life: blink
 
-`make TARGET=blink`. PLL, reset, and a ~1 Hz square wave on candidate LED pads
-at distinct frequencies (E-LED). **Panel unplugged.**
+`make TARGET=blink`, **loaded to SRAM over JTAG** (`ecpprog -S`), not flashed.
+PLL, reset, and a ~1 Hz square wave on candidate LED pads at distinct
+frequencies (E-LED). **Panel unplugged.** From here to M5 the flash is never
+written: every iteration is a ten-second volatile load, and a power cycle
+restores the vendor image.
 
 **Acceptance:** the D2 signal LED blinks at a rate we chose, filmed with
 `panelcap.py`. That single observation proves the bitstream configured, the
@@ -871,22 +1119,27 @@ fallback. A discovery reply so `e120 discover` sees our card.
 
 ## 8. Risks, ranked
 
-**R-1. The first flash is irreversible, and everything else is downstream of
-that.** Until a SOIC-8 clip or a confirmed JTAG header exists, a bitstream that
-fails to bring up RGMII cannot be replaced by the image it replaced: every
-existing flash-write path needs the vendor gateware running, the golden bank has
-no jump pointing at it, and the vendor's own descriptor says the card has none.
-*Mitigation:* M0 step 2, before anything else. ~$15. This is the recommendation
-that matters most in this document.
-
-**R-2. The J1 pinout is not derivable and the sweep could be long.** §6.1 argues
-it collapses to a few dozen builds because wrong windows show nothing and wrong
+**R-1. The J1 pinout is not derivable from anything we have, and it gates every
+LED result.** Nothing in a bitstream ties a pad to a connector, so no further
+decoding will produce it — it is bench work or nothing. §6.1 argues the search
+collapses to a few dozen builds because wrong windows show nothing and wrong
 orderings show colour permutations — but that argument rests on the assumption
 that prjtrellis pad order matches vendor group order, which is MEDIUM at best.
-If it does not hold, the search is much larger.
+If it does not hold, the search is much larger, and there is no cheap fallback.
 *Mitigation:* do E-ADDR first — five binary-weighted lines read straight off a
 photograph and, once A–E are known, they confirm or refute the pad-order
-assumption for everything else.
+assumption for everything else. And do it over JTAG SRAM loads, so each attempt
+costs ten seconds rather than a flash cycle.
+
+**R-2. Recovery depends on finding the JTAG pads on *this* board.** The silicon
+guarantees are strong — a bad bitstream cannot brick the part, and the
+JTAG-to-SPI bridge is enabled by default in exactly the failed-configuration
+state — but they are worth nothing if TCK/TMS/TDI/TDO are not physically
+reachable. The 2×2 cluster near the FPGA is a strong lead by analogy with the
+5A-75B, not a fact; the spec photo cannot resolve its designators.
+*Mitigation:* E-JTAG in M0 step 2, before any other work. If it comes up empty,
+a SOIC-8 clip on the flash (§3.6 R2) still covers everything, for ~$15.
+Do not start M1 without one of the two.
 
 **R-3. U1 (RCLK per row) and U2 (A–E phase) are a 2-D search with no
 specification behind either axis.** These are the two parameters most likely to
@@ -930,6 +1183,28 @@ shows `CH1: Cc`.
   code**; the `"sm16269s"` profile actually registers the SM16380SH config
   path. Those constants are unvalidated bring-up guesses and must not be
   implemented. The tails to use are 14 / 5 / 1 / 3 from `SChipControl`.
+* **`docs/fpga/flash-layout.md` §5** — "neither bank contains a second `BD B3`
+  preamble or any jump command, so there is no in-bitstream multiboot
+  redirect." The observation is correct but its coverage is not: **the ECP5
+  reads its jump command from the last page of the flash** (`0xFFFF00` modulo
+  the device density — `0x3FFF00` on a 4 MiB part), and we have only ever
+  dumped `0x000000`–`0x0BFFFF` and `0x200000`–`0x2AFFFF`. The jump page has
+  never been read. M0 step 4 reads it.
+* **`docs/fpga/flash-layout.md` §3, §5** — the control-register value
+  `0x40000020` is now decoded: bits `[5:0]` are the Master SPI clock divider and
+  `0x20` = 9.7 MHz; bit 30 is a Diamond default that Lattice's own Appendix B
+  says should be zero. **The multiboot enable is bit 20, and it is clear in both
+  our images.** Bit 5 has nothing to do with SPI mode, and **CRC checking is not
+  in CR0 at all** — it is bit 23 of the `LSC_PROG_INCR_RTI` command info, where
+  our images carry flags `0x91`, i.e. per-frame CRC on. This resolves the
+  "exact meaning here is NOT RESOLVED" note at `docs/fpga/bitstream-format.md`
+  §3 for bit 5, and narrows it for bit 30 to "undocumented, and contradicted by
+  the vendor's own note".
+* **`docs/fpga/pinout.md` §3** — lists "CSN" among the bank-8 outputs without
+  disambiguating `N8` (CSSPIN, the boot-flash select) from `R8` (SN/CSN, the
+  SSPI slave-select input). Both are driven as outputs in every vendor image.
+  Flagged UNVERIFIED in `gateware/e120.lpf`; buzz it before the flash agent is
+  trusted.
 * **New positive result** — the shipping open-source SM16380SH register
   sequence is byte-identical to this repo's vendor-extracted SM16269 table for
   every register except the three panel-specific ones. Two independently

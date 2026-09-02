@@ -111,21 +111,52 @@ IOBUF PORT "rgmii_a_tx_raw[4]" IO_TYPE=LVCMOS33 DRIVE=8;
 # located here -- it is reached only through the USRMCLK primitive.
 #
 # Pin functions come from the sysCONFIG names in the decode, not from guesses.
-LOCATE COMP "flash_csn"   SITE "R8";   # SN/CSN     -- chip select
+#
+# ** CHIP SELECT IS UNVERIFIED. ** docs/fpga/pinout.md S3 lists "CSN" among the
+# bank-8 outputs without disambiguating, and there are two candidates:
+#     N8  CSSPIN   -- the chip select the FPGA drives to the BOOT flash
+#     R8  SN/CSN   -- the SSPI *slave*-select INPUT
+# The Lattice CABGA256 ball assignment says N8 is the one that goes to the boot
+# flash. The bitstream cannot settle it: both are driven as outputs in every
+# vendor image (N8 at DRIVE 8, R8 at DRIVE 4). N8 is used below because that is
+# what the package documentation says, but RESOLVE THIS WITH A MULTIMETER
+# against the flash package before the M3 flash agent is trusted -- a wrong
+# chip select is a flash agent that appears to work and writes nothing.
+LOCATE COMP "flash_csn"   SITE "N8";   # CSSPIN -- boot flash chip select
+                                       # alternative candidate: R8 (SN/CSN)
 LOCATE COMP "flash_mosi"  SITE "T8";   # D0/MOSI/IO0
 LOCATE COMP "flash_miso"  SITE "T7";   # D1/MISO/IO1  (input in every image)
 IOBUF PORT "flash_csn"  IO_TYPE=LVCMOS33 DRIVE=4;
 IOBUF PORT "flash_mosi" IO_TYPE=LVCMOS33 DRIVE=8;
 IOBUF PORT "flash_miso" IO_TYPE=LVCMOS33 PULLMODE=UP;
 # Remaining bank-8 pins, all HIGH, used only for quad/dual mode or as strap
-# holds. Drive D2/D3 (and HOLDN) high if the flash is left in single-SPI mode.
+# holds. Drive D2/D3 high if the flash is left in single-SPI mode.
 #   M7 = D2/IO2      N7 = D3/IO3      P7 = D4/MOSI2/IO4   R7 = D5/MISO2/IO5
 #   R6 = D6/IO6      T6 = D7/IO7      M9 = WRITEN         P8 = CS1N
-#   N8 = HOLDN/DI/BUSY/CSSPIN/CEN     M8 = DOUT/CSON
-LOCATE COMP "flash_holdn" SITE "N8";
-LOCATE COMP "flash_wpn"   SITE "M7";
+#   M8 = DOUT/CSON
+LOCATE COMP "flash_holdn" SITE "N7";   # D3/IO3 doubles as HOLDN in 1-bit mode
+LOCATE COMP "flash_wpn"   SITE "M7";   # D2/IO2 doubles as WPN in 1-bit mode
 IOBUF PORT "flash_holdn" IO_TYPE=LVCMOS33 DRIVE=8;
 IOBUF PORT "flash_wpn"   IO_TYPE=LVCMOS33 DRIVE=4;
+
+# ----------------------------------------------------------------------------
+# 4b. Dedicated configuration / JTAG balls -- reference only, NOT locatable
+# ----------------------------------------------------------------------------
+# These are not user IO and must never appear in a LOCATE. Recorded here
+# because they are what you buzz for with a multimeter when hunting the
+# unpopulated J24/J25 header (see docs/own-gateware/PLAN.md S3.4, S3.8).
+# Cross-checked across the Lattice ECP5U-25 pinout CSV, the CABGA256 BSDL
+# PIN_MAP_STRING, and a completeness check against prjtrellis iodb.json.
+#
+#   TCK  T10    TMS  T11    TDI  R11    TDO  M10
+#   PROGRAMN R9    INITN T9    DONE P9
+#   CFG0 N10   CFG1 P10   CFG2 R10      (CFG[2:0] = 010 selects Master SPI)
+#   MCLK/CCLK N9                        (reached only via USRMCLK)
+#   VCCIO8 L6  -- one ball powers every JTAG and config pin
+#
+# JTAG is available regardless of the CFG straps and cannot be disabled by any
+# documented ECP5 security setting. TCK has NO internal pull-up; Lattice
+# recommends an external 4.7k pull-down if you solder a header.
 
 # ----------------------------------------------------------------------------
 # 5. HUB75E connector J1 -- **THE BLOCKING UNKNOWN** -- TODO, NOTHING LOCATED

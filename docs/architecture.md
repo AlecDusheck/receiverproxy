@@ -144,12 +144,15 @@ brightness (0x0A, 77 B)  →  one 0x55 row packet per panel row (64 × 128 px)
   goes through `frame_with` (one allocation, payload written in place).
 * `e120-driver::Wall::show` is the only content path (`show video`,
   `pattern`, `stream`, `serve`, `image`, `fill`, `test`, `blank`): it renders an `e120-canvas::Canvas`
-  (panels with position, rotation, flip, per receiver) into one framebuffer
-  per receiver (framebuffers, row packet buffer, brightness and latch frames
-  are built once in `Wall::with_sink` and reused, so a refresh allocates
-  nothing), cuts rows, chunks at 497, then applies `Timing` (latch gap,
-  latch count, row gap; defaults are the measured recipe); `Pacer` keeps the
-  fps. `e120-video` supplies frames (ffmpeg rawvideo pipe, test patterns).
+  (receivers at their screen position, panels with position, rotation, flip
+  inside each receiver) into one screen-sized framebuffer (framebuffer, row
+  packet buffer, brightness and latch frames are built once in
+  `Wall::with_sink` and reused, so a refresh allocates nothing), sends every
+  screen row with screen coordinates, chunked at 497 (`ceil(width/497) x
+  height` row packets, however many cards listen), then applies `Timing`
+  (latch gap, latch count, row gap; defaults are the measured recipe);
+  `Pacer` keeps the fps. `e120-video` supplies frames (ffmpeg rawvideo pipe,
+  test patterns).
   `e120-cli/src/display.rs::wall_settings` builds the `Settings` once, with
   the env-var overrides below.
 * `e120-net::Link` is a dumb pipe: one `send` = one wire frame, `recv` returns
@@ -160,7 +163,8 @@ brightness (0x0A, 77 B)  →  one 0x55 row packet per panel row (64 × 128 px)
 
 The card keeps only pixels whose screen coordinates fall inside its EEPROM
 control area, so a multi-panel wall is many cards each provisioned with its
-own `--position` and one `e120 show video --layout wall.json` stream.
+own `--position`, the same position on its receiver entry in the layout, and
+one `e120 show video --layout wall.json` stream.
 
 Other processes feed the same `Wall`/`Pacer` loop through `e120-video::raw`
 (`e120-cli/src/ingest.rs`). `e120 show stream --size WxH --fps N` reads bare
@@ -180,7 +184,7 @@ and leaves the panel as it is.
 | `e120-proto` | frame builders and reply parsers for every packet type; flash/EEPROM/firmware address allowlists | open sockets, sleep, sequence frames |
 | `e120-net` | `Link` open/send/recv over `/dev/bpf` (macOS) or `AF_PACKET` (Linux); classic pcap reader | know any Colorlight framing or MAC |
 | `e120-rcvbp` | `.rcvbp` parse/write, record 0x01 view, chip library, spec → records/pack/boot image | touch the network or PSU |
-| `e120-canvas` | RGB8 `Frame` (bytes private; `row`/`as_bytes` accessors), wall topology, `validate` → `LayoutError`, canvas → per-receiver framebuffers (`render`, or `render_into` reusing them; unrotated panels are row copies) | — |
+| `e120-canvas` | RGB8 `Frame` (bytes private; `row`/`as_bytes` accessors), wall topology (receivers carry the screen position they were provisioned with), `validate` → `LayoutError`, canvas → one screen framebuffer (`render`, or `render_into` reusing it; unrotated panels are row copies) | — |
 | `e120-video` | `FrameSource` (`next_frame` refills a caller-owned `Frame`): `VideoSource` (ffmpeg rawvideo pipe) and `raw::RawSource` (rgb24 from any `Read`); `raw::Header`/`raw::Writer` for socket clients; `Pattern`s, `Fit`/`Pattern` name parsing | — |
 | `e120-driver` | `Wall::show` (the measured frame recipe), `Pacer`, layout announce; `FrameSink` (`Link` in production, a recording `Vec` in tests) so the recipe is pinned offline | — |
 | `e120-cli` | the `e120` binary: clap tree (`main.rs` holds the top-level commands, `cli/` one enum per group), command modules, Block7 assembly order, still-image send path, flash discipline (dry-run/backup/verify), provisioning sequence. Unix conventions: results only on stdout (a value, a path per line, a table), progress and step lines on stderr, warnings as `e120: warning: …`, errors as `e120: <subcommand>: …` with exit 1 (`main.rs` wraps every command's error in its subcommand path), usage errors exit 2 | hold byte layouts (they belong in proto/rcvbp) |

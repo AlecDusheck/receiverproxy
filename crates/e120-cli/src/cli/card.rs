@@ -116,7 +116,8 @@ pub fn run(cli: &Cli, cmd: &Card) -> Result<()> {
             Ok(())
         }
         Card::LayoutExample => {
-            let canvas = e120_canvas::Canvas::grid(128, 64, 2, 1);
+            // Two cards side by side; each receiver's x,y is its --position.
+            let canvas = e120_canvas::Canvas::cards(128, 64, 2, 1);
             println!("{}", serde_json::to_string_pretty(&canvas)?);
             Ok(())
         }

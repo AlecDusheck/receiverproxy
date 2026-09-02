@@ -1,7 +1,9 @@
 //! Panel topology: one logical image mapped onto a wall of panels, any size,
 //! rotation or mirroring, across any number of receiving cards. Rendering
-//! yields one framebuffer per receiver in that receiver's own pixel space;
-//! the wire protocol is not involved here.
+//! yields one screen-sized framebuffer: every card on the chain receives every
+//! row and keeps the pixels inside its own window (docs/receiver-identity.md),
+//! so a receiver's position here is the position it was provisioned with.
+//! The wire protocol is not involved here.
 
 use serde::{Deserialize, Serialize};
 
@@ -193,12 +195,19 @@ impl Panel {
         (self.receiver_x + px, self.receiver_y + py)
     }
 
+    /// Map a point inside this panel's canvas rectangle to the screen pixel
+    /// that lights it, for a panel on the receiver at `(rx, ry)`.
+    fn screen_coords(&self, receiver: (u32, u32), local_x: u32, local_y: u32) -> (u32, u32) {
+        let (px, py) = self.receiver_coords(local_x, local_y);
+        (receiver.0 + px, receiver.1 + py)
+    }
+
     /// The mapping as an affine map; exact because every rotation/flip
     /// combination is a rigid motion (`every_mounting_matches_the_per_pixel_mapping`).
-    fn placement(&self) -> Placement {
+    fn placement(&self, receiver: (u32, u32)) -> Placement {
         let at = |x, y| {
-            let (rx, ry) = self.receiver_coords(x, y);
-            (i64::from(rx), i64::from(ry))
+            let (sx, sy) = self.screen_coords(receiver, x, y);
+            (i64::from(sx), i64::from(sy))
         };
         let origin = at(0, 0);
         let step = |p: (i64, i64)| (p.0 - origin.0, p.1 - origin.1);
@@ -221,13 +230,14 @@ impl Panel {
         }
     }
 
-    /// Copy this panel's canvas rectangle from `src` into `dst`. Off-frame
-    /// source reads black; off-frame destination writes are dropped.
-    fn blit(&self, src: &Frame, dst: &mut Frame) {
+    /// Copy this panel's canvas rectangle from `src` onto the screen `dst`,
+    /// for a panel on the receiver at `receiver`. Off-frame source reads
+    /// black; off-screen destination writes are dropped.
+    fn blit(&self, receiver: (u32, u32), src: &Frame, dst: &mut Frame) {
         if self.width == 0 || self.height == 0 {
             return;
         }
-        let place = self.placement();
+        let place = self.placement(receiver);
         if place.is_row_copy() {
             self.blit_rows(src, dst, place.origin);
             return;
@@ -267,10 +277,17 @@ impl Panel {
     }
 }
 
-/// A receiving card and the extent of its pixel space.
+/// A receiving card: where its window sits on the screen and how big it is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Receiver {
     pub index: u16,
+    /// The card's top-left on the screen: the same numbers given to
+    /// `e120 provision --position x,y`, which is what the card's EEPROM
+    /// control area keeps of the stream.
+    #[serde(default)]
+    pub x: u32,
+    #[serde(default)]
+    pub y: u32,
     pub width: u32,
     pub height: u32,
 }
@@ -328,6 +345,8 @@ impl Canvas {
             height,
             receivers: vec![Receiver {
                 index: 0,
+                x: 0,
+                y: 0,
                 width,
                 height,
             }],
@@ -335,13 +354,46 @@ impl Canvas {
         }
     }
 
+    /// A regular grid of identical panels, one receiving card per panel,
+    /// cards numbered row-major from 0.
+    #[must_use]
+    pub fn cards(panel_w: u32, panel_h: u32, cols: u32, rows: u32) -> Self {
+        let mut canvas = Self::grid(panel_w, panel_h, cols, rows);
+        canvas.receivers = canvas
+            .panels
+            .iter()
+            .enumerate()
+            .map(|(i, p)| Receiver {
+                index: i as u16,
+                x: p.x,
+                y: p.y,
+                width: panel_w,
+                height: panel_h,
+            })
+            .collect();
+        for (i, p) in canvas.panels.iter_mut().enumerate() {
+            p.receiver = i as u16;
+            p.receiver_x = 0;
+            p.receiver_y = 0;
+        }
+        canvas
+    }
+
     /// Check the description is self-consistent before anything is driven.
     ///
     /// # Errors
-    /// Reports panels that fall off the canvas, name an unknown receiver, or
-    /// exceed their receiver's pixel space.
+    /// Reports receivers that fall off the canvas and panels that fall off the
+    /// canvas, name an unknown receiver, or exceed their receiver's window.
     pub fn validate(&self) -> Result<(), LayoutError> {
         let mut problems = Vec::new();
+        for r in &self.receivers {
+            if r.x + r.width > self.width || r.y + r.height > self.height {
+                problems.push(format!(
+                    "receiver {} at ({}, {}) size {}x{} extends past the {}x{} canvas",
+                    r.index, r.x, r.y, r.width, r.height, self.width, self.height
+                ));
+            }
+        }
         for (i, p) in self.panels.iter().enumerate() {
             if p.x + p.width > self.width || p.y + p.height > self.height {
                 problems.push(format!(
@@ -371,45 +423,35 @@ impl Canvas {
         }
     }
 
-    /// A black framebuffer per receiver, in receiver order.
+    /// A black framebuffer the size of the screen.
     #[must_use]
-    pub fn receiver_frames(&self) -> Vec<(u16, Frame)> {
-        self.receivers
-            .iter()
-            .map(|r| (r.index, Frame::black(r.width, r.height)))
-            .collect()
+    pub fn screen_frame(&self) -> Frame {
+        Frame::black(self.width, self.height)
     }
 
-    /// Split one canvas image into a framebuffer per receiver.
+    /// Map one canvas image onto the screen: each panel's pixels land where
+    /// its receiver's window shows them.
     #[must_use]
-    pub fn render(&self, src: &Frame) -> Vec<(u16, Frame)> {
-        let mut out = self.receiver_frames();
+    pub fn render(&self, src: &Frame) -> Frame {
+        let mut out = self.screen_frame();
         self.render_into(src, &mut out);
         out
     }
 
-    /// [`render`](Self::render) into caller-owned framebuffers, so a refresh
-    /// loop allocates nothing. `out` is reused when it matches the receiver
-    /// list (index and size, in order) and replaced otherwise.
-    pub fn render_into(&self, src: &Frame, out: &mut Vec<(u16, Frame)>) {
-        let matches = out.len() == self.receivers.len()
-            && out
-                .iter()
-                .zip(&self.receivers)
-                .all(|((i, fb), r)| *i == r.index && fb.width == r.width && fb.height == r.height);
-        if matches {
-            for (_, fb) in out.iter_mut() {
-                fb.data.fill(0);
-            }
+    /// [`render`](Self::render) into a caller-owned screen frame, so a refresh
+    /// loop allocates nothing. `out` is cleared to black and reused when it is
+    /// the screen size, replaced otherwise.
+    pub fn render_into(&self, src: &Frame, out: &mut Frame) {
+        if (out.width, out.height) == (self.width, self.height) {
+            out.data.fill(0);
         } else {
-            *out = self.receiver_frames();
+            *out = self.screen_frame();
         }
-
         for panel in &self.panels {
-            let Some((_, dst)) = out.iter_mut().find(|(i, _)| *i == panel.receiver) else {
+            let Some(r) = self.receivers.iter().find(|r| r.index == panel.receiver) else {
                 continue;
             };
-            panel.blit(src, dst);
+            panel.blit((r.x, r.y), src, out);
         }
     }
 }
@@ -429,17 +471,17 @@ mod tests {
     }
 
     /// Reference per-pixel mapping the row-copy and affine paths must match.
-    fn render_per_pixel(canvas: &Canvas, src: &Frame) -> Vec<(u16, Frame)> {
-        let mut out = canvas.receiver_frames();
+    fn render_per_pixel(canvas: &Canvas, src: &Frame) -> Frame {
+        let mut out = canvas.screen_frame();
         for panel in &canvas.panels {
-            let Some((_, dst)) = out.iter_mut().find(|(i, _)| *i == panel.receiver) else {
+            let Some(r) = canvas.receivers.iter().find(|r| r.index == panel.receiver) else {
                 continue;
             };
             for ly in 0..panel.height {
                 for lx in 0..panel.width {
                     let px = src.pixel(panel.x + lx, panel.y + ly);
-                    let (rx, ry) = panel.receiver_coords(lx, ly);
-                    dst.set_pixel(rx, ry, px);
+                    let (sx, sy) = panel.screen_coords((r.x, r.y), lx, ly);
+                    out.set_pixel(sx, sy, px);
                 }
             }
         }
@@ -450,9 +492,7 @@ mod tests {
     fn a_single_panel_passes_the_image_through_unchanged() {
         let canvas = Canvas::single(8, 4);
         let src = gradient(8, 4);
-        let out = canvas.render(&src);
-        assert_eq!(out.len(), 1);
-        assert_eq!(out[0].1, src);
+        assert_eq!(canvas.render(&src), src);
     }
 
     #[test]
@@ -466,8 +506,25 @@ mod tests {
         assert_eq!((canvas.width, canvas.height), (8, 4));
         assert_eq!(canvas.panels.len(), 4);
         canvas.validate().unwrap();
-        let out = canvas.render(&gradient(8, 4));
-        assert_eq!(out[0].1, gradient(8, 4));
+        assert_eq!(canvas.render(&gradient(8, 4)), gradient(8, 4));
+    }
+
+    #[test]
+    fn cards_put_one_receiver_under_each_panel_at_its_screen_position() {
+        let canvas = Canvas::cards(4, 2, 3, 2);
+        canvas.validate().unwrap();
+        assert_eq!(canvas.receivers.len(), 6);
+        let r = canvas.receivers[4];
+        assert_eq!((r.index, r.x, r.y, r.width, r.height), (4, 4, 2, 4, 2));
+        let p = &canvas.panels[4];
+        assert_eq!((p.receiver, p.receiver_x, p.receiver_y, p.x, p.y), (4, 0, 0, 4, 2));
+        assert_eq!(canvas.render(&gradient(12, 4)), gradient(12, 4));
+    }
+
+    #[test]
+    fn a_receiver_position_defaults_to_the_origin_in_layout_files() {
+        let r: Receiver = serde_json::from_str(r#"{"index":3,"width":8,"height":4}"#).unwrap();
+        assert_eq!((r.x, r.y), (0, 0));
     }
 
     #[test]
@@ -492,11 +549,13 @@ mod tests {
     #[test]
     fn rotation_maps_corners_where_expected() {
         // Mounted 90 degrees clockwise: canvas rectangle 2x4, panel itself 4x2.
-        let canvas = Canvas {
+        let mut canvas = Canvas {
             width: 2,
             height: 4,
             receivers: vec![Receiver {
                 index: 0,
+                x: 0,
+                y: 0,
                 width: 4,
                 height: 2,
             }],
@@ -513,13 +572,15 @@ mod tests {
                 flip_y: false,
             }],
         };
-        canvas.validate().unwrap();
+        // The receiver's window is wider than the canvas is: 4x2 on a 2x4 screen.
+        assert!(canvas.validate().is_err());
+        canvas.width = 4;
 
         let mut src = Frame::black(2, 4);
         src.set_pixel(0, 0, [255, 0, 0]); // canvas top-left
         let out = canvas.render(&src);
         // Canvas top-left lands at the panel's bottom-left.
-        assert_eq!(out[0].1.pixel(0, 1), [255, 0, 0]);
+        assert_eq!(out.pixel(0, 1), [255, 0, 0]);
     }
 
     #[test]
@@ -528,14 +589,13 @@ mod tests {
         canvas.panels[0].flip_x = true;
         let mut src = Frame::black(4, 1);
         src.set_pixel(0, 0, [1, 2, 3]);
-        let out = canvas.render(&src);
-        assert_eq!(out[0].1.pixel(3, 0), [1, 2, 3]);
+        assert_eq!(canvas.render(&src).pixel(3, 0), [1, 2, 3]);
     }
 
     #[test]
     fn every_mounting_matches_the_per_pixel_mapping() {
-        // Two receivers, offset panels, odd sizes, every rotation and flip,
-        // plus a panel hanging off both frames.
+        // Two receivers at different screen positions, offset panels, odd
+        // sizes, every rotation and flip, plus a panel hanging off both frames.
         let src = gradient(23, 17);
         let rotations = [
             Rotation::None,
@@ -568,11 +628,15 @@ mod tests {
                     receivers: vec![
                         Receiver {
                             index: 0,
+                            x: 0,
+                            y: 0,
                             width: nw + 3,
                             height: nh + 2,
                         },
                         Receiver {
                             index: 5,
+                            x: 11,
+                            y: 6,
                             width: nw + 1,
                             height: nh,
                         },
@@ -593,30 +657,34 @@ mod tests {
     }
 
     #[test]
-    fn render_into_reuses_matching_framebuffers() {
+    fn render_into_reuses_a_screen_sized_frame() {
         let canvas = Canvas::grid(4, 2, 2, 2);
-        let mut out = Vec::new();
+        let mut out = Frame::black(1, 1);
         canvas.render_into(&gradient(8, 4), &mut out);
         assert_eq!(out, canvas.render(&gradient(8, 4)));
-        let before = out[0].1.as_bytes().as_ptr();
+        let before = out.as_bytes().as_ptr();
         canvas.render_into(&Frame::black(8, 4), &mut out);
-        assert_eq!(out[0].1.as_bytes().as_ptr(), before);
-        assert_eq!(out[0].1, Frame::black(8, 4));
+        assert_eq!(out.as_bytes().as_ptr(), before);
+        assert_eq!(out, Frame::black(8, 4));
     }
 
     #[test]
-    fn two_receivers_each_get_their_own_half() {
+    fn two_receivers_side_by_side_render_at_their_screen_positions() {
         let canvas = Canvas {
             width: 8,
             height: 2,
             receivers: vec![
                 Receiver {
                     index: 0,
+                    x: 0,
+                    y: 0,
                     width: 4,
                     height: 2,
                 },
                 Receiver {
                     index: 1,
+                    x: 4,
+                    y: 0,
                     width: 4,
                     height: 2,
                 },
@@ -650,9 +718,15 @@ mod tests {
         };
         canvas.validate().unwrap();
         let src = gradient(8, 2);
-        let out = canvas.render(&src);
-        assert_eq!(out.len(), 2);
-        assert_eq!(out[1].1.pixel(0, 0), src.pixel(4, 0));
+        assert_eq!(canvas.render(&src), src);
+
+        // Swap the cards' screen positions: the image swaps halves.
+        let mut swapped = canvas;
+        swapped.receivers[0].x = 4;
+        swapped.receivers[1].x = 0;
+        let out = swapped.render(&src);
+        assert_eq!(out.pixel(0, 0), src.pixel(4, 0));
+        assert_eq!(out.pixel(4, 1), src.pixel(0, 1));
     }
 
     #[test]
@@ -661,6 +735,28 @@ mod tests {
         canvas.panels[0].x = 4;
         let err = canvas.validate().unwrap_err();
         assert!(err.to_string().starts_with("canvas is not valid:\n  panel 0 at (4, 0)"));
+    }
+
+    #[test]
+    fn validation_rejects_a_receiver_that_hangs_off_the_canvas() {
+        let mut canvas = Canvas::cards(4, 2, 2, 1);
+        canvas.receivers[1].y = 1;
+        let err = canvas.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("receiver 1 at (4, 1) size 4x2 extends past the 8x2 canvas"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn validation_rejects_a_panel_that_hangs_off_its_receiver() {
+        let mut canvas = Canvas::cards(4, 2, 2, 1);
+        canvas.panels[1].receiver_x = 1;
+        let err = canvas.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("panel 1 occupies (1, 0) size 4x2 on receiver 1, which is only 4x2"),
+            "{err}"
+        );
     }
 
     #[test]

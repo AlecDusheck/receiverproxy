@@ -275,6 +275,26 @@ mod tests {
         assert_eq!(f.pixel(7, 3), [0, 0, 0]);
     }
 
+    /// Microseconds to resample a 1920x1080 source onto a fifty-card
+    /// 1280x320 wall. Run with
+    /// `cargo test --release -p e120-cli -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "timing; run in release with --nocapture"]
+    fn fit_into_time_for_fifty_cards() {
+        const FRAMES: u32 = 100;
+        let src = pattern(Pattern::Gradient, 1920, 1080);
+        let mut out = Frame::black(1280, 320);
+        for fit in [Fit::Contain, Fit::Cover, Fit::Stretch] {
+            let t = std::time::Instant::now();
+            for _ in 0..FRAMES {
+                fit_into(&src, fit, &mut out);
+            }
+            let us = t.elapsed().as_secs_f64() * 1e6 / f64::from(FRAMES);
+            println!("fit_into {fit:?} 1920x1080 -> 1280x320: {us:.0} us/frame");
+        }
+        std::hint::black_box(&out);
+    }
+
     #[test]
     fn cover_and_stretch_fill_the_whole_wall() {
         let canvas = Canvas::single(8, 4);

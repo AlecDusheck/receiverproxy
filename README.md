@@ -144,7 +144,7 @@ e120 firmware install image.hex --commit
 e120 flash restore --dir before --commit           # configuration back, not firmware
 ```
 
-Multi-panel walls: provision each card with its own `--position x,y`, describe the wall in a layout file (`e120 card layout-example` prints one) and stream it with `e120 show video --layout wall.json`.
+Multi-panel walls: provision each card with its own `--position x,y`, put the same `x,y` on that card's receiver entry in a layout file (`e120 card layout-example` prints a two-card one; panels are placed inside their receiver) and stream it with `e120 show video --layout wall.json`. Every card hears the whole screen and keeps its own window of it.
 
 ## Tested
 

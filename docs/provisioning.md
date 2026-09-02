@@ -30,9 +30,12 @@ The **control area** is how a card knows its place in the wall: it keeps only
 the pixels whose screen coordinates fall inside `(startX, startY)–(endX, endY)`.
 Provision each card with its own `--position x,y`; the sender then streams the
 whole screen (rows are screen rows, x offsets are screen x) and every card
-picks its own rectangle. `e120 show video --layout wall.json` describes the wall
-(`e120 card layout-example` prints one). Cards are addressed by MAC, so wire one at
-a time while provisioning, or provision on a bench link.
+picks its own rectangle. The layout file for `e120 show video --layout wall.json`
+repeats that position: each `receivers` entry carries the card's `index`, its
+`x`,`y` (the numbers given to `--position`) and its size, and each panel is
+placed inside its receiver by `receiver_x`,`receiver_y`. `e120 card
+layout-example` prints a two-card example. Cards are addressed by MAC, so wire
+one at a time while provisioning, or provision on a bench link.
 
 ## What a card must not be left with
 

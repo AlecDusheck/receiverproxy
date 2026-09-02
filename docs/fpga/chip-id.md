@@ -222,7 +222,6 @@ Not located. What is known:
 * LUT-RAM is ruled out as the store in 16.53: 18 blocks of 16x4, against 59
   in 13.39 and 89 in 6.69.
 
-<a id="8-what-this-means-for-the-bench"></a>
 ## 8. Which id to send
 
 `0x014C`, with sub-id `0` (`config/chips/sm16269s-factory.toml`, selected by

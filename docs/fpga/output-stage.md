@@ -2,12 +2,12 @@
 
 What the E120 emits to the driver chips: the connector, the driver register
 file, the scan arithmetic, the scan table, the pixel mapping, the output
-stage as it appears in the 16.53 netlist, and the bench measurements that
-bear on each. Artefacts: `analysis/fpga/sm16269-register-map.tsv` (the
+stage as it appears in the 16.53 netlist, and the measurements that bear on
+each. Artefacts: `analysis/fpga/sm16269-register-map.tsv` (the
 33-register file, both vendor tables side by side, per-field bit meanings,
 grey-depth derivation), `analysis/fpga/output-stage-arithmetic.tsv`
-(OneScanLen / CardScanLen / mapping / scan-table numbers for the bench
-panel, with verification results), `analysis/fpga/minoe_corpus_survey.py`
+(OneScanLen / CardScanLen / mapping / scan-table numbers for the reference
+module, with verification results), `analysis/fpga/minoe_corpus_survey.py`
 (the 370-file corpus survey), `analysis/fpga/output_stage_16.53.txt`,
 `analysis/fpga/rgb96_pins.txt`, `analysis/fpga/led_pin_classification_16.53.txt`,
 `analysis/fpga/pad_driver_logic_16.53.tsv`, `analysis/fpga/build_comparison.txt`,
@@ -16,7 +16,7 @@ not kept in the repository ([README.md](README.md#raw-artefacts)).
 
 Bench panel throughout: one P2.5 128x64 module, 1/16 duty, SM16269S drivers,
 on hub J1, firmware 16.53. Every timing statement in this file is derived
-from tables and netlists; no waveform has been measured on this bench (no
+from tables and netlists; no waveform has been measured (no
 scope, no logic analyser).
 
 ## 0. Where the driver protocol lives
@@ -38,7 +38,7 @@ result. How the id reaches the card and what it selects is in
 ### Connector
 
 * The panel connector is HUB75E, 16-pin. The card has twelve, J1 to J12.
-  The bench panel is on J1. Signal set (vendor spec p. 4): `RD1 GD1 BD1` /
+  The reference module is driven from J1. Signal set (vendor spec p. 4): `RD1 GD1 BD1` /
   `RD2 GD2 BD2` (two RGB data groups), `A B C D E` (five address lines),
   `CLK`, `LAT`, `OE`, `GND`.
 * The E120 drives 24 groups of parallel RGB data or 32 groups of serial RGB

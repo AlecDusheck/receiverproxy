@@ -130,7 +130,7 @@ the value in 961 of 1146 corpus files
 ([../rendering.md](../rendering.md)).
 
 **What would settle it:** the vendor setter for that offset in the SDK, or a
-bench sweep of the other values.
+sweep of the other values on hardware.
 
 ---
 

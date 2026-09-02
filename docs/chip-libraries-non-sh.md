@@ -85,7 +85,7 @@ Option<[u8; 4]>`, `chip_custom_scan_patch: Option<{ bytes, mask, base }>`,
   `chip_custom_ex` at `+0x0E0`, then the overrides.
 
 `config/chips/sm16169s-vendor.toml` and `sm16269s-vendor-0x214.toml` load and
-generate. Neither has been measured on the bench with this loader.
+generate. Neither has been driven with this loader.
 
 ## 4. Per-id behaviour that changes the basic pack
 

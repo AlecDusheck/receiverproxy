@@ -37,7 +37,7 @@ precedence.
 | GCLK | The SM16269 has no GCLK and no OE pin. Pin 21 is RCLK; the datasheet block diagram wires RCLK -> 16-bit counter -> PWM controller, so RCLK is the grey clock and also advances the row. `SChipControl[10..13]` is the card-side "scan cycle level"; the reference value `0x0097` = 151 is what the vendor formula gives for the reference registers (§4.2). Record `+0x031` `SetGClock` never reaches the pack |
 | Data upload | 16-bit words per output channel, MSB first, R/G/B as six parallel lanes, output-major / chip-minor nesting, with a 1-DCLK LE data-latch tail (`SChipControl[5] = 0x01` in every S-PWM profile in the corpus). Inferred from the datasheet and two reference drivers |
 
-Measured on the bench (firmware 16.53, [../rendering.md](../rendering.md)):
+Measured on the reference module (firmware 16.53, [../rendering.md](../rendering.md)):
 only chip id `0x014C` with the SH descriptor `[2][3][4] = 1, 5, 6` arms the
 SM16269S outputs and renders. Tails `2/4/8` and `3/5/7` under `0x014C`,
 and ids `0x0214`, `0x00DE` and `0x002F`, never arm.

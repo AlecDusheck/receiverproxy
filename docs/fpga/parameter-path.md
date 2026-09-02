@@ -24,7 +24,7 @@ Two framing conventions coexist:
   at frame offset 13, inside the second EtherType byte.
 
 A pixel frame built with the control-frame convention degrades the card into
-a 5 Hz strobe (measured on this bench).
+a 5 Hz strobe (measured).
 
 The real-time push, in the vendor's order (`crates/cli/src/params.rs`,
 matching `GetParamPacksBasic` @ `0x31f1e0` and `SendRealTimePacks` @

@@ -10,6 +10,7 @@
   import Module from "$parts/Module.svelte";
   import { ops, type Generated } from "$api/ops";
   import { app, handSpec } from "$lib/state.svelte";
+  import { repoFile } from "$lib/site";
   import { Action } from "$lib/action.svelte";
   import { chipLabel, formatLabel, panelTitle } from "$lib/panel";
   import { parseToml, type Tables } from "$lib/spec";
@@ -55,7 +56,7 @@
     return rows;
   });
   const chipRows = $derived.by((): Row[] => {
-    const rows: Row[] = [["name", entry.chip.name], ["library", entry.chip.library]];
+    const rows: Row[] = [["name", entry.chip.name], ["library", { text: entry.chip.library, href: repoFile(entry.chip.library) }]];
     if (entry.chip.vendor) rows.push(["vendor", entry.chip.vendor]);
     if (entry.chip.datasheet) rows.push(["datasheet", { href: entry.chip.datasheet, text: "datasheet" }]);
     return rows;
@@ -63,7 +64,7 @@
   const meta = $derived.by((): Row[] => {
     const m = entry.meta;
     const rows: Row[] = [
-      ["file", entry.path],
+      ["file", { text: entry.path, href: repoFile(entry.path) }],
       ["status", m.status],
       ["origin", m.origin],
       ["vendor files", String(m.sources)],
@@ -177,7 +178,7 @@
 </section>
 
 <section id="toml">
-  <h2>{entry.path}</h2>
+  <h2><a href={repoFile(entry.path)}>{entry.path}</a></h2>
   <pre class="toml">{toml}</pre>
 </section>
 

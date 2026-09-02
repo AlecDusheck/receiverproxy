@@ -4,6 +4,7 @@
   import Head from "$parts/Head.svelte";
   import TitleRow from "$parts/TitleRow.svelte";
   import SubNav from "$parts/SubNav.svelte";
+  import { repoFile } from "$lib/site";
   import KeyValue, { type Row } from "$parts/KeyValue.svelte";
   import { panelTitle } from "$lib/panel";
 
@@ -21,7 +22,7 @@
       // No id byte means discovery cannot pick the model; only --card can.
       ["id", c.id === undefined ? "none stated" : hex(c.id)],
       ["status", c.status],
-      ["file", c.path],
+      ["file", { text: c.path, href: repoFile(c.path) }],
       ["image pattern", c.firmware.image_pattern],
       ["sdram staging", String(c.firmware.sdram_staging)],
     ];
@@ -94,7 +95,7 @@
           {#each data.tested as t (t.panel)}
             <tr>
               <td>{#if t.entry}<a href="/panels/{encodeURIComponent(t.entry.name)}">{panelTitle(t.entry)}</a>{:else}{t.panel}{/if}</td>
-              <td class="mono">{t.panel}</td>
+              <td class="mono"><a href={repoFile(t.panel)}>{t.panel}</a></td>
               <td class="mono">{t.firmware}</td>
               <td class="mono">{t.version ?? ""}</td>
             </tr>
@@ -110,7 +111,7 @@
 <section id="firmware">
   <h2>Firmware</h2>
   <p>
-    <a href="{href}/firmware">{data.images} images</a> in <code>config/firmware.toml</code>, with their versions, board revisions, driver chips and sha256.
+    <a href="{href}/firmware">{data.images} images</a> in <a href={repoFile("config/firmware.toml")}><code>config/firmware.toml</code></a>, with their versions, board revisions, driver chips and sha256.
   </p>
   {#if data.tested.length}
     <ul>

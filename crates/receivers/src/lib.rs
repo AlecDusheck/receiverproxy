@@ -374,12 +374,19 @@ mod tests {
     fn the_e120_is_found_by_id_and_by_name() {
         let m = by_id(0x64).expect("E120 by id");
         assert_eq!(m.name, "E120");
+        let fw = "E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex";
         assert_eq!(
             m.tested,
-            [Tested {
-                panel: "config/panels/p25-128x64-sm16269s.toml".into(),
-                firmware: "E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex".into()
-            }]
+            [
+                Tested {
+                    panel: "config/panels/p25-128x64-sm16269s.toml".into(),
+                    firmware: fw.into()
+                },
+                Tested {
+                    panel: "config/panels/p25-2x128x64-chain.toml".into(),
+                    firmware: fw.into()
+                }
+            ]
         );
         assert_eq!(m.tested[0].version(), Some(Version(16, 53)));
         assert!(std::ptr::eq(by_name("e120").unwrap(), m));

@@ -186,8 +186,16 @@ impl Panel {
     fn receiver_coords(&self, local_x: u32, local_y: u32) -> (u32, u32) {
         let (max_x, max_y) = (self.width - 1, self.height - 1);
         // Mirror in canvas space, then undo the mounting rotation.
-        let lx = if self.flip_x { max_x - local_x } else { local_x };
-        let ly = if self.flip_y { max_y - local_y } else { local_y };
+        let lx = if self.flip_x {
+            max_x - local_x
+        } else {
+            local_x
+        };
+        let ly = if self.flip_y {
+            max_y - local_y
+        } else {
+            local_y
+        };
         let (px, py) = match self.rotation {
             Rotation::None => (lx, ly),
             Rotation::Cw90 => (ly, max_x - lx),
@@ -215,8 +223,16 @@ impl Panel {
         let step = |p: (i64, i64)| (p.0 - origin.0, p.1 - origin.1);
         // A one-pixel-wide or -high panel never takes the step; (0, 0) keeps
         // the arithmetic in range.
-        let col_step = if self.width > 1 { step(at(1, 0)) } else { (0, 0) };
-        let row_step = if self.height > 1 { step(at(0, 1)) } else { (0, 0) };
+        let col_step = if self.width > 1 {
+            step(at(1, 0))
+        } else {
+            (0, 0)
+        };
+        let row_step = if self.height > 1 {
+            step(at(0, 1))
+        } else {
+            (0, 0)
+        };
         Placement {
             origin,
             col_step,
@@ -446,10 +462,21 @@ impl Canvas {
         }
     }
 
+    /// The screen: the space the receivers' windows tile, which is what the
+    /// cards are addressed in. It need not match the canvas: two panels
+    /// mounted on their side make a 64x256 canvas on a 256x64 screen.
+    #[must_use]
+    pub fn screen_size(&self) -> (u32, u32) {
+        self.receivers.iter().fold((0, 0), |(w, h), r| {
+            (w.max(r.x + r.width), h.max(r.y + r.height))
+        })
+    }
+
     /// A black framebuffer the size of the screen.
     #[must_use]
     pub fn screen_frame(&self) -> Frame {
-        Frame::black(self.width, self.height)
+        let (w, h) = self.screen_size();
+        Frame::black(w, h)
     }
 
     /// Map one canvas image onto the screen: each panel's pixels land where
@@ -465,7 +492,7 @@ impl Canvas {
     /// loop allocates nothing. `out` is cleared to black and reused when it is
     /// the screen size, replaced otherwise.
     pub fn render_into(&self, src: &Frame, out: &mut Frame) {
-        if (out.width, out.height) == (self.width, self.height) {
+        if (out.width, out.height) == self.screen_size() {
             out.data.fill(0);
         } else {
             *out = self.screen_frame();
@@ -540,7 +567,10 @@ mod tests {
         let r = canvas.receivers[4];
         assert_eq!((r.index, r.x, r.y, r.width, r.height), (4, 4, 2, 4, 2));
         let p = &canvas.panels[4];
-        assert_eq!((p.receiver, p.receiver_x, p.receiver_y, p.x, p.y), (4, 0, 0, 4, 2));
+        assert_eq!(
+            (p.receiver, p.receiver_x, p.receiver_y, p.x, p.y),
+            (4, 0, 0, 4, 2)
+        );
         assert_eq!(canvas.render(&gradient(12, 4)), gradient(12, 4));
     }
 
@@ -757,7 +787,9 @@ mod tests {
         let mut canvas = Canvas::single(8, 4);
         canvas.panels[0].x = 4;
         let err = canvas.validate().unwrap_err();
-        assert!(err.to_string().starts_with("canvas is not valid:\n  panel 0 at (4, 0)"));
+        assert!(err
+            .to_string()
+            .starts_with("canvas is not valid:\n  panel 0 at (4, 0)"));
     }
 
     #[test]
@@ -766,7 +798,10 @@ mod tests {
         // Card 1 pulled back over card 0's window.
         canvas.receivers[1].x = 2;
         let err = canvas.validate().unwrap_err().to_string();
-        assert!(err.contains("receivers 0 and 1 overlap in screen space"), "{err}");
+        assert!(
+            err.contains("receivers 0 and 1 overlap in screen space"),
+            "{err}"
+        );
     }
 
     #[test]

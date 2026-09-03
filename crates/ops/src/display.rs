@@ -4,9 +4,9 @@
 use crate::util::open;
 use crate::{protocol, Ctx, Progress};
 use anyhow::{Context, Result};
-use wall::{Canvas, Frame};
 use sources::{Fit, FrameSource};
 use std::time::Duration;
+use wall::{Canvas, Frame};
 
 /// Load a wall layout, or build a single-panel one from the size flags.
 pub fn load_canvas(ctx: &Ctx, layout: Option<&str>) -> Result<Canvas> {
@@ -67,7 +67,6 @@ pub fn brightness(ctx: &Ctx, value: u8) -> Result<()> {
     }
     Ok(())
 }
-
 
 /// Play a video source onto the wall in `layout`, or a single panel.
 pub fn play(
@@ -198,12 +197,9 @@ pub fn calibration_frame(canvas: &Canvas, module: Option<(u32, u32)>) -> Frame {
     if let Some(module) = module {
         return sources::calibration(canvas.width, canvas.height, module, (0, 0));
     }
-    let mut frame = canvas.screen_frame();
+    let mut frame = Frame::black(canvas.width, canvas.height);
     for panel in &canvas.panels {
-        let tile = (
-            panel.x / panel.width.max(1),
-            panel.y / panel.height.max(1),
-        );
+        let tile = (panel.x / panel.width.max(1), panel.y / panel.height.max(1));
         sources::calibration_tile(
             &mut frame,
             (panel.x, panel.y),
@@ -238,8 +234,14 @@ pub fn show_solid_on(
 }
 
 /// Display an image file, scaled to the panel.
-pub fn show_image(ctx: &Ctx, path: &str, hold: bool, p: &mut dyn Progress) -> Result<()> {
-    let canvas = load_canvas(ctx, None)?;
+pub fn show_image(
+    ctx: &Ctx,
+    path: &str,
+    hold: bool,
+    layout: Option<&str>,
+    p: &mut dyn Progress,
+) -> Result<()> {
+    let canvas = load_canvas(ctx, layout)?;
     let img = image::open(path).with_context(|| format!("open image {path}"))?;
     let frame = image_frame(&img, &canvas, Fit::Stretch)?;
     show_frame(ctx, canvas, &frame, hold, p)
@@ -305,7 +307,10 @@ mod tests {
     /// The frames a brightness change sends, in order.
     fn frames(value: u8, latches: u32) -> Vec<Vec<u8>> {
         let mut out = vec![protocol::brightness(value).to_vec()];
-        out.extend(std::iter::repeat_n(protocol::sync(value).to_vec(), latches as usize));
+        out.extend(std::iter::repeat_n(
+            protocol::sync(value).to_vec(),
+            latches as usize,
+        ));
         out
     }
 
@@ -314,7 +319,11 @@ mod tests {
         let t = driver::Timing::default();
         let f = frames(40, t.latches);
         assert_eq!(f.len(), 1 + t.latches as usize);
-        assert_eq!(f[0][12..14], [0x0a, 40], "brightness frame type carries the value");
+        assert_eq!(
+            f[0][12..14],
+            [0x0a, 40],
+            "brightness frame type carries the value"
+        );
         assert_eq!(f[0][14..17], [40, 40, 0xff], "brightness block");
         assert_eq!(f[1][12..14], [0x01, 0x07], "latch frame type");
         assert_eq!(f[1][35], 40, "master brightness");
@@ -335,7 +344,10 @@ mod tests {
 
         // Without one, the single panel is a single module.
         let whole = calibration_frame(&wall::Canvas::single(128, 64), None);
-        assert_eq!(whole, sources::pattern(sources::Pattern::Calibrate, 128, 64));
+        assert_eq!(
+            whole,
+            sources::pattern(sources::Pattern::Calibrate, 128, 64)
+        );
         assert_ne!(whole, wall);
     }
 }

@@ -35,6 +35,10 @@ datasheet = "https://assets.receiverproxy.com/datasheets/cards/colorlight-e120.p
 panel = "config/panels/p25-128x64-sm16269s.toml"
 firmware = "E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex"
 
+[[tested]]
+panel = "config/panels/p25-2x128x64-chain.toml"
+firmware = "E320_PWM_FPGA16.53_20231227_SM16386S_SM16269SH.hex"
+
 [limits]
 # The specification's control area for PWM chips, 192 x 1024 pixels; 1024 is
 # the load along the data line (docs/compiled-image-format.md, large load).

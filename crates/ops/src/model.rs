@@ -168,10 +168,11 @@ pub fn matrix_markdown() -> Result<String> {
         let text = embedded::panel(path).with_context(|| format!("{path}: not embedded"))?;
         let spec = PanelSpec::parse(text).with_context(|| format!("parse {path}"))?;
         let chip = chip_name(&embedded_chip(&spec.chip.library)?);
-        let label = format!(
-            "{}x{} 1/{}, {chip} (`{path}`)",
-            spec.module.width, spec.module.height, spec.module.scan
-        );
+        // A chain of modules on one port is counted: "2 × 128x64".
+        let (mw, mh) = (spec.module.width, spec.module.height);
+        let modules = (spec.screen.width / mw.max(1)) * (spec.screen.height / mh.max(1));
+        let count = if modules > 1 { format!("{modules} × ") } else { String::new() };
+        let label = format!("{count}{mw}x{mh} 1/{}, {chip} (`{path}`)", spec.module.scan);
         let cell = |m: &CardModel| {
             if m.tested.iter().any(|t| t.panel == path) {
                 Status::Tested
@@ -234,7 +235,8 @@ mod tests {
         assert_eq!(lines[3], "|---|:---:|:---:|:---:|:---:|:---:|");
         // Only the E120 is ✅: the other model files generate, never driven.
         assert_eq!(lines[4], "| 128x64 1/16, SM16269S (`config/panels/p25-128x64-sm16269s.toml`) | ✅ | ⚠️ | ⚠️ | ⚠️ | ❌ |");
-        assert!(lines[5].starts_with("| DP5525 | ⚠️ |"), "{}", lines[5]);
+        assert_eq!(lines[5], "| 2 × 128x64 1/16, SM16269S (`config/panels/p25-2x128x64-chain.toml`) | ✅ | ⚠️ | ⚠️ | ⚠️ | ❌ |");
+        assert!(lines[6].starts_with("| DP5525 | ⚠️ |"), "{}", lines[6]);
         assert!(s.contains("| ICN2038S · ICN2053 · ICN2055 · ICN2065 · ICND2163 | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ❌ |"), "{s}");
         assert_eq!(family("ICND2163"), "ICN");
         assert_eq!(family("SM16380"), "SM");

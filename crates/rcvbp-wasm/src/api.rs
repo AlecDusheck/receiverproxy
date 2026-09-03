@@ -729,7 +729,11 @@ mod tests {
         assert!(chips.iter().any(|&(_, p)| p == "config/chips/sm16269s.toml"));
         assert!(chips.iter().any(|&(_, p)| p == "config/chips/icn2053.toml"));
         assert_eq!(panels[0], (Status::Verified, SPEC));
-        assert_eq!(l.panels[1].status, Status::Derived);
+        assert_eq!(
+            panels[1],
+            (Status::Verified, "config/panels/p25-2x128x64-chain.toml")
+        );
+        assert_eq!(l.panels[2].status, Status::Derived);
         assert_eq!(chips[0], (Status::Verified, "config/chips/sm16269s.toml"));
         // Verified first, then the rest, each alphabetical by path.
         let is_sorted = |xs: &[(Status, &str)]| {

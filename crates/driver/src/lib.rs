@@ -5,10 +5,10 @@
 //! through [`Wall::show`], so there is one frame recipe to measure.
 
 use anyhow::{Context, Result};
-use wall::{Canvas, Frame};
 use rawlink::Link;
 use std::ops::Range;
 use std::time::{Duration, Instant};
+use wall::{Canvas, Frame};
 
 /// How long `recv` may block; only replies to the layout frame are ever read.
 const RECV_TIMEOUT: Duration = Duration::from_millis(200);
@@ -112,7 +112,8 @@ impl<S: FrameSink> Wall<S> {
     /// u16 coordinates (every receiver lies inside it, so they fit too).
     pub fn with_sink(dev: S, canvas: Canvas, settings: Settings) -> Result<Self> {
         canvas.validate()?;
-        fits_u16(canvas.width, canvas.height).context("canvas is larger than 65535 px")?;
+        let (sw, sh) = canvas.screen_size();
+        fits_u16(sw, sh).context("screen is larger than 65535 px")?;
         Ok(Self {
             dev,
             screen: canvas.screen_frame(),
@@ -169,8 +170,8 @@ impl<S: FrameSink> Wall<S> {
                 r.height as u16,
                 r.x as u16,
                 r.y as u16,
-                self.canvas.width as u16,
-                self.canvas.height as u16,
+                self.screen.width as u16,
+                self.screen.height as u16,
             );
             self.dev.send(&frame)?;
         }
@@ -191,7 +192,7 @@ impl<S: FrameSink> Wall<S> {
     /// # Errors
     /// Fails if a frame cannot be sent.
     pub fn show(&mut self, frame: &Frame) -> Result<()> {
-        let all = 0..self.canvas.height;
+        let all = 0..self.screen.height;
         self.show_rows(frame, all)
     }
 
@@ -208,7 +209,9 @@ impl<S: FrameSink> Wall<S> {
             self.announce_layout()?;
         }
         let Settings {
-            color_order, timing, ..
+            color_order,
+            timing,
+            ..
         } = self.settings;
         self.dev.send(&self.brightness_frame)?;
 
@@ -221,7 +224,13 @@ impl<S: FrameSink> Wall<S> {
             let row = self.screen.row(y);
             for (j, chunk) in row.chunks(colorlight::MAX_PIXELS_PER_PACKET).enumerate() {
                 let offset = j * colorlight::MAX_PIXELS_PER_PACKET;
-                colorlight::pixel_row_into(&mut self.packet, y as u16, offset as u16, chunk, color_order);
+                colorlight::pixel_row_into(
+                    &mut self.packet,
+                    y as u16,
+                    offset as u16,
+                    chunk,
+                    color_order,
+                );
                 self.dev.send(&self.packet)?;
             }
         }
@@ -375,7 +384,10 @@ mod tests {
             assert_eq!(be16(f, 17), 128, "count");
             assert_eq!(&f[19..21], &[0x08, 0x88]);
             assert_eq!(f.len(), 21 + 128 * 3);
-            assert_eq!(f, &colorlight::pixel_row(y as u16, 0, frame.row(y as u32), settings.color_order));
+            assert_eq!(
+                f,
+                &colorlight::pixel_row(y as u16, 0, frame.row(y as u32), settings.color_order)
+            );
         }
         for f in &sent[65..] {
             assert_eq!(f.len(), 112);
@@ -403,9 +415,15 @@ mod tests {
         for y in 0..2u16 {
             for (offset, count) in [(0, 497), (497, 497), (994, 6)] {
                 let f = rows.next().unwrap();
-                assert_eq!((f[12], be16(f, 13), be16(f, 15), be16(f, 17)), (0x55, y, offset, count));
+                assert_eq!(
+                    (f[12], be16(f, 13), be16(f, 15), be16(f, 17)),
+                    (0x55, y, offset, count)
+                );
                 let px = &frame.row(u32::from(y))[usize::from(offset)..][..usize::from(count)];
-                assert_eq!(f, &colorlight::pixel_row(y, offset, px, settings.color_order));
+                assert_eq!(
+                    f,
+                    &colorlight::pixel_row(y, offset, px, settings.color_order)
+                );
             }
         }
         assert_eq!(sent[7][35], 40);
@@ -434,7 +452,10 @@ mod tests {
             assert_eq!(refresh[0][12], 0x0a);
             for (y, f) in refresh[1..5].iter().enumerate() {
                 assert_eq!(be16(f, 17), 16, "the whole screen row");
-                assert_eq!(f, &colorlight::pixel_row(y as u16, 0, frame.row(y as u32), settings.color_order));
+                assert_eq!(
+                    f,
+                    &colorlight::pixel_row(y as u16, 0, frame.row(y as u32), settings.color_order)
+                );
             }
             assert!(refresh[5..].iter().all(|f| f[12] == 0x01));
         }
@@ -452,7 +473,10 @@ mod tests {
         assert_eq!(sent[0], colorlight::brightness(255));
         for (f, y) in sent[1..4].iter().zip(10u16..) {
             assert_eq!(be16(f, 13), y, "row");
-            assert_eq!(f, &colorlight::pixel_row(y, 0, frame.row(u32::from(y)), settings.color_order));
+            assert_eq!(
+                f,
+                &colorlight::pixel_row(y, 0, frame.row(u32::from(y)), settings.color_order)
+            );
         }
         assert!(sent[4..].iter().all(|f| f == &colorlight::sync(255)));
         assert_eq!(wall.frames_sent(), 1);
@@ -498,9 +522,14 @@ mod tests {
         assert_eq!(&sent[5][13..17], &[40, 40, 40, 0xff]);
         assert!(sent[7..10].iter().all(|f| f == &colorlight::sync(40)));
         assert_eq!(sent[10], colorlight::brightness(40));
-        assert!(sent[12..15].iter().all(|f| f == &colorlight::sync_gains(40, [10, 20, 30])));
+        assert!(sent[12..15]
+            .iter()
+            .all(|f| f == &colorlight::sync_gains(40, [10, 20, 30])));
         assert_eq!(&sent[12][38..41], &[10, 20, 30]);
-        assert_eq!(sent[6], sent[11], "the row packet does not carry brightness");
+        assert_eq!(
+            sent[6], sent[11],
+            "the row packet does not carry brightness"
+        );
     }
 
     #[test]
@@ -519,7 +548,12 @@ mod tests {
         assert_eq!(px.len(), 16);
         for x in 0..8u32 {
             let [r, g, b] = frame.pixel(x, 0);
-            assert_eq!(px[8 + x as usize], [b, g, r], "canvas x {x} lands at screen x {}", 8 + x);
+            assert_eq!(
+                px[8 + x as usize],
+                [b, g, r],
+                "canvas x {x} lands at screen x {}",
+                8 + x
+            );
         }
     }
 
@@ -534,7 +568,13 @@ mod tests {
         for (y, row) in frame.rows().enumerate() {
             for (i, chunk) in row.chunks(colorlight::MAX_PIXELS_PER_PACKET).enumerate() {
                 let offset = i * colorlight::MAX_PIXELS_PER_PACKET;
-                colorlight::pixel_row_into(&mut packet, y as u16, offset as u16, chunk, settings.color_order);
+                colorlight::pixel_row_into(
+                    &mut packet,
+                    y as u16,
+                    offset as u16,
+                    chunk,
+                    settings.color_order,
+                );
                 stream.extend_from_slice(&packet);
             }
         }
@@ -564,13 +604,21 @@ mod tests {
         let mut canvas = Canvas::single(8, 8);
         canvas.receivers[0].width = 70_000;
         let err = Wall::with_sink(Vec::new(), canvas, quick()).err().unwrap();
-        assert!(err.to_string().contains("receiver 0 at (0, 0) size 70000x8 exceeds the 65535 px screen space"), "{err}");
+        assert!(
+            err.to_string()
+                .contains("receiver 0 at (0, 0) size 70000x8 exceeds the 65535 px screen space"),
+            "{err}"
+        );
 
         // A canvas past the wire's u16 space is refused by the same check,
         // which its single receiver trips first.
         let huge = Canvas::single(70_000, 1);
         let err = Wall::with_sink(Vec::new(), huge, quick()).err().unwrap();
-        assert!(err.to_string().contains("exceeds the 65535 px screen space"), "{err}");
+        assert!(
+            err.to_string()
+                .contains("exceeds the 65535 px screen space"),
+            "{err}"
+        );
 
         let mut bad = Canvas::single(8, 8);
         bad.panels[0].x = 4;
@@ -601,7 +649,10 @@ mod tests {
         const FRAMES: u32 = 300;
         let canvas = Canvas::cards(128, 64, 10, 5);
         let frame = gradient(1280, 320);
-        let sink = Counting { packets: 0, bytes: 0 };
+        let sink = Counting {
+            packets: 0,
+            bytes: 0,
+        };
         let mut wall = Wall::with_sink(sink, canvas.clone(), quick()).unwrap();
 
         let mut screen = canvas.screen_frame();

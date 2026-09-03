@@ -14,6 +14,9 @@ pub enum Show {
         /// Keep refreshing until Ctrl-C
         #[arg(long)]
         hold: bool,
+        /// Wall layout JSON; defaults to a single panel of --width x --height
+        #[arg(long)]
+        layout: Option<String>,
     },
     /// Play a video or any ffmpeg-readable source
     Video {
@@ -106,7 +109,7 @@ fn size((w, h): (u16, u16)) -> (u32, u32) {
 
 pub fn run(ctx: &Ctx, cmd: &Show, p: &mut dyn Progress) -> Result<()> {
     match cmd {
-        Show::Image { path, hold } => show_image(ctx, path, *hold, p),
+        Show::Image { path, hold, layout } => show_image(ctx, path, *hold, layout.as_deref(), p),
         Show::Video {
             input,
             fps,

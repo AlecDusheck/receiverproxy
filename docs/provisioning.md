@@ -115,6 +115,28 @@ coordinates, not sizes.
   ([receiver-identity.md](receiver-identity.md) section 2); `--index 0` is
   accepted for a card whose record is intact.
 
+### Several modules on one card
+
+A card drives a chain of modules on one hub port as one screen: the
+panel spec's `[screen]` is the whole chain (`width = 256, height = 64` for
+two 128x64 modules), `[module]` stays the single module. Measured with two
+P2.5 128x64 SM16269S modules on an E120 (`config/panels/p25-2x128x64-chain.toml`):
+
+* The control area is the screen, not the module. `rxp provision` writes
+  it from `[screen]`; a 128x64 window on a 256-wide chain lights one module.
+* The card clocks the whole chain per scan address (CardScanLen = OneScanLen
+  x modules), and the first words out land in the far module. Screen
+  columns `0..127` are the daisy-chained module, `128..255` the one on the
+  hub connector. The layout file places the connector-side module at
+  `receiver_x = 128`.
+* The boot image's void-line column table (block 7, `0x1400`) gates the
+  chain positions past the real pixels. It starts at the screen width; a
+  gate at the module width blanks the second module's real columns.
+* Mounting is the layout's business. Modules turned on their side make a
+  canvas (what the sender draws) that differs from the screen (what the
+  cards are addressed in); `config/walls/two-stacked-rotated.json` is two
+  modules stacked 64 wide by 256 tall on that 256x64 screen.
+
 ### Checking the wall
 
 With every card provisioned, `rxp show pattern calibrate --layout wall.json

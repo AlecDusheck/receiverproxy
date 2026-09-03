@@ -38,8 +38,8 @@ pub mod embedded {
         PANELS
             .iter()
             .map(|&(path, text)| {
-                let spec = crate::PanelSpec::parse(text)
-                    .with_context(|| format!("parse {path}"))?;
+                let spec =
+                    crate::PanelSpec::parse(text).with_context(|| format!("parse {path}"))?;
                 Ok((path, spec))
             })
             .collect()
@@ -82,8 +82,15 @@ pub mod embedded {
             assert_eq!(*path, "config/panels/p25-128x64-sm16269s.toml");
             assert_eq!(bench.meta.status, crate::Status::Verified);
             assert_eq!(bench.meta.pitch_mm, Some(2.5));
+            // The bench spec and its two-module chain are the verified ones;
+            // everything else is derived from the config corpus.
             for (path, spec) in &specs[1..] {
-                assert_eq!(spec.meta.status, crate::Status::Derived, "{path}");
+                let expected = if *path == "config/panels/p25-2x128x64-chain.toml" {
+                    crate::Status::Verified
+                } else {
+                    crate::Status::Derived
+                };
+                assert_eq!(spec.meta.status, expected, "{path}");
                 assert!(spec.meta.sources > 0, "{path}");
                 assert!(!spec.meta.examples.is_empty(), "{path}");
             }
@@ -109,8 +116,16 @@ pub mod embedded {
             assert!(panel(PANELS[0].0).is_some());
             let verified = |text: &str| text.lines().any(|l| l.trim() == r#"status = "verified""#);
             let sorted = |xs: &[(&str, &str)]| {
-                let plain: Vec<&str> = xs.iter().filter(|(_, t)| verified(t)).map(|(p, _)| *p).collect();
-                let rest: Vec<&str> = xs.iter().filter(|(_, t)| !verified(t)).map(|(p, _)| *p).collect();
+                let plain: Vec<&str> = xs
+                    .iter()
+                    .filter(|(_, t)| verified(t))
+                    .map(|(p, _)| *p)
+                    .collect();
+                let rest: Vec<&str> = xs
+                    .iter()
+                    .filter(|(_, t)| !verified(t))
+                    .map(|(p, _)| *p)
+                    .collect();
                 xs.iter().take(plain.len()).all(|(_, t)| verified(t))
                     && plain.windows(2).all(|w| w[0] < w[1])
                     && rest.windows(2).all(|w| w[0] < w[1])
@@ -611,9 +626,15 @@ mod tests {
         .unwrap();
         let spec = PanelSpec::parse(&text).unwrap();
         let out = spec.to_toml().unwrap();
-        assert!(out.starts_with("name = \"p25-128x64-sm16269s\"\n\n[meta]\n"), "{out}");
+        assert!(
+            out.starts_with("name = \"p25-128x64-sm16269s\"\n\n[meta]\n"),
+            "{out}"
+        );
         assert!(out.contains("\n[record01_overrides]\n0x02F = 1\n"), "{out}");
-        assert!(out.contains("gamma = 2.8\n") && out.contains("min_oe = 0.0001\n"), "{out}");
+        assert!(
+            out.contains("gamma = 2.8\n") && out.contains("min_oe = 0.0001\n"),
+            "{out}"
+        );
         let back = PanelSpec::parse(&out).unwrap();
         assert_eq!(back.to_toml().unwrap(), out);
         assert_eq!(back.record01_overrides, spec.record01_overrides);
@@ -624,6 +645,9 @@ mod tests {
         bare.record01_overrides.clear();
         bare.mapping.block = None;
         let out = bare.to_toml().unwrap();
-        assert!(!out.contains("record01_overrides") && !out.contains("block"), "{out}");
+        assert!(
+            !out.contains("record01_overrides") && !out.contains("block"),
+            "{out}"
+        );
     }
 }

@@ -40,7 +40,17 @@ jobs:
                    receiverproxy-rcvbp receiverproxy-wall \
                    receiverproxy-sources receiverproxy-driver \
                    receiverproxy-ops receiverproxy-daemon receiverproxy; do
-            cargo publish -p "$p"
+            # A version already on the index is not an error: the crate may
+            # have been published by hand before the tag.
+            if out=$(cargo publish -p "$p" 2>&1); then
+              echo "published $p"
+            elif printf '%s' "$out" | grep -q "already exists"; then
+              echo "$p is already on the index"
+              continue
+            else
+              printf '%s\n' "$out" >&2
+              exit 1
+            fi
             sleep 30
           done
 

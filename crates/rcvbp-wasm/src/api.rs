@@ -3,7 +3,7 @@
 //! results with the CLI's files.
 
 use anyhow::{anyhow, Context, Result};
-use panelspec::{embedded, ChipLibrary, Meta, PanelSpec};
+use panelspec::{embedded, ChipLibrary, Meta, PanelSpec, Status};
 use rcvbp::record01::{View, LEN as RECORD01_LEN};
 use rcvbp::{image, Format, Rcvbp};
 use serde::{Serialize, Serializer};
@@ -163,6 +163,8 @@ pub struct LibraryChip {
     pub path: &'static str,
     pub name: String,
     pub toml: &'static str,
+    /// The library's own `status`; `derived` when the file states none.
+    pub status: Status,
 }
 
 #[derive(Debug, Serialize)]
@@ -171,7 +173,8 @@ pub struct LibraryPanel {
     pub path: &'static str,
     pub name: String,
     pub toml: &'static str,
-    pub mined: bool,
+    /// The spec's `[meta] status`; `derived` when the file states none.
+    pub status: Status,
 }
 
 /// The chip library text for a `[chip].library` path, from the embedded set.
@@ -424,6 +427,7 @@ pub fn libraries() -> Libraries {
             path,
             name: toml_name(path, toml),
             toml,
+            status: toml_status(toml),
         })
         .collect();
     let panels = embedded::PANELS
@@ -432,10 +436,25 @@ pub fn libraries() -> Libraries {
             path,
             name: toml_name(path, toml),
             toml,
-            mined: embedded::is_mined(path),
+            status: toml_status(toml),
         })
         .collect();
     Libraries { chips, panels }
+}
+
+/// The file's `status`, a chip library's own or a spec's `[meta]` one;
+/// `derived` when the file states none.
+fn toml_status(text: &str) -> Status {
+    let table = text.parse::<toml::Table>().unwrap_or_default();
+    let raw = table
+        .get("status")
+        .or_else(|| table.get("meta")?.get("status"))
+        .and_then(toml::Value::as_str);
+    match raw {
+        Some("verified") => Status::Verified,
+        Some("stub") => Status::Stub,
+        _ => Status::Derived,
+    }
 }
 
 /// The file's `name =`, else its stem.
@@ -552,7 +571,7 @@ mod tests {
     fn generate_only_knows_embedded_chip_libraries() {
         let spec = std::fs::read_to_string(root().join(SPEC))
             .unwrap()
-            .replace("config/chips/sm16269s-factory.toml", "config/chips/x.toml");
+            .replace("config/chips/sm16269s.toml", "config/chips/x.toml");
         let err = generate(&spec, "rcvbp").unwrap_err();
         assert_eq!(
             format!("{err:#}"),
@@ -579,18 +598,18 @@ mod tests {
         let bench = &g[0];
         assert_eq!(bench.path, SPEC);
         assert_eq!(bench.name, "p25-128x64-sm16269s");
-        assert_eq!(bench.meta.status, panelspec::Status::Tested);
+        assert_eq!(bench.meta.status, panelspec::Status::Verified);
         assert_eq!(bench.meta.pitch_mm, Some(2.5));
         assert_eq!((bench.module.width, bench.module.height, bench.module.scan), (128, 64, 16));
-        assert_eq!(bench.chip.library, "config/chips/sm16269s-factory.toml");
-        assert_eq!(bench.chip.name, "SM16269S (factory values)");
+        assert_eq!(bench.chip.library, "config/chips/sm16269s.toml");
+        assert_eq!(bench.chip.name, "SM16269S");
         assert_eq!(bench.chip.family_id, 0x14C);
         assert_eq!(bench.formats, ["rcvbp"]);
-        let mined = g.iter().find(|e| e.path == "config/panels/mined/64x64-16s-icn2053.toml").unwrap();
-        assert_eq!(mined.meta.origin, panelspec::Origin::Mined);
-        assert_eq!(mined.meta.sources, 25);
-        assert_eq!(mined.meta.examples.len(), 3);
-        assert_eq!(mined.chip.name, "ICN2053 (mined)");
+        let derived = g.iter().find(|e| e.path == "config/panels/64x64-16s-icn2053.toml").unwrap();
+        assert_eq!(derived.meta.status, panelspec::Status::Derived);
+        assert_eq!(derived.meta.sources, 25);
+        assert_eq!(derived.meta.examples.len(), 3);
+        assert_eq!(derived.chip.name, "ICN2053");
     }
 
     #[test]
@@ -681,9 +700,9 @@ mod tests {
         let i = import(rcvbp, None).unwrap();
         assert_eq!(i.format, "rcvbp");
         assert_eq!(i.unresolved, ["meta", "mapping.gate_phantom_positions", "boot.arm_at_boot"]);
-        assert!(i.spec_toml.starts_with("name = \"128x64-16s-sm16269s-factory\"\n"), "{}", i.spec_toml);
+        assert!(i.spec_toml.starts_with("name = \"128x64-16s-sm16269s\"\n"), "{}", i.spec_toml);
         let again = generate(&i.spec_toml, "rcvbp").unwrap();
-        assert_eq!(produced(&again, "128x64-16s-sm16269s-factory.rcvbp"), rcvbp);
+        assert_eq!(produced(&again, "128x64-16s-sm16269s.rcvbp"), rcvbp);
         assert_eq!(import(rcvbp, Some("rcvbp")).unwrap().spec_toml, i.spec_toml);
 
         let reference = import(&read(REFERENCE), None).unwrap();
@@ -705,28 +724,30 @@ mod tests {
     #[test]
     fn libraries_are_the_config_tree_in_order() {
         let l = libraries();
-        let chips: Vec<&str> = l.chips.iter().map(|c| c.path).collect();
-        let panels: Vec<&str> = l.panels.iter().map(|p| p.path).collect();
-        assert!(chips.contains(&"config/chips/sm16269s-factory.toml"));
-        assert!(chips.contains(&"config/chips/mined/icn2053.toml"));
-        assert_eq!(panels[0], SPEC);
-        assert!(!l.panels[0].mined);
-        assert!(l.panels[1].mined && l.panels[1].path.starts_with("config/panels/mined/"));
-        let is_sorted = |xs: &[&str]| {
-            let (plain, mined): (Vec<&str>, Vec<&str>) =
-                xs.iter().partition(|p| !p.contains("/mined/"));
-            xs.iter().take(plain.len()).all(|p| !p.contains("/mined/"))
-                && plain.windows(2).all(|w| w[0] < w[1])
-                && mined.windows(2).all(|w| w[0] < w[1])
+        let chips: Vec<(Status, &str)> = l.chips.iter().map(|c| (c.status, c.path)).collect();
+        let panels: Vec<(Status, &str)> = l.panels.iter().map(|p| (p.status, p.path)).collect();
+        assert!(chips.iter().any(|&(_, p)| p == "config/chips/sm16269s.toml"));
+        assert!(chips.iter().any(|&(_, p)| p == "config/chips/icn2053.toml"));
+        assert_eq!(panels[0], (Status::Verified, SPEC));
+        assert_eq!(l.panels[1].status, Status::Derived);
+        assert_eq!(chips[0], (Status::Verified, "config/chips/sm16269s.toml"));
+        // Verified first, then the rest, each alphabetical by path.
+        let is_sorted = |xs: &[(Status, &str)]| {
+            let split = xs.iter().take_while(|(s, _)| *s == Status::Verified).count();
+            let (verified, rest) = xs.split_at(split);
+            rest.iter().all(|(s, _)| *s != Status::Verified)
+                && verified.windows(2).all(|w| w[0].1 < w[1].1)
+                && rest.windows(2).all(|w| w[0].1 < w[1].1)
         };
         assert!(is_sorted(&chips) && is_sorted(&panels));
-        let factory = l
+        let bench = l
             .chips
             .iter()
-            .find(|c| c.path == "config/chips/sm16269s-factory.toml")
+            .find(|c| c.path == "config/chips/sm16269s.toml")
             .unwrap();
-        assert_eq!(factory.name, "SM16269S (factory values)");
-        assert!(factory.toml.starts_with("# Driver-chip library"));
+        assert_eq!(bench.name, "SM16269S");
+        assert_eq!(bench.status, Status::Verified);
+        assert!(bench.toml.starts_with("# SM16269S (chip id 0x014C"));
         assert_eq!(l.panels[0].name, "p25-128x64-sm16269s");
     }
 

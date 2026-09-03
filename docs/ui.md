@@ -141,7 +141,7 @@ type JobResult = GatedOutcome | Outcome;
 // A long operation.
 type Job = {
   id: string;           // "j" + counter, unique for the daemon's lifetime
-  kind: "provision" | "firmware/install" | "flash/snapshot" | "flash/restore" | "show/video" | "show/hold";
+  kind: "provision" | "firmware/install" | "flash/snapshot" | "flash/restore" | "show/video" | "show/hold" | "show/stream";
   state: "running" | "done" | "failed" | "cancelled";
   started: string;      // RFC 3339
   finished: string | null;
@@ -203,6 +203,43 @@ the final one.
 
 `POST /show/blank` → `Outcome`. Three black refreshes on the wall.
 
+`POST /show/frame?source=&fit=` body the 12-byte stream header `rxp show
+serve` reads (`RXP\0`, version 1, a reserved byte, then width, height and
+fps as little-endian u16) followed by `width * height * 3` rgb24 bytes →
+`{ id: string }` (job `show/stream`). A body shorter than the header, a
+wrong magic or version, a zero size, or a length that is not
+`12 + width * height * 3` is 400 naming what disagrees. The first frame
+starts the job that owns the link; every later frame with the same header
+goes to it. `fit` defaults to `contain` and only applies when the frames
+are not already the wall's size; `source` is what `GET /state` calls the
+stream, `frame push` by default. A frame that arrives while the panel is
+still drawing the last one is dropped rather than queued. The job ends when
+five seconds pass with no frame, when another `show/*` replaces it, or on
+`DELETE /jobs/{id}`.
+
+`GET /state` → `State`: what is on the panel, whole.
+
+```ts
+type State = {
+  show: {
+    kind: "blank" | "still" | "pattern" | "video" | "stream";
+    source: string;            // the pattern, the file, the colour, the pushing client
+    fps: number | null;        // a video's or a stream's, null for a still
+    layout: string;            // the wall it is drawn on, "WxH, N cards"
+    started: string;           // RFC 3339
+    job: string | null;        // the job that keeps it there, when one does
+  } | null;                    // null until the daemon has put anything up
+  brightness: number;          // the value the last sync frames carried
+  cards: Card[];               // the last discovery result
+  job: { id: string; kind: JobKind; state: JobState; started: string } | null;
+};
+```
+
+`GET /state/events` → `text/event-stream`: one `event: state` carrying the
+whole object at once, then one on every change (a show starting or ending,
+a brightness change, a job starting or finishing, a discovery). The same
+`: keepalive` every 15 s. Never ends by itself.
+
 `POST /config/gen` body `{ spec_toml: string }` → 
 
 ```ts
@@ -227,6 +264,9 @@ the card model's parameter page, 64 chunks, 2 s. Read-only.
 
 `POST /config/write` body `{ rcvbp: string, commit?: boolean, index?: number, wait?: number }` → `GatedOutcome`. The block backup goes to
 `<data dir>/backups/block07-<unix seconds>.bin` and is listed in `files`.
+A body that is not JSON is the `.rcvbp` file itself, with the same three
+fields as `?commit=&index=&wait=`; the browser sends the bytes that way
+instead of base64.
 
 `POST /config/send` body `{ spec_toml: string, chip_only?: boolean, gap_ms?: number }` → `Outcome`. RAM only, no gate, as `rxp config send`.
 
@@ -260,6 +300,20 @@ card model is the `card` setting, else the last discovered card's, else the
 first tested model. Offline: no link, no discovery, no gate.
 `ProvisionReq.firmware_path` takes `"auto"` for the same choice
 ([provisioning.md](provisioning.md), [cards.md](cards.md)).
+
+`POST /firmware/upload` either `multipart/form-data` with a `file` part or
+the image as the body with `?name=<file name>` → 
+
+```ts
+{ name: string; path: string;   // <data dir>/firmware/<name>, what firmware/install takes
+  size: number; sha256: string; // of the bytes uploaded
+  verified: boolean;            // the name is in config/firmware.toml and the bytes match it
+  manifest_sha256?: string }    // what the manifest says, when it lists the name
+```
+
+A name the manifest lists whose bytes disagree with it is 400 with the
+verify message and nothing is written; any other name is kept as it is,
+with `verified: false`. A path in the name is reduced to its last segment.
 
 `GET /card/screen-size?index=0&wait=3` → `{ width: number, height: number }`.
 `PUT /card/screen-size` body `{ width: number, height: number, commit?: boolean, index?: number, wait?: number }` → `GatedOutcome & { width, height }` (the values read back).
@@ -299,7 +353,8 @@ The daemon owns one `rawlink::Link` at a time. A job holds it from start to
 end. While a job is `running`, every route that opens the link (`discover`,
 `brightness`, `show/*`, `config/read`, `config/write`, `config/send`,
 `provision`, `flash/*`, `firmware/*`, `card/*`) returns 409, with two
-exceptions: a `show/*` request cancels a running `show/video` or `show/hold`
+exceptions: a `show/*` request cancels a running `show/video`, `show/hold`
+or `show/stream`
 job and proceeds, and `DELETE /jobs/{id}` always works. `provision`,
 `firmware/install`, `flash/*` are never cancelled implicitly. Cancellation is
 polled between steps (`Progress::cancelled`, section 5); a flash write in
@@ -334,7 +389,7 @@ export function layout_example(cols: number, rows: number, w: number, h: number)
 
 // One embedded panel spec (panelspec::embedded::specs), in embedding order.
 type Entry = {
-  path: string;                 // "config/panels/mined/icn2053.toml"
+  path: string;                 // "config/panels/64x64-16s-icn2053.toml"
   name: string;                 // spec.name
   meta: Meta;                   // the spec's [meta] table, defaults filled in
   module: { width: number; height: number; scan: number };
@@ -343,8 +398,7 @@ type Entry = {
 };
 type Meta = {                   // panelspec::Meta
   pitch_mm?: number;
-  status: "tested" | "generates";
-  origin: "bench" | "mined";
+  status: "verified" | "derived" | "stub";
   sources: number;              // vendor files the values came from
   agreement?: number;           // 0..1, share of the module class's files that agree
   examples: string[];           // a few source file names
@@ -407,16 +461,17 @@ type Diff = {
 };
 
 type Libraries = { chips: LibraryChip[]; panels: LibraryPanel[] };
-type LibraryChip = { path: string; name: string; toml: string };
-type LibraryPanel = { path: string; name: string; toml: string; mined: boolean };
+type LibraryChip = { path: string; name: string; toml: string; status: Meta["status"] };
+type LibraryPanel = { path: string; name: string; toml: string; status: Meta["status"] };
 ```
 
 `libraries()` returns the files `panelspec::embedded` holds, built in from
 `config/chips/**/*.toml` and `config/panels/**/*.toml`, `path` relative
-to the repository root (`config/chips/mined/icn2053.toml`), `name` from the
+to the repository root (`config/chips/icn2053.toml`), `name` from the
 file's `name =` field (chip libraries name themselves; a panel spec without
-one uses the file stem), `mined` true under `config/panels/mined/`. Order:
-non-mined first, then mined, each alphabetical by path.
+one uses the file stem), `status` the file's own (a chip library's
+top-level one, a spec's `[meta]` one), `derived` when it states none. Order:
+`verified` first, then the rest, each alphabetical by path.
 
 `generate` resolves `[chip].library` against the embedded set by exact path;
 a path not in the set is an error `chip library config/chips/x.toml: not in
@@ -464,7 +519,7 @@ web/
     tokens.css            the colour tokens of ui-design.md, light and dark; the only file that writes a colour
     app.css               tokens.css, then Tailwind with the tokens as the theme (`@theme inline`: colours, the two font stacks, `--spacing: 4px`, the four type sizes; the default palette, sizes, radii and shadows cleared), then the component classes: controls, forms, tables, key-value blocks, drop target
     routes/
-      +layout.svelte      top bar (parts/TopBar.svelte: Panels, Cards, Builder, Wall, Control, GitHub), the daemon banner (parts/Banner.svelte), content (960 px, the Wall unbounded); `onMount` reads the token from the address bar and starts the probe (`ops.start`)
+      +layout.svelte      top bar (parts/TopBar.svelte: Panels, Cards, Builder, Wall, Control, GitHub), the daemon banner (parts/Banner.svelte), content (960 px, the Wall unbounded), the status bar (parts/StatusBar.svelte); `onMount` reads the token from the address bar and starts the probe (`ops.start`), which subscribes to `GET /state/events` once when a daemon answers
       +page.svelte        `/`, prerendered: one sentence, the install commands, the pages, what is tested
       panels/             `/panels`, prerendered: +page.server.ts loads config/panels/**/*.toml through lib/server/config.ts and the cards whose [[tested]] name each spec; the table (module drawing, title from lib/panel.ts, status, formats, tested with), the filters (text, vendor, chip, scan, status) and the sort
       panels/[name]/      `/panels/<name>`, one prerendered page per spec (`entries`), the one-line summary under the title, the photo and the maker's links (product page, specification) when [meta] has them, sections Download, Module, Wiring, Timing, TOML: the download buttons named by file (WASM, on click), customize, provision (daemon), the spec as key-value blocks (the chip's vendor and datasheet from its library), the TOML
@@ -474,13 +529,14 @@ web/
       cards/[model]/firmware/  `/cards/<name>/firmware`, one prerendered page per model: the whole manifest as a table (name, version, pcb, kind, chips, size, sha256, download) with the kind, chip and text filters
       builder/            `/builder` (+layout.ts: `ssr = false` for the sub-pages too): +page.svelte (the two panes, generate, the card actions), BuilderForm.svelte; import/ (`/builder/import`: the drop target, the unresolved list, customize); inspect/ (`/builder/inspect`: BuilderTools.svelte, inspect and diff)
       wall/               `/wall` (+layout.ts: `ssr = false`): +page.svelte (the grid form WallForm.svelte, the drawing WallDrawing.svelte, the selected card WallCard.svelte with its provision line, import, save to the daemon); layout/ (`/wall/layout`: WallTables.svelte, the same document as tables, add and remove rows, import)
-      control/            `/control` (+layout.ts: `ssr = false`): the discovered cards (a row selects `app.card`) and brightness; show/, provision/, firmware/, flash/, card/: one page per action group, each headed by parts/ControlHead.svelte (title, sibling links, the selected card; the install command without the daemon); job.ts (start and follow a job, the dry-run test)
+      control/            `/control` (+layout.ts: `ssr = false`): the discovered cards (a row selects `app.card`), what is on the panel, brightness, blank and a test pattern; show/, mirror/, provision/, firmware/, flash/, card/: one page per action group, each headed by parts/ControlHead.svelte (title, sibling links, the selected card; the install command without the daemon). mirror/ captures a screen with `getDisplayMedia`, scales it on a canvas to the wall's size and posts each frame to `show/frame` (mirror/frame.ts: the header, rgb24, the fit rectangles)
+      firmware.json/      +server.ts, prerendered: the manifest as JSON, for the client-only Control screens (lib/firmware.ts fetches it once)
       sitemap.xml/        +server.ts, prerendered: every prerendered page with lastmod the build date; the client-only routes are noindex and absent
       robots.txt/         +server.ts, prerendered
     api/
       types.ts            generated from the Rust structs (section 5, "Shared types"); never edited
       ops.ts              the one interface: `ops.pure` (WASM), `ops.card` (daemon, null when absent), `ops.start`, `ops.probe`, `ops.connect`
-      daemon.ts           the transport: base URL, token, request/call ({error} handling), sse(jobId, onLine, onEnd); nothing runs at import
+      daemon.ts           the transport: base URL, token, request/call ({error} handling; a Uint8Array body goes as application/octet-stream), sse(jobId, onLine, onEnd), stateSse(onState, onError); nothing runs at import
     lib/
       server/config.ts    the build-time loader: panels(), cards(), firmware() from the repository's config/ with smol-toml, the field names of the files; `FORMATS` is the codec registry by hand, pinned by tests/config.test.ts
       site.ts             the origin (canonical URLs, the sitemap), the repository URL, the title form `<route> · receiverproxy`
@@ -491,12 +547,14 @@ web/
       panel.ts            panelTitle(entry): "P2.5 128x64 1/16 SM16269S"; chipLabel(name)
       layout.ts           Canvas helpers: rotated, addReceiver, addPanel, normalize, the JS validate and example
       wall.ts             the Wall's grid (panel module, panels per card, cards, chain start corner, direction, serpentine): layoutFromGrid writes the layout JSON, gridOf reads one back or null, chainOrder, cardPanels, provisionLine
+      firmware.ts         the manifest from /firmware.json, fetched once per session
       error.ts            errText(e)
       download.ts         save(name, bytes | text) through a Blob URL
       spec.ts             PanelSpec <-> TOML (parse the [table] form the generator accepts; emit the same order as config/panels/*.toml; tables the form does not edit, [meta] among them, pass through)
     parts/
       Head.svelte (title, description, canonical, Open Graph, og:image /og.png; `noindex` for the client-only routes)  TopBar.svelte  Banner.svelte  TitleRow.svelte (title, primary action)  SubNav.svelte (a row of text links: sibling pages or a page's sections)  ControlHead.svelte
-      Module.svelte (a module as a dot grid in the line token, at its aspect)  JobLines.svelte (a job's lines as they arrive, cancel, the final state)
+      Module.svelte (a module as a dot grid in the line token, at its aspect)  StatusBar.svelte (the 28 px strip at the foot of every page while the daemon answers)
+      JobRunner.svelte (one operation: start, lines as they arrive, cancel, the final state, and the confirm line and commit when it is gated)  LibraryPicker.svelte (a panel spec from the embedded library)  FileDrop.svelte (a file with its name, size and sha256)
       Field.svelte  KeyValue.svelte  Drop.svelte  Hex.svelte  Lines.svelte
   src/wasm/               generated, gitignored
   tests/token.test.ts     node --test: the fragment handling of token.ts
@@ -541,14 +599,21 @@ health:   Health | null;          // the last full GET /health
 settings: { iface: string; brightness: number; card: string | null } | null;
 wall:     Canvas;                 // the editor's document; loaded from GET /wall when present, else localStorage "rxp.wall", else single 128x64
 job:      Job | null;             // the job last started from a page; its lines arrive over SSE
+live:     State | null;           // GET /state, kept current by the one subscription to /state/events; null with no daemon
 card:     number;                 // the receiver index the Control pages act on
 wasm:     "unloaded" | "loading" | "ready" | "failed";
 install:  boolean;                // the install banner is visible (dismissed for the session)
 ```
 
 An error is shown next to the control that caused it, verbatim. Starting a
-job sets `job` and opens its SSE; `parts/JobLines.svelte` shows the lines as
-they arrive and a cancel button where the action was, then the final state.
+job sets `job` and opens its SSE; `parts/JobRunner.svelte` shows the lines as
+they arrive and a cancel button where the action was, then the final state,
+and the confirm line and "commit" under a dry run's plan.
+
+`live` is the whole of `GET /state`, pushed on every change. The layout
+subscribes once, after a probe that found a daemon; every screen and the
+status bar read the store, and nothing polls. A dropped stream clears `live`
+and probes again, which either subscribes anew or puts the install banner up.
 
 ### The layout JSON (`wall`)
 

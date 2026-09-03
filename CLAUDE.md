@@ -9,8 +9,10 @@ reference behind it.
 One E120 (ECP5 gateware, firmware 16.53) driving one P2.5 128x64 module with
 SM16269S drivers, on a bench supply, photographed by a webcam. The panel spec
 is `config/panels/p25-128x64-sm16269s.toml`; it is the only spec that has been
-driven. Everything under `config/*/mined/` is a vendor default taken from the
-config corpus, not a measurement.
+driven: it is the one file with `status = "verified"`. Every other spec and
+chip library is `status = "derived"` (a vendor default taken from the config
+corpus or from the vendor binaries) or `status = "stub"` (a placeholder that
+is not expected to work).
 
 The hardware works. If pixels are wrong, the fault is in configuration or in
 the frames sent; do not propose rewiring, moving ribbons or ports, or

@@ -47,7 +47,8 @@ an exclamation mark.
 |  title row: page name                    [primary action]    |
 |  content: tables and forms, up to 960 px, left-aligned       |
 +-------------------------------------------------------------+
-| footer: version                                              |
+| status bar, only with a daemon: cards, what is on them,      |
+| brightness, blank, stop, the running job                     |
 +-------------------------------------------------------------+
 ```
 
@@ -55,8 +56,13 @@ No sidebar. A 44 px top bar with the project name at the left, the pages
 as text links, the GitHub link at the right; on narrow screens the links
 wrap to a second row, nothing collapses behind a menu. The daemon state is
 a one-line banner under the bar: absent (install command, dismiss for the
-session) or present without a token (token field). No status bar; job
-progress and errors show where the action was. Tables scroll horizontally
+session) or present without a token (token field). A job's progress and
+every error show where the action was; the only fixed strip is the 28 px
+status bar at the foot, which exists while the daemon answers and is
+absent entirely without one: per card the index, model, size, position and
+what is on it, the brightness (applied on release), blank, stop for a
+running job, and that job's line. Under 640 px it collapses to the
+selected card and the brightness. Tables scroll horizontally
 inside their own container on narrow screens; forms stack to one column
 under 640 px; the wall drawing scales to the viewport width.
 
@@ -160,9 +166,14 @@ Daemon absent: card actions are absent, not greyed. The screens that need it
      walls the grid cannot express. Import and export JSON; the file is what
      \`rxp show --layout\` reads.
   Words on the page: screen, card, panel, chain. No other vocabulary.
-- Cards: a table of discovered cards (index, model, firmware, size, position),
-  then the selected card's actions in groups: show, brightness, provision,
-  firmware, flash, card. Each group is a form with one button.
+- Control: a table of discovered cards (index, model, firmware, size,
+  position, what is on it), then the actions as sibling pages: show,
+  mirror, provision, firmware, flash, card state. Each is a form with one
+  button; a gated one shows its dry run first and the confirm line above
+  "commit". Three components carry the repeats: LibraryPicker (a panel spec
+  from the embedded library), FileDrop (a file with its name, size and
+  sha256) and JobRunner (start, the lines as they arrive, cancel, the final
+  state).
 
 ## Review checklist
 

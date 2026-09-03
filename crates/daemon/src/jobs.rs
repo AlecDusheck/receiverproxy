@@ -72,6 +72,8 @@ pub enum JobKind {
     ShowVideo,
     #[serde(rename = "show/hold")]
     ShowHold,
+    #[serde(rename = "show/stream")]
+    ShowStream,
 }
 
 impl JobKind {
@@ -83,6 +85,7 @@ impl JobKind {
             Self::FlashRestore => "flash/restore",
             Self::ShowVideo => "show/video",
             Self::ShowHold => "show/hold",
+            Self::ShowStream => "show/stream",
         }
     }
 }
@@ -178,6 +181,12 @@ impl Handle {
         let _ = rx.wait_for(|d| *d).await;
     }
 
+    /// End the job without a worker, for the tests of the live state.
+    #[cfg(test)]
+    pub(crate) fn finish_for_test(&self) {
+        self.finish(Ok((Vec::new(), None)));
+    }
+
     fn push(&self, stream: Stream, text: &str) {
         let line = Line {
             stream,
@@ -244,12 +253,56 @@ impl Handle {
             }
             let _ = tx.send(Ok(end_event(&handle.snapshot()))).await;
         });
-        Sse::new(ReceiverStream::new(rx)).keep_alive(
-            KeepAlive::new()
-                .interval(Duration::from_secs(15))
-                .text("keepalive"),
-        )
+        stream(rx)
     }
+}
+
+/// The channel every event stream in the daemon sends on: a `: keepalive`
+/// comment every 15 s so an idle stream survives a proxy.
+fn stream(
+    rx: mpsc::Receiver<Result<SseEvent, std::convert::Infallible>>,
+) -> impl IntoResponse {
+    Sse::new(ReceiverStream::new(rx)).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keepalive"),
+    )
+}
+
+/// One broadcast channel's values as `event: <name>`, for ever.
+///
+/// `first` goes out at once, then everything published until the client
+/// goes. The same machinery a job's stream uses, without the end event.
+pub fn broadcast_sse<T: Clone + Serialize + Send + 'static>(
+    name: &'static str,
+    first: T,
+    mut sub: broadcast::Receiver<T>,
+) -> impl IntoResponse {
+    let (tx, rx) = mpsc::channel::<Result<SseEvent, std::convert::Infallible>>(64);
+    tokio::spawn(async move {
+        if tx.send(Ok(value_event(name, &first))).await.is_err() {
+            return;
+        }
+        loop {
+            match sub.recv().await {
+                Ok(v) => {
+                    if tx.send(Ok(value_event(name, &v))).await.is_err() {
+                        return;
+                    }
+                }
+                // A slow reader lost values; the next one carries the whole state.
+                Err(broadcast::error::RecvError::Lagged(_)) => {}
+                Err(broadcast::error::RecvError::Closed) => return,
+            }
+        }
+    });
+    stream(rx)
+}
+
+fn value_event<T: Serialize>(name: &'static str, value: &T) -> SseEvent {
+    SseEvent::default()
+        .event(name)
+        .data(serde_json::to_string(value).unwrap_or_default())
 }
 
 /// Forward lines from index `seen` on until the job ends or the client goes.

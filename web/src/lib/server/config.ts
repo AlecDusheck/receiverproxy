@@ -40,11 +40,10 @@ const num = (v: unknown, d = 0): number => (typeof v === "number" ? v : d);
 const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 const table = (v: unknown): Table => (v && typeof v === "object" && !Array.isArray(v) ? (v as Table) : {});
 
-/** `panelspec::Meta` with its defaults: a spec without `[meta]` counts as mined from nothing. */
+/** `panelspec::Meta` with its defaults: a spec without `[meta]` counts as derived from no file at all. */
 function meta(t: Table): Meta {
   const m: Meta = {
-    status: str(t.status) === "tested" ? "tested" : "generates",
-    origin: str(t.origin) === "bench" ? "bench" : "mined",
+    status: str(t.status) === "verified" || str(t.status) === "stub" ? (str(t.status) as Meta["status"]) : "derived",
     sources: num(t.sources),
     examples: strs(t.examples),
     vendors: strs(t.vendors),
@@ -64,9 +63,9 @@ function meta(t: Table): Meta {
 export const FORMATS: Format[] = [{ name: "rcvbp", vendor: "Colorlight", extension: "rcvbp", generate: true, import: true }];
 
 /** An entry with its TOML; the chip library's `vendor` and `datasheet` when it has them. */
-export type Panel = Entry & { toml: string; mined: boolean; chip: Entry["chip"] & { vendor?: string; datasheet?: string } };
+export type Panel = Entry & { toml: string; chip: Entry["chip"] & { vendor?: string; datasheet?: string } };
 
-/** Every panel spec under config/panels, non-mined first, then mined, each by path. */
+/** Every panel spec under config/panels, verified first, then the rest, each by path. */
 export function panels(repo = root()): Panel[] {
   const dir = join(repo, "config", "panels");
   const list = tomlFiles(dir).map((file): Panel => {
@@ -84,7 +83,6 @@ export function panels(repo = root()): Panel[] {
       chip: { library: chipPath, name: str(chip.name, chipPath), family_id: num(chip.family_id) },
       formats: FORMATS.filter((f) => f.generate).map((f) => f.name),
       toml,
-      mined: path.startsWith(join("config", "panels", "mined") + "/"),
     };
     if (typeof chip.vendor === "string") p.chip.vendor = chip.vendor;
     if (typeof chip.datasheet === "string") p.chip.datasheet = chip.datasheet;
@@ -95,7 +93,8 @@ export function panels(repo = root()): Panel[] {
     if (names.has(p.name)) throw new Error(`${p.path}: name ${p.name} is used twice`);
     names.add(p.name);
   }
-  return list.sort((a, b) => Number(a.mined) - Number(b.mined) || a.path.localeCompare(b.path));
+  const rank = (p: Panel) => (p.meta.status === "verified" ? 0 : 1);
+  return list.sort((a, b) => rank(a) - rank(b) || a.path.localeCompare(b.path));
 }
 
 export type Tested = { panel: string; firmware: string };

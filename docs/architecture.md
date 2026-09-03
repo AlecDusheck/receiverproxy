@@ -195,7 +195,7 @@ follows them, so a published crate carries the libraries it embeds.
 | crate | owns | must not |
 |---|---|---|
 | `colorlight` | frame builders and reply parsers for every packet type; the flash/EEPROM/firmware allowlists as a `FlashMap` (the E120's values are the pinned constants); the `Protocol` trait a second vendor implements ([cards.md](cards.md)) | open sockets, sleep, sequence frames |
-| `panelspec` | `PanelSpec` and its sections (`[meta]` is `Meta`: pitch, `Status`, `Origin`, source count, agreement, examples, vendors), `ChipLibrary`, the `Loader` hook and `read_library`; parse, load, validate, the vendor geometry helpers; `embedded`, the `config/chips` and `config/panels` files built in for the browser, the daemon and the Tested matrix, and `embedded::specs()`, the panel files parsed | know a record, an image offset or a card |
+| `panelspec` | `PanelSpec` and its sections (`[meta]` is `Meta`: pitch, `Status` (`verified`/`derived`/`stub`), source count, agreement, examples, vendors), `ChipLibrary`, the `Loader` hook and `read_library`; parse, load, validate, the vendor geometry helpers; `embedded`, the `config/chips` and `config/panels` files built in for the browser, the daemon and the Tested matrix, and `embedded::specs()`, the panel files parsed | know a record, an image offset or a card |
 | `receivers` | `CardModel` per `config/cards/*.toml` (id byte, limits, memory map, boot-image offsets, guarded blocks per firmware range, status, the panels it was driven with); `models`, `by_id`, `by_name`, `default_model`; the firmware manifest `config/firmware.toml` as `firmware::{manifest, image, Image::verify}` | read the filesystem, know the protocol |
 | `rawlink` | `Link` open/send/recv over `/dev/bpf` (macOS) or `AF_PACKET` (Linux); classic pcap reader | know any Colorlight framing or MAC |
 | `rcvbp` | `.rcvbp` parse/write, record 0x01 view, spec → records/pack, the reverse (`spec::spec_from_rcvbp`: a file back into the spec that regenerates it, unrecovered fields named), boot image for a model's `BootImage`; the `Codec` trait a second vendor's format implements and the registry over it (`codecs`, `formats`, `codec(name)`, `detect(bytes)`) that `rxp config formats`, `config gen --format`, `config import` and the site read | touch the network or PSU |
@@ -215,7 +215,7 @@ Every default below is measured; the measurements are in
 
 | default | value | lives in | pinned by |
 |---|---|---|---|
-| chip id | `0x14C` | `config/chips/sm16269s-factory.toml` via `[chip] library` | `factory.rs` record 0x84 equality |
+| chip id | `0x14C` | `config/chips/sm16269s.toml` via `[chip] library` | `factory.rs` record 0x84 equality |
 | `+0x02F` | 1 | `config/panels/…toml [record01_overrides]`, applied last in `spec/record01.rs` | `factory.rs` delta list `[0x023, 0x02F, 0x0C0..]` |
 | grey depth | 12 (12–16 render alike) | `[module] gray_bits` | same delta list (`0x023`) |
 | mapping block | 64 | `[mapping] block` | `the_reference_mapping_is_reproduced_by_the_block_knob` |

@@ -285,8 +285,8 @@ impl Class {
     }
 }
 
-/// The part name in a chip library's `name`: `SM16269S (factory values)` and
-/// `MBI5124 (mined)` are both the part before the parenthetical.
+/// The part name in a chip library's `name`: `SM16269 (default parameters)`
+/// and `SM16269` are both the part before the parenthetical.
 fn part(name: &str) -> &str {
     name.split('(')
         .next()
@@ -636,7 +636,7 @@ mod tests {
     #[test]
     fn an_spwm_chip_no_image_names_is_refused_with_the_ranking() {
         // No image in config/firmware.toml lists ICN2053.
-        let spec = spec_for("config/chips/mined/icn2053.toml");
+        let spec = spec_for("config/chips/icn2053.toml");
         let ranked = select(&spec, e120());
         assert_eq!(chip_name(&spec), "ICN2053");
         assert!(ranked.iter().all(|c| c.score <= KIND));
@@ -655,7 +655,7 @@ mod tests {
     #[test]
     fn a_plain_shift_register_prefers_a_normal_build() {
         // No shipped chip library classes as plain: every one carries either a
-        // register table or a chip_custom block, the mined MBI5124 included.
+        // register table or a chip_custom block, the derived MBI5124 included.
         // The rule is pinned here against a library of the shape a plain part
         // would have.
         let plain = ChipLibrary::parse(
@@ -663,15 +663,15 @@ mod tests {
         )
         .unwrap();
         assert_eq!(Class::of(&plain), Class::Plain);
-        let mined = ChipLibrary::parse(
-            &std::fs::read_to_string(root().join("config/chips/mined/mbi5124.toml")).unwrap(),
+        let derived = ChipLibrary::parse(
+            &std::fs::read_to_string(root().join("config/chips/mbi5124.toml")).unwrap(),
         )
         .unwrap();
-        assert_eq!(part(&mined.name), "MBI5124");
-        assert_eq!(Class::of(&mined), Class::Spwm);
+        assert_eq!(part(&derived.name), "MBI5124");
+        assert_eq!(Class::of(&derived), Class::Spwm);
 
         // The manifest lists no MBI5124, so rule 3 alone orders the ranking.
-        let spec = spec_for("config/chips/mined/mbi5124.toml");
+        let spec = spec_for("config/chips/mbi5124.toml");
         let card = e120();
         let scored = |class| -> Vec<&'static Image> {
             manifest()
@@ -686,7 +686,7 @@ mod tests {
         assert!(!plain.is_empty());
         assert!(plain.iter().all(|i| i.kind.eq_ignore_ascii_case("Normal")));
         assert!(scored(Class::Spwm).iter().all(|i| i.kind.eq_ignore_ascii_case("PWM")));
-        // The mined library's chip_custom block classes it S-PWM, so the
+        // The derived library's chip_custom block classes it S-PWM, so the
         // shipped file ranks the PWM builds first.
         assert!(select(&spec, card)[0].image.kind.eq_ignore_ascii_case("PWM"));
     }

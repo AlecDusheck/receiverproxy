@@ -114,7 +114,7 @@ family with a non-identity block 0, or bisecting the block on hardware.
 **Not known:** which value is right for this chip on this module.
 
 **Known:** `config/panels/*.toml` carries 8 (the reference file's wall
-config); `config/chips/sm16269.toml` gives the vendor default for this chip
+config); `config/chips/sm16269-defaults.toml` gives the vendor default for this chip
 as 15. The pack carries the value three times (`+0x09`, `+0x2C`, `+0x2E`)
 and it also feeds the scan-table line time. The panel renders at 8. Not
 swept.

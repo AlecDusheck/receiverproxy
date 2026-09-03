@@ -1,4 +1,4 @@
-import type { Canvas, Health, Job, Settings } from "../api/types";
+import type { Canvas, Health, Job, Settings, State } from "../api/types";
 
 export const single = (w: number, h: number): Canvas => ({
   width: w,
@@ -27,6 +27,9 @@ export const app = $state({
   wall: storedWall(),
   // The job last started from a screen; its lines arrive over SSE and show where the action was.
   job: null as Job | null,
+  // What the daemon says is on the panel: one subscription in +layout
+  // (`GET /state/events`), null while no daemon answers.
+  live: null as State | null,
   // The receiver index the Control pages act on.
   card: 0,
   // Loaded on first use (lib/wasm.ts); "unloaded" until a route asks for it.

@@ -8,6 +8,7 @@
   import { replaceState } from "$app/navigation";
   import TopBar from "$parts/TopBar.svelte";
   import Banner from "$parts/Banner.svelte";
+  import StatusBar from "$parts/StatusBar.svelte";
   import { ops } from "$api/ops";
 
   let { children } = $props();
@@ -25,15 +26,17 @@
     {@render children()}
   </div>
 </main>
+<StatusBar />
 
 <style>
   main {
-    padding: var(--s4) var(--s5) var(--s5);
+    /* the last 28 px belong to the status bar when there is one */
+    padding: var(--s4) var(--s5) 52px;
     min-width: 0;
   }
   @media (max-width: 640px) {
     main {
-      padding: var(--s3) var(--s3) var(--s5);
+      padding: var(--s3) var(--s3) 52px;
     }
   }
   .content {

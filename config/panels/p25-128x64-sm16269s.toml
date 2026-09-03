@@ -10,12 +10,11 @@ name = "p25-128x64-sm16269s"
 
 [meta]
 pitch_mm = 2.5
-status = "tested"
-origin = "bench"
+status = "verified"
 sources = 1
 examples = ["P2.5-32S-128X64-SM16269S-256X384I.rcvbp"]
 vendors = ["Colorlight"]
-notes = "Driven from flash on firmware 16.53; record 0x01 differs from the reference file at 0x023, 0x02F and 0x0C0..0x0C3 (docs/rendering.md)."
+notes = "Driven from flash on a Colorlight E120 running firmware 16.53; record 0x01 differs from the reference file at 0x023, 0x02F and 0x0C0..0x0C3 (docs/rendering.md)."
 maker = "Eager LED"
 product = "P2.5-O16S-SMD1415-128x64-E"
 url = "https://eager-led.com/products/outdoor-hd-p2-5-320x160mm-led-screen-module"
@@ -33,7 +32,7 @@ scan = 16
 line_dir = 0
 data_groups = 1
 # The reference config ran the serial clock at 8; the chip's vendor default is
-# 15 (config/chips/sm16269.toml). Remove this line to use the default.
+# 15 (config/chips/sm16269-defaults.toml). Remove this line to use the default.
 serial_clock = 8
 
 [screen]
@@ -41,7 +40,7 @@ width = 128
 height = 64
 
 [chip]
-library = "config/chips/sm16269s-factory.toml"
+library = "config/chips/sm16269s.toml"
 
 [color]
 swap = 3

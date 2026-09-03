@@ -2,7 +2,7 @@
 //! feature every type here derives `TS`; `tests/ts.rs` writes them to
 //! `web/src/api/types.ts`, which the web app imports.
 
-use crate::jobs::{GatedOutcome, Line};
+use crate::jobs::{GatedOutcome, JobKind, JobState, Line};
 use colorlight::DiscoveryInfo;
 use serde::{Deserialize, Serialize};
 use sources::{Fit, Pattern};
@@ -49,6 +49,60 @@ impl From<&DiscoveryInfo> for Card {
             rows: i.rows,
         }
     }
+}
+
+/// What kind of thing is on the panel.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "lowercase")]
+pub enum ShowKind {
+    Blank,
+    Still,
+    Pattern,
+    Video,
+    Stream,
+}
+
+/// What is on the panel now.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct Show {
+    pub kind: ShowKind,
+    /// What it came from: the pattern name, the file, the colour, the
+    /// pushing client.
+    pub source: String,
+    /// Frames per second for a video or a pushed stream; null for a still.
+    pub fps: Option<u32>,
+    /// The wall it is drawn on, as `WxH, N cards`.
+    pub layout: String,
+    /// RFC 3339, when it went up.
+    pub started: String,
+    /// The job that keeps it there, when one does.
+    pub job: Option<String>,
+}
+
+/// The newest job, as the status bar shows it.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct JobBrief {
+    pub id: String,
+    pub kind: JobKind,
+    pub state: JobState,
+    pub started: String,
+}
+
+/// `GET /state`, and every message of `GET /state/events`: what the daemon
+/// is doing, whole, on every change.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct State {
+    /// Null until the daemon has put anything on the panel.
+    pub show: Option<Show>,
+    pub brightness: u8,
+    /// The last discovery result, as `GET /health` reports it.
+    pub cards: Vec<Card>,
+    /// The newest job started in this run; null before the first.
+    pub job: Option<JobBrief>,
 }
 
 /// `GET /health`: `version` alone without the token; the whole body with it.
@@ -276,6 +330,54 @@ pub struct FirmwareReq {
     /// 3000 by default.
     pub chunk_delay_us: Option<u64>,
     /// Seconds; 4 by default.
+    pub wait: Option<u64>,
+}
+
+/// The query of `POST /firmware/upload`: the file name when the body is the
+/// image itself rather than a multipart form.
+#[derive(Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields))]
+pub struct UploadQuery {
+    pub name: Option<String>,
+}
+
+/// The reply of `POST /firmware/upload`: where the image was written and
+/// what its bytes hash to.
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields))]
+pub struct FirmwareUpload {
+    pub name: String,
+    /// The path on the daemon's machine; `POST /firmware/install` takes it.
+    pub path: String,
+    pub size: u64,
+    /// Lowercase hex of the uploaded bytes.
+    pub sha256: String,
+    /// True when the name is in `config/firmware.toml` and the bytes match
+    /// its entry; false when the manifest lists no such name.
+    pub verified: bool,
+    /// The manifest's sha256 for that name, when it lists one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest_sha256: Option<String>,
+}
+
+/// The query of `POST /show/frame`.
+#[derive(Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields))]
+pub struct FrameQuery {
+    /// What to call the stream in `GET /state`; `frame push` by default.
+    pub source: Option<String>,
+    /// `contain` by default, as `rxp show serve`.
+    #[serde(default, deserialize_with = "de_name_opt")]
+    pub fit: Option<Fit>,
+}
+
+/// The query of `POST /config/write` when the body is the `.rcvbp` file
+/// itself rather than JSON.
+#[derive(Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields))]
+pub struct ConfigWriteQuery {
+    pub commit: Option<bool>,
+    pub index: Option<u16>,
     pub wait: Option<u64>,
 }
 

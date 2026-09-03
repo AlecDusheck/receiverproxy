@@ -18,7 +18,7 @@
 | `mapdump.py` | print a .rcvbp pixel map (record 0x0a03) entry by entry |
 | `mapstruct.py` | collapse a .rcvbp pixel map into monotonic runs |
 | `chipregs.py` | decode and compare driver-chip register tables (record 0x0a84) |
-| `corpus-mine.py` | mine the vendor .rcvbp corpus into `config/chips/mined` and `config/panels/mined` |
+| `corpus-mine.py` | derive `status = "derived"` chip libraries and panel specs from the vendor .rcvbp corpus into `config/chips` and `config/panels` |
 
 ## Bench workflow
 

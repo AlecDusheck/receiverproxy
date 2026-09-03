@@ -5,8 +5,7 @@
 #![cfg(feature = "ts")]
 
 use daemon::api::*;
-use daemon::jobs::{GatedOutcome, Job, JobKind, JobResult, JobState, Line, Outcome, Stream};
-use panelspec::{Meta, Origin, Status};
+use daemon::jobs::{GatedOutcome, Job, JobKind, JobResult, JobState, Line, Outcome, Stream};use panelspec::{Meta, Status};
 use rcvbp::Format;
 use rcvbp_wasm::api::{
     Diff, Entry, EntryChip, EntryModule, GenFile, Generated, Imported, Inspection, Libraries,
@@ -43,15 +42,16 @@ fn render() -> String {
     let decls = decls![&cfg;
         // docs/ui.md section 2: common shapes
         Card, Stream, Line, Outcome, GatedOutcome, JobKind, JobState, JobResult, Job,
-        Fit, Pattern, Started,
+        Fit, Pattern, Started, ShowKind, Show, JobBrief, State,
         // routes, in the order of the section
         Health, DiscoverReq, Cards, Settings, Brightness, ShowImageReq, ShowVideoReq,
-        ShowPatternReq, ShowFillReq, SpecReq, GenFileSet, GenFiles, ConfigReadReq, ConfigRead,
-        ConfigWriteReq, ConfigSendReq, ProvisionReq, SnapshotReq, RestoreReq, FirmwareReq,
+        ShowPatternReq, ShowFillReq, FrameQuery, SpecReq, GenFileSet, GenFiles, ConfigReadReq,
+        ConfigRead, ConfigWriteReq, ConfigWriteQuery, ConfigSendReq, ProvisionReq, SnapshotReq,
+        RestoreReq, FirmwareReq, UploadQuery, FirmwareUpload,
         FirmwareCandidate, FirmwarePick,
         ScreenSizeQuery, Size, ScreenSizeReq, SizeOutcome, ReloadReq, TestModeReq, SetLayoutReq,
         // section 3: the WASM surface
-        Status, Origin, Meta, EntryModule, EntryChip, Entry, Format, GenFile, Generated, Imported, Record01,
+        Status, Meta, EntryModule, EntryChip, Entry, Format, GenFile, Generated, Imported, Record01,
         RecordInfo, Inspection, RecordDiff, Diff, LibraryChip, LibraryPanel, Libraries,
         // section 4: the layout JSON
         Rotation, Receiver, Panel, Canvas,

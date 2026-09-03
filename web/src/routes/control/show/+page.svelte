@@ -1,85 +1,95 @@
 <script lang="ts">
-  // Show: one source, one button. A held show is a job whose lines follow here.
+  // One source on the wall: a still (an image file or a path, or a colour),
+  // a built-in pattern, or a video. A held still and a video are jobs, so
+  // they run through JobRunner and stop from the status bar.
   import ControlHead from "$parts/ControlHead.svelte";
   import Field from "$parts/Field.svelte";
+  import FileDrop, { type Picked } from "$parts/FileDrop.svelte";
+  import JobRunner from "$parts/JobRunner.svelte";
   import Lines from "$parts/Lines.svelte";
-  import JobLines from "$parts/JobLines.svelte";
+  import { app } from "$lib/state.svelte";
   import { ops } from "$api/ops";
   import { Action } from "$lib/action.svelte";
-  import type { Fit, Outcome, Pattern, Job } from "$api/types";
+  import type { Fit, Outcome, Pattern, Started } from "$api/types";
 
-  type Source = "pattern" | "fill" | "image file" | "image path" | "video path" | "blank";
+  type Source = "image file" | "image path" | "colour" | "pattern" | "video" | "blank";
   let source = $state<Source>("pattern");
   let pattern = $state<Pattern>("rgb");
   let fill = $state("#ff8000");
   let hold = $state(false);
   let fit = $state<Fit>("stretch");
-  let imageFile = $state<File | null>(null);
+  let image = $state<Picked | null>(null);
   let imagePath = $state("");
   let video = $state({ path: "", loop: true, fps: 30 });
-  const show = new Action<Outcome | Job>("show");
-  const canShow = $derived(source === "image file" ? !!imageFile : source === "image path" ? !!imagePath : source === "video path" ? !!video.path : true);
-  const runShow = () =>
-    show.run(async () => {
+
+  const wall = $derived(app.live?.show?.layout ?? `${app.wall.width}x${app.wall.height}`);
+  const ready = $derived(source === "image file" ? !!image : source === "image path" ? !!imagePath : source === "video" ? !!video.path : true);
+  const missing = $derived(ready ? "" : source === "video" ? "no video path" : source === "image file" ? "no file chosen" : "no image path");
+
+  // The still sources answer at once unless they are held; video is always a job.
+  const still = new Action<Outcome | Started>("show");
+  const runStill = () =>
+    still.run(async () => {
       const c = ops.card!;
-      let r: Outcome | { id: string };
       switch (source) {
         case "pattern":
-          r = await c.showPattern({ name: pattern, hold });
-          break;
-        case "fill":
-          r = await c.showFill({ rgb: fill.slice(1), hold });
-          break;
+          return c.showPattern({ name: pattern, hold });
+        case "colour":
+          return c.showFill({ rgb: fill.slice(1), hold });
         case "image file":
-          r = await c.showImageFile(imageFile!, fit, hold);
-          break;
+          return c.showImageFile(image!.file, fit, hold);
         case "image path":
-          r = await c.showImage({ path: imagePath, fit, hold });
-          break;
-        case "video path":
-          r = await c.showVideo({ path: video.path, loop: video.loop, fps: video.fps, fit });
-          break;
+          return c.showImage({ path: imagePath, fit, hold });
         default:
-          r = await c.showBlank();
+          return c.showBlank();
       }
-      return "id" in r ? c.follow(r.id) : r;
     });
-  // The job view while a show runs or once it became a job; the outcome's lines otherwise.
-  const job = $derived(show.busy || (show.result && "state" in show.result) ? { busy: show.busy, error: show.error, result: show.result && "state" in show.result ? show.result : null } : null);
 </script>
 
 <ControlHead title="Show">
   <div class="form">
     <Field label="source">
       <select bind:value={source}>
-        {#each ["pattern", "fill", "image file", "image path", "video path", "blank"] as s (s)}<option value={s}>{s}</option>{/each}
+        {#each ["image file", "image path", "colour", "pattern", "video", "blank"] as s (s)}<option value={s}>{s}</option>{/each}
       </select>
     </Field>
     {#if source === "pattern"}
       <Field label="pattern"><select bind:value={pattern}>{#each ["rgb", "border", "rows", "gradient", "white"] as n (n)}<option value={n}>{n}</option>{/each}</select></Field>
-    {:else if source === "fill"}
-      <Field label="colour" caption={fill}><input type="color" bind:value={fill} /></Field>
-    {:else if source === "image file"}
-      <Field label="file" wide><input type="file" accept="image/*" onchange={(e) => (imageFile = e.currentTarget.files?.[0] ?? null)} /></Field>
+    {:else if source === "colour"}
+      <Field label="colour" caption={fill} mono><input type="color" bind:value={fill} /></Field>
     {:else if source === "image path"}
       <Field label="path" caption="on the daemon's machine" wide><input bind:value={imagePath} class="mono" /></Field>
-    {:else if source === "video path"}
-      <Field label="path" caption="on the daemon's machine" wide><input bind:value={video.path} class="mono" /></Field>
+    {:else if source === "video"}
+      <Field label="path" caption="on the daemon's machine, read by ffmpeg" wide><input bind:value={video.path} class="mono" /></Field>
       <Field label="loop"><input type="checkbox" bind:checked={video.loop} /></Field>
       <Field label="fps" caption="1-120"><input type="number" bind:value={video.fps} min="1" max="120" /></Field>
     {/if}
-    {#if source !== "pattern" && source !== "fill" && source !== "blank"}
-      <Field label="fit"><select bind:value={fit}><option>stretch</option><option>contain</option><option>cover</option></select></Field>
+    {#if source !== "pattern" && source !== "colour" && source !== "blank"}
+      <Field label="fit" caption="the wall is {wall}"><select bind:value={fit}><option>stretch</option><option>contain</option><option>cover</option></select></Field>
     {/if}
-    {#if source !== "video path" && source !== "blank"}
-      <Field label="hold" caption="refresh until cancelled"><input type="checkbox" bind:checked={hold} /></Field>
+    {#if source !== "video" && source !== "blank"}
+      <Field label="hold" caption="refresh until cancelled, as a job"><input type="checkbox" bind:checked={hold} /></Field>
     {/if}
   </div>
-  <div class="actions"><button class="primary" onclick={runShow} disabled={show.busy || !canShow}>show</button></div>
-  {#if job}
-    <JobLines act={job} />
+
+  {#if source === "image file"}
+    <FileDrop label="image" accept="image/*" bind:picked={image} />
+  {/if}
+
+  {#if source === "video"}
+    <JobRunner
+      label="play"
+      disabled={!ready}
+      reason={missing}
+      run={() => ops.card!.showVideo({ path: video.path, loop: video.loop, fps: video.fps, fit })}
+    />
   {:else}
-    {#if show.error}<p class="error">{show.error}</p>{/if}
-    {#if show.result && "files" in show.result}<Lines lines={show.result.lines} files={show.result.files} />{/if}
+    <div class="actions">
+      <button class="primary" onclick={runStill} disabled={still.busy || !ready}>show</button>
+      {#if !ready}<span class="caption">{missing}</span>{/if}
+    </div>
+    {#if still.error}<p class="error">{still.error}</p>{/if}
+    {#if still.result && "lines" in still.result}<Lines lines={still.result.lines} files={still.result.files} />{/if}
+    {#if still.result && "id" in still.result}<p class="ok">job {still.result.id} holds it; stop it in the status bar</p>{/if}
   {/if}
 </ControlHead>

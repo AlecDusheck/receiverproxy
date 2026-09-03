@@ -13,6 +13,10 @@ use std::path::Path;
 #[serde(deny_unknown_fields)]
 pub struct ChipLibrary {
     pub name: String,
+    /// The evidence behind the values, as in a spec's `[meta] status`;
+    /// `derived` (a vendor default) unless the file says otherwise.
+    #[serde(default)]
+    pub status: crate::Status,
     /// Who makes the chip.
     #[serde(default)]
     pub vendor: Option<String>,

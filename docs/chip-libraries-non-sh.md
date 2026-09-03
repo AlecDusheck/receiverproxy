@@ -51,7 +51,7 @@ byte 14..15   0x0000
 Default for scan 16: `80 0f ef 39 ef 39 ef 39 00 04 c0 05 c0 03 00 00`.
 
 The scan patch and the byte values are read from two independent vendor
-builds (instruction-level citations in `config/chips/sm16169s-vendor.toml`).
+builds (instruction-level citations in `config/chips/sm16169s-reset-defaults.toml`).
 The R/G/B pairing of bytes 2–7 is inferred from the three-fold repetition.
 
 The scan patch is the analogue of `reg 0x02 = scan − 1` on the SH chips.
@@ -84,7 +84,7 @@ Option<[u8; 4]>`, `chip_custom_scan_patch: Option<{ bytes, mask, base }>`,
 * Record 0x01 takes `chip_custom` at `+0x06A` with the scan patch applied and
   `chip_custom_ex` at `+0x0E0`, then the overrides.
 
-`config/chips/sm16169s-vendor.toml` and `sm16269s-vendor-0x214.toml` load and
+`config/chips/sm16169s-reset-defaults.toml` and `sm16269s-0x214-stub.toml` load and
 generate. Neither has been driven with this loader.
 
 ## 4. Per-id behaviour that changes the basic pack
@@ -151,7 +151,7 @@ Measured on the reference module (SM16269S drivers, firmware 16.53):
   `SChipCustom` at the `0x14C` value (`80 0F 00 …`). Byte 2 was therefore
   `0x00`, not `0xE?`, which (a) leaves the three colour config words zero and
   (b) makes `SetGclkNums` take the `n < 2` branch, so `SChipControl[10..13]`
-  never gets `00 81 00 81`. `config/chips/sm16169s-vendor.toml` is the correct
+  never gets `00 81 00 81`. `config/chips/sm16169s-reset-defaults.toml` is the correct
   form of that configuration; it has not been measured.
 
 ## 6. Unresolved

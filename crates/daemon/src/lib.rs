@@ -8,6 +8,7 @@ mod assets;
 mod error;
 mod ifaces;
 pub mod jobs;
+pub mod live;
 mod routes;
 pub mod state;
 mod store;

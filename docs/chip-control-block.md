@@ -151,12 +151,12 @@ Consequences:
 * The generated config (`build/p25-128x64-sm16269s.rcvbp`) has the same
   `reg 0x07 = 0x04` and the same sub-id `0x0000`, so `0x97` is correct and
   self-consistent for it.
-* With `sub_id = 0x14D` (as `config/chips/sm16269.toml` has) the vendor
+* With `sub_id = 0x14D` (as `config/chips/sm16269-defaults.toml` has) the vendor
   computes `sm16269(0x04) = 94 = 0x5E`, not `0x97`; with the vendor
   `reg 0x07 = 0x44` as well it becomes `48 = 0x30`. Changing `reg 0x07` or
   the sub-id without recomputing bytes 10–13 desynchronises the card's GCLK
   count from the chip's own frequency-division setting. The chip library
-  stores `chip_control` as a literal, so `config/chips/sm16269.toml` pairs
+  stores `chip_control` as a literal, so `config/chips/sm16269-defaults.toml` pairs
   `sub_id = 0x14D` + `reg 0x07 = 0x44` with a `chip_control` of `0x97`, a
   combination the vendor never emits (it would emit `0x30`).
 
@@ -366,7 +366,7 @@ Neighbours: `0x00DE` SM16169S, `0x0170` SM16169SW/SM16189, `0x024D` SM16169SK,
 Two facts that follow:
 
 1. `0x014D` is SM16380SH, not an SM16269 sub-variant.
-   `config/chips/sm16269.toml`'s header comment and `sub_id = 0x014D` describe
+   `config/chips/sm16269-defaults.toml`'s header comment and `sub_id = 0x014D` describe
    it as the SM16269 sub-variant; that is wrong. The C++ class
    `SSM16269ChipCustomPlus` is bound to id `0x14D`
    (`CChipParamCalculator::CalRefreshFreqSM16169SH` `0xE28A0` branches on

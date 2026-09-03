@@ -66,7 +66,6 @@
     const rows: Row[] = [
       ["file", { text: entry.path, href: repoFile(entry.path) }],
       ["status", m.status],
-      ["origin", m.origin],
       ["vendor files", String(m.sources)],
     ];
     if (m.pitch_mm !== undefined) rows.splice(1, 0, ["pitch", `${m.pitch_mm} mm`]);
@@ -81,7 +80,7 @@
   // At most 155 characters: the module, the format, the download, and how far the spec is tested.
   const description = $derived.by(() => {
     const module = `${entry.meta.pitch_mm !== undefined ? `P${entry.meta.pitch_mm} ` : ""}${entry.module.width}x${entry.module.height} 1/${entry.module.scan} scan ${chipLabel(entry.chip.name)} module`;
-    const tail = entry.meta.status === "tested" ? "Tested on the bench." : `Generated from ${entry.meta.sources} vendor file${entry.meta.sources === 1 ? "" : "s"}.`;
+    const tail = entry.meta.status === "verified" ? "Tested on the bench." : `Generated from ${entry.meta.sources} vendor file${entry.meta.sources === 1 ? "" : "s"}.`;
     return `Download the ${formatLabels} receiving card config file for a ${module}, or customize it. ${tail}`;
   });
 

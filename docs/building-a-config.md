@@ -49,10 +49,11 @@ vendor's loader does. The gray depth is derived from registers 0x07 and 0x03
 
 | library | contents |
 |---|---|
-| `sm16269s-factory.toml` | family `0x14C`, no sub-id, the register table read out of the reference file. The library the reference module renders with |
-| `sm16169sh.toml` | the same table with the reference file's reg 0x07 value |
-| `sm16269.toml` | `0x14C` with sub-id `0x14D` and the vendor tool's "Default Parameter" table. `0x14D` is the vendor's SM16380SH id, not an SM16269 variant; this table renders worse on the reference module ([chip-control-block.md](chip-control-block.md) section 7, [rendering.md](rendering.md)) |
-| `sm16169s-vendor.toml`, `sm16269s-vendor-0x214.toml` | non-SH parts, see below |
+| `sm16269s.toml` | `verified`: family `0x14C`, no sub-id, the register table read out of the reference file. The library the reference module renders with |
+| `sm16269-defaults.toml` | `derived`: `0x14C` with sub-id `0x14D` and the vendor tool's "Default Parameter" table. `0x14D` is the vendor's SM16380SH id, not an SM16269 variant; this table renders worse on the reference module ([chip-control-block.md](chip-control-block.md) section 7, [rendering.md](rendering.md)) |
+| `sm16269-defaults-revised.toml` | `derived`: the same ids with the revised default table LEDSetting 2.2.6 builds; it saturates the reference module ([rendering.md](rendering.md)) |
+| `sm16169s-reset-defaults.toml` | `derived`: a non-SH part, see below |
+| `sm16269s-0x214-stub.toml` | `stub`: chip id `0x0214`, which no vendor build implements; it never arms the drivers |
 
 Non-SH parts such as SM16169S (`0x00DE`) have no register table and no
 record 0x84; their whole configuration is the 16-byte `SChipCustom` block of
@@ -108,7 +109,7 @@ the wall geometry: CardScanLen 256, one module, a generated position table.
 `[color]`, `[current]` and `[timing]` field by field; the chip id at
 +0x036/+0x204 picks the library among `config/chips/` (a library a shipped
 spec names wins over one none does, so 0x14C lands on
-`sm16269s-factory.toml`); `serial_clock` and `gray_bits` are written only
+`sm16269s.toml`); `serial_clock` and `gray_bits` are written only
 when they differ from what the library gives; `[mapping]` is fitted to
 record 0x03 by trying `block` in `width, width/2, width/4, width/8`,
 reversed groups then not, top-down lines then reversed, the way

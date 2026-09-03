@@ -236,8 +236,8 @@ before sending, would settle it.
 
 ## 3. The protocol the card is told to speak
 
-The shipped configuration (`config/chips/sm16269s-factory.toml`; also `sm16269.toml`
-and `sm16169sh.toml`, all `family_id = 0x014C`) sends:
+The shipped configuration (`config/chips/sm16269s.toml`; also `sm16269-defaults.toml`
+and `sm16269-defaults-revised.toml`, all `family_id = 0x014C`) sends:
 
 ```
 00 0e 01 05 06 01 03 00 00 00 00 97 00 97 00 08 02 00 0a 02
@@ -338,9 +338,9 @@ literal from the TOML. Changing `reg 0x07` or the sub-id without
 recomputing bytes 10-13 desynchronises the card's scan-cycle count from the
 chip's own frequency-division setting: `reg07 = 0x44` with sub `0x14D` gives
 `0x30`, not `0x97`; `sub_id = 0x14D` with `reg07 = 0x04` gives `0x5E`.
-`config/chips/sm16269.toml` ships that combination (`sub_id = 0x14D` +
+`config/chips/sm16269-defaults.toml` ships that combination (`sub_id = 0x14D` +
 `reg07 = 0x44` + `0x97`), which the vendor tool never emits;
-`sm16269s-factory.toml`, which the panel config uses, is consistent. A
+`sm16269s.toml`, which the panel config uses, is consistent. A
 register sweep that touches `0x07` or the sub-id needs `chips.rs` to compute
 bytes 10-13, or at minimum to assert consistency.
 
@@ -455,7 +455,7 @@ rendering configuration.
   framebuffer fault and is not one.
 * **The recompute trap (§4.2).** A register sweep that touches `0x07` or the
   sub-id without recomputing bytes 10-13 manufactures exactly that fault;
-  `sm16269.toml` ships the inconsistent combination.
+  `sm16269-defaults.toml` ships the inconsistent combination.
 * **Unresolved fields.** `SChipControl[14..15]`, `[16]` and `[18..19]`.
   Byte 16 is not written by `ResetChipControl` for chip `0x14C`; the `02` in
   the reference file comes from a LEDVISION save path outside the reset

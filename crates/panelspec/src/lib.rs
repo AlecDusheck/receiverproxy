@@ -9,8 +9,8 @@ pub use chips::{ChipLibrary, ScanPatch};
 /// The chip libraries and panel specs under `config/`, embedded at build
 /// time as `(path, text)` pairs.
 ///
-/// The path is relative to the repository root. Non-mined files first,
-/// then `mined/`, each alphabetical.
+/// The path is relative to the repository root. `status = "verified"` files
+/// first, then the rest, each alphabetical.
 pub mod embedded {
     use anyhow::Context as _;
 
@@ -26,13 +26,6 @@ pub mod embedded {
     #[must_use]
     pub fn panel(path: &str) -> Option<&'static str> {
         PANELS.iter().find(|(p, _)| *p == path).map(|(_, t)| *t)
-    }
-
-    /// True for a file under a `mined/` directory: a corpus default, not a
-    /// measurement.
-    #[must_use]
-    pub fn is_mined(path: &str) -> bool {
-        path.contains("/mined/")
     }
 
     /// Every embedded panel spec, parsed, as `(path, spec)` in embedding
@@ -54,7 +47,7 @@ pub mod embedded {
 
     /// The embedded chip library for a chip family id, as `(path, text)`:
     /// a library an embedded panel spec names wins over one none does
-    /// (the SM16269S family has four), then embedding order.
+    /// (the SM16269S family has three), then embedding order.
     #[must_use]
     pub fn chip_by_family(family_id: u16) -> Option<(&'static str, &'static str)> {
         let named: Vec<String> = specs()
@@ -87,13 +80,10 @@ pub mod embedded {
             }
             let (path, bench) = &specs[0];
             assert_eq!(*path, "config/panels/p25-128x64-sm16269s.toml");
-            assert_eq!(bench.meta.status, crate::Status::Tested);
-            assert_eq!(bench.meta.origin, crate::Origin::Bench);
+            assert_eq!(bench.meta.status, crate::Status::Verified);
             assert_eq!(bench.meta.pitch_mm, Some(2.5));
             for (path, spec) in &specs[1..] {
-                assert!(is_mined(path));
-                assert_eq!(spec.meta.status, crate::Status::Generates, "{path}");
-                assert_eq!(spec.meta.origin, crate::Origin::Mined, "{path}");
+                assert_eq!(spec.meta.status, crate::Status::Derived, "{path}");
                 assert!(spec.meta.sources > 0, "{path}");
                 assert!(!spec.meta.examples.is_empty(), "{path}");
             }
@@ -101,27 +91,29 @@ pub mod embedded {
 
         #[test]
         fn a_chip_id_finds_the_library_the_shipped_specs_use() {
-            // Four libraries carry 0x14C; the bench spec's is the one chosen.
+            // Three libraries carry 0x14C; the bench spec's is the one chosen.
             let (path, text) = chip_by_family(0x14C).unwrap();
-            assert_eq!(path, "config/chips/sm16269s-factory.toml");
+            assert_eq!(path, "config/chips/sm16269s.toml");
             assert_eq!(crate::ChipLibrary::parse(text).unwrap().family_id, 0x14C);
-            assert_eq!(chip_by_family(0x85).unwrap().0, "config/chips/mined/icn2053.toml");
+            assert_eq!(chip_by_family(0x85).unwrap().0, "config/chips/icn2053.toml");
             assert!(chip_by_family(0xFFFF).is_none());
         }
 
         #[test]
-        fn the_bench_files_are_embedded_before_the_mined_ones() {
-            assert!(chip("config/chips/sm16269s-factory.toml").is_some());
-            assert!(chip("config/chips/mined/icn2053.toml").is_some());
+        fn the_verified_files_are_embedded_before_the_derived_ones() {
+            assert!(chip("config/chips/sm16269s.toml").is_some());
+            assert!(chip("config/chips/icn2053.toml").is_some());
             assert!(chip("config/chips/x.toml").is_none());
             assert_eq!(PANELS[0].0, "config/panels/p25-128x64-sm16269s.toml");
+            assert_eq!(CHIPS[0].0, "config/chips/sm16269s.toml");
             assert!(panel(PANELS[0].0).is_some());
+            let verified = |text: &str| text.lines().any(|l| l.trim() == r#"status = "verified""#);
             let sorted = |xs: &[(&str, &str)]| {
-                let plain: Vec<&str> = xs.iter().map(|(p, _)| *p).filter(|p| !is_mined(p)).collect();
-                let mined: Vec<&str> = xs.iter().map(|(p, _)| *p).filter(|p| is_mined(p)).collect();
-                xs.iter().take(plain.len()).all(|(p, _)| !is_mined(p))
+                let plain: Vec<&str> = xs.iter().filter(|(_, t)| verified(t)).map(|(p, _)| *p).collect();
+                let rest: Vec<&str> = xs.iter().filter(|(_, t)| !verified(t)).map(|(p, _)| *p).collect();
+                xs.iter().take(plain.len()).all(|(_, t)| verified(t))
                     && plain.windows(2).all(|w| w[0] < w[1])
-                    && mined.windows(2).all(|w| w[0] < w[1])
+                    && rest.windows(2).all(|w| w[0] < w[1])
             };
             assert!(sorted(CHIPS) && sorted(PANELS));
             for (p, text) in PANELS {
@@ -208,8 +200,9 @@ fn shorts<S: Serializer>(v: &[f32], s: S) -> std::result::Result<S::Ok, S::Error
     s.collect_seq(v.iter().map(|&x| Short(x)))
 }
 
-/// The `[meta]` table: provenance and trust. Every field has a default, so
-/// a spec without the table is a mined one no file agreed with yet.
+/// The `[meta]` table: the evidence behind the values and how far they are
+/// trusted. Every field has a default, so a spec without the table counts as
+/// derived from no file at all.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(default, deny_unknown_fields)]
@@ -219,7 +212,6 @@ pub struct Meta {
     #[cfg_attr(feature = "ts", ts(optional))]
     pub pitch_mm: Option<f32>,
     pub status: Status,
-    pub origin: Origin,
     /// Vendor files the values were taken from.
     pub sources: u32,
     /// Share (0..1) of the files for this module class that agree with the
@@ -230,7 +222,7 @@ pub struct Meta {
     /// A few of the source files by name.
     pub examples: Vec<String>,
     /// Control-system vendors whose config files the sources are (the
-    /// format the values were mined from), not who makes the panel.
+    /// format the values were taken from), not who makes the panel.
     pub vendors: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts", ts(optional))]
@@ -260,28 +252,19 @@ pub struct Meta {
     pub image_source: Option<String>,
 }
 
-/// How far a spec has been shown to work.
+/// The evidence behind a spec or a chip library.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
-    /// Driven on a bench from flash.
-    Tested,
-    /// The configuration generates; never driven.
+    /// Driven on a bench; the notes say on which card and firmware.
+    Verified,
+    /// Values taken from vendor configuration files; the notes say how many
+    /// agreed.
     #[default]
-    Generates,
-}
-
-/// Where a spec's values came from.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "lowercase")]
-pub enum Origin {
-    /// Measured against a panel.
-    Bench,
-    /// The vendor default for the module class, from the config corpus.
-    #[default]
-    Mined,
+    Derived,
+    /// A placeholder that is not expected to work.
+    Stub,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

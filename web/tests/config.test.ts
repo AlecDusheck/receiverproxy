@@ -8,19 +8,17 @@ import { cards, firmware, FORMATS, imageLocation, panels, root } from "../src/li
 
 const repo = root();
 
-test("the bench spec is first, tested, and reads its chip library", () => {
+test("the bench spec is first, verified, and reads its chip library", () => {
   const list = panels(repo);
   const bench = list[0]!;
   assert.equal(bench.path, "config/panels/p25-128x64-sm16269s.toml");
   assert.equal(bench.name, "p25-128x64-sm16269s");
-  assert.equal(bench.meta.status, "tested");
-  assert.equal(bench.meta.origin, "bench");
+  assert.equal(bench.meta.status, "verified");
   assert.equal(bench.meta.pitch_mm, 2.5);
   assert.deepEqual(bench.module, { width: 128, height: 64, scan: 16 });
   assert.equal(bench.chip.family_id, 0x14c);
-  assert.equal(bench.chip.library, "config/chips/sm16269s-factory.toml");
+  assert.equal(bench.chip.library, "config/chips/sm16269s.toml");
   assert.deepEqual(bench.formats, ["rcvbp"]);
-  assert.equal(bench.mined, false);
   assert.equal(bench.meta.maker, "Eager LED");
   assert.equal(bench.meta.product, "P2.5-O16S-SMD1415-128x64-E");
   assert.match(bench.meta.url ?? "", /^https:\/\/eager-led\.com\//);
@@ -29,16 +27,16 @@ test("the bench spec is first, tested, and reads its chip library", () => {
   assert.equal(bench.meta.image_source, "eager-led.com product photo");
   assert.equal(bench.chip.vendor, "Sunmoon");
   assert.match(bench.chip.datasheet ?? "", /sm16269\.pdf$/);
-  assert.ok(list.slice(1).every((p) => p.mined), "mined specs follow the bench spec");
+  assert.ok(list.slice(1).every((p) => p.meta.status === "derived"), "the derived specs follow the bench spec");
   assert.equal(new Set(list.map((p) => p.name)).size, list.length);
 });
 
-test("a mined spec without pitch fills the meta defaults", () => {
-  const p = panels(repo).find((x) => x.path === "config/panels/mined/104x104-52s-dp5525.toml")!;
+test("a derived spec without pitch fills the meta defaults", () => {
+  const p = panels(repo).find((x) => x.path === "config/panels/104x104-52s-dp5525.toml")!;
   assert.equal(p.meta.pitch_mm, undefined);
-  assert.equal(p.meta.origin, "mined");
+  assert.equal(p.meta.status, "derived");
   assert.equal(p.meta.sources, 7);
-  assert.equal(p.chip.name, "DP5525 (mined)");
+  assert.equal(p.chip.name, "DP5525");
 });
 
 test("the format table matches the codec registry the crate pins", () => {

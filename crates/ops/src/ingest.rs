@@ -137,6 +137,48 @@ fn serve_client(
     Ok(())
 }
 
+/// How long a channel read blocks before the loop looks at the cancel flag.
+const POLL: Duration = Duration::from_millis(100);
+
+/// Show frames handed over by another thread: the daemon's `POST
+/// /show/frame` pushes one `Frame` per request into `rx`, this holds the
+/// `Wall` and draws them.
+///
+/// Ends when the sender is dropped, when `idle` passes with no frame, or
+/// when the job is cancelled. Reports the frame count as its last line.
+///
+/// # Errors
+/// Fails if the link cannot be opened or a frame cannot be sent.
+pub fn stream_channel(
+    ctx: &Ctx,
+    canvas: Canvas,
+    rx: &std::sync::mpsc::Receiver<Frame>,
+    fit: Fit,
+    idle: Duration,
+    p: &mut dyn Progress,
+) -> Result<()> {
+    use std::sync::mpsc::RecvTimeoutError;
+    let mut wall = driver::Wall::open(&ctx.iface, canvas.clone(), wall_settings(ctx))?;
+    let mut out = Frame::black(canvas.width, canvas.height);
+    let mut last = std::time::Instant::now();
+    while !p.cancelled() {
+        match rx.recv_timeout(POLL) {
+            Ok(src) => {
+                wall.show(fitted(&src, fit, &canvas, &mut out))?;
+                last = std::time::Instant::now();
+            }
+            Err(RecvTimeoutError::Timeout) if last.elapsed() < idle => {}
+            Err(RecvTimeoutError::Timeout) => {
+                p.err(&format!("no frame for {} s", idle.as_secs()));
+                break;
+            }
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+    }
+    p.out(&format!("{} frames", wall.frames_sent()));
+    Ok(())
+}
+
 /// `src` itself when it is already canvas-sized, else `src` fitted into `out`.
 fn fitted<'a>(src: &'a Frame, fit: Fit, canvas: &Canvas, out: &'a mut Frame) -> &'a Frame {
     if (src.width, src.height) == (canvas.width, canvas.height) {

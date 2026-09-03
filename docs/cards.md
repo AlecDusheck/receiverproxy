@@ -87,7 +87,7 @@ and stay `generates`.
    tested image the moment the panel renders from flash — until it does, the
    ranking has only the chip to go on.
 2. **The chip.** The spec's chip library name without its parenthetical
-   (`config/chips/*.toml` `name`: `SM16269S (factory values)` is `SM16269S`)
+   (`config/chips/*.toml` `name`: `SM16269 (default parameters)` is `SM16269`)
    against the image's `chips` list, ignoring case and allowing the vendor's
    suffix forms — `SM16269S` matches `SM16269SH` and `ICN2263` matches
    `ICN2263ALL`, but `ICN2263` does not match `ICND2263`: the prefix and the
@@ -105,7 +105,7 @@ and stay `generates`.
 
 `pick` installs only what rule 1 or rule 2 decided, and refuses two images
 that rank alike. Every shipped chip library carries either a register table
-or a `chip_custom` block, the mined `MBI5124` included, so rule 3 today
+or a `chip_custom` block, the derived `MBI5124` included, so rule 3 today
 prefers a `PWM` build for every spec in `config/panels`; the `Normal` side of
 it is pinned by a unit test, not by a file.
 
@@ -188,7 +188,7 @@ shows constant-current.
    `status = "generates"`. `cargo test -p receiverproxy-receivers` and `rxp card models`
    accept it; `rxp card probe` now runs against it without `--card`.
 4. **Spec.** A panel spec in `config/panels/` ([building-a-config.md](building-a-config.md)),
-   started from the closest class in `config/panels/mined/` or from a vendor
+   started from the closest `derived` class in `config/panels/` or from a vendor
    file for the exact module when one exists. `rxp config gen --card NAME
    --spec ...` builds the file, the pack, the boot image and the sources
    report offline.

@@ -173,6 +173,26 @@ impl FromStr for Pattern {
     }
 }
 
+impl Pattern {
+    /// The spelling [`FromStr`] reads back.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Rgb => "rgb",
+            Self::Border => "border",
+            Self::Rows => "rows",
+            Self::Gradient => "gradient",
+            Self::White => "white",
+        }
+    }
+}
+
+impl std::fmt::Display for Pattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 const RED: [u8; 3] = [255, 0, 0];
 const GREEN: [u8; 3] = [0, 255, 0];
 const BLUE: [u8; 3] = [0, 0, 255];

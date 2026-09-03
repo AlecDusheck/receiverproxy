@@ -1,6 +1,7 @@
 //! Embeds `config/chips/**/*.toml` and `config/panels/**/*.toml` as
-//! `(path, text)` pairs, path relative to the crate root. Non-mined files
-//! first, then `mined/`, each alphabetical (`embedded` in lib.rs).
+//! `(path, text)` pairs, path relative to the crate root. `status =
+//! "verified"` files first, then the rest, each alphabetical (`embedded` in
+//! lib.rs).
 //!
 //! `crates/panelspec/config/{chips,panels}` are symlinks to the repository's
 //! `config/`: one copy of the files, and `cargo package` follows them, so a
@@ -19,7 +20,10 @@ fn main() {
         println!("cargo:rerun-if-changed={}", root.join(dir).display());
         let mut files = Vec::new();
         collect(&root.join(dir), &mut files);
-        files.sort_by_key(|p| (rel(&root, p).contains("/mined/"), rel(&root, p)));
+        // Verified first: the ordering the gallery, the library pickers and
+        // `chip_by_family` read. Matched on the text rather than parsed, so
+        // the build script needs no TOML dependency.
+        files.sort_by_key(|p| (!is_verified(p), rel(&root, p)));
         let _ = writeln!(src, "pub static {name}: &[(&str, &str)] = &[");
         for p in &files {
             println!("cargo:rerun-if-changed={}", p.display());
@@ -47,6 +51,11 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
             out.push(p);
         }
     }
+}
+
+fn is_verified(p: &Path) -> bool {
+    std::fs::read_to_string(p)
+        .is_ok_and(|t| t.lines().any(|l| l.trim() == r#"status = "verified""#))
 }
 
 fn rel(root: &Path, p: &Path) -> String {

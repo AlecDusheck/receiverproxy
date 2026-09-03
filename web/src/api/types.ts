@@ -28,7 +28,7 @@ export type GatedOutcome = {
   lines: Array<Line>;
   files: Array<string>;
 };
-export type JobKind = "provision" | "firmware/install" | "flash/snapshot" | "flash/restore" | "show/video" | "show/hold";
+export type JobKind = "provision" | "firmware/install" | "flash/snapshot" | "flash/restore" | "show/video" | "show/hold" | "show/stream";
 export type JobState = "running" | "done" | "failed" | "cancelled";
 export type JobResult = GatedOutcome | Outcome;
 export type Job = {
@@ -45,6 +45,52 @@ export type Fit = "stretch" | "contain" | "cover";
 export type Pattern = "rgb" | "border" | "rows" | "gradient" | "white";
 export type Started = {
   id: string;
+};
+export type ShowKind = "blank" | "still" | "pattern" | "video" | "stream";
+export type Show = {
+  kind: ShowKind;
+  /**
+   * What it came from: the pattern name, the file, the colour, the
+   * pushing client.
+   */
+  source: string;
+  /**
+   * Frames per second for a video or a pushed stream; null for a still.
+   */
+  fps: number | null;
+  /**
+   * The wall it is drawn on, as `WxH, N cards`.
+   */
+  layout: string;
+  /**
+   * RFC 3339, when it went up.
+   */
+  started: string;
+  /**
+   * The job that keeps it there, when one does.
+   */
+  job: string | null;
+};
+export type JobBrief = {
+  id: string;
+  kind: JobKind;
+  state: JobState;
+  started: string;
+};
+export type State = {
+  /**
+   * Null until the daemon has put anything on the panel.
+   */
+  show: Show | null;
+  brightness: number;
+  /**
+   * The last discovery result, as `GET /health` reports it.
+   */
+  cards: Array<Card>;
+  /**
+   * The newest job started in this run; null before the first.
+   */
+  job: JobBrief | null;
 };
 export type Health = {
   version: string;
@@ -107,6 +153,16 @@ export type ShowFillReq = {
   rgb: string;
   hold?: boolean;
 };
+export type FrameQuery = {
+  /**
+   * What to call the stream in `GET /state`; `frame push` by default.
+   */
+  source?: string;
+  /**
+   * `contain` by default, as `rxp show serve`.
+   */
+  fit?: Fit;
+};
 export type SpecReq = {
   spec_toml: string;
 };
@@ -158,6 +214,11 @@ export type ConfigWriteReq = {
    * Base64 of the `.rcvbp` file.
    */
   rcvbp: string;
+  commit?: boolean;
+  index?: number;
+  wait?: number;
+};
+export type ConfigWriteQuery = {
   commit?: boolean;
   index?: number;
   wait?: number;
@@ -217,6 +278,30 @@ export type FirmwareReq = {
    * Seconds; 4 by default.
    */
   wait?: number;
+};
+export type UploadQuery = {
+  name?: string;
+};
+export type FirmwareUpload = {
+  name: string;
+  /**
+   * The path on the daemon's machine; `POST /firmware/install` takes it.
+   */
+  path: string;
+  size: number;
+  /**
+   * Lowercase hex of the uploaded bytes.
+   */
+  sha256: string;
+  /**
+   * True when the name is in `config/firmware.toml` and the bytes match
+   * its entry; false when the manifest lists no such name.
+   */
+  verified: boolean;
+  /**
+   * The manifest's sha256 for that name, when it lists one.
+   */
+  manifest_sha256?: string;
 };
 export type FirmwareCandidate = {
   name: string;
@@ -290,15 +375,13 @@ export type SetLayoutReq = {
   panel_height: number;
   index?: number;
 };
-export type Status = "tested" | "generates";
-export type Origin = "bench" | "mined";
+export type Status = "verified" | "derived" | "stub";
 export type Meta = {
   /**
    * Pixel pitch in millimetres, when the spec describes one physical module.
    */
   pitch_mm?: number;
   status: Status;
-  origin: Origin;
   /**
    * Vendor files the values were taken from.
    */
@@ -314,7 +397,7 @@ export type Meta = {
   examples: Array<string>;
   /**
    * Control-system vendors whose config files the sources are (the
-   * format the values were mined from), not who makes the panel.
+   * format the values were taken from), not who makes the panel.
    */
   vendors: Array<string>;
   notes?: string;
@@ -462,12 +545,19 @@ export type LibraryChip = {
   path: string;
   name: string;
   toml: string;
+  /**
+   * The library's own `status`; `derived` when the file states none.
+   */
+  status: Status;
 };
 export type LibraryPanel = {
   path: string;
   name: string;
   toml: string;
-  mined: boolean;
+  /**
+   * The spec's `[meta] status`; `derived` when the file states none.
+   */
+  status: Status;
 };
 export type Libraries = {
   chips: Array<LibraryChip>;

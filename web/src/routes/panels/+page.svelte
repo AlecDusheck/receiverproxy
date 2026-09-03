@@ -96,8 +96,9 @@
   </select>
   <select bind:value={status} aria-label="status">
     <option value="">any status</option>
-    <option value="tested">tested</option>
-    <option value="generates">generates</option>
+    <option value="verified">verified</option>
+    <option value="derived">derived</option>
+    <option value="stub">stub</option>
   </select>
   <span class="caption">{rows.length} of {entries.length}</span>
 </div>

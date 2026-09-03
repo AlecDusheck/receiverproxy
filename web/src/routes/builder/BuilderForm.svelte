@@ -45,12 +45,14 @@
   <Field label="library" caption={spec.chip.library || "config/chips"} mono>
     <select bind:value={spec.chip.library} disabled={!libs}>
       <option value="">choose</option>
-      <optgroup label="libraries">
-        {#each (libs?.chips ?? []).filter((c) => !c.path.includes("/mined/")) as c (c.path)}<option value={c.path}>{c.name.replace(/\s*\(mined\)/, "")}</option>{/each}
-      </optgroup>
-      <optgroup label="mined">
-        {#each (libs?.chips ?? []).filter((c) => c.path.includes("/mined/")) as c (c.path)}<option value={c.path}>{c.name.replace(/\s*\(mined\)/, "")}</option>{/each}
-      </optgroup>
+      {#each ["verified", "derived", "stub"] as const as status (status)}
+        {@const group = (libs?.chips ?? []).filter((c) => c.status === status)}
+        {#if group.length}
+          <optgroup label={status}>
+            {#each group as c (c.path)}<option value={c.path}>{c.name}</option>{/each}
+          </optgroup>
+        {/if}
+      {/each}
     </select>
   </Field>
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write matched product details into the mined panel specs' [meta].
+"""Write matched product details into the derived panel specs' [meta].
 
 Reads the match files produced by the product search (TSV with the columns
 spec_name, matched, maker, product_name, pitch_mm, module_mm, url, image_url,
@@ -53,7 +53,7 @@ def edit(spec_path, row, image_name):
     fields.append('notes = "' + note.replace('"', "'") + '."')
     body = "\n".join(fields)
 
-    # Replace the fields we own inside [meta], keep the mined ones.
+    # Replace the fields we own inside [meta], keep the derived ones.
     out, seen = [], False
     for line in text.splitlines():
         if line.startswith("[") and line != "[meta]" and seen:
@@ -81,7 +81,7 @@ def main():
         if row["matched"] != "yes" or ORDER[row["confidence"]] < ORDER[a.min_confidence]:
             skipped += 1
             continue
-        spec = f"config/panels/mined/{row['spec_name']}.toml"
+        spec = f"config/panels/{row['spec_name']}.toml"
         if not os.path.exists(spec):
             print(f"no spec: {spec}")
             continue

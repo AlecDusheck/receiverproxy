@@ -70,10 +70,10 @@ family and is not a protocol family.
   `0xD70EA0`). libCLTDevice and LEDVISION 9.6 stop at `0x15D`. In every
   vendor build, every chip jump table sends `0x0214` to its default arm: no
   registers, an all-zero `SChipControl`, `IsPWMChip` false.
-* `0x014D` is SM16380SH, not an SM16269 sub-variant. `config/chips/sm16269.toml`
+* `0x014D` is SM16380SH, not an SM16269 sub-variant. `config/chips/sm16269-defaults.toml`
   carries `sub_id = 0x014D` and describes it as the SM16269 sub-variant; that
   description is wrong. The panel spec `config/panels/p25-128x64-sm16269s.toml`
-  uses `config/chips/sm16269s-factory.toml`, family `0x014C`, sub-id `0`.
+  uses `config/chips/sm16269s.toml`, family `0x014C`, sub-id `0`.
 
 ## 3. Measured behaviour by id
 
@@ -84,7 +84,7 @@ Reference module: P2.5 128x64, SM16269S drivers, firmware 16.53, method in
 |---|---|---|
 | `0x014C` | SM16169SH/SL | renders with the settings in [../rendering.md](../rendering.md); under a wrong configuration it still drives the outputs, with per-pixel structure |
 | `0x0214` | SM16269S | panel dark. The pack a `0x0214` declaration produces carries an all-zero `SChipControl` and no register table |
-| `0x00DE` | SM16169S | never armed in the one configuration it was tried in (that configuration kept the `0x14C` register table and `SChipCustom`; the corrected form, `config/chips/sm16169s-vendor.toml`, is not measured) |
+| `0x00DE` | SM16169S | never armed in the one configuration it was tried in (that configuration kept the `0x14C` register table and `SChipCustom`; the corrected form, `config/chips/sm16169s-reset-defaults.toml`, is not measured) |
 | `0x002F` | MBI5153 (sub `0x008A`, SM16159) | never arms |
 
 Under `0x014C`, chip-control tails `2/4/8` and `3/5/7` never arm; only the SH
@@ -224,7 +224,7 @@ Not located. What is known:
 
 ## 8. Which id to send
 
-`0x014C`, with sub-id `0` (`config/chips/sm16269s-factory.toml`, selected by
+`0x014C`, with sub-id `0` (`config/chips/sm16269s.toml`, selected by
 `config/panels/p25-128x64-sm16269s.toml`). Evidence:
 
 * the vendor chip table names `0x14C` "SM16169SH/SL", and it is the closest

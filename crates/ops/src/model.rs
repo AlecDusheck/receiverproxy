@@ -99,14 +99,15 @@ const OTHER_COLUMNS: [(&str, Status); 2] = [
     ("Linsn · Novastar · Huidu", Status::Unsupported),
 ];
 
-/// Rows the mined set does not carry: chips whose register record is not
+/// Rows the derived set does not carry: chips whose register record is not
 /// decoded, and module wirings the pixel-map generator does not produce.
 const UNSUPPORTED_ROWS: [&str; 2] = [
     "SM16369S · ICND2263 (register record not decoded)",
     "snake-wired outdoor modules (1/2, 1/4, 1/5, 1/10 scan)",
 ];
 
-/// A chip library's name without its `(mined)` / `(factory values)` tag.
+/// A chip library's name without its parenthetical tag, as
+/// `SM16269 (default parameters)` carries one.
 fn chip_name(lib: &ChipLibrary) -> String {
     lib.name.split(" (").next().unwrap_or(&lib.name).to_owned()
 }
@@ -125,7 +126,7 @@ fn embedded_chip(path: &str) -> Result<ChipLibrary> {
 
 /// `rxp card models --markdown`: the README's Tested matrix. One column per
 /// model file, one row per panel a model was driven with, then one row per
-/// driver-chip family among the mined module classes.
+/// driver-chip family among the derived module classes.
 ///
 /// # Errors
 /// Fails when a model names a panel or chip library that is not embedded.
@@ -181,15 +182,15 @@ pub fn matrix_markdown() -> Result<String> {
         row(&mut s, &label, &cell, &|o| o);
     }
 
-    // Mined module classes, grouped by the family of the chip each names.
+    // Derived module classes, grouped by the family of the chip each names.
     let mut families: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut classes = 0usize;
     for (path, text) in embedded::PANELS {
-        if !embedded::is_mined(path) {
+        let spec = PanelSpec::parse(text).with_context(|| format!("parse {path}"))?;
+        if spec.meta.status == panelspec::Status::Verified {
             continue;
         }
         classes += 1;
-        let spec = PanelSpec::parse(text).with_context(|| format!("parse {path}"))?;
         let chip = chip_name(&embedded_chip(&spec.chip.library)?);
         let chips = families.entry(family(&chip)).or_default();
         if !chips.contains(&chip) {
@@ -207,7 +208,7 @@ pub fn matrix_markdown() -> Result<String> {
     let _ = write!(
         s,
         "
-The ⚠️ chip rows are the {classes} module classes in `config/panels/mined/`, grouped by driver-chip family."
+The ⚠️ chip rows are the {classes} derived module classes in `config/panels/`, grouped by driver-chip family."
     );
     Ok(s)
 }

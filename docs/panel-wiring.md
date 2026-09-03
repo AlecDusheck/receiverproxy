@@ -77,8 +77,8 @@ The record is a flat stream of 4-byte groups: register address, then one
 value per colour. Grouping it in 3s produces plausible-looking nonsense.
 Decode and compare with `scripts/chipregs.py a.rcvbp b.rcvbp`.
 
-`config/chips/sm16269s-factory.toml` holds the values from the reference
-file. The generic `config/chips/sm16269.toml` (the vendor tool's "Default
+`config/chips/sm16269s.toml` holds the values from the reference
+file. The generic `config/chips/sm16269-defaults.toml` (the vendor tool's "Default
 Parameter" set) differs in eleven registers, several governing greyscale and
 blanking.
 

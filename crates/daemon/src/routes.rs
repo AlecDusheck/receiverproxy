@@ -1,11 +1,12 @@
 //! One handler per route in `docs/ui.md` section 2.
 
 use crate::api::{
-    Brightness, Card, Cards, ConfigRead, ConfigReadReq, ConfigSendReq, ConfigWriteReq, DiscoverReq,
-    FirmwareCandidate, FirmwarePick, FirmwareReq, GenFileSet, GenFiles, Health, ProvisionReq,
-    ReloadReq, RestoreReq, ScreenSizeQuery, ScreenSizeReq, SetLayoutReq, Settings, ShowFillReq,
-    ShowImageReq, ShowPatternReq, ShowVideoReq, Size, SizeOutcome, SnapshotReq, SpecReq, Started,
-    TestModeReq,
+    Brightness, Card, Cards, ConfigRead, ConfigReadReq, ConfigSendReq, ConfigWriteQuery,
+    ConfigWriteReq, DiscoverReq, FirmwareCandidate, FirmwarePick, FirmwareReq, FirmwareUpload,
+    FrameQuery, GenFileSet, GenFiles, Health, ProvisionReq, ReloadReq, RestoreReq, ScreenSizeQuery,
+    ScreenSizeReq, SetLayoutReq, Settings, ShowFillReq, ShowImageReq, ShowKind, ShowPatternReq,
+    ShowVideoReq, Size, SizeOutcome, SnapshotReq, SpecReq, Started, State as LiveState,
+    TestModeReq, UploadQuery,
 };
 use crate::assets;
 use crate::error::{ApiError, ApiResult};
@@ -42,6 +43,9 @@ pub fn router(state: Shared) -> Router {
         .route("/show/pattern", post(show_pattern))
         .route("/show/fill", post(show_fill))
         .route("/show/blank", post(show_blank))
+        .route("/show/frame", post(show_frame))
+        .route("/state", get(get_state))
+        .route("/state/events", get(state_events))
         .route("/config/gen", post(config_gen))
         .route("/config/read", post(config_read))
         .route("/config/write", post(config_write))
@@ -51,6 +55,7 @@ pub fn router(state: Shared) -> Router {
         .route("/flash/restore", post(flash_restore))
         .route("/firmware/install", post(firmware_install))
         .route("/firmware/pick", post(firmware_pick))
+        .route("/firmware/upload", post(firmware_upload))
         .route(
             "/card/screen-size",
             get(get_screen_size).put(put_screen_size),
@@ -170,6 +175,22 @@ fn gated(lines: Vec<Line>, files: Vec<String>, committed: bool) -> GatedOutcome 
 /// Seconds a discovery-backed command waits when the request says nothing.
 const WAIT: u64 = 3;
 
+/// The request's content type, empty when it names none.
+fn content_type(req: &Request) -> &str {
+    req.headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+}
+
+fn is_json(req: &Request) -> bool {
+    content_type(req).starts_with("application/json")
+}
+
+fn is_multipart(req: &Request) -> bool {
+    content_type(req).starts_with("multipart/form-data")
+}
+
 fn parse_fit(s: &str) -> ApiResult<Fit> {
     s.parse()
         .map_err(|e| ApiError::bad_request(format!("fit: {e}")))
@@ -211,8 +232,19 @@ async fn discover(
         .command("discover", move |ctx, p| capture::discover(ctx, wait, p))
         .await?;
     let out = cards.iter().map(Card::from).collect();
-    *lock(&state.cards) = cards;
+    state.set_cards(cards);
     Ok(Json(Cards { cards: out }))
+}
+
+// --- live state --------------------------------------------------------------
+
+async fn get_state(State(state): State<Shared>) -> Json<LiveState> {
+    Json(state.live.snapshot())
+}
+
+/// The same object as `GET /state`, at once and on every change.
+async fn state_events(State(state): State<Shared>) -> Response {
+    state.live.events().into_response()
 }
 
 async fn get_settings(State(state): State<Shared>) -> Json<Settings> {
@@ -248,6 +280,7 @@ async fn brightness(
     state
         .set_settings(s)
         .map_err(|e| ApiError::command("brightness", &e))?;
+    state.live.set_brightness(value);
     Ok(Json(Brightness { value }))
 }
 
@@ -261,12 +294,15 @@ async fn show_still(
     canvas: Canvas,
     frame: wall::Frame,
     hold: bool,
+    what: (ShowKind, String),
 ) -> ApiResult<Response> {
     state.cancel_show().await;
+    let (kind, source) = what;
     if hold {
         let id = state.start_job(JobKind::ShowHold, subject, Vec::new(), move |ctx, p| {
             display::show_frame(ctx, canvas, &frame, true, p).map(|()| None)
         })?;
+        state.showing(kind, source, None, Some(id.clone()));
         return Ok(Json(Started { id }).into_response());
     }
     let ((), lines) = state
@@ -274,6 +310,7 @@ async fn show_still(
             display::show_frame(ctx, canvas, &frame, false, p)
         })
         .await?;
+    state.showing(kind, source, None, None);
     Ok(Json(outcome(lines, Vec::new())).into_response())
 }
 
@@ -297,12 +334,7 @@ async fn image_upload(mut mp: Multipart) -> ApiResult<(Bytes, String, Fit, bool)
 }
 
 async fn show_image(State(state): State<Shared>, req: Request) -> ApiResult<Response> {
-    let multipart = req
-        .headers()
-        .get(header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|ct| ct.starts_with("multipart/form-data"));
-    let (img, fit, hold) = if multipart {
+    let (img, name, fit, hold) = if is_multipart(&req) {
         let mp = Multipart::from_request(req, &state)
             .await
             .map_err(|e| ApiError::bad_request(e.body_text()))?;
@@ -310,18 +342,26 @@ async fn show_image(State(state): State<Shared>, req: Request) -> ApiResult<Resp
         let img = image::load_from_memory(&bytes)
             .with_context(|| format!("decode image {name}"))
             .map_err(|e| ApiError::command("show image", &e))?;
-        (img, fit, hold)
+        (img, name, fit, hold)
     } else {
         let Body(r) = Body::<ShowImageReq>::from_request(req, &state).await?;
         let img = image::open(&r.path)
             .with_context(|| format!("open image {}", r.path))
             .map_err(|e| ApiError::command("show image", &e))?;
-        (img, r.fit.unwrap_or_default(), r.hold.unwrap_or(false))
+        (img, r.path, r.fit.unwrap_or_default(), r.hold.unwrap_or(false))
     };
     let canvas = state.wall();
     let frame = display::image_frame(&img, &canvas, fit)
         .map_err(|e| ApiError::command("show image", &e))?;
-    show_still(&state, "show image", canvas, frame, hold).await
+    show_still(
+        &state,
+        "show image",
+        canvas,
+        frame,
+        hold,
+        (ShowKind::Still, name),
+    )
+    .await
 }
 
 async fn show_video(
@@ -340,9 +380,55 @@ async fn show_video(
     let fps = req.fps.unwrap_or(30);
     let fit = req.fit.unwrap_or(Fit::Contain);
     let looping = req.looping.unwrap_or(false);
+    let source = req.path.clone();
     let id = state.start_job(JobKind::ShowVideo, "show video", Vec::new(), move |ctx, p| {
         display::play_on(ctx, canvas, &req.path, fps, fit, looping, p).map(|()| None)
     })?;
+    state.showing(ShowKind::Video, source, Some(fps), Some(id.clone()));
+    Ok(Json(Started { id }))
+}
+
+/// One rgb24 frame from a client that mirrors something onto the wall: the
+/// 12-byte header `rxp show serve` reads, then `width * height * 3` bytes.
+/// The first frame starts the `show/stream` job that owns the link; the
+/// stream ends when the frames stop, when it is cancelled, or when another
+/// show replaces it.
+async fn show_frame(
+    State(state): State<Shared>,
+    Qs(q): Qs<FrameQuery>,
+    body: Bytes,
+) -> ApiResult<Json<Started>> {
+    let head: [u8; sources::raw::Header::LEN] = body
+        .get(..sources::raw::Header::LEN)
+        .and_then(|b| b.try_into().ok())
+        .ok_or_else(|| {
+            ApiError::bad_request(format!(
+                "frame: {} bytes, shorter than the {}-byte header",
+                body.len(),
+                sources::raw::Header::LEN
+            ))
+        })?;
+    let header = sources::raw::Header::from_bytes(&head)
+        .map_err(|e| ApiError::bad_request(format!("frame: {e}")))?;
+    let want = sources::raw::Header::LEN + header.frame_len();
+    if body.len() != want {
+        return Err(ApiError::bad_request(format!(
+            "frame: {} bytes, header says {}x{} rgb24 is {want}",
+            body.len(),
+            header.width,
+            header.height
+        )));
+    }
+    let frame = wall::Frame::from_rgb(
+        u32::from(header.width),
+        u32::from(header.height),
+        body[sources::raw::Header::LEN..].to_vec(),
+    )
+    .map_err(|e| ApiError::bad_request(format!("frame: {e:?}")))?;
+    let source = q.source.unwrap_or_else(|| "frame push".to_owned());
+    let id = state
+        .push_frame(header, frame, source, q.fit.unwrap_or(Fit::Contain))
+        .await?;
     Ok(Json(Started { id }))
 }
 
@@ -352,7 +438,15 @@ async fn show_pattern(
 ) -> ApiResult<Response> {
     let canvas = state.wall();
     let frame = sources::pattern(req.name, canvas.width, canvas.height);
-    show_still(&state, "show pattern", canvas, frame, req.hold.unwrap_or(false)).await
+    show_still(
+        &state,
+        "show pattern",
+        canvas,
+        frame,
+        req.hold.unwrap_or(false),
+        (ShowKind::Pattern, req.name.to_string()),
+    )
+    .await
 }
 
 async fn show_fill(
@@ -363,7 +457,16 @@ async fn show_fill(
         .map_err(|e| ApiError::bad_request(format!("rgb: {e:#}")))?;
     let canvas = state.wall();
     let frame = solid(&canvas, rgb)?;
-    show_still(&state, "show fill", canvas, frame, req.hold.unwrap_or(false)).await
+    let source = format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]);
+    show_still(
+        &state,
+        "show fill",
+        canvas,
+        frame,
+        req.hold.unwrap_or(false),
+        (ShowKind::Still, source),
+    )
+    .await
 }
 
 fn solid(canvas: &Canvas, rgb: [u8; 3]) -> ApiResult<wall::Frame> {
@@ -378,7 +481,15 @@ fn solid(canvas: &Canvas, rgb: [u8; 3]) -> ApiResult<wall::Frame> {
 async fn show_blank(State(state): State<Shared>) -> ApiResult<Response> {
     let canvas = state.wall();
     let frame = solid(&canvas, [0, 0, 0])?;
-    show_still(&state, "show blank", canvas, frame, false).await
+    show_still(
+        &state,
+        "show blank",
+        canvas,
+        frame,
+        false,
+        (ShowKind::Blank, "blank".to_owned()),
+    )
+    .await
 }
 
 // --- config -----------------------------------------------------------------
@@ -431,13 +542,40 @@ async fn config_read(
     }))
 }
 
+/// The `.rcvbp` bytes and the gate: a JSON body carries them base64, any
+/// other content type is the file itself with the gate in the query.
+async fn write_body(state: &Shared, req: Request) -> ApiResult<(Vec<u8>, ConfigWriteReq)> {
+    if is_json(&req) {
+        let Body(r) = Body::<ConfigWriteReq>::from_request(req, state).await?;
+        let bytes = BASE64_STANDARD
+            .decode(&r.rcvbp)
+            .map_err(|e| ApiError::bad_request(format!("rcvbp: {e}")))?;
+        return Ok((bytes, r));
+    }
+    let (mut parts, body) = req.into_parts();
+    let Qs(q) = Qs::<ConfigWriteQuery>::from_request_parts(&mut parts, state).await?;
+    let bytes = Bytes::from_request(Request::from_parts(parts, body), state)
+        .await
+        .map_err(|e| ApiError::bad_request(e.body_text()))?;
+    if bytes.is_empty() {
+        return Err(ApiError::bad_request("rcvbp: empty body"));
+    }
+    Ok((
+        bytes.to_vec(),
+        ConfigWriteReq {
+            rcvbp: String::new(),
+            commit: q.commit,
+            index: q.index,
+            wait: q.wait,
+        },
+    ))
+}
+
 async fn config_write(
     State(state): State<Shared>,
-    Body(r): Body<ConfigWriteReq>,
+    req: Request,
 ) -> ApiResult<Json<GatedOutcome>> {
-    let bytes = BASE64_STANDARD
-        .decode(&r.rcvbp)
-        .map_err(|e| ApiError::bad_request(format!("rcvbp: {e}")))?;
+    let (bytes, r) = write_body(&state, req).await?;
     let ts = stamp();
     let config = data_path(&state, "backups", &format!("config-{ts}.rcvbp"))?;
     std::fs::write(&config, &bytes)
@@ -594,6 +732,66 @@ async fn firmware_install(
         },
     )?;
     Ok(Json(Started { id }))
+}
+
+/// A multipart `firmware/upload`: the `file` part's bytes and name.
+async fn firmware_part(mut mp: Multipart) -> ApiResult<(Bytes, String)> {
+    let bad = |e: axum::extract::multipart::MultipartError| ApiError::bad_request(e.body_text());
+    while let Some(field) = mp.next_field().await.map_err(bad)? {
+        if field.name() == Some("file") {
+            let name = field.file_name().unwrap_or("upload.hex").to_owned();
+            return Ok((field.bytes().await.map_err(bad)?, name));
+        }
+    }
+    Err(ApiError::bad_request("multipart: no file part"))
+}
+
+/// Take a firmware image the browser holds and put it where
+/// `POST /firmware/install` can read it: `<data dir>/firmware/<name>`.
+///
+/// A name `config/firmware.toml` lists is checked against that entry and
+/// refused when the size or the sha256 disagrees; any other name is kept as
+/// it is, with its hash reported and `verified: false`.
+async fn firmware_upload(State(state): State<Shared>, req: Request) -> ApiResult<Json<FirmwareUpload>> {
+    let (bytes, name) = if is_multipart(&req) {
+        let mp = Multipart::from_request(req, &state)
+            .await
+            .map_err(|e| ApiError::bad_request(e.body_text()))?;
+        firmware_part(mp).await?
+    } else {
+        let (mut parts, body) = req.into_parts();
+        let Qs(q) = Qs::<UploadQuery>::from_request_parts(&mut parts, &state).await?;
+        let bytes = Bytes::from_request(Request::from_parts(parts, body), &state)
+            .await
+            .map_err(|e| ApiError::bad_request(e.body_text()))?;
+        (bytes, q.name.unwrap_or_else(|| "upload.hex".to_owned()))
+    };
+    // The name becomes a file name: a path from the client is not one.
+    let name = std::path::Path::new(&name)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|n| !n.is_empty())
+        .ok_or_else(|| ApiError::bad_request(format!("firmware upload: {name} is not a file name")))?
+        .to_owned();
+    let sha256 = receivers::firmware::sha256_hex(&bytes);
+    let entry = receivers::firmware::image(&name);
+    if let Some(image) = entry {
+        image
+            .verify(&bytes)
+            .map_err(|e| ApiError::bad_request(format!("firmware upload: {e}")))?;
+    }
+    let path = data_path(&state, "firmware", &name)?;
+    std::fs::write(&path, &bytes).map_err(|e| {
+        ApiError::command("firmware upload", &anyhow::anyhow!("write {path}: {e}"))
+    })?;
+    Ok(Json(FirmwareUpload {
+        name,
+        path,
+        size: bytes.len() as u64,
+        sha256,
+        verified: entry.is_some(),
+        manifest_sha256: entry.map(|i| i.sha256.clone()),
+    }))
 }
 
 /// The manifest ranked for a spec: offline, no link, no card needed. The

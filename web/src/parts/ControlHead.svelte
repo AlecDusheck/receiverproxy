@@ -12,6 +12,7 @@
   const NAV: [string, string][] = [
     ["/control", "Cards"],
     ["/control/show", "Show"],
+    ["/control/mirror", "Mirror"],
     ["/control/provision", "Provision"],
     ["/control/firmware", "Firmware"],
     ["/control/flash", "Flash"],

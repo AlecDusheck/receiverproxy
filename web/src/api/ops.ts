@@ -5,7 +5,7 @@
 // api/ or lib/wasm.ts.
 import type * as T from "./types";
 import { app } from "../lib/state.svelte";
-import { call, hasToken, readToken, request, sse, useToken } from "./daemon";
+import { call, hasToken, readToken, request, sse, stateSse, useToken } from "./daemon";
 import { current, ready } from "../lib/wasm";
 import { example, validateJs } from "../lib/layout";
 
@@ -44,14 +44,22 @@ export type CardOps = {
   showPattern(req: T.ShowPatternReq): Promise<T.Outcome | T.Started>;
   showFill(req: T.ShowFillReq): Promise<T.Outcome | T.Started>;
   showBlank(): Promise<T.Outcome>;
+  /** One rgb24 frame behind its 12-byte header, as `rxp show serve` reads them. */
+  showFrame(bytes: Uint8Array, q?: { source?: string; fit?: T.Fit }): Promise<T.Started>;
   configGen(specToml: string): Promise<T.GenFiles>;
   configRead(req?: T.ConfigReadReq): Promise<T.ConfigRead>;
   configWrite(req: T.ConfigWriteReq): Promise<T.GatedOutcome>;
+  /** The same route with the `.rcvbp` file as the body instead of base64. */
+  configWriteBytes(bytes: Uint8Array, q?: T.ConfigWriteQuery): Promise<T.GatedOutcome>;
   configSend(req: T.ConfigSendReq): Promise<T.Outcome>;
   provision(req: T.ProvisionReq): Promise<T.Started>;
   flashSnapshot(req?: T.SnapshotReq): Promise<T.Started>;
   flashRestore(req: T.RestoreReq): Promise<T.Started>;
   firmwareInstall(req: T.FirmwareReq): Promise<T.Started>;
+  /** Put an image where `firmwareInstall` can read it; checked against the manifest when the name is in it. */
+  firmwareUpload(file: File): Promise<T.FirmwareUpload>;
+  /** The manifest ranked for a spec, with the reasons. */
+  firmwarePick(specToml: string): Promise<T.FirmwarePick>;
   screenSize(q?: T.ScreenSizeQuery): Promise<T.Size>;
   setScreenSize(req: T.ScreenSizeReq): Promise<T.SizeOutcome>;
   reload(req?: T.ReloadReq): Promise<T.Outcome>;
@@ -138,14 +146,22 @@ const card: CardOps = {
   showPattern: (req) => call("POST", "/show/pattern", req),
   showFill: (req) => call("POST", "/show/fill", req),
   showBlank: () => call("POST", "/show/blank"),
+  showFrame: (bytes, q = {}) => call("POST", `/show/frame${qs(q)}`, bytes),
   configGen: (spec_toml) => call("POST", "/config/gen", { spec_toml } satisfies T.SpecReq),
   configRead: (req = {}) => call("POST", "/config/read", req),
   configWrite: (req) => call("POST", "/config/write", req),
+  configWriteBytes: (bytes, q = {}) => call("POST", `/config/write${qs(q)}`, bytes),
   configSend: (req) => call("POST", "/config/send", req),
   provision: (req) => call("POST", "/provision", req),
   flashSnapshot: (req = {}) => call("POST", "/flash/snapshot", req),
   flashRestore: (req) => call("POST", "/flash/restore", req),
   firmwareInstall: (req) => call("POST", "/firmware/install", req),
+  firmwareUpload: (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return call("POST", "/firmware/upload", fd);
+  },
+  firmwarePick: (spec_toml) => call("POST", "/firmware/pick", { spec_toml } satisfies T.SpecReq),
   screenSize: (q = {}) => call("GET", `/card/screen-size${qs(q)}`),
   setScreenSize: (req) => call("PUT", "/card/screen-size", req),
   reload: (req = {}) => call("POST", "/card/reload", req),
@@ -158,6 +174,27 @@ const card: CardOps = {
   cancel: (id) => call("DELETE", `/jobs/${id}`),
   follow,
 };
+
+// The one subscription to the daemon's state stream: the layout starts it
+// after a probe that found a daemon, every screen reads `app.live`, and
+// nothing polls. A dropped stream probes again, which starts it back up or
+// puts the install banner up.
+let watching: (() => void) | null = null;
+
+function watch() {
+  if (watching) return;
+  watching = stateSse(
+    (s) => {
+      app.live = s;
+      if (app.health) app.health.cards = s.cards;
+    },
+    () => {
+      watching = null;
+      app.live = null;
+      void probe();
+    },
+  );
+}
 
 // Probe the daemon once at load; the banner's "retry" and "connect" call this again.
 // "locked": the daemon answered but the app has no token, or a wrong one.
@@ -187,6 +224,7 @@ async function probe() {
     app.daemon = "absent";
     app.health = null;
   }
+  if (app.daemon === "present") watch();
   if (app.daemon === "absent") {
     let dismissed = false;
     try {

@@ -59,7 +59,7 @@ fn reference_panel() -> PanelSpec {
     // alike, docs/rendering.md) and +0x02F = 1, without which nothing displays.
     spec.module.gray_bits = None;
     spec.record01_overrides.remove(&0x02F);
-    spec.chip.library = "config/chips/sm16169sh.toml".into();
+    spec.chip.library = "config/chips/sm16269s.toml".into();
     spec.screen.width = 256;
     spec.screen.height = 384;
     spec
@@ -108,7 +108,7 @@ fn our_panel_differs_from_the_reference_only_where_intended() {
     let ours = generate(&our_panel()).unwrap();
     let reference = Rcvbp::load(repo("third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp")).unwrap();
     // Secondary chip id (+0x0E9/+0x205) stays clear as in their file: 0x14D
-    // would declare max scan 64 on a 1/16 module (config/chips/sm16269s-factory.toml).
+    // would declare max scan 64 on a 1/16 module (config/chips/sm16269s.toml).
     let d = differing_bytes(record(&ours.rcvbp, 0x01), record(&reference, 0x01));
     // +0x023 grey 12 (theirs 14; 12-16 render alike), +0x02F = 1 (theirs 0;
     // required to display), then the single-module screen size.
@@ -227,12 +227,12 @@ fn the_bench_spec_survives_a_round_trip_through_its_file() {
     let (back, unresolved) = spec::spec_from_rcvbp(&bytes, &embedded_chip).unwrap();
     // Only what the file does not carry is left over.
     assert_eq!(unresolved, ["meta", "mapping.gate_phantom_positions", "boot.arm_at_boot"]);
-    assert_eq!(back.chip.library, "config/chips/sm16269s-factory.toml");
+    assert_eq!(back.chip.library, "config/chips/sm16269s.toml");
     assert_eq!(back.module.serial_clock, Some(8));
     assert_eq!(back.module.gray_bits, Some(12));
     assert_eq!(back.mapping.block, Some(64));
     assert_eq!(back.record01_overrides.iter().collect::<Vec<_>>(), [(&0x02F, &1)]);
-    assert_eq!(back.name, "128x64-16s-sm16269s-factory");
+    assert_eq!(back.name, "128x64-16s-sm16269s");
     // The TOML the CLI writes parses back to a spec that generates the same file.
     let again = PanelSpec::parse(&back.to_toml().unwrap()).unwrap();
     assert_eq!(generate(&again).unwrap().rcvbp.to_file_bytes().unwrap(), bytes);

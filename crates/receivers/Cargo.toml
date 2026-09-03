@@ -1,10 +1,18 @@
 [package]
-name = "receivers"
+name = "receiverproxy-receivers"
 description = "Receiving-card models as data: config/cards/*.toml, embedded at build time"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
 build = "build.rs"
+
+# Published as `receiverproxy-receivers`; the library keeps its role name.
+[lib]
+name = "receivers"
 
 [dependencies]
 serde.workspace = true

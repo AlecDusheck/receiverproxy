@@ -1,9 +1,17 @@
 [package]
-name = "sources"
+name = "receiverproxy-sources"
 description = "Frame sources: video files and test patterns"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+
+# Published as `receiverproxy-sources`; the library keeps its role name.
+[lib]
+name = "sources"
 
 [dependencies]
 wall.workspace = true

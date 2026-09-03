@@ -1,10 +1,15 @@
 [package]
-name = "cli"
-description = "receiverproxy: the rxp command-line tool that configures and drives LED receiving cards"
+name = "receiverproxy"
+description = "Configure and drive Colorlight LED receiving cards over raw Ethernet: the rxp command-line tool"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-# `cargo run -p cli` and the rcvbp-wasm test that shells out to it.
+repository.workspace = true
+keywords.workspace = true
+categories = ["command-line-utilities", "hardware-support"]
+exclude.workspace = true
+readme = "../../README.md"
+# `cargo run -p receiverproxy` and the rcvbp-wasm test that shells out to it.
 default-run = "rxp"
 
 [[bin]]

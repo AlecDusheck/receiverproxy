@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use std::fmt::Write as _;
 use std::sync::OnceLock;
 
-const TEXT: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../config/firmware.toml"));
+const TEXT: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/config/firmware.toml"));
 
 /// The manifest as a whole.
 #[derive(Debug, Clone, Deserialize)]

@@ -4,6 +4,8 @@ description = "Effects that lean on what an LED is, driven through the driver cr
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+# Not published: the example binary, not part of the `receiverproxy` install.
+publish = false
 
 [[bin]]
 name = "rxp-demo"

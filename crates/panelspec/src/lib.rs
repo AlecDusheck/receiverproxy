@@ -623,7 +623,7 @@ mod tests {
     fn a_spec_written_as_toml_reads_back_to_the_same_values() {
         let text = std::fs::read_to_string(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../config/panels/p25-128x64-sm16269s.toml"
+            "/config/panels/p25-128x64-sm16269s.toml"
         ))
         .unwrap();
         let spec = PanelSpec::parse(&text).unwrap();

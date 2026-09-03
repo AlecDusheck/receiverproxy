@@ -493,7 +493,7 @@ mod tests {
                 "run",
                 "-q",
                 "-p",
-                "cli",
+                "receiverproxy",
                 "--",
                 "config",
                 "gen",

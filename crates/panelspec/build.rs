@@ -1,13 +1,18 @@
 //! Embeds `config/chips/**/*.toml` and `config/panels/**/*.toml` as
-//! `(path, text)` pairs, path relative to the repository root. Non-mined
-//! files first, then `mined/`, each alphabetical (`embedded` in lib.rs).
+//! `(path, text)` pairs, path relative to the crate root. Non-mined files
+//! first, then `mined/`, each alphabetical (`embedded` in lib.rs).
+//!
+//! `crates/panelspec/config/{chips,panels}` are symlinks to the repository's
+//! `config/`: one copy of the files, and `cargo package` follows them, so a
+//! published crate carries the libraries it embeds.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 fn main() {
-    let root = Path::new(&std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set by cargo")).join("../..");
-    let root = root.canonicalize().unwrap_or(root);
+    // Not canonicalized: the paths below stay under the crate root, so `rel`
+    // keeps producing `config/chips/...` keys.
+    let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set by cargo"));
     let out = PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR is set by cargo"));
     let mut src = String::new();
     for (name, dir) in [("CHIPS", "config/chips"), ("PANELS", "config/panels")] {

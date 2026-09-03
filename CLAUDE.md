@@ -31,6 +31,11 @@ changing the supply.
 
 receiverproxy is the project, `rxp` is the command (`receiverproxy` is the same binary); crates are named for their role.
 
+The table's names are the Rust library names (and the directory names). The
+crates.io package name is `receiverproxy-<role>` (`cli` is published as
+`receiverproxy`; `demos` and `rcvbp-wasm` are `publish = false`), set with
+`[package] name` plus `[lib] name`, so no `use` path changes.
+
 | crate | owns |
 |---|---|
 | `colorlight` | frame builders; byte-exact against the vendor sender, pinned by tests |

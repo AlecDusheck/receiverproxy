@@ -185,7 +185,7 @@ shows constant-current.
    way back.
 3. **Model file.** Copy `config/cards/e120.toml`, set the id byte, the
    limits from the specification and the addresses from the dump, and
-   `status = "generates"`. `cargo test -p receivers` and `rxp card models`
+   `status = "generates"`. `cargo test -p receiverproxy-receivers` and `rxp card models`
    accept it; `rxp card probe` now runs against it without `--card`.
 4. **Spec.** A panel spec in `config/panels/` ([building-a-config.md](building-a-config.md)),
    started from the closest class in `config/panels/mined/` or from a vendor

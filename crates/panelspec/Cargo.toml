@@ -1,10 +1,18 @@
 [package]
-name = "panelspec"
+name = "receiverproxy-panelspec"
 description = "Vendor-neutral LED panel description: the TOML panel spec and the driver-chip library"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
 build = "build.rs"
+
+# Published as `receiverproxy-panelspec`; the library keeps its role name.
+[lib]
+name = "panelspec"
 
 [dependencies]
 anyhow.workspace = true

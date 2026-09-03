@@ -19,10 +19,12 @@ Tested on one card and one module, listed under [Tested](#tested). A firmware or
 Rust stable via [rustup](https://rustup.rs) (`rust-toolchain.toml` pins the channel), then:
 
 ```sh
-cargo install --path crates/cli
+cargo install receiverproxy      # installs `rxp` (and `receiverproxy`, the same binary)
 ```
 
-receiverproxy is the project, `rxp` is the command (`receiverproxy` is the same binary); crates are named for their role (`crates/cli` builds both).
+From a checkout: `cargo install --path crates/cli`.
+
+receiverproxy is the project, `rxp` is the command (`receiverproxy` is the same binary); crates are named for their role (`crates/cli` builds both). Each library crate is published as `receiverproxy-<role>` and keeps its role as the Rust library name, so `use colorlight::…` is unchanged.
 
 `rxp show video` and `rxp show stream` pipelines need `ffmpeg` on the PATH (`brew install ffmpeg`).
 
@@ -166,7 +168,7 @@ Multi-panel walls: provision each card with its own `--position x,y`, put the sa
 
 ## Demos
 
-`rxp-demo` (`cargo install --path crates/demos`) is a second binary on the same driver: effects that use what an LED is rather than what an LCD is. `list` prints the names with a line each; `cycle` runs them all in turn; Ctrl-C leaves the panel showing its last frame.
+`rxp-demo` (`cargo install --path crates/demos`; not published to crates.io) is a second binary on the same driver: effects that use what an LED is rather than what an LCD is. `list` prints the names with a line each; `cycle` runs them all in turn; Ctrl-C leaves the panel showing its last frame.
 
 ```sh
 rxp-demo stars

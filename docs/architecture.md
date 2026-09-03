@@ -184,6 +184,14 @@ and leaves the panel as it is.
 
 ## Crate responsibilities
 
+The names below are the Rust library names, which are also the directory
+names. On crates.io each is published as `receiverproxy-<role>`
+(`crates/cli` as `receiverproxy`, `demos` and `rcvbp-wasm` not at all); the
+library name is unchanged, so every `use` path stays as written here.
+`crates/panelspec/config` and `crates/receivers/config` are symlinks to the
+repository's `config/`: the build scripts read them, and `cargo package`
+follows them, so a published crate carries the libraries it embeds.
+
 | crate | owns | must not |
 |---|---|---|
 | `colorlight` | frame builders and reply parsers for every packet type; the flash/EEPROM/firmware allowlists as a `FlashMap` (the E120's values are the pinned constants); the `Protocol` trait a second vendor implements ([cards.md](cards.md)) | open sockets, sleep, sequence frames |

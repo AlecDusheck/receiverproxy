@@ -1,9 +1,17 @@
 [package]
-name = "rcvbp"
+name = "receiverproxy-rcvbp"
 description = "Parser for Colorlight .rcvbp receiver-parameter files"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+
+# Published as `receiverproxy-rcvbp`; the library keeps its role name.
+[lib]
+name = "rcvbp"
 
 [dependencies]
 panelspec.workspace = true

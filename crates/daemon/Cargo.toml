@@ -1,9 +1,17 @@
 [package]
-name = "daemon"
+name = "receiverproxy-daemon"
 description = "The receiverproxy daemon behind `rxp ui`: the token-gated JSON API and the web UI"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+
+# Published as `receiverproxy-daemon`; the library keeps its role name.
+[lib]
+name = "daemon"
 
 [dependencies]
 ops.workspace = true
@@ -29,14 +37,16 @@ libc.workspace = true
 dirs = "6"
 mime_guess = "2"
 ts-rs = { workspace = true, optional = true }
-rcvbp-wasm = { workspace = true, optional = true, features = ["ts"] }
 
 [features]
-# `cargo test -p daemon --features ts` writes web/src/api/types.ts from the
+# `cargo test -p receiverproxy-daemon --features ts` writes web/src/api/types.ts from the
 # request and response structs here, in wall, sources and rcvbp-wasm.
-ts = ["dep:ts-rs", "dep:rcvbp-wasm", "wall/ts", "sources/ts"]
+ts = ["dep:ts-rs", "wall/ts", "sources/ts"]
 
 [dev-dependencies]
+# Only the `ts` test reads these structs; a path-only dev dependency keeps
+# rcvbp-wasm (publish = false) out of the published package.
+rcvbp-wasm = { workspace = true, features = ["ts"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 

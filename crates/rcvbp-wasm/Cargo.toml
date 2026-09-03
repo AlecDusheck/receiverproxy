@@ -4,6 +4,8 @@ description = "rcvbp and wall for the browser: generate, inspect and diff config
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+# Not published: the browser build, not part of the `receiverproxy` install.
+publish = false
 
 [lib]
 # The rlib lets `daemon --features ts` read the response structs natively.

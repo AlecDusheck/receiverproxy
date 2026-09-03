@@ -219,19 +219,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
-name = "cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "daemon",
- "libc",
- "ops",
- "serde_json",
- "wall",
-]
-
-[[package]]
 name = "color_quant"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -242,10 +229,6 @@ name = "colorchoice"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
-
-[[package]]
-name = "colorlight"
-version = "0.1.0"
 
 [[package]]
 name = "cpufeatures"
@@ -276,45 +259,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "daemon"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64",
- "colorlight",
- "dirs",
- "getrandom",
- "http-body-util",
- "image",
- "include_dir",
- "libc",
- "mime_guess",
- "ops",
- "panelspec",
- "rcvbp",
- "rcvbp-wasm",
- "receivers",
- "serde",
- "serde_json",
- "sources",
- "tokio",
- "tokio-stream",
- "tower",
- "tower-http",
- "ts-rs",
- "wall",
-]
-
-[[package]]
 name = "demos"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "driver",
+ "receiverproxy-driver",
+ "receiverproxy-wall",
  "serde_json",
- "wall",
 ]
 
 [[package]]
@@ -346,16 +298,6 @@ dependencies = [
  "option-ext",
  "redox_users",
  "windows-sys",
-]
-
-[[package]]
-name = "driver"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "colorlight",
- "rawlink",
- "wall",
 ]
 
 [[package]]
@@ -750,39 +692,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
-name = "ops"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "colorlight",
- "dirs",
- "driver",
- "image",
- "libc",
- "panelspec",
- "rawlink",
- "rcvbp",
- "receivers",
- "serde_json",
- "sources",
- "wall",
-]
-
-[[package]]
 name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
-
-[[package]]
-name = "panelspec"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde",
- "toml",
- "ts-rs",
-]
 
 [[package]]
 name = "percent-encoding"
@@ -834,7 +747,111 @@ dependencies = [
 ]
 
 [[package]]
-name = "rawlink"
+name = "rcvbp-wasm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "receiverproxy-panelspec",
+ "receiverproxy-rcvbp",
+ "receiverproxy-receivers",
+ "receiverproxy-wall",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "toml",
+ "ts-rs",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "receiverproxy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "libc",
+ "receiverproxy-daemon",
+ "receiverproxy-ops",
+ "receiverproxy-wall",
+ "serde_json",
+]
+
+[[package]]
+name = "receiverproxy-colorlight"
+version = "0.1.0"
+
+[[package]]
+name = "receiverproxy-daemon"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64",
+ "dirs",
+ "getrandom",
+ "http-body-util",
+ "image",
+ "include_dir",
+ "libc",
+ "mime_guess",
+ "rcvbp-wasm",
+ "receiverproxy-colorlight",
+ "receiverproxy-ops",
+ "receiverproxy-panelspec",
+ "receiverproxy-rcvbp",
+ "receiverproxy-receivers",
+ "receiverproxy-sources",
+ "receiverproxy-wall",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
+ "tower",
+ "tower-http",
+ "ts-rs",
+]
+
+[[package]]
+name = "receiverproxy-driver"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "receiverproxy-colorlight",
+ "receiverproxy-rawlink",
+ "receiverproxy-wall",
+]
+
+[[package]]
+name = "receiverproxy-ops"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dirs",
+ "image",
+ "libc",
+ "receiverproxy-colorlight",
+ "receiverproxy-driver",
+ "receiverproxy-panelspec",
+ "receiverproxy-rawlink",
+ "receiverproxy-rcvbp",
+ "receiverproxy-receivers",
+ "receiverproxy-sources",
+ "receiverproxy-wall",
+ "serde_json",
+]
+
+[[package]]
+name = "receiverproxy-panelspec"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "toml",
+ "ts-rs",
+]
+
+[[package]]
+name = "receiverproxy-rawlink"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -842,42 +859,43 @@ dependencies = [
 ]
 
 [[package]]
-name = "rcvbp"
+name = "receiverproxy-rcvbp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "flate2",
- "panelspec",
- "receivers",
+ "receiverproxy-panelspec",
+ "receiverproxy-receivers",
  "serde",
  "toml",
  "ts-rs",
 ]
 
 [[package]]
-name = "rcvbp-wasm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "panelspec",
- "rcvbp",
- "receivers",
- "serde",
- "serde-wasm-bindgen",
- "serde_json",
- "toml",
- "ts-rs",
- "wall",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "receivers"
+name = "receiverproxy-receivers"
 version = "0.1.0"
 dependencies = [
  "serde",
  "sha2",
  "toml",
+]
+
+[[package]]
+name = "receiverproxy-sources"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "receiverproxy-wall",
+ "ts-rs",
+]
+
+[[package]]
+name = "receiverproxy-wall"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "ts-rs",
 ]
 
 [[package]]
@@ -1026,15 +1044,6 @@ checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
  "windows-sys",
-]
-
-[[package]]
-name = "sources"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ts-rs",
- "wall",
 ]
 
 [[package]]
@@ -1275,15 +1284,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "wall"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "ts-rs",
-]
 
 [[package]]
 name = "wasi"

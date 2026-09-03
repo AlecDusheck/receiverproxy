@@ -725,7 +725,7 @@ pnpm deploy                  # wrangler deploy, web/wrangler.jsonc: receiverprox
 
 # the embedded copy: adapter-static into web/build-static, then the daemon
 cd web && pnpm build:embed   # ADAPTER=static vite build
-cargo build --release -p cli   # embeds web/build-static
+cargo build --release -p receiverproxy   # embeds web/build-static
 cargo install --path crates/cli
 rxp ui                       # prints and opens http://127.0.0.1:7120/#token=<random>
 rxp ui --iface en24 --port 7120 --no-open --token secret
@@ -751,7 +751,7 @@ and `sources::{Fit, Pattern}` derive `ts_rs::TS` behind a `ts` feature in
 each crate, and
 
 ```sh
-cargo test -p daemon --features ts
+cargo test -p receiverproxy-daemon --features ts
 ```
 
 writes them, one `export type` each in the order of this document. The

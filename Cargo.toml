@@ -6,6 +6,12 @@ members = ["crates/*"]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+repository = "https://github.com/AlecDusheck/receiverproxy"
+keywords = ["led", "display", "ethernet", "hardware", "colorlight"]
+categories = ["hardware-support"]
+# Kept out of every published .crate: the web app, the vendor archives, the
+# research notes and the local flash dumps.
+exclude = ["web/", "third-party/", "vendor/", "docs/", "build/", "card-dumps/", "analysis/", "*.pcap", "*.bin"]
 
 # Fat LTO so the per-row frame builders inline into the driver's send loop.
 # `panic` stays at unwind: Drop (the raw link fd) must still run on a panic.
@@ -14,16 +20,19 @@ lto = "fat"
 codegen-units = 1
 
 [workspace.dependencies]
-colorlight = { path = "crates/colorlight" }
-panelspec = { path = "crates/panelspec" }
-receivers = { path = "crates/receivers" }
-rcvbp = { path = "crates/rcvbp" }
-rawlink = { path = "crates/rawlink" }
-wall = { path = "crates/wall" }
-sources = { path = "crates/sources" }
-driver = { path = "crates/driver" }
-ops = { path = "crates/ops" }
-daemon = { path = "crates/daemon" }
+# Published under `receiverproxy-<role>`; the lib name each crate is used by
+# stays the role (`use colorlight::…`), so the dependency key is the role.
+colorlight = { package = "receiverproxy-colorlight", path = "crates/colorlight", version = "0.1.0" }
+panelspec = { package = "receiverproxy-panelspec", path = "crates/panelspec", version = "0.1.0" }
+receivers = { package = "receiverproxy-receivers", path = "crates/receivers", version = "0.1.0" }
+rcvbp = { package = "receiverproxy-rcvbp", path = "crates/rcvbp", version = "0.1.0" }
+rawlink = { package = "receiverproxy-rawlink", path = "crates/rawlink", version = "0.1.0" }
+wall = { package = "receiverproxy-wall", path = "crates/wall", version = "0.1.0" }
+sources = { package = "receiverproxy-sources", path = "crates/sources", version = "0.1.0" }
+driver = { package = "receiverproxy-driver", path = "crates/driver", version = "0.1.0" }
+ops = { package = "receiverproxy-ops", path = "crates/ops", version = "0.1.0" }
+daemon = { package = "receiverproxy-daemon", path = "crates/daemon", version = "0.1.0" }
+# Not published: the browser build of rcvbp and wall.
 rcvbp-wasm = { path = "crates/rcvbp-wasm" }
 
 anyhow = "1"

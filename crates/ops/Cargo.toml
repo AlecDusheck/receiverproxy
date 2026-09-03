@@ -1,9 +1,17 @@
 [package]
-name = "ops"
+name = "receiverproxy-ops"
 description = "The receiverproxy commands as functions, shared by the rxp binary and the daemon"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude.workspace = true
+
+# Published as `receiverproxy-ops`; the library keeps its role name.
+[lib]
+name = "ops"
 
 [dependencies]
 colorlight.workspace = true

@@ -9,6 +9,14 @@ sources = 6
 agreement = 0.75
 examples = ["Q5E8(16159S+2013)-W2.rcvbp", "Q5E8(16159S+2013)-W4.rcvbp", "Q5E8(16159S+5166)-W2.rcvbp"]
 vendors = ["Colorlight"]
+maker = "EagerLED"
+product = "Outdoor P5 SMD1921 1/8Scan 64x32dot 320x160mm LED Screen Module"
+pitch_mm = 5.0
+url = "https://eager-led.com/products/outdoor-p5-320x160mm-smd-led-screen-module/"
+datasheet = "https://www.neumueller.com/datenblatt/macroblock/MBI5153%20Datenblatt%20-%20Datasheet.pdf"
+image = "https://assets.receiverproxy.com/images/panels/64x32-8s-mbi5153.jpg"
+image_source = "EagerLED product photo"
+notes = "Matched to a product on sale at medium confidence: Module page confirms 64x32, 1/8 duty, 5mm pitch, 320x160mm. EagerLED's own outdoor-module IC listing names MBI5153 as one of the ICs used for outdoor displays, but this specific product page does not name it, so kept medium."
 
 [module]
 width = 64

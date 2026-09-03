@@ -9,7 +9,13 @@ sources = 6
 agreement = 1.00
 examples = ["Q5E8(3264+32019)-W2.rcvbp", "Q5H19B8(3256+32019)-W2.rcvbp", "Q5H19B8(3256+32020)-W2.rcvbp"]
 vendors = ["Colorlight"]
-
+maker = "EagerLED"
+product = "Outdoor P5 SMD1921 1/8Scan 64x32dot 320x160mm LED Screen Module"
+pitch_mm = 5.0
+url = "https://eager-led.com/products/outdoor-p5-320x160mm-smd-led-screen-module/"
+image = "https://assets.receiverproxy.com/images/panels/64x32-8s-dp5525.jpg"
+image_source = "EagerLED product photo"
+notes = "Matched to a product on sale at medium confidence: Page states Module Resolution 64(L)x32(H)px, 'Constant current, 1/8 duty', 5mm pitch, 320x160mm - all matching. Driver IC not named on page; DP5525 is one of several interchangeable 16-ch constant-current 1/8-duty drivers fitted to this generic outdoor-P5 family by batch. Six rows below (dp5525/ls9930/mbi5153/sm16169s/sm16237ds/sm16259) all resolve to this same product page - genuinely indistinguishable without chip-specific listings."
 [module]
 width = 64
 height = 32

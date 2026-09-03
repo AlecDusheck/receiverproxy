@@ -9,6 +9,13 @@ sources = 6
 agreement = 0.86
 examples = ["Q5E8(9933+9735)-W4 .rcvbp", "Q5E8(9933+7262)-W2 .rcvbp", "Q5E8(9933+32019).rcvbp"]
 vendors = ["Colorlight"]
+maker = "EagerLED"
+product = "Outdoor P5 SMD1921 1/8Scan 64x32dot 320x160mm LED Screen Module"
+pitch_mm = 5.0
+url = "https://eager-led.com/products/outdoor-p5-320x160mm-smd-led-screen-module/"
+image = "https://assets.receiverproxy.com/images/panels/64x32-8s-ls9930.jpg"
+image_source = "EagerLED product photo"
+notes = "Matched to a product on sale at medium confidence: Same module (64x32, 1/8 duty, 5mm pitch, 320x160mm confirmed on page). Chip not named on page; LS9930 is one of the common interchangeable outdoor-P5 1/8-scan driver ICs used across this generic module family."
 
 [module]
 width = 64

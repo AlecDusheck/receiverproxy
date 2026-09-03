@@ -9,6 +9,13 @@ sources = 25
 agreement = 0.93
 examples = ["P3.91-16S-2050-64X64-250X250-5958-KST.rcvbp", "P3.91-64x64-16S-2153+2012-HL4.0-8.63-E80.rcvbp", "P3.91-16S-2153-5958-64X64-250X250-KST-1.21Z.rcvbp"]
 vendors = ["Colorlight"]
+maker = "led-card.com"
+product = "P2.5 outdoor LED Module acute angle"
+pitch_mm = 2.5
+url = "https://www.led-card.com/p2-5-outdoor-acute-angle-module.html"
+image = "https://assets.receiverproxy.com/images/panels/64x64-16s-icn2053.jpg"
+image_source = "led-card.com product photo"
+notes = "Matched to a product on sale at medium confidence: Same generic 64x64/16-scan module; ICN2053 is documented (Olympian LED) as a 1:32-multiplex chip, so this 1/16 assignment is uncertain; chip not confirmed on product page."
 
 [module]
 width = 64

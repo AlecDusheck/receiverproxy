@@ -9,6 +9,13 @@ sources = 17
 agreement = 1.00
 examples = ["P3.91-2038S-16S.rcvbp", "P3.91-64x64-16S-2038S+2012-HL4.0-10.16-E80-floor screen.rcvbp", "P3+2038S+64X64-16S.rcvbp"]
 vendors = ["Colorlight"]
+maker = "led-card.com"
+product = "P2.5 outdoor LED Module acute angle"
+pitch_mm = 2.5
+url = "https://www.led-card.com/p2-5-outdoor-acute-angle-module.html"
+image = "https://assets.receiverproxy.com/images/panels/64x64-16s-icn2038s.jpg"
+image_source = "led-card.com product photo"
+notes = "Matched to a product on sale at medium confidence: Same generic 64x64/16-scan module as dp5525 row; chip not stated on page, could be any of several driver ICs; P3.91 250x250mm variant fits equally."
 
 [module]
 width = 64

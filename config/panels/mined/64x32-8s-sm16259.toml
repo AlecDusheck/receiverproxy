@@ -9,6 +9,14 @@ sources = 11
 agreement = 0.85
 examples = ["Q5E8(16259+5166)-W1.rcvbp", "Q5E8(16259+5166)-W3.rcvbp", "Q5E8(16259+2013)-W1.rcvbp"]
 vendors = ["Colorlight"]
+maker = "EagerLED"
+product = "Outdoor P5 SMD1921 1/8Scan 64x32dot 320x160mm LED Screen Module"
+pitch_mm = 5.0
+url = "https://eager-led.com/products/outdoor-p5-320x160mm-smd-led-screen-module/"
+datasheet = "https://olympianled.com/product/sunmoon-sm16259/"
+image = "https://assets.receiverproxy.com/images/panels/64x32-8s-sm16259.jpg"
+image_source = "EagerLED product photo"
+notes = "Matched to a product on sale at medium confidence: Same 64x32/1/8-duty/5mm/320x160mm module confirmed on page. Sunmoon SM16259 is documented as a 1-32 scan constant-current driver, consistent with 1/8 duty, but not named on this specific module listing."
 
 [module]
 width = 64

@@ -8,6 +8,16 @@
   import { save } from "$lib/download";
   import { zip } from "$lib/zip";
   import type { Format } from "$api/types";
+  import Hint from "$parts/Hint.svelte";
+
+  /** What each generated file is, keyed by its suffix. */
+  const HINTS: [string, string][] = [
+    [".rcvbp", "The receiving card configuration file: load it in the vendor software, or flash it with rxp."],
+    ["-block7.bin", "The 64 KB image the card keeps in flash block 7 and loads at power-on: the configuration plus the pixel map, scan table and chip page the card reads directly."],
+    ["-basic-pack.bin", "The 256-byte parameter block at the head of the boot image: geometry, scan, grey depth and timing, the first thing the card reads."],
+    ["-sources.txt", "Where every byte of the generated files came from: a vendor default, a field of the spec, a chip library value or a decoded formula."],
+  ];
+  const hint = (name: string) => HINTS.find(([suffix]) => name.endsWith(suffix))?.[1] ?? "";
 
   let {
     toml,
@@ -60,9 +70,9 @@
       <thead><tr><th>file</th><th class="num">bytes</th><th></th></tr></thead>
       <tbody>
         {#each g.files as f (f.name)}
-          <tr><td class="mono">{f.name}</td><td class="num">{f.bytes.length}</td><td><button onclick={() => save(f.name, f.bytes)}>download</button></td></tr>
+          <tr><td class="mono">{f.name}<Hint text={hint(f.name)} /></td><td class="num">{f.bytes.length}</td><td><button onclick={() => save(f.name, f.bytes)}>download</button></td></tr>
         {/each}
-        <tr><td class="mono">{g.name}-sources.txt</td><td class="num">{g.sources.join("\n").length + 1}</td><td><button onclick={() => save(`${g.name}-sources.txt`, new TextEncoder().encode(g.sources.join("\n") + "\n"))}>download</button></td></tr>
+        <tr><td class="mono">{g.name}-sources.txt<Hint text={hint("-sources.txt")} /></td><td class="num">{g.sources.join("\n").length + 1}</td><td><button onclick={() => save(`${g.name}-sources.txt`, new TextEncoder().encode(g.sources.join("\n") + "\n"))}>download</button></td></tr>
       </tbody>
     </table>
   </div>

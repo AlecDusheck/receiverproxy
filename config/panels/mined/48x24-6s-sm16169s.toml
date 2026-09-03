@@ -9,6 +9,14 @@ sources = 7
 agreement = 1.00
 examples = ["Q6H25B6(16169+5368) .rcvbp", "Q6H25B6(16169+5158) .rcvbp", "Q6H25B6(16169+32020) .rcvbp"]
 vendors = ["Colorlight"]
+maker = "EagerLED"
+product = "P6.67 Outdoor SMD LED Display Screen Module 320x160mm"
+pitch_mm = 6.67
+url = "https://eager-led.com/products/p6-67-outdoor-smd-led-display-screen-module-320x160mm/"
+datasheet = "https://eager-led.com/specifications/P6.67_Outdoor_SMD2525_320x160mm_LED_Module_Specification1040.pdf"
+image = "https://assets.receiverproxy.com/images/panels/48x24-6s-sm16169s.jpg"
+image_source = "EagerLED product photo"
+notes = "Matched to a product on sale at medium confidence: Same module page; 48x24 px and 1/6 scan confirmed; SM16169S seen as drive IC on other SMD full-color module listings but not on this page."
 
 [module]
 width = 48

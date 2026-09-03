@@ -9,6 +9,13 @@ sources = 8
 agreement = 1.00
 examples = ["P3.91-64x32-16s-5124-7258.rcvbp", "p3.91-5124GP-16S.rcvbp", "P3.91-1921-16S-HL3.0-MBI5124.rcvbp"]
 vendors = ["Colorlight"]
+maker = "led-card.com"
+product = "P2.5 outdoor LED Module acute angle"
+pitch_mm = 2.5
+url = "https://www.led-card.com/p2-5-outdoor-acute-angle-module.html"
+image = "https://assets.receiverproxy.com/images/panels/64x64-16s-mbi5124.jpg"
+image_source = "led-card.com product photo"
+notes = "Matched to a product on sale at medium confidence: Same generic 64x64/16-scan module as sibling rows; chip not stated on page."
 
 [module]
 width = 64

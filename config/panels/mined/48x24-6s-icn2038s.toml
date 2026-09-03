@@ -9,7 +9,14 @@ sources = 7
 agreement = 1.00
 examples = ["P6.67-48x24-6S-2046+2012-S.rcvbp", "P6.67-48x24-6S-2038S+2012-V2.3.rcvbp", "P6.67-48x24-6S-2037+2012-V2.3.rcvbp"]
 vendors = ["Colorlight"]
-
+maker = "EagerLED"
+product = "P6.67 Outdoor SMD LED Display Screen Module 320x160mm"
+pitch_mm = 6.67
+url = "https://eager-led.com/products/p6-67-outdoor-smd-led-display-screen-module-320x160mm/"
+datasheet = "https://eager-led.com/specifications/P6.67_Outdoor_SMD2525_320x160mm_LED_Module_Specification1040.pdf"
+image = "https://assets.receiverproxy.com/images/panels/48x24-6s-icn2038s.jpg"
+image_source = "EagerLED product photo"
+notes = "Matched to a product on sale at medium confidence: Page states 48x24 pixel matrix and 1/6 duty scan; spec sheet lists driver only as 'general driver IC', so ICN2038S unconfirmed by name. Same product page also serves the ls9930/sm16169s/sm16237ds/sm16259 rows below."
 [module]
 width = 48
 height = 24

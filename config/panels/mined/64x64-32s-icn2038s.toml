@@ -9,6 +9,13 @@ sources = 16
 agreement = 1.00
 examples = ["P3.91(2121)64X64-32S-V4.0-HX-ICN2038S-1920Hz.rcvbp", "Q3F32(2046+2013)-W1.rcvbp", "Q3F32(2046+5266)-W1.rcvbp"]
 vendors = ["Colorlight"]
+maker = "Adafruit"
+product = "64x64 RGB LED Matrix - 2.5mm Pitch [1/32 Scan]"
+pitch_mm = 2.5
+url = "https://www.adafruit.com/product/3649"
+image = "https://assets.receiverproxy.com/images/panels/64x64-32s-icn2038s.jpg"
+image_source = "Adafruit product photo"
+notes = "Matched to a product on sale at medium confidence: Same generic 64x64/32-scan module as sibling rows; chip not stated on page."
 
 [module]
 width = 64

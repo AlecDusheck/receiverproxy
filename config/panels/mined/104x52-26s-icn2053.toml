@@ -9,6 +9,14 @@ sources = 13
 agreement = 1.00
 examples = ["P2.4-2121-104x104-26S-V1.0-3900Hz-208x208-ICN2053.rcvbp", "P1.923-26S-104x52 (208x156)-ICN2053.rcvbp", "Q3.0AH26(2053+5166)-W1.rcvbp"]
 vendors = ["Colorlight"]
+maker = "EagerLED"
+product = "P3.076 Indoor 320x160mm LED Screen Magnet Soft Flexible LED Module"
+pitch_mm = 3.076
+url = "https://www.eager-led.com/products/p3-076-indoor-320x160mm-led-screen-magnet-soft-flexible-led-module-1"
+datasheet = "https://eager-led.com/specifications/EA-Flex-Indoor-Flexible-LED-Display-2.pdf"
+image = "https://assets.receiverproxy.com/images/panels/104x52-26s-icn2053.jpg"
+image_source = "EagerLED product photo"
+notes = "Matched to a product on sale at medium confidence: matrix, pitch, and 1/26 scan confirmed; driver chip not stated on this page."
 
 [module]
 width = 104

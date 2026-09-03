@@ -9,6 +9,14 @@ sources = 5
 agreement = 0.71
 examples = ["P6+2153+32X32-8S.rcvbp", "Q6D8(2053+5166)-W4.rcvbp", "Q6D8(2053+2013)-W4.rcvbp"]
 vendors = ["Colorlight"]
+maker = "EagerLED"
+product = "P6 Outdoor SMD3535 192x192mm LED Screen Module"
+pitch_mm = 6.0
+url = "https://eager-led.com/products/p6-outdoor-smd3535-192x192mm-led-screen-module/"
+datasheet = "https://eager-led.com/specifications/HP6_Outdoor_SMD3535_192x192mm_LED_Module_Specification.pdf"
+image = "https://assets.receiverproxy.com/images/panels/32x32-8s-icn2053.jpg"
+image_source = "EagerLED product photo"
+notes = "Matched to a product on sale at medium confidence: Page states 32x32 pixel matrix and 1/8 scan; pitch derived 192/32=6mm. Driver IC not named on page, so ICN2053 unconfirmed. A near-identical SMD2727 variant page fits equally well."
 
 [module]
 width = 32

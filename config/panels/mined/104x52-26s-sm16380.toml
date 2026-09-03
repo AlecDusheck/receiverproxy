@@ -9,6 +9,13 @@ sources = 7
 agreement = 1.00
 examples = ["Q3.0AH26(16380+2013)-W1.rcvbp", "Q3.0AH26(16380+5266)-W1.rcvbp", "Q3.0AH26(16380+32019)-W1.rcvbp"]
 vendors = ["Colorlight"]
+maker = "LedLightsWorld"
+product = "IF-3S Series Indoor Flexible LED Module P3.076"
+pitch_mm = 3.076
+url = "https://www.ledlightsworld.com/products/if-3s-series-indoor-flexible-led-module-p3-076-320-160mm-smd-soft-back-shell-with-magnet-600nits"
+image = "https://assets.receiverproxy.com/images/panels/104x52-26s-sm16380.jpg"
+image_source = "LedLightsWorld product photo"
+notes = "Matched to a product on sale at medium confidence: pixel matrix (104x52) and scan (1/26) confirmed on product page; SM16380 chip not stated on this page but documented elsewhere as standard driver for this P3.076/104x52/1-26scan SMD1515 module class."
 
 [module]
 width = 104

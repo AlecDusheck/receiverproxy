@@ -9,7 +9,14 @@ sources = 12
 agreement = 0.92
 examples = ["outdoorP3.07-6353-5958-104416-3840-2019.13.31.rcvbp", "P3.076-13S-104X52-2153+2012-5.88.rcvbp", "P3.076-104x52-13S-2153+2012-V1.1.rcvbp"]
 vendors = ["Colorlight"]
-
+maker = "EagerLED"
+product = "P3.076 Outdoor 320x160mm LED Screen Display Module (Model P3.076-O13S-SMD1415-104x52-E)"
+pitch_mm = 3.076
+url = "https://www.eager-led.com/products/outdoor-p3-076-320x160mm-led-screen-display-module"
+datasheet = "https://eager-led.com/specifications/P3.076_Outdoor_SMD1415_320x160mm_Module_Specification_0412.pdf"
+image = "https://assets.receiverproxy.com/images/panels/104x52-13s-icn2053.jpg"
+image_source = "EagerLED product photo"
+notes = "Matched to a product on sale at medium confidence: matrix, pitch, and 1/13 scan confirmed on datasheet (model no. includes 'O13S'); driver chip not stated on page or datasheet, ICN2053 unconfirmed."
 [module]
 width = 104
 height = 52

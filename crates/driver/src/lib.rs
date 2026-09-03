@@ -110,10 +110,11 @@ impl<S: FrameSink> Wall<S> {
     /// # Errors
     /// Fails if the canvas is inconsistent or too large for the row packet's
     /// u16 coordinates (every receiver lies inside it, so they fit too).
-    pub fn with_sink(dev: S, canvas: Canvas, settings: Settings) -> Result<Self> {
+    pub fn with_sink(dev: S, canvas: Canvas, mut settings: Settings) -> Result<Self> {
         canvas.validate()?;
         let (sw, sh) = canvas.screen_size();
         fits_u16(sw, sh).context("screen is larger than 65535 px")?;
+        settings.brightness = canvas.clamp_brightness(settings.brightness);
         Ok(Self {
             dev,
             screen: canvas.screen_frame(),

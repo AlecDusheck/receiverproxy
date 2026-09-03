@@ -58,14 +58,14 @@ export function chainOrder(cards: Count, start: Corner, direction: Direction, se
 export function layoutFromGrid(g: Grid): Canvas {
   const card = cardSize(g);
   const screen = screenSize(g);
-  const c: Canvas = { width: screen.width, height: screen.height, receivers: [], panels: [] };
+  const c: Canvas = { width: screen.width, height: screen.height, receivers: [], panels: [], max_brightness: 255 };
   chainOrder(g.cards, g.start, g.direction, g.serpentine).forEach(([col, row], index) => {
     const x = col * card.width, y = row * card.height;
     c.receivers.push({ index, x, y, width: card.width, height: card.height });
     for (let pr = 0; pr < g.perCard.rows; pr++)
       for (let pc = 0; pc < g.perCard.columns; pc++) {
         const rx = pc * g.module.width, ry = pr * g.module.height;
-        c.panels.push({ receiver: index, receiver_x: rx, receiver_y: ry, x: x + rx, y: y + ry, width: g.module.width, height: g.module.height, rotation: "none", flip_x: false, flip_y: false });
+        c.panels.push({ receiver: index, receiver_x: rx, receiver_y: ry, x: x + rx, y: y + ry, width: g.module.width, height: g.module.height, rotation: "none", flip_x: false, flip_y: false, max_brightness: 255 });
       }
   });
   return c;

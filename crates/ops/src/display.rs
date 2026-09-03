@@ -49,7 +49,8 @@ fn frame_period() -> Duration {
     Duration::from_millis(env_or("RXP_FRAME_MS", 33))
 }
 
-/// Set the panel's brightness.
+/// Set the wall's brightness: `value` held under the layout's cap
+/// (`max_brightness` on the wall and its panels). Returns what was sent.
 ///
 /// The brightness frame, then the latches that commit it, in the order and
 /// with the gap a refresh uses: one latch with no gap leaves a held frame at
@@ -57,7 +58,8 @@ fn frame_period() -> Duration {
 ///
 /// # Errors
 /// Fails if the link cannot be opened.
-pub fn brightness(ctx: &Ctx, value: u8) -> Result<()> {
+pub fn brightness(ctx: &Ctx, canvas: &Canvas, value: u8) -> Result<u8> {
+    let value = canvas.clamp_brightness(value);
     let timing = wall_settings(ctx).timing;
     let mut dev = open(ctx)?;
     dev.send(&protocol::brightness(value))?;
@@ -65,7 +67,7 @@ pub fn brightness(ctx: &Ctx, value: u8) -> Result<()> {
     for _ in 0..timing.latches {
         dev.send(&protocol::sync(value))?;
     }
-    Ok(())
+    Ok(value)
 }
 
 /// Play a video source onto the wall in `layout`, or a single panel.

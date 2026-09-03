@@ -603,10 +603,19 @@ export type Panel = {
   rotation: Rotation;
   flip_x: boolean;
   flip_y: boolean;
+  /**
+   * The most brightness this panel may be sent, 0-255; the wall's
+   * brightness is clamped to the lowest cap among its panels.
+   */
+  max_brightness: number;
 };
 export type Canvas = {
   width: number;
   height: number;
   receivers: Array<Receiver>;
   panels: Array<Panel>;
+  /**
+   * The most brightness the wall may be sent, 0-255.
+   */
+  max_brightness: number;
 };

@@ -32,8 +32,8 @@ test("panels sit on their card at module steps, unturned", () => {
   assert.equal(c.panels.length, 6 * 8);
   const card4 = c.panels.filter((p) => p.receiver === 4);
   assert.equal(card4.length, 8);
-  assert.deepEqual(card4[0], { receiver: 4, receiver_x: 0, receiver_y: 0, x: 256, y: 256, width: 128, height: 64, rotation: "none", flip_x: false, flip_y: false });
-  assert.deepEqual(card4[7], { receiver: 4, receiver_x: 128, receiver_y: 192, x: 384, y: 448, width: 128, height: 64, rotation: "none", flip_x: false, flip_y: false });
+  assert.deepEqual(card4[0], { receiver: 4, receiver_x: 0, receiver_y: 0, x: 256, y: 256, width: 128, height: 64, rotation: "none", flip_x: false, flip_y: false, max_brightness: 255 });
+  assert.deepEqual(card4[7], { receiver: 4, receiver_x: 128, receiver_y: 192, x: 384, y: 448, width: 128, height: 64, rotation: "none", flip_x: false, flip_y: false, max_brightness: 255 });
 });
 
 // A 3 x 2 grid of cards, each chain order as [column,row] cells.
@@ -96,7 +96,7 @@ test("a layout the grid cannot express is null", () => {
   const missing = structuredClone(c);
   missing.panels.pop();
   assert.equal(gridOf(missing), null);
-  assert.equal(gridOf({ width: 128, height: 64, receivers: [], panels: [] }), null);
+  assert.equal(gridOf({ width: 128, height: 64, receivers: [], panels: [], max_brightness: 255 }), null);
 });
 
 test("optional fields default as the JSON does", () => {

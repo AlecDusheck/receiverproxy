@@ -165,7 +165,7 @@ rxp flash restore --dir before --commit           # configuration back, not firm
 
 `rxp ui` serves the same commands as a web UI and a JSON API on `http://127.0.0.1:7120`; see [Web app](#web-app).
 
-Multi-panel walls: provision each card with its own `--position x,y`, put the same `x,y` on that card's receiver entry in a layout file (`rxp card layout-example` prints a two-card one; panels are placed inside their receiver) and stream it with `rxp show video --layout wall.json`. Every card hears the whole screen and keeps its own window of it. Several modules chained on one hub port are one screen to the card (`[screen]` in the panel spec); rotated or mirrored mounting is described per panel in the layout.
+Multi-panel walls: provision each card with its own `--position x,y`, put the same `x,y` on that card's receiver entry in a layout file (`rxp card layout-example` prints a two-card one; panels are placed inside their receiver) and stream it with `rxp show video --layout wall.json`. Every card hears the whole screen and keeps its own window of it. Several modules chained on one hub port are one screen to the card (`[screen]` in the panel spec); rotated or mirrored mounting and a brightness cap (`max_brightness`) are described in the layout.
 
 ## Demos
 

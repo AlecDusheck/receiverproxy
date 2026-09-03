@@ -21,7 +21,8 @@
       "height": 128,
       "rotation": "cw90",
       "flip_x": false,
-      "flip_y": false
+      "flip_y": false,
+      "max_brightness": 255
     },
     {
       "receiver": 0,
@@ -33,7 +34,9 @@
       "height": 128,
       "rotation": "cw90",
       "flip_x": false,
-      "flip_y": false
+      "flip_y": false,
+      "max_brightness": 255
     }
-  ]
+  ],
+  "max_brightness": 64
 }

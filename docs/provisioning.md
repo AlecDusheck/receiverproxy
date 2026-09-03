@@ -132,6 +132,9 @@ P2.5 128x64 SM16269S modules on an E120 (`config/panels/p25-2x128x64-chain.toml`
 * The boot image's void-line column table (block 7, `0x1400`) gates the
   chain positions past the real pixels. It starts at the screen width; a
   gate at the module width blanks the second module's real columns.
+* Brightness is capped in the layout: `max_brightness` (0-255) on the wall
+  and on any panel; `rxp brightness`, every `show` and the daemon clamp to
+  the lowest one.
 * Mounting is the layout's business. Modules turned on their side make a
   canvas (what the sender draws) that differs from the screen (what the
   cards are addressed in); `config/walls/two-stacked-rotated.json` is two

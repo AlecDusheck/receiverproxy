@@ -64,6 +64,7 @@
 
 <div class="row mb-4">
   <label>screen <input type="number" bind:value={app.wall.width} min="1" aria-label="screen width" /> x <input type="number" bind:value={app.wall.height} min="1" aria-label="screen height" /></label>
+  <label>max brightness <input type="number" bind:value={app.wall.max_brightness} min="0" max="255" aria-label="max brightness" /></label>
   <button onclick={() => { addReceiver(wall); sel = { kind: "receiver", i: wall.receivers.length - 1 }; }}>add card</button>
   <button onclick={() => { const r = sel?.kind === "receiver" ? wall.receivers[sel.i]!.index : (wall.receivers[0]?.index ?? 0); addPanel(wall, r); sel = { kind: "panel", i: wall.panels.length - 1 }; }} disabled={!wall.receivers.length}>add panel</button>
   <button onclick={remove} disabled={!sel}>remove selected</button>

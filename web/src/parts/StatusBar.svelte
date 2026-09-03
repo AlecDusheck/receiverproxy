@@ -7,6 +7,7 @@
   // Everything here reads `app.live`, which +layout subscribes to once;
   // nothing polls.
   import { app } from "$lib/state.svelte";
+  import { brightnessCap } from "$lib/layout";
   import { ops } from "$api/ops";
   import { errText } from "$lib/error";
   import type { Card } from "$api/types";
@@ -19,7 +20,8 @@
 
   // The value the slider holds while dragging; the daemon's between drags.
   let dragged = $state<number | null>(null);
-  const brightness = $derived(dragged ?? live?.brightness ?? 255);
+  const cap = $derived(brightnessCap(app.wall));
+  const brightness = $derived(Math.min(dragged ?? live?.brightness ?? 255, cap));
   let error = $state("");
 
   const position = (c: Card) => {
@@ -77,13 +79,13 @@
       <input
         type="range"
         min="0"
-        max="255"
+        max={cap}
         value={brightness}
         oninput={(e) => (dragged = e.currentTarget.valueAsNumber)}
         onchange={(e) => void setBrightness(e.currentTarget.valueAsNumber)}
         aria-label="brightness"
       />
-      <span class="mono value">{brightness}</span>
+      <span class="mono value">{brightness}{#if cap < 255}<span class="muted">/{cap}</span>{/if}</span>
     </label>
     <button class="blank" onclick={() => run(() => ops.card!.showBlank())}>blank</button>
   </footer>

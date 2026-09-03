@@ -271,9 +271,10 @@ async fn brightness(
     State(state): State<Shared>,
     Body(req): Body<Brightness>,
 ) -> ApiResult<Json<Brightness>> {
-    let value = req.value;
+    let wall = state.wall();
+    let value = wall.clamp_brightness(req.value);
     state
-        .command("brightness", move |ctx, _| display::brightness(ctx, value))
+        .command("brightness", move |ctx, _| display::brightness(ctx, &wall, value).map(|_| ()))
         .await?;
     let mut s = state.settings();
     s.brightness = value;

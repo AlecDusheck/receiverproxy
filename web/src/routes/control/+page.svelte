@@ -7,6 +7,7 @@
   import Lines from "$parts/Lines.svelte";
   import KeyValue from "$parts/KeyValue.svelte";
   import { app } from "$lib/state.svelte";
+  import { brightnessCap } from "$lib/layout";
   import { ops } from "$api/ops";
   import { Action } from "$lib/action.svelte";
   import type { Card, Outcome, Pattern, Started } from "$api/types";
@@ -21,7 +22,8 @@
   const discover = new Action<Card[]>("discover");
   const runDiscover = () => discover.run(() => ops.card!.discover());
 
-  let brightness = $state(app.live?.brightness ?? app.settings?.brightness ?? 255);
+  const cap = $derived(brightnessCap(app.wall));
+  let brightness = $state(Math.min(app.live?.brightness ?? app.settings?.brightness ?? 255, brightnessCap(app.wall)));
   const bright = new Action<number>("brightness");
   const setBrightness = () => bright.run(() => ops.card!.brightness(brightness));
 
@@ -74,10 +76,11 @@
   <section>
     <h2>Brightness</h2>
     <div class="row">
-      <input type="range" min="0" max="255" bind:value={brightness} aria-label="brightness" />
-      <input type="number" min="0" max="255" bind:value={brightness} aria-label="brightness value" />
+      <input type="range" min="0" max={cap} bind:value={brightness} aria-label="brightness" />
+      <input type="number" min="0" max={cap} bind:value={brightness} aria-label="brightness value" />
       <button onclick={setBrightness} disabled={bright.busy}>set</button>
     </div>
+    {#if cap < 255}<p class="muted">the layout caps brightness at {cap} (<a href="/wall/layout">max brightness</a>)</p>{/if}
     {#if bright.error}<p class="error">{bright.error}</p>{/if}
     {#if bright.result !== null}<p class="ok">brightness {bright.result}</p>{/if}
   </section>

@@ -27,7 +27,9 @@ test("the bench spec is first, verified, and reads its chip library", () => {
   assert.equal(bench.meta.image_source, "eager-led.com product photo");
   assert.equal(bench.chip.vendor, "Sunmoon");
   assert.match(bench.chip.datasheet ?? "", /sm16269\.pdf$/);
-  assert.ok(list.slice(1).every((p) => p.meta.status === "derived"), "the derived specs follow the bench spec");
+  assert.equal(list[1]!.path, "config/panels/p25-2x128x64-chain.toml");
+  assert.equal(list[1]!.meta.status, "verified");
+  assert.ok(list.slice(2).every((p) => p.meta.status === "derived"), "the derived specs follow the verified ones");
   assert.equal(new Set(list.map((p) => p.name)).size, list.length);
 });
 

@@ -643,9 +643,15 @@ type Panel = {
   width: number; height: number;  // the panel's own pixels, before rotation
   rotation?: Rotation;            // default "none"
   flip_x?: boolean; flip_y?: boolean;   // default false
+  max_brightness?: number;        // 0-255, default 255
 };
-type Canvas = { width: number; height: number; receivers: Receiver[]; panels: Panel[] };
+type Canvas = { width: number; height: number; receivers: Receiver[]; panels: Panel[]; max_brightness?: number };
 ```
+
+`max_brightness` caps what the wall is sent: the lowest of the wall's and
+its panels' values. `POST /brightness` clamps to it and answers with the
+value sent; `PUT /wall` lowers the stored brightness when the new wall's
+cap is under it; the sliders' maximum is the cap.
 
 A receiver's `x,y` is the card's `provision --position`; the card keeps the
 window `x,y .. x+width,y+height` of every frame. `Canvas::validate` rejects a

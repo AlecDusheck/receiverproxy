@@ -99,10 +99,13 @@ enum Cmd {
         #[arg(long, default_value_t = 3)]
         wait: u64,
     },
-    /// Set panel brightness (0-255)
+    /// Set wall brightness (0-255), held under the layout's max_brightness
     Brightness {
         /// 0-255
         value: u8,
+        /// Wall layout JSON whose max_brightness caps the value
+        #[arg(long)]
+        layout: Option<String>,
     },
     /// Bring a card to a working state: snapshot, firmware, config, EEPROM, verify
     Provision {
@@ -230,7 +233,14 @@ fn run(cli: &Cli, iface_given: bool) -> Result<()> {
             );
             Ok(())
         }
-        Cmd::Brightness { value } => display::brightness(&ctx, *value),
+        Cmd::Brightness { value, layout } => {
+            let canvas = display::load_canvas(&ctx, layout.as_deref())?;
+            let sent = display::brightness(&ctx, &canvas, *value)?;
+            if sent != *value {
+                p.out(&format!("brightness {sent} (layout caps at {sent})"));
+            }
+            Ok(())
+        }
         Cmd::Provision {
             spec,
             firmware,

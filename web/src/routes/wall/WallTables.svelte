@@ -41,7 +41,7 @@
   <div class="scroll">
     <table>
       <thead>
-        <tr><th class="num">panel</th><th>card</th><th class="num">card x</th><th class="num">card y</th><th class="num">x</th><th class="num">y</th><th class="num">width</th><th class="num">height</th><th>rotation</th><th>flip x</th><th>flip y</th></tr>
+        <tr><th class="num">panel</th><th>card</th><th class="num">card x</th><th class="num">card y</th><th class="num">x</th><th class="num">y</th><th class="num">width</th><th class="num">height</th><th>rotation</th><th>flip x</th><th>flip y</th><th class="num">max bright.</th></tr>
       </thead>
       <tbody>
         {#each wall.panels as p, i (i)}
@@ -65,9 +65,10 @@
             </td>
             <td><input type="checkbox" bind:checked={p.flip_x} aria-label="flip x" /></td>
             <td><input type="checkbox" bind:checked={p.flip_y} aria-label="flip y" /></td>
+            <td class="num"><input type="number" bind:value={p.max_brightness} min="0" max="255" aria-label="max brightness" /></td>
           </tr>
         {:else}
-          <tr><td colspan="11" class="muted">no panels</td></tr>
+          <tr><td colspan="12" class="muted">no panels</td></tr>
         {/each}
       </tbody>
     </table>

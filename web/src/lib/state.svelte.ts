@@ -4,7 +4,8 @@ export const single = (w: number, h: number): Canvas => ({
   width: w,
   height: h,
   receivers: [{ index: 0, x: 0, y: 0, width: w, height: h }],
-  panels: [{ receiver: 0, receiver_x: 0, receiver_y: 0, x: 0, y: 0, width: w, height: h, rotation: "none", flip_x: false, flip_y: false }],
+  panels: [{ receiver: 0, receiver_x: 0, receiver_y: 0, x: 0, y: 0, width: w, height: h, rotation: "none", flip_x: false, flip_y: false, max_brightness: 255 }],
+  max_brightness: 255,
 });
 
 function storedWall(): Canvas {

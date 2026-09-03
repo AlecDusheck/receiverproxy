@@ -6,6 +6,10 @@ import type { Canvas, Panel, Receiver, Rotation } from "../api/types";
 export const rotated = (p: Panel): [number, number] =>
   p.rotation === "cw90" || p.rotation === "ccw90" ? [p.height, p.width] : [p.width, p.height];
 
+/** The most brightness the wall may be sent: its own cap, or the lowest panel's. */
+export const brightnessCap = (c: Canvas): number =>
+  c.panels.reduce((cap, p) => Math.min(cap, p.max_brightness ?? 255), c.max_brightness ?? 255);
+
 export function addReceiver(c: Canvas): Receiver {
   const index = c.receivers.reduce((m, r) => Math.max(m, r.index + 1), 0);
   const w = c.receivers[0]?.width ?? 128;
@@ -36,16 +40,13 @@ export function addPanel(c: Canvas, receiver: number): Panel {
     rotation: "none",
     flip_x: false,
     flip_y: false,
+    max_brightness: 255,
   };
   c.panels.push(p);
   return p;
 }
 
 export function validateJs(c: Canvas): string {
-  for (const r of c.receivers) {
-    if ((r.x ?? 0) + r.width > c.width || (r.y ?? 0) + r.height > c.height)
-      return `receiver ${r.index}: ${r.x ?? 0},${r.y ?? 0} ${r.width}x${r.height} exceeds the canvas ${c.width}x${c.height}`;
-  }
   for (const [i, p] of c.panels.entries()) {
     const r = c.receivers.find((q) => q.index === p.receiver);
     if (!r) return `panel ${i}: receiver ${p.receiver} is not defined`;
@@ -58,14 +59,14 @@ export function validateJs(c: Canvas): string {
 }
 
 export function example(cols: number, rows: number, w: number, h: number): Canvas {
-  const c: Canvas = { width: cols * w, height: rows * h, receivers: [], panels: [] };
+  const c: Canvas = { width: cols * w, height: rows * h, receivers: [], panels: [], max_brightness: 255 };
   for (let r = 0; r < rows; r++)
     for (let col = 0; col < cols; col++) {
       const index = r * cols + col;
       const x = col * w;
       const y = r * h;
       c.receivers.push({ index, x, y, width: w, height: h });
-      c.panels.push({ receiver: index, receiver_x: 0, receiver_y: 0, x, y, width: w, height: h, rotation: "none", flip_x: false, flip_y: false });
+      c.panels.push({ receiver: index, receiver_x: 0, receiver_y: 0, x, y, width: w, height: h, rotation: "none", flip_x: false, flip_y: false, max_brightness: 255 });
     }
   return c;
 }
@@ -89,6 +90,8 @@ export function normalize(c: Canvas): Canvas {
       rotation: p.rotation ?? "none",
       flip_x: p.flip_x ?? false,
       flip_y: p.flip_y ?? false,
+      max_brightness: p.max_brightness ?? 255,
     })),
+    max_brightness: c.max_brightness ?? 255,
   };
 }

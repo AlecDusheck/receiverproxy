@@ -141,9 +141,18 @@ impl AppState {
     ///
     /// # Errors
     /// Fails if `wall.json` cannot be written.
+    /// Replace the wall. The stored brightness drops to the new wall's cap
+    /// when it is above it.
     pub fn set_wall(&self, c: Canvas) -> Result<()> {
         store::save(&self.data_dir.join("wall.json"), &c)?;
+        let cap = c.brightness_cap();
         *lock(&self.wall) = c;
+        let mut s = self.settings();
+        if s.brightness > cap {
+            s.brightness = cap;
+            self.set_settings(s)?;
+            self.live.set_brightness(cap);
+        }
         Ok(())
     }
 

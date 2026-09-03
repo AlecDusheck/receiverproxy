@@ -161,6 +161,14 @@ pub struct Panel {
     pub flip_x: bool,
     #[serde(default)]
     pub flip_y: bool,
+    /// The most brightness this panel may be sent, 0-255; the wall's
+    /// brightness is clamped to the lowest cap among its panels.
+    #[serde(default = "full")]
+    pub max_brightness: u8,
+}
+
+const fn full() -> u8 {
+    255
 }
 
 /// Where a panel's canvas rectangle lands in receiver space, as an affine map:
@@ -319,6 +327,9 @@ pub struct Canvas {
     pub height: u32,
     pub receivers: Vec<Receiver>,
     pub panels: Vec<Panel>,
+    /// The most brightness the wall may be sent, 0-255.
+    #[serde(default = "full")]
+    pub max_brightness: u8,
 }
 
 /// Why a [`Canvas`] cannot be driven, one line per problem.
@@ -357,6 +368,7 @@ impl Canvas {
                     rotation: Rotation::None,
                     flip_x: false,
                     flip_y: false,
+                    max_brightness: 255,
                 })
             })
             .collect();
@@ -371,6 +383,7 @@ impl Canvas {
                 height,
             }],
             panels,
+            max_brightness: 255,
         }
     }
 
@@ -460,6 +473,21 @@ impl Canvas {
         } else {
             Err(LayoutError(problems))
         }
+    }
+
+    /// The brightness the wall may be sent: its own cap, or the lowest of
+    /// its panels' when one is lower.
+    #[must_use]
+    pub fn brightness_cap(&self) -> u8 {
+        self.panels
+            .iter()
+            .fold(self.max_brightness, |cap, p| cap.min(p.max_brightness))
+    }
+
+    /// `value`, held under [`brightness_cap`](Self::brightness_cap).
+    #[must_use]
+    pub fn clamp_brightness(&self, value: u8) -> u8 {
+        value.min(self.brightness_cap())
     }
 
     /// The screen: the space the receivers' windows tile, which is what the
@@ -623,7 +651,9 @@ mod tests {
                 rotation: Rotation::Cw90,
                 flip_x: false,
                 flip_y: false,
+                max_brightness: 255,
             }],
+            max_brightness: 255,
         };
         // A rotated wall is exactly this shape: a 4x2 card behind a 2x4
         // canvas, which is valid.
@@ -674,6 +704,7 @@ mod tests {
                     rotation,
                     flip_x,
                     flip_y,
+                    max_brightness: 255,
                 };
                 let canvas = Canvas {
                     width: 23,
@@ -699,6 +730,7 @@ mod tests {
                         panel(5, 1, 0, 9, 11),
                         panel(5, 3, 2, 20, 15),
                     ],
+                    max_brightness: 255,
                 };
                 assert_eq!(
                     canvas.render(&src),
@@ -754,6 +786,7 @@ mod tests {
                     rotation: Rotation::None,
                     flip_x: false,
                     flip_y: false,
+                    max_brightness: 255,
                 },
                 Panel {
                     receiver: 1,
@@ -766,8 +799,10 @@ mod tests {
                     rotation: Rotation::None,
                     flip_x: false,
                     flip_y: false,
+                    max_brightness: 255,
                 },
             ],
+            max_brightness: 255,
         };
         canvas.validate().unwrap();
         let src = gradient(8, 2);

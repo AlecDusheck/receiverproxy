@@ -141,7 +141,9 @@ pub fn provision(ctx: &Ctx, a: &Args, load: Loader, p: &mut dyn Progress) -> Res
         wait,
     } = *a;
     let spec = panelspec::PanelSpec::load(spec_path)?;
-    let (w, h) = (spec.module.width, spec.module.height);
+    // The card's own window is the whole screen it drives, which is more than
+    // one module when several are chained on it.
+    let (w, h) = (spec.screen.width, spec.screen.height);
     let cards = discover_all(ctx, wait, |i| p.err(&describe(i)))?;
     let Some(info) = cards.first() else {
         bail!("no response on {} within {wait}s", ctx.iface);

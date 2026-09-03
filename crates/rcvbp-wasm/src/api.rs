@@ -759,12 +759,10 @@ mod tests {
             serde_json::to_string_pretty(&Canvas::cards(128, 64, 2, 1)).unwrap()
         );
         assert_eq!(validate_layout(&example).unwrap(), "ok");
-        let bad = example.replace("\"width\": 256", "\"width\": 128");
+        // Two cards addressed at the same screen window.
+        let bad = example.replace("\"x\": 128,\n      \"y\": 0,\n      \"width\": 128,\n      \"height\": 64\n    }\n  ],", "\"x\": 0,\n      \"y\": 0,\n      \"width\": 128,\n      \"height\": 64\n    }\n  ],");
         let text = validate_layout(&bad).unwrap();
-        assert!(
-            text.starts_with("canvas is not valid:\n  receiver 1 at (128, 0)"),
-            "{text}"
-        );
+        assert!(text.contains("overlap in screen space"), "{text}");
         assert!(validate_layout("{")
             .unwrap_err()
             .to_string()

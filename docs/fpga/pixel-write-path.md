@@ -109,7 +109,7 @@ CEA and OCEA share one LUT              ->   push and output-register enable
 An asynchronous FIFO: write side gated by a two-term condition on the RX
 clock, read side gated by a two-term condition on CLKOP.
 
-The same signature is present in 10.81, the factory image
+The same signature is present in 10.81, the day-one image
 ([flash-layout.md §8](flash-layout.md#8-identity-of-the-dumped-firmware)):
 two EBRs, at `(4,37)` and `(10,25)`, with `ADA# = 10`, `DIA# = 9`,
 `CEA`+`CEB`+`OCEA` driven, no WE, and `CLKA != CLKB`. Placement moved; the

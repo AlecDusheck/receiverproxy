@@ -42,7 +42,7 @@ export type Job = {
   result: JobResult | null;
 };
 export type Fit = "stretch" | "contain" | "cover";
-export type Pattern = "rgb" | "border" | "rows" | "gradient" | "white";
+export type Pattern = "rgb" | "border" | "rows" | "gradient" | "white" | "calibrate";
 export type Started = {
   id: string;
 };
@@ -145,6 +145,10 @@ export type ShowVideoReq = {
 export type ShowPatternReq = {
   name: Pattern;
   hold?: boolean;
+  /**
+   * `calibrate`'s module size; the wall's own panels by default.
+   */
+  module?: [number, number];
 };
 export type ShowFillReq = {
   /**

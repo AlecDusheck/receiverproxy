@@ -391,7 +391,7 @@ pub struct Mapping {
     pub block: Option<u16>,
     /// Displace line positions `width..2*width` off the chain via the void-line
     /// column table; otherwise the card drives them with a fixed pattern that
-    /// shows as a floor at black (docs/rendering.md). Off reproduces the factory image.
+    /// shows as a floor at black (docs/rendering.md). Off reproduces the day-one image.
     #[serde(default = "default_true")]
     pub gate_phantom_positions: bool,
 }

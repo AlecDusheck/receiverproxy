@@ -2,7 +2,7 @@
 //!
 //! The screen tiled by the grid unit, one 10-byte entry
 //! `[outer idx, inner idx, x, y, w, h]` (BE) per tile. The vendor leaves it
-//! zero when a gate fails; one gate is 64 tiles, and the factory 256x384 wall
+//! zero when a gate fails; one gate is 64 tiles, and the day-one 256x384 wall
 //! has 384, hence its zeros.
 
 use crate::record01::View;
@@ -39,6 +39,20 @@ pub fn region(rec: View<'_>) -> Result<([u8; LEN], String)> {
     // The four direction variants differ only in the index bytes, the
     // row/column limits, and whether dropped tiles leave holes or are compacted.
     let (nx, ny) = (w / mw, h / mh);
+    // A table that cannot hold every tile (the inner index stops at 8, one
+    // module along the data line) is left zero, as the day-one image for a
+    // two-wide chain is: the card then tiles from the parameter pack. A
+    // partial table describes only the last module and blanks the rest.
+    let covers_all = match dir {
+        0 | 1 => ny <= 32 && nx <= 8,
+        _ => nx <= 32 && ny <= 8,
+    };
+    if !covers_all {
+        return Ok((
+            out,
+            format!("0x600: module positions all-zero ({nx}x{ny} tiles exceed the table's 8 along the data line)"),
+        ));
+    }
     let mut written = 0u16;
     for row in 0..ny {
         for col in 0..nx {

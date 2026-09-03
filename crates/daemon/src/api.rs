@@ -198,6 +198,8 @@ pub struct ShowPatternReq {
     #[serde(deserialize_with = "de_name")]
     pub name: Pattern,
     pub hold: Option<bool>,
+    /// `calibrate`'s module size; the wall's own panels by default.
+    pub module: Option<(u32, u32)>,
 }
 
 /// `POST /show/fill`.

@@ -23,6 +23,14 @@
   let video = $state({ path: "", loop: true, fps: 30 });
 
   const wall = $derived(app.live?.show?.layout ?? `${app.wall.width}x${app.wall.height}`);
+  // `calibrate` marks one tile per module: the loaded layout's panel size, or
+  // the whole wall when it has none.
+  const module = $derived(app.wall.panels[0] ?? { width: app.wall.width, height: app.wall.height });
+  let moduleText = $state("");
+  const moduleSize = $derived.by((): [number, number] | undefined => {
+    const m = /^(\d+)x(\d+)$/.exec(moduleText.trim() || `${module.width}x${module.height}`);
+    return m ? [Number(m[1]), Number(m[2])] : undefined;
+  });
   const ready = $derived(source === "image file" ? !!image : source === "image path" ? !!imagePath : source === "video" ? !!video.path : true);
   const missing = $derived(ready ? "" : source === "video" ? "no video path" : source === "image file" ? "no file chosen" : "no image path");
 
@@ -33,7 +41,7 @@
       const c = ops.card!;
       switch (source) {
         case "pattern":
-          return c.showPattern({ name: pattern, hold });
+          return c.showPattern({ name: pattern, hold, ...(pattern === "calibrate" && moduleSize ? { module: moduleSize } : {}) });
         case "colour":
           return c.showFill({ rgb: fill.slice(1), hold });
         case "image file":
@@ -54,7 +62,12 @@
       </select>
     </Field>
     {#if source === "pattern"}
-      <Field label="pattern"><select bind:value={pattern}>{#each ["rgb", "border", "rows", "gradient", "white"] as n (n)}<option value={n}>{n}</option>{/each}</select></Field>
+      <Field label="pattern"><select bind:value={pattern}>{#each ["rgb", "border", "rows", "gradient", "white", "calibrate"] as n (n)}<option value={n}>{n}</option>{/each}</select></Field>
+      {#if pattern === "calibrate"}
+        <Field label="module" caption="one tile per module, WIDTHxHEIGHT">
+          <input bind:value={moduleText} placeholder="{module.width}x{module.height}" class="mono" />
+        </Field>
+      {/if}
     {:else if source === "colour"}
       <Field label="colour" caption={fill} mono><input type="color" bind:value={fill} /></Field>
     {:else if source === "image path"}

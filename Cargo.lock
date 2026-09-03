@@ -265,6 +265,7 @@ dependencies = [
  "anyhow",
  "clap",
  "receiverproxy-driver",
+ "receiverproxy-sources",
  "receiverproxy-wall",
  "serde_json",
 ]

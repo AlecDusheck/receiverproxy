@@ -148,15 +148,17 @@ pub fn show_frame(
 }
 
 /// Draw a built-in pattern on the wall in `layout`, or a single panel.
+/// `module` sizes the calibration pattern's tiles and is ignored by the rest.
 pub fn show_pattern(
     ctx: &Ctx,
     name: &str,
     hold: bool,
     layout: Option<&str>,
+    module: Option<(u32, u32)>,
     p: &mut dyn Progress,
 ) -> Result<()> {
     let canvas = load_canvas(ctx, layout)?;
-    show_pattern_on(ctx, canvas, name, hold, p)
+    show_pattern_on(ctx, canvas, name, hold, module, p)
 }
 
 /// Draw a built-in pattern on `canvas`.
@@ -165,11 +167,52 @@ pub fn show_pattern_on(
     canvas: Canvas,
     name: &str,
     hold: bool,
+    module: Option<(u32, u32)>,
     p: &mut dyn Progress,
 ) -> Result<()> {
     let pattern: sources::Pattern = name.parse()?;
-    let frame = sources::pattern(pattern, canvas.width, canvas.height);
+    let frame = pattern_frame(pattern, &canvas, module);
     show_frame(ctx, canvas, &frame, hold, p)
+}
+
+/// The frame a pattern draws on `canvas`. Every pattern but `calibrate` is
+/// drawn once across the whole canvas; `calibrate` needs to know where the
+/// modules are.
+#[must_use]
+pub fn pattern_frame(
+    pattern: sources::Pattern,
+    canvas: &Canvas,
+    module: Option<(u32, u32)>,
+) -> Frame {
+    if pattern == sources::Pattern::Calibrate {
+        return calibration_frame(canvas, module);
+    }
+    sources::pattern(pattern, canvas.width, canvas.height)
+}
+
+/// The calibration pattern for `canvas`: a tile per panel where the layout
+/// places them, so a wall of several cards is labelled by its own geometry,
+/// or a `module`-sized grid when the caller names one.
+#[must_use]
+pub fn calibration_frame(canvas: &Canvas, module: Option<(u32, u32)>) -> Frame {
+    if let Some(module) = module {
+        return sources::calibration(canvas.width, canvas.height, module, (0, 0));
+    }
+    let mut frame = canvas.screen_frame();
+    for panel in &canvas.panels {
+        let tile = (
+            panel.x / panel.width.max(1),
+            panel.y / panel.height.max(1),
+        );
+        sources::calibration_tile(
+            &mut frame,
+            (panel.x, panel.y),
+            (panel.width, panel.height),
+            tile,
+        );
+    }
+    sources::calibration_diagonal(&mut frame);
+    frame
 }
 
 /// Fill the panel with one colour.
@@ -277,5 +320,22 @@ mod tests {
         assert_eq!(f[1][35], 40, "master brightness");
         assert_eq!(f[1][38..41], [40, 40, 40], "channel gains");
         assert!(f[1..].iter().all(|x| *x == f[1]), "every latch identical");
+    }
+
+    #[test]
+    fn calibration_labels_a_wall_from_the_layout_and_a_panel_from_the_module() {
+        // Four cards, one 64x32 panel each.
+        let canvas = wall::Canvas::cards(64, 32, 2, 2);
+        let wall = calibration_frame(&canvas, None);
+        assert_eq!(wall, sources::calibration(128, 64, (64, 32), (0, 0)));
+
+        // A single panel with a module size splits into the same four tiles.
+        let one = calibration_frame(&wall::Canvas::single(128, 64), Some((64, 32)));
+        assert_eq!(one, wall);
+
+        // Without one, the single panel is a single module.
+        let whole = calibration_frame(&wall::Canvas::single(128, 64), None);
+        assert_eq!(whole, sources::pattern(sources::Pattern::Calibrate, 128, 64));
+        assert_ne!(whole, wall);
     }
 }

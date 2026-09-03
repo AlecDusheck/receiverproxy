@@ -437,7 +437,7 @@ async fn show_pattern(
     Body(req): Body<ShowPatternReq>,
 ) -> ApiResult<Response> {
     let canvas = state.wall();
-    let frame = sources::pattern(req.name, canvas.width, canvas.height);
+    let frame = ops::display::pattern_frame(req.name, &canvas, req.module);
     show_still(
         &state,
         "show pattern",

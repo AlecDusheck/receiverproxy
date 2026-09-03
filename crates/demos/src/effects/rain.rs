@@ -3,38 +3,11 @@
 
 use crate::effects::Effect;
 use crate::util::{self, Rng};
+use sources::font;
 use wall::Frame;
 
 const CELL_W: u32 = 4;
 const CELL_H: u32 = 6;
-
-/// 3x5 glyphs, one byte per row, bit 2 the left column.
-const FONT: [[u8; 5]; 24] = [
-    [0b111, 0b101, 0b101, 0b101, 0b111],
-    [0b010, 0b110, 0b010, 0b010, 0b111],
-    [0b111, 0b001, 0b111, 0b100, 0b111],
-    [0b111, 0b001, 0b111, 0b001, 0b111],
-    [0b101, 0b101, 0b111, 0b001, 0b001],
-    [0b111, 0b100, 0b111, 0b001, 0b111],
-    [0b111, 0b100, 0b111, 0b101, 0b111],
-    [0b111, 0b001, 0b001, 0b001, 0b001],
-    [0b111, 0b101, 0b111, 0b101, 0b111],
-    [0b111, 0b101, 0b111, 0b001, 0b111],
-    [0b010, 0b101, 0b111, 0b101, 0b101],
-    [0b111, 0b100, 0b100, 0b100, 0b111],
-    [0b111, 0b100, 0b111, 0b100, 0b111],
-    [0b111, 0b100, 0b111, 0b100, 0b100],
-    [0b101, 0b101, 0b111, 0b101, 0b101],
-    [0b001, 0b001, 0b001, 0b101, 0b111],
-    [0b100, 0b100, 0b100, 0b100, 0b111],
-    [0b111, 0b101, 0b111, 0b100, 0b100],
-    [0b101, 0b101, 0b101, 0b101, 0b111],
-    [0b101, 0b101, 0b010, 0b010, 0b010],
-    [0b111, 0b001, 0b010, 0b100, 0b111],
-    [0b000, 0b010, 0b111, 0b010, 0b000],
-    [0b000, 0b000, 0b111, 0b000, 0b000],
-    [0b000, 0b111, 0b000, 0b111, 0b000],
-];
 
 struct Stream {
     /// Head position in cells; negative while still above the frame.
@@ -87,17 +60,7 @@ impl Rain {
         } else {
             stable
         };
-        FONT[pick as usize % FONT.len()]
-    }
-}
-
-fn draw_glyph(out: &mut Frame, x0: u32, y0: u32, glyph: [u8; 5], colour: [u8; 3]) {
-    for (dy, bits) in glyph.iter().enumerate() {
-        for dx in 0..3u32 {
-            if (bits >> (2 - dx)) & 1 != 0 {
-                out.set_pixel(x0 + dx, y0 + dy as u32, colour);
-            }
-        }
+        font::GLYPHS[pick as usize % font::GLYPHS.len()]
     }
 }
 
@@ -126,7 +89,7 @@ impl Effect for Rain {
                     util::scaled([0.0, 1.0, 0.25], fade * fade)
                 };
                 let glyph = self.glyph(c as i32, row, t);
-                draw_glyph(out, c as u32 * CELL_W, row as u32 * CELL_H, glyph, colour);
+                font::draw(out, c as u32 * CELL_W, row as u32 * CELL_H, glyph, colour);
             }
         }
     }

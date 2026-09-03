@@ -176,15 +176,15 @@ Bits 2, 8, 9, 25 and 27: not resolved.
 * `GetRgbSelValue` (OBJ+0xDF7C) is not stored in record 0x01; its setter is
   never called in the dylib.
 
-## Pack offsets settled against the factory pack body
+## Pack offsets settled against the day-one pack body
 
 * vt+0x50 is `GetChipType` @ 0x16daa0, not `GetSplitSegment`. The gray
   override in the pack builder is a chip-type test.
-* Pack 0x0B is the scan denominator (factory body[0x07] = 0x10 = 16), not
+* Pack 0x0B is the scan denominator (day-one body[0x07] = 0x10 = 16), not
   `GetRgbSelValue`. The card has never been configured at 1/8 scan.
-* Pack 0x0D-0x0E BE is the serial clock frequency (factory: 8), not the scan
+* Pack 0x0D-0x0E BE is the serial clock frequency (day-one: 8), not the scan
   mode. Writing the scan denominator (16) there sets the serial clock to twice
-  the factory value.
+  the day-one value.
 * Pack 0x8C-0x8F = MaxWidth / MaxHeight BE; pack 0x34-0x37 = the four current
   gains; pack 0x74-0x83 = the chip-custom block, record payload +0x06A..0x079
   verbatim.

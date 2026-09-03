@@ -103,9 +103,9 @@ shared sequence lives in `Block7Builder::from_generated`; `gen_config` adds
 the chip page and the embedded `.rcvbp` on top, and `send_params` slices the
 same image into the vendor's 34 real-time RAM packs (`params.rs`).
 
-Tests in `crates/rcvbp/tests/factory.rs` pin all of this: the
-reference `.rcvbp` regenerates record for record, the factory basic pack
-and block-7 image regenerate byte for byte from the factory flash dump
+Tests in `crates/rcvbp/tests/day_one.rs` pin all of this: the
+reference `.rcvbp` regenerates record for record, the day-one basic pack
+and block-7 image regenerate byte for byte from the day-one flash dump
 (`card-dumps/primary-region.bin`, kept outside the repo; the tests skip
 without it), and the shipped panel spec differs from the reference file's record 0x01 at
 exactly `[0x023, 0x02F, 0x0C0..0x0C3]`.
@@ -215,8 +215,8 @@ Every default below is measured; the measurements are in
 
 | default | value | lives in | pinned by |
 |---|---|---|---|
-| chip id | `0x14C` | `config/chips/sm16269s.toml` via `[chip] library` | `factory.rs` record 0x84 equality |
-| `+0x02F` | 1 | `config/panels/…toml [record01_overrides]`, applied last in `spec/record01.rs` | `factory.rs` delta list `[0x023, 0x02F, 0x0C0..]` |
+| chip id | `0x14C` | `config/chips/sm16269s.toml` via `[chip] library` | `day-one.rs` record 0x84 equality |
+| `+0x02F` | 1 | `config/panels/…toml [record01_overrides]`, applied last in `spec/record01.rs` | `day-one.rs` delta list `[0x023, 0x02F, 0x0C0..]` |
 | grey depth | 12 (12–16 render alike) | `[module] gray_bits` | same delta list (`0x023`) |
 | mapping block | 64 | `[mapping] block` | `the_reference_mapping_is_reproduced_by_the_block_knob` |
 | phantom-position gate | on | `[mapping] gate_phantom_positions` default true, `panelspec`; `Block7Builder::void_line_columns` | supply current at black only |
@@ -252,12 +252,12 @@ Experiment-only overrides (defaults above are the contract; nothing in
 | change | edit | then |
 |---|---|---|
 | describe a new panel or wall | `config/panels/<panel>.toml` (copy the existing one) | `rxp config gen`, `rxp provision --commit`, power-cycle |
-| add a driver chip | `config/chips/<chip>.toml`; `panelspec/src/chips.rs` only if it needs a new block shape | `factory.rs` passes |
+| add a driver chip | `config/chips/<chip>.toml`; `panelspec/src/chips.rs` only if it needs a new block shape | `day-one.rs` passes |
 | add a receiving card | `config/cards/<card>.toml` (copy `e120.toml`; id byte from `rxp discover`, addresses from a flash dump), `status = "generates"` until driven; the manual is [cards.md](cards.md) | `receivers` tests pass, `rxp card models` lists it, `rxp card probe` reports no mismatch, README regenerated from `rxp card models --markdown` |
 | add a vendor | a protocol crate implementing `colorlight::Protocol`, a codec crate implementing `rcvbp::Codec`, a `family` in its model files ([cards.md](cards.md)) | the same, on that vendor's card |
 | change the pixel wiring | `[mapping]` in the spec; formula in `rcvbp/src/spec/mapping.rs` | `flash restore-block` + power-cycle (mapping is read from flash at boot) |
-| change a record 0x01 byte | `[record01_overrides]` in the spec, or `spec/record01.rs` DEFAULTS if it is a vendor default | update the delta test in `factory.rs` |
-| change a boot-image region | `rcvbp/src/image/*`; the order lives in `Block7Builder::from_generated` | `the_factory_image_rebuilds_from_erased_flash_and_its_own_parts`, `the_bench_spec_displaces_the_phantom_positions` |
+| change a record 0x01 byte | `[record01_overrides]` in the spec, or `spec/record01.rs` DEFAULTS if it is a vendor default | update the delta test in `day-one.rs` |
+| change a boot-image region | `rcvbp/src/image/*`; the order lives in `Block7Builder::from_generated` | `the_day_one_image_rebuilds_from_erased_flash_and_its_own_parts`, `the_bench_spec_displaces_the_phantom_positions` |
 | change the wire format of a frame | `colorlight/src/pixel.rs` (rows/latch/brightness) or the matching `colorlight` module | the byte-pinned `colorlight` tests |
 | change frame timing or latch count | `driver/src/lib.rs` `Timing::default()` (`ops/src/display.rs::wall_settings` starts from it and applies the env overrides) | `bench.py run`, judge by eye, update rendering.md |
 | add a content source or pattern | `sources` (implement `FrameSource`) | `rxp show pattern` / `video` / `stream` |

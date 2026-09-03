@@ -75,7 +75,7 @@ impl ControlArea {
         Self { start_x: x, start_y: y, end_x: x + w, end_y: y + h }
     }
 
-    /// The record: four big-endian corners, then zeros (the factory value).
+    /// The record: four big-endian corners, then zeros (the day-one value).
     #[must_use]
     pub fn to_record(self) -> [u8; 42] {
         let mut r = [0u8; 42];

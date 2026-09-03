@@ -2,7 +2,7 @@
 //!
 //! A field table of (segment id, enabled slots) per gray level, bit times
 //! snapped to 8-unit quanta, rendered bucket by bucket. Only style 0, 16
-//! segments, 14 levels is transcribed; byte-exact in tests/factory.rs.
+//! segments, 14 levels is transcribed; byte-exact in tests/day_one.rs.
 
 use crate::record01::View;
 use anyhow::{bail, Result};
@@ -13,7 +13,7 @@ const SLOTS: u32 = 32;
 const MAX_ENTRIES: usize = 0xE7;
 /// Schedule depth, not taken from `gray_bits`: measured, the 12-level block
 /// with 12-bit words raises the black floor (0.75 -> 0.90 A) rather than
-/// removing it (docs/rendering.md). 14 is what the factory image carries.
+/// removing it (docs/rendering.md). 14 is what the day-one image carries.
 const GRAY: u32 = 14;
 
 /// Field-table block for 16 segments at 14-bit gray, levels 0..=12

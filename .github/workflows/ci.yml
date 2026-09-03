@@ -13,8 +13,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # The byte-exact factory tests need card-dumps/, which is not in the repo;
-  # they print "skipped" and pass here (crates/rcvbp/tests/factory.rs).
+  # The byte-exact day-one tests need card-dumps/, which is not in the repo;
+  # they print "skipped" and pass here (crates/rcvbp/tests/day_one.rs).
   rust:
     strategy:
       fail-fast: false

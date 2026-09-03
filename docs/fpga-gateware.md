@@ -100,10 +100,10 @@ way.
 
 ## Firmware images
 
-An E120's factory image is `E320_PCB6.0_PWM_FPGA10.81_20230907`, identified
+An E120's day-one image is `E320_PCB6.0_PWM_FPGA10.81_20230907`, identified
 three ways from a flash dump: the header date, a per-block match of exactly
 `1.000000` outside the reserved span, and 10.81's uniquely different EBR ROM.
-A `flash restore` of a factory dump therefore reinstalls 10.81, whatever the
+A `flash restore` of a day-one dump therefore reinstalls 10.81, whatever the
 card ran before; `rxp discover` reports the running version and is the only
 authority for it. The analysis targets 16.53; each claim in `docs/fpga/`
 names the image it refers to.

@@ -1,6 +1,6 @@
 //! The basic-parameter pack body (page 0 of the boot image; real-time pack
 //! sub-index 0), built from record 0x01 as `GetBasicParam` @ 0x1dfb50 does.
-//! Byte-exact against the factory pack (tests/factory.rs). Fields the vendor
+//! Byte-exact against the day-one pack (tests/day_one.rs). Fields the vendor
 //! takes from chip-specific tables are zero for this chip family.
 
 use crate::record01::{off, View};
@@ -121,7 +121,7 @@ fn head_code(rec_008: u8, dim_hi: u8) -> u8 {
 
 /// Pack +0x48..+0x4F: luminance level split by the current percents,
 /// R = floor(V*pR), G = floor(V*pG), B = floor((V-R-G)*pB), rest = V-R-G-B,
-/// emitted as R, B, rest, G. The factory tool floors; the SDK dylib rounds.
+/// emitted as R, B, rest, G. The day-one tool floors; the SDK dylib rounds.
 fn current_split(v: u16, rec: View<'_>) -> [u8; 8] {
     let pr = rec.f32_le(off::CURRENT_PCT);
     let pg = rec.f32_le(off::CURRENT_PCT + 4);
@@ -154,10 +154,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_factory_pack_carries_its_own_crc() {
+    fn the_day_one_pack_carries_its_own_crc() {
         let body = std::fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/factory-basic-pack-body.bin"
+            "/tests/fixtures/day-one-basic-pack-body.bin"
         ))
         .unwrap();
         let body: [u8; 256] = body.try_into().unwrap();

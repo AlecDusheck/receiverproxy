@@ -85,7 +85,7 @@
   <section>
     <h2>Test pattern</h2>
     <div class="form">
-      <Field label="pattern"><select bind:value={pattern}>{#each ["rgb", "border", "rows", "gradient", "white"] as n (n)}<option value={n}>{n}</option>{/each}</select></Field>
+      <Field label="pattern"><select bind:value={pattern}>{#each ["rgb", "border", "rows", "gradient", "white", "calibrate"] as n (n)}<option value={n}>{n}</option>{/each}</select></Field>
       <Field label="hold" caption="refresh until cancelled"><input type="checkbox" bind:checked={hold} /></Field>
     </div>
     <div class="actions">

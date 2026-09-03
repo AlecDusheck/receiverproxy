@@ -386,16 +386,35 @@ impl Canvas {
     /// Check the description is self-consistent before anything is driven.
     ///
     /// # Errors
-    /// Reports receivers that fall off the canvas and panels that fall off the
-    /// canvas, name an unknown receiver, or exceed their receiver's window.
+    /// Reports overlapping receivers and panels that fall off the canvas,
+    /// name an unknown receiver, or exceed their receiver's window.
+    ///
+    /// A receiver's rectangle is in the screen space the cards are addressed
+    /// in, not on the canvas: a rotated wall has a 256x64 card behind a
+    /// 64x256 canvas, so receivers are not checked against the canvas.
     pub fn validate(&self) -> Result<(), LayoutError> {
         let mut problems = Vec::new();
         for r in &self.receivers {
-            if r.x + r.width > self.width || r.y + r.height > self.height {
+            // Rows and pixel offsets are u16 on the wire.
+            if r.x + r.width > u32::from(u16::MAX) || r.y + r.height > u32::from(u16::MAX) {
                 problems.push(format!(
-                    "receiver {} at ({}, {}) size {}x{} extends past the {}x{} canvas",
-                    r.index, r.x, r.y, r.width, r.height, self.width, self.height
+                    "receiver {} at ({}, {}) size {}x{} exceeds the 65535 px screen space",
+                    r.index, r.x, r.y, r.width, r.height
                 ));
+            }
+        }
+        for (i, a) in self.receivers.iter().enumerate() {
+            for b in &self.receivers[i + 1..] {
+                let apart = a.x + a.width <= b.x
+                    || b.x + b.width <= a.x
+                    || a.y + a.height <= b.y
+                    || b.y + b.height <= a.y;
+                if !apart {
+                    problems.push(format!(
+                        "receivers {} and {} overlap in screen space",
+                        a.index, b.index
+                    ));
+                }
             }
         }
         for (i, p) in self.panels.iter().enumerate() {
@@ -553,7 +572,7 @@ mod tests {
     #[test]
     fn rotation_maps_corners_where_expected() {
         // Mounted 90 degrees clockwise: canvas rectangle 2x4, panel itself 4x2.
-        let mut canvas = Canvas {
+        let canvas = Canvas {
             width: 2,
             height: 4,
             receivers: vec![Receiver {
@@ -576,9 +595,9 @@ mod tests {
                 flip_y: false,
             }],
         };
-        // The receiver's window is wider than the canvas is: 4x2 on a 2x4 screen.
-        assert!(canvas.validate().is_err());
-        canvas.width = 4;
+        // A rotated wall is exactly this shape: a 4x2 card behind a 2x4
+        // canvas, which is valid.
+        assert!(canvas.validate().is_ok());
 
         let mut src = Frame::black(2, 4);
         src.set_pixel(0, 0, [255, 0, 0]); // canvas top-left
@@ -742,14 +761,12 @@ mod tests {
     }
 
     #[test]
-    fn validation_rejects_a_receiver_that_hangs_off_the_canvas() {
+    fn validation_rejects_receivers_that_overlap_in_screen_space() {
         let mut canvas = Canvas::cards(4, 2, 2, 1);
-        canvas.receivers[1].y = 1;
+        // Card 1 pulled back over card 0's window.
+        canvas.receivers[1].x = 2;
         let err = canvas.validate().unwrap_err().to_string();
-        assert!(
-            err.contains("receiver 1 at (4, 1) size 4x2 extends past the 8x2 canvas"),
-            "{err}"
-        );
+        assert!(err.contains("receivers 0 and 1 overlap in screen space"), "{err}");
     }
 
     #[test]

@@ -169,7 +169,7 @@ transcribed in `crates/rcvbp/src/image/scan_table.rs`. It computes:
    per-bucket `(start, end)` pairs at `+0x3C0`, the scan mode at `+0x39E`,
    the segment count at `+0x39F` and an identity line order at `+0x3A0`.
 
-Verified: the generated scan table is byte-identical to the factory image's
+Verified: the generated scan table is byte-identical to the day-one image's
 (`card-dumps/primary-region.bin` at `0x76000` vs
 `build/p25-128x64-sm16269s-block7.bin` at `0x6000`), and every one of the
 `0xE7` 24-bit value fields is zero in both.
@@ -222,7 +222,7 @@ serial slots)".
 | `blk` | slot formula | where it holds |
 |---|---|---|
 | `W` = 128 (generator default) | `group * W + col`; each data group one contiguous 128-slot run | the vendor corpus consensus: byte-exact against the 34-config consensus for 128x64 @ 1/16, and 1039 of 1517 corpus tables from geometry alone. It scrambles every column on a module whose halves alternate |
-| 64 | the chain alternates between the two row-halves every 64 columns | the reference module ([../panel-wiring.md](../panel-wiring.md)); the reference file's record 0x03 regenerates byte for byte. Pinned by `the_reference_mapping_is_reproduced_by_the_block_knob` in `crates/rcvbp/tests/factory.rs` |
+| 64 | the chain alternates between the two row-halves every 64 columns | the reference module ([../panel-wiring.md](../panel-wiring.md)); the reference file's record 0x03 regenerates byte for byte. Pinned by `the_reference_mapping_is_reproduced_by_the_block_knob` in `crates/rcvbp/tests/day_one.rs` |
 
 `reversed_groups` (234 of 241 two-group vendor configs) means the last
 row-group is shifted out first, the standard consequence of a chain that
@@ -317,7 +317,7 @@ Method: [../bench.md](../bench.md). The settings that make the panel render:
   Changing `reg 0x07` requires recomputing `SChipControl[10..13]`
   ([chip-protocol-microcode.md §4.2](chip-protocol-microcode.md#42-the-count-is-a-pack-field)).
 * All-zero scan-table bit times with minOE are the vendor norm: 24 of 29
-  modern-format configs, and byte-identical to the factory image.
+  modern-format configs, and byte-identical to the day-one image.
 * The data-swap and lane-map identities for 1/16 are not resolved; the
   search space is large and there is no consensus data. The panel renders
   with the identity mapping.

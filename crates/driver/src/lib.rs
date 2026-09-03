@@ -564,11 +564,13 @@ mod tests {
         let mut canvas = Canvas::single(8, 8);
         canvas.receivers[0].width = 70_000;
         let err = Wall::with_sink(Vec::new(), canvas, quick()).err().unwrap();
-        assert!(err.to_string().contains("receiver 0 at (0, 0) size 70000x8 extends past"), "{err}");
+        assert!(err.to_string().contains("receiver 0 at (0, 0) size 70000x8 exceeds the 65535 px screen space"), "{err}");
 
+        // A canvas past the wire's u16 space is refused by the same check,
+        // which its single receiver trips first.
         let huge = Canvas::single(70_000, 1);
         let err = Wall::with_sink(Vec::new(), huge, quick()).err().unwrap();
-        assert!(err.to_string().contains("canvas is larger than 65535 px"), "{err}");
+        assert!(err.to_string().contains("exceeds the 65535 px screen space"), "{err}");
 
         let mut bad = Canvas::single(8, 8);
         bad.panels[0].x = 4;

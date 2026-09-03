@@ -65,7 +65,7 @@ address map below.
 
 The card mirrors the EEPROM to SPI flash at `0x07F000`. Measured: page-
 addressed (type 0x0600) reads of the primary region show the EEPROM image
-there in the factory dump and in every dump taken after it. A page dump of block 0x07 is a
+there in the day-one dump and in every dump taken after it. A page dump of block 0x07 is a
 read-back of the EEPROM. A whole-block erase of block 0x07 erases the mirror:
 measured, `primary-after-restore.bin` differs from the vendor image in
 exactly `0x07F000`-`0x07FFFF`, all `0xFF` ([fpga/flash-layout.md](fpga/flash-layout.md)).
@@ -88,7 +88,7 @@ pushed length arguments. `addr` and `len` are exact from immediates.
 | `0x43` | 3 | white-balance adjust | `Read/WriteEepromWhiteBalanceAdj` |
 | `0x4b` | 1 | calibration-coefficient source | `Read/WriteEepromCaliCoefFrom` |
 | `0x4c` | 1 | seam enable | `Read/WriteEepromSeamEnable` |
-| `0x4d`-`0x55` | 9 | not resolved; no `BulidEepromFlashOperation` call site covers it. Factory content `28 00 00 00 01 80 01 00 00`, which contains the reference file's wall dimensions 384 (`0x0180`) and 256 (`0x0100`) | none |
+| `0x4d`-`0x55` | 9 | not resolved; no `BulidEepromFlashOperation` call site covers it. DayOne content `28 00 00 00 01 80 01 00 00`, which contains the reference file's wall dimensions 384 (`0x0180`) and 256 (`0x0100`) | none |
 | `0x56` | 3 | void-line info | `ReadEepromVoidLineInfo` |
 | `0x59` | 1 | receiver-card light | `WriteEepromRcvCardLight` (opcode 0x86) |
 | `0x5a` | 20 | receiver card name (ASCII) | `Read/WriteEepromRcvCardName` |
@@ -141,4 +141,4 @@ above 0x100. `colorlight::eeprom::RECORDS` carries the records up to `0xfd`.
   reads as erased.
 * `rxp provision` and `scripts/eeprom-restore.py` write each record at its
   own address and length. `scripts/flash-review.py` diffs block 0x07 against
-  the factory dump and names each differing run from this map.
+  the day-one dump and names each differing run from this map.

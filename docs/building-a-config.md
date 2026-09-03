@@ -69,16 +69,16 @@ record 0x01. `panelspec/src/chips.rs` loads them through `chip_custom`,
 | record 0x03 (mapping) | geometry: pixel to (`row % scan`, `group * width + col`) with the vendor's reversed group order; `[mapping] block` selects the run length ([panel-wiring.md](panel-wiring.md)) | `block = 128` reproduces the 34-config consensus; `block = 64` reproduces the reference file |
 | record 0x84 (chip registers) | chip library, with `reg 0x02 = scan - 1` | reference file equality |
 | other records (0x8a, 0x83/0x89, 0xca, 0xcd, 0x8f, 0x07, 0x86, 0x8e, 0x8d, 0x91/0x95/0xd8/0xda) | decoded loader defaults (`spec/records.rs`); 0x8a mirrors the screen size, 0xca the module geometry | reference file equality |
-| basic pack (all 256 bytes) | `GetBasicParam` transcribed field by field from record 0x01, plus the CRC-32 trailer | factory pack byte-exact |
-| boot image | every region generated (`image/`): gated zeros, data-swap, module positions, anti-void counters, mapping, scan table (bit-time solver), embedded `.rcvbp` | factory image byte-exact |
+| basic pack (all 256 bytes) | `GetBasicParam` transcribed field by field from record 0x01, plus the CRC-32 trailer | day-one pack byte-exact |
+| boot image | every region generated (`image/`): gated zeros, data-swap, module positions, anti-void counters, mapping, scan table (bit-time solver), embedded `.rcvbp` | day-one image byte-exact |
 
-Tests in `crates/rcvbp/tests/factory.rs`:
+Tests in `crates/rcvbp/tests/day_one.rs`:
 
 | test | asserts |
 |---|---|
 | `the_reference_config_is_regenerated_record_for_record` | the reference config regenerates record for record from a spec |
-| `the_reference_config_reproduces_the_factory_pack_byte_for_byte` | that spec reproduces the factory pack |
-| `the_factory_image_rebuilds_from_erased_flash_and_its_own_parts` | that spec reproduces the factory image |
+| `the_reference_config_reproduces_the_day_one_pack_byte_for_byte` | that spec reproduces the day-one pack |
+| `the_day_one_image_rebuilds_from_erased_flash_and_its_own_parts` | that spec reproduces the day-one image |
 | `our_panel_differs_from_the_reference_only_where_intended` | the single-module spec differs from the reference only in the intended bytes |
 | `the_bench_spec_displaces_the_phantom_positions` | the void-line column table gates positions `width..2*width` |
 | `the_scan_table_is_invariant_to_the_load_width_for_this_chip` | scan table independent of load width |
@@ -87,7 +87,7 @@ Tests in `crates/rcvbp/tests/factory.rs`:
 | `the_reference_mapping_is_reproduced_by_the_block_knob` | `block = 64` is the reference file's record 0x03 |
 | `a_scan_that_does_not_divide_the_module_is_refused` | invalid scan is an error |
 
-The factory pack and image tests need the card's factory flash dump, which is
+The day-one pack and image tests need the card's day-one flash dump, which is
 kept outside the repository; they skip without it.
 
 ## The reference config and the reference module
@@ -118,7 +118,7 @@ generated and compared with the file: a difference at +0x02F or +0x043
 becomes a `[record01_overrides]` entry, any other difference is reported by
 record and offset as `not recovered`. The reference spec survives the trip
 byte for byte and the reference file imports as the spec
-`crates/rcvbp/tests/factory.rs` describes (`the_bench_spec_survives_a_round_trip_through_its_file`,
+`crates/rcvbp/tests/day_one.rs` describes (`the_bench_spec_survives_a_round_trip_through_its_file`,
 `the_reference_config_imports_as_the_spec_that_regenerates_it`).
 
 ## Limits

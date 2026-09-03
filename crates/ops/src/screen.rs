@@ -223,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn the_factory_record_is_accepted() {
+    fn the_day_one_record_is_accepted() {
         let mut r = vec![0u8; protocol::SCREEN_RECORD_LEN];
         r[WIDTH..WIDTH + 2].copy_from_slice(&128u16.to_be_bytes());
         r[HEIGHT..HEIGHT + 2].copy_from_slice(&64u16.to_be_bytes());

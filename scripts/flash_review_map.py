@@ -18,7 +18,7 @@ EEPROM = [
     (0x043, 3, 'white-balance adjust'),
     (0x04b, 1, 'calibration-coefficient source'),
     (0x04c, 1, 'seam enable'),
-    (0x04d, 9, 'NOT RESOLVED; factory content holds wall dims 384x256'),
+    (0x04d, 9, 'NOT RESOLVED; day-one content holds wall dims 384x256'),
     (0x056, 3, 'void-line info'),
     (0x059, 1, 'receiver-card light'),
     (0x05a, 20, 'receiver card name (ASCII)'),

@@ -57,7 +57,7 @@ column.
 both carry the contiguous table. They are this repository's own artefacts,
 not vendor ground truth. The reference file is
 `third-party/configs/P2.5-32S-128X64-SM16269S-256X384I.rcvbp`; its records
-match the card's factory flash.
+match the card's day-one flash.
 
 ## Scan rate
 
@@ -91,10 +91,10 @@ scan.
 
 ## Regeneration from TOML
 
-With `block = 64`, the factory registers and no sub-id, `rxp config gen`
+With `block = 64`, the day-one registers and no sub-id, `rxp config gen`
 reproduces the reference file record for record from TOML alone, with no
 donor file. Pinned by `the_reference_config_is_regenerated_record_for_record`
-in `crates/rcvbp/tests/factory.rs`. The one intended difference is
+in `crates/rcvbp/tests/day_one.rs`. The one intended difference is
 screen size: the reference file is compiled for a 256x384 wall of twelve
 modules; the spec in `config/panels` describes one.
 

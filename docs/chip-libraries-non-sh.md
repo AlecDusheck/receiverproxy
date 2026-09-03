@@ -125,7 +125,7 @@ everything else equal:
 
 | body offset | `0x00DE` | `0x014C` | `0x0214` | rule |
 |---|---|---|---|---|
-| `+0x08` (grey bits) | `0x0E` | `0x10` | `0x0E` | `pack[0x0C] = GetGrayLevel(); if (IsNeed16BitGrayWhenSend()) pack[0x0C] = 0x10;` at `0x1DFEEF`–`0x1DFF03`. A factory pack compiled by the card rather than by the PC tool has `0x0E` at this offset for chip `0x14C`, so the card's own compiler does not apply this rule; the generator must not be changed from this row. |
+| `+0x08` (grey bits) | `0x0E` | `0x10` | `0x0E` | `pack[0x0C] = GetGrayLevel(); if (IsNeed16BitGrayWhenSend()) pack[0x0C] = 0x10;` at `0x1DFEEF`–`0x1DFF03`. A day-one pack compiled by the card rather than by the PC tool has `0x0E` at this offset for chip `0x14C`, so the card's own compiler does not apply this rule; the generator must not be changed from this row. |
 | `+0x10` | derived from min-OE (`0x1DFF94`–`0x1DFFD1`) | `OBJ+0x83` (`0x1DFFD6`) | `OBJ+0x83` | `IsHighRefreshValid()` gate at `0x1DFF81` |
 | `+0x17` (pack `+0x1B`) | `0xDE` | `0xFE` | `0xFE` | ids < `0x100` use the byte slot; larger ones set the `0xFE` escape (`ResetChipType` `0x1E5130`) |
 | `+0x70..+0x7F` | see §2 | zeros | zeros | `SChipCustom` |

@@ -19,7 +19,7 @@ pub use receivers::BootImage;
 pub const IMAGE_LEN: usize = 0x1_0000;
 
 // The E120's region offsets (`config/cards/e120.toml`), pinned by
-// `tests/factory.rs`; the builder itself reads them from a `BootImage`.
+// `tests/day_one.rs`; the builder itself reads them from a `BootImage`.
 pub const BASIC_PACK_OFFSET: usize = 0x0000;
 pub const DATA_SWAP_OFFSET: usize = 0x0500;
 pub const MODULE_POS_OFFSET: usize = 0x0600;
@@ -78,7 +78,11 @@ impl Block7Builder {
         b.module_positions_from(rec01)?;
         b.anti_void_lines();
         if spec.mapping.gate_phantom_positions {
-            b.void_line_columns(spec.module.width, spec.module.width * 2);
+            // Positions past the screen the card drives are phantom: with one
+            // module that is width..2*width, with a chain of them it starts
+            // where the chain ends. Gating a real column blanks that module.
+            let real = spec.screen.width.max(spec.module.width);
+            b.void_line_columns(real, real + spec.module.width);
         }
         b.mapping_from(&g.rcvbp)?;
         b.scan_table_from(rec01, spec.card_scan_len())?;

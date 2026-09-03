@@ -16,13 +16,13 @@ fn fixture(name: &str) -> String {
     format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))
 }
 
-struct Factory {
+struct DayOne {
     block: Vec<u8>,
     file: Vec<u8>,
     cfg: Rcvbp,
 }
 
-fn factory() -> Option<Factory> {
+fn day_one() -> Option<DayOne> {
     let Ok(dump) = std::fs::read(repo("card-dumps/primary-region.bin")) else {
         eprintln!("skipped: card-dumps/primary-region.bin is not in the repo");
         return None;
@@ -32,7 +32,7 @@ fn factory() -> Option<Factory> {
         as usize;
     let file = block[image::RCVBP_OFFSET + 4..image::RCVBP_OFFSET + 4 + n].to_vec();
     let cfg = Rcvbp::from_bytes(&file).unwrap();
-    Some(Factory { block, file, cfg })
+    Some(DayOne { block, file, cfg })
 }
 
 /// The E120's region offsets.
@@ -96,9 +96,9 @@ fn the_reference_config_is_regenerated_record_for_record() {
 }
 
 #[test]
-fn the_reference_config_reproduces_the_factory_pack_byte_for_byte() {
+fn the_reference_config_reproduces_the_day_one_pack_byte_for_byte() {
     let g = generate(&reference_panel()).unwrap();
-    let Some(f) = factory() else { return };
+    let Some(f) = day_one() else { return };
     let diffs = differing_bytes(&g.basic_pack, &f.block[..0x100]);
     assert!(diffs.is_empty(), "pack differs at {diffs:x?}");
 }
@@ -137,10 +137,10 @@ fn our_panel_differs_from_the_reference_only_where_intended() {
 }
 
 #[test]
-fn the_factory_image_rebuilds_from_erased_flash_and_its_own_parts() {
+fn the_day_one_image_rebuilds_from_erased_flash_and_its_own_parts() {
     // Same sequence as `Block7Builder::from_generated` minus the
-    // phantom-position gate (the factory left that table zero).
-    let Some(f) = factory() else { return };
+    // phantom-position gate (the day-one left that table zero).
+    let Some(f) = day_one() else { return };
     let rec01 = &f.cfg.record_01().unwrap().payload;
     let mut b = Block7Builder::erased(e120());
     b.zero_regions();
@@ -153,7 +153,7 @@ fn the_factory_image_rebuilds_from_erased_flash_and_its_own_parts() {
     b.rcvbp(&f.file).unwrap();
     let img = b.finish().image;
     let bad: Vec<u8> = differing_pages(&img, &f.block).into_iter().filter(|&p| p != 0xF0).collect();
-    assert!(bad.is_empty(), "pages differing from factory: {bad:02x?}");
+    assert!(bad.is_empty(), "pages differing from day-one: {bad:02x?}");
 }
 
 #[test]
@@ -173,7 +173,7 @@ fn the_bench_spec_displaces_the_phantom_positions() {
 
 #[test]
 fn the_scan_table_is_invariant_to_the_load_width_for_this_chip() {
-    let Some(f) = factory() else { return };
+    let Some(f) = day_one() else { return };
     let rec01 = &f.cfg.record_01().unwrap().payload;
     let view = rcvbp::record01::View::new(rec01).unwrap();
     let want = &f.block[image::SCAN_TABLE_OFFSET..image::SCAN_TABLE_OFFSET + 0x400];
@@ -183,7 +183,7 @@ fn the_scan_table_is_invariant_to_the_load_width_for_this_chip() {
 
 #[test]
 fn a_single_module_screen_gets_a_module_position_table() {
-    let Some(f) = factory() else { return };
+    let Some(f) = day_one() else { return };
     let mut rec01 = f.cfg.record_01().unwrap().payload.clone();
     rec01[0x0C0..0x0C2].copy_from_slice(&128u16.to_le_bytes());
     rec01[0x0C2..0x0C4].copy_from_slice(&64u16.to_le_bytes());

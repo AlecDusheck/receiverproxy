@@ -35,11 +35,11 @@ of -128, +128, +214 and +342 match at chance level.
 | `card-dumps/primary-after-restore.bin` | `0xB0000` | `0x000000`-`0x0AFFFF` | 0x00-0x0A |
 | `card-dumps/golden-bank.bin` | `0xB0000` | `0x200000`-`0x2AFFFF` | golden bank at block 0x20 |
 
-`primary-region.bin` is the factory state. `primary-after-restore.bin` is the
-primary bank after the factory image was written back with host page writes.
+`primary-region.bin` is the day-one state. `primary-after-restore.bin` is the
+primary bank after the day-one image was written back with host page writes.
 The bank extents agree with the card's flash-read replies.
 
-## 3. Primary bank address map (factory state)
+## 3. Primary bank address map (day-one state)
 
 Per-64K-block match against 10.81 is exactly `1.000000` for blocks 0x00,
 0x01, 0x02, 0x08, 0x09 and 0x0A, and chance-level for 0x03-0x07. A whole-file
@@ -117,7 +117,7 @@ values occur, and the frame CRCs there are valid. The vendor `.hex` at
 `0x7F000` is therefore not padding. `third-party/README.md`'s statement that
 "a `.hex` file's contents there are padding" is wrong as stated.
 
-### Contents in the factory dump
+### Contents in the day-one dump
 
 `0x07F000`-`0x07F0FF` holds 256 bytes of card-written data and
 `0x07F100`-`0x07FFFF` is erased:
@@ -266,7 +266,7 @@ Every region in [../compiled-image-format.md](../compiled-image-format.md)
 maps to `0x070000 + image_offset`, and every erased hole the format predicts
 is present at the predicted address:
 
-| image offset | absolute flash | content | in the factory dump |
+| image offset | absolute flash | content | in the day-one dump |
 |---|---|---|---|
 | `0x0000` | `0x070000` | basic-parameter pack body | present, `a8 ff ff ff 20 80 02 10 ...` |
 | `0x0100` | `0x070100` | void table | present (zeros) |
@@ -288,11 +288,11 @@ is present at the predicted address:
 
 `build/p25-128x64-sm16269s-block7.bin` lands at absolute flash `0x070000`
 (`rxp flash restore-block`). It is exactly `0x10000` (one 64K block) and its
-embedded `.rcvbp` header sits at file offset `0x8000`. Against the factory
+embedded `.rcvbp` header sits at file offset `0x8000`. Against the day-one
 dump's block 0x07 it is 82.03 % identical; the differences are geometry: its
-basic pack has `20 80 01 10 ... 00 01` where the factory has
+basic pack has `20 80 01 10 ... 00 01` where the day-one has
 `20 80 02 10 ... 00 02`, and its embedded `.rcvbp` is `0x24E1` bytes against
-the factory's `0x241F`. `build/p25-128x64-sm16269s-basic-pack.bin` is the
+the day-one's `0x241F`. `build/p25-128x64-sm16269s-basic-pack.bin` is the
 first `0x100` bytes of that block, flash `0x070000`-`0x0700FF`.
 
 ## 10. Block 0x0B: the module mapping table

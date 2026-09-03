@@ -164,7 +164,7 @@ the bytes read (`ops::probe::check_block`), unit-tested against the image
 On a card configured by the vendor tool the chip page and the embedded
 file reflect that tool's version: the older tool leaves the chip page
 erased, so `chip page: erased, drivers not armed at boot` is the expected
-reading for a factory card, not a fault.
+reading for a day-one card, not a fault.
 
 ## 3. The bench loop
 

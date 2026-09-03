@@ -124,7 +124,7 @@ mirror at `0x07F000`.
 
 | | startX | startY | endX | endY | blob `0x0c..0x2b` | `0x41` | `0x42` | `0x4c` |
 |---|---|---|---|---|---|---|---|---|
-| factory image | 0 | 0 | 128 | 64 | all `00` | `00` | `00` | `02` |
+| day-one image | 0 | 0 | 128 | 64 | all `00` | `00` | `00` | `02` |
 | after block-0x07 erase and `screen-size --set 128x64` | 65535 | 65535 | 128 | 64 | all `FF` | `FF` | `FF` | `FF` |
 
 The erased window is `X in [65535, 128)` and `Y in [65535, 64)`, empty. No
@@ -171,7 +171,7 @@ an erase is established.
 
 No command beyond the pixel, latch and brightness frames is required. Two
 adjacent EEPROM flags are not start/stop controls: `0x41` "no input show
-info" and `0x42` "turn on screen show" (both `0x00` at the factory, both
+info" and `0x42` "turn on screen show" (both `0x00` at the day-one, both
 `0xFF` after an erase). `Nic_SetTestModeIndex` renders host-side and never
 asks the card ([pixel-protocol.md](pixel-protocol.md) section 5.1), so the
 vendor's test mode says nothing about the card.
@@ -181,7 +181,7 @@ vendor's test mode says nothing about the card.
 `rxp provision --position x,y` writes the control area, its companion and
 every other record from the read-back set, one record at a time, then saves
 (opcode `0x87`) and reloads (`0x77`). `scripts/eeprom-restore.py` rewrites
-records from the factory dump. The frames below are what those send, for
+records from the day-one dump. The frames below are what those send, for
 doing it by hand with `rxp debug send`.
 
 ### 6.0 The RAM-only card-area pack
@@ -221,7 +221,7 @@ rxp debug send --type 1900 --pad 126 --payload \
 | 30 | `00 80` | endX = 128 |
 | 32 | `00 40` | endY = 64 |
 | 34 | `00 00` | reserved |
-| 36 | 32 x `00` | blob (the factory value) |
+| 36 | 32 x `00` | blob (the day-one value) |
 | 68 | 72 x `00` | pad to a 128-byte payload |
 
 ### 6.2 Companion blob: EEPROM `0x92`, 32 bytes
@@ -250,9 +250,9 @@ rxp card screen-size
 The first 16 bytes must read `00 00 00 00 00 00 00 80 00 40 00 00 ...`. The
 erased card reads `00 00 ff ff ff ff 00 80 00 40 ff ff ...`.
 
-### 6.5 Factory flags
+### 6.5 DayOne flags
 
-`0x41` and `0x42` are single bytes, `00` at the factory:
+`0x41` and `0x42` are single bytes, `00` at the day-one:
 
 ```
 rxp debug send --type 1900 --pad 126 --payload 00000085000000410000000100

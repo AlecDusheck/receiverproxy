@@ -47,12 +47,12 @@ print(f'{len(now)} vs {len(day1)} bytes\n')
 
 d = runs(day1, now)
 if not d:
-    print('identical to the factory state')
+    print('identical to the day-one state')
     raise SystemExit
 
 total = sum(e - s for s, e in d)
 print(f'{len(d)} differing runs, {total} bytes total\n')
-print(f'{"offset":>10}  {"len":>6}  {"factory":18} {"now":18} region')
+print(f'{"offset":>10}  {"len":>6}  {"day-one":18} {"now":18} region')
 for s, e in d:
     fa = day1[s:min(e, s + 6)].hex(' ')
     no = now[s:min(e, s + 6)].hex(' ')
@@ -60,7 +60,7 @@ for s, e in d:
 
 # An empty control window is silently fatal: the card drops every pixel.
 print('\ncontrol area (EEPROM 0x02, big-endian u16s):')
-for label, buf in (('factory', day1), ('now', now)):
+for label, buf in (('day-one', day1), ('now', now)):
     b = buf[0xF000:0xF00A]
     u = lambda o: int.from_bytes(b[o:o + 2], 'big')
     bad = ' <-- EMPTY WINDOW, the card will drop every pixel' \

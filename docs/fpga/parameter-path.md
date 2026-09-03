@@ -108,13 +108,13 @@ Verified byte-for-byte against `card-dumps/primary-region.bin` at `0x70000`:
 |---|---|
 | `+0x00` | marker `0xA8` |
 | `+0x01..0x03` | the `FF FF FF` head triple |
-| `+0x04..0x05` | module geometry, order swapped by line direction: `[W, H/2]` for line_dir >= 2, `[H/2, W]` for line_dir < 2. Factory `20 80` = `[32, 128]`, line_dir 0 |
+| `+0x04..0x05` | module geometry, order swapped by line direction: `[W, H/2]` for line_dir >= 2, `[H/2, W]` for line_dir < 2. DayOne `20 80` = `[32, 128]`, line_dir 0 |
 | `+0x07` | scan denominator (`0x10` = 16) |
 | `+0x08` | grey bits (`0x0E` = 14) |
 | `+0x09` | serial clock, BE (`0x0008`) |
 | `+0x0B` | OneScanLen BE = 256 |
-| `+0x0D` | CardScanLen BE = 512 factory / 256 for this spec |
-| `+0x10` | colour byte `(swap<<6) | (s2<<4) | (s1<<2) | s0`; factory `0xC6` = swap 3, source (2,1,0) |
+| `+0x0D` | CardScanLen BE = 512 day-one / 256 for this spec |
+| `+0x10` | colour byte `(swap<<6) | (s2<<4) | (s1<<2) | s0`; day-one `0xC6` = swap 3, source (2,1,0) |
 | `+0x1B` | chip id, or the literal escape `0xFE` when the id >= `0x100` |
 | `+0x30..0x33` | the four current gains |
 | `+0x48..0x4F` | luminance level split by colour percent as R, B, rest, G (u16 BE each), not in RGB order |
@@ -142,7 +142,7 @@ The card is handed finished tables and does not derive them:
 | Module positions | `0x0600` | type `0x17` | `0x300` |
 | Data-swap / lane map | `0x0500` | `0x05`/sub 2 | `0x100` |
 | Anti-void-line counters | `0x1800` | type `0x32` x8 | `0x1000` |
-| Void / void-line tables | `0x0100`, `0x1000`, `0x6800` | `0x10`, `0x1F` | zeros in the factory image; the void-line column table gates phantom positions on this module ([../rendering.md](../rendering.md)) |
+| Void / void-line tables | `0x0100`, `0x1000`, `0x6800` | `0x10`, `0x1F` | zeros in the day-one image; the void-line column table gates phantom positions on this module ([../rendering.md](../rendering.md)) |
 | Current segment | `0x0A00` | (none) | zeros for this chip id |
 
 ### Derived host-side and baked in as scalars

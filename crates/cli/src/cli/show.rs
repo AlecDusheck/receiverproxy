@@ -70,7 +70,7 @@ pub enum Show {
     },
     /// Show a built-in pattern through the wall pipeline
     Pattern {
-        /// rgb | border | rows | gradient | white
+        /// rgb | border | rows | gradient | white | calibrate
         #[arg(default_value = "rgb")]
         name: String,
         /// Keep refreshing until Ctrl-C
@@ -79,18 +79,29 @@ pub enum Show {
         /// Wall layout JSON; defaults to a single panel of --width x --height
         #[arg(long)]
         layout: Option<String>,
+        /// Module size as WIDTHxHEIGHT for `calibrate` [default: each panel's
+        /// own size, or --width x --height without a layout]
+        #[arg(long, value_parser = parse_geometry)]
+        module: Option<(u16, u16)>,
     },
     /// Show a test pattern on a single panel
     Test {
-        /// gradient | rows | border | rgb | white
+        /// gradient | rows | border | rgb | white | calibrate
         #[arg(default_value = "gradient")]
         pattern: String,
         /// Keep refreshing until Ctrl-C
         #[arg(long)]
         hold: bool,
+        /// Module size as WIDTHxHEIGHT for `calibrate` [default: --width x --height]
+        #[arg(long, value_parser = parse_geometry)]
+        module: Option<(u16, u16)>,
     },
     /// Blank the panel
     Blank,
+}
+
+fn size((w, h): (u16, u16)) -> (u32, u32) {
+    (u32::from(w), u32::from(h))
 }
 
 pub fn run(ctx: &Ctx, cmd: &Show, p: &mut dyn Progress) -> Result<()> {
@@ -115,10 +126,17 @@ pub fn run(ctx: &Ctx, cmd: &Show, p: &mut dyn Progress) -> Result<()> {
             layout,
         } => ingest::serve(ctx, socket, fit, layout.as_deref(), p),
         Show::Fill { color, hold } => show_solid(ctx, parse_color(color)?, *hold, p),
-        Show::Pattern { name, hold, layout } => {
-            show_pattern(ctx, name, *hold, layout.as_deref(), p)
-        }
-        Show::Test { pattern, hold } => show_pattern(ctx, pattern, *hold, None, p),
+        Show::Pattern {
+            name,
+            hold,
+            layout,
+            module,
+        } => show_pattern(ctx, name, *hold, layout.as_deref(), module.map(size), p),
+        Show::Test {
+            pattern,
+            hold,
+            module,
+        } => show_pattern(ctx, pattern, *hold, None, module.map(size), p),
         Show::Blank => show_solid(ctx, [0, 0, 0], false, p),
     }
 }

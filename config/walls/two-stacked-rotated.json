@@ -1,0 +1,33 @@
+{
+  "width": 64,
+  "height": 256,
+  "receivers": [
+    { "index": 0, "x": 0, "y": 0, "width": 256, "height": 64 }
+  ],
+  "panels": [
+    {
+      "receiver": 0,
+      "receiver_x": 0,
+      "receiver_y": 0,
+      "x": 0,
+      "y": 0,
+      "width": 64,
+      "height": 128,
+      "rotation": "cw90",
+      "flip_x": false,
+      "flip_y": false
+    },
+    {
+      "receiver": 0,
+      "receiver_x": 128,
+      "receiver_y": 0,
+      "x": 0,
+      "y": 128,
+      "width": 64,
+      "height": 128,
+      "rotation": "cw90",
+      "flip_x": false,
+      "flip_y": false
+    }
+  ]
+}

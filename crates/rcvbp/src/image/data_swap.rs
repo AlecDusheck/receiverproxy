@@ -2,7 +2,7 @@
 //!
 //! The 64-byte lane map from record +0x19A, zeros, and three deseam pairs
 //! from `CalDeseamCorrectData`: 8.8 fixed-point 1.0 (`01 00`) with deseam
-//! off, as in the factory image.
+//! off, as in the day-one image.
 
 use crate::record01::View;
 

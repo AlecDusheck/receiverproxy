@@ -196,7 +196,20 @@ Defaults: `loop` false, `fps` 30, `fit` `"contain"`, `layout` the daemon's
 wall. `lines` carry the `N frames, F fps` progress line every 60 frames and
 the final one.
 
-`POST /show/pattern` body `{ name: "rgb" | "border" | "rows" | "gradient" | "white", hold?: boolean }` → as `show/image`.
+`POST /show/pattern` body `{ name: Pattern, hold?: boolean, module?: [number,
+number] }` → as `show/image`. The patterns:
+
+| name | draws | says |
+|---|---|---|
+| `rgb` | vertical red, green and blue bands | the colour order |
+| `border` | a one-pixel white border, red, green and blue corners | the geometry |
+| `rows` | red/green/blue horizontal stripes | the row mapping |
+| `gradient` | a two-axis gradient | the grey response |
+| `white` | solid white | the maximum current draw |
+| `calibrate` | per-module marks: a checkerboard border, the module's index, corner colours, a 16-step grey ramp, and the wall's diagonal over them | which module is which, and whether any is rotated, mirrored, misplaced or out of chain order ([provisioning.md](provisioning.md)) |
+
+`module` sizes `calibrate`'s tiles; the wall's own panels label themselves
+without it. Every other pattern ignores it.
 
 `POST /show/fill` body `{ rgb: string, hold?: boolean }` → as `show/image`.
 `rgb` is `RRGGBB`, `#` optional (`util::parse_color`).

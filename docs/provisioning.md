@@ -115,6 +115,37 @@ coordinates, not sizes.
   ([receiver-identity.md](receiver-identity.md) section 2); `--index 0` is
   accepted for a card whose record is intact.
 
+### Checking the wall
+
+With every card provisioned, `rxp show pattern calibrate --layout wall.json
+--hold` marks each module from the layout, so the wall can be read standing
+in front of it without measuring anything. `--module WIDTHxHEIGHT` divides
+the screen into tiles of that size instead, for a card driving several
+modules; `rxp show test calibrate` does the same on one panel of `--width x
+--height`.
+
+Each module carries a one-pixel border, cyan or yellow so no two
+neighbouring modules share an edge colour; its two-digit index, row then
+column, in white at the top left; three-pixel corner marks inside the
+border, red top-left, green top-right, blue bottom-left, white
+bottom-right; and a 16-step grey ramp, black on the left, across its middle
+rows. One magenta diagonal runs corner to corner over the whole screen.
+
+What a wrong mark means:
+
+* Corners in the wrong places: the module is rotated (red is not at its top
+  left) or mirrored (red and green, or red and blue, have swapped).
+* Indices out of order, or two modules showing the same index: the chain
+  order is not the layout's, or a card was provisioned with another card's
+  `--position`.
+* Two edge colours the same across a seam, or a border that is two pixels
+  wide or missing: the modules overlap, or a card's window is off by the
+  width of the overlap.
+* The diagonal stepping sideways at a seam: the mapping or the chain order
+  is wrong; the offset is how far the module is out.
+* Ramps that do not match brightness step for step across a seam: the
+  modules differ in grey response or in colour, not in geometry.
+
 ## Invariants
 
 A card must not be left with:
@@ -136,7 +167,7 @@ rxp firmware install <hex> --commit                                    # SDRAM p
 rxp firmware write <hex> --backup <snapshot>/primary-region.bin --from-block 3 --to-block 7 --commit
 rxp config gen --spec <spec>                                           # writes build/<panel>-block7.bin
 rxp flash restore-block build/<panel>-block7.bin --commit
-scripts/eeprom-restore.py --commit                                      # records from the factory dump
+scripts/eeprom-restore.py --commit                                      # records from the day-one dump
 scripts/flash-review.py <block-7 dump>
 ```
 
@@ -145,7 +176,7 @@ reload frame (opcode 0x77) without a power-cycle.
 
 ## Limits
 
-* The EEPROM flags at 0x41 and 0x42 (factory value `00`) do not take through
+* The EEPROM flags at 0x41 and 0x42 (day-one value `00`) do not take through
   opcode 0x85 and read back `0xFF`; the panel renders regardless.
 * `rxp card screen-size --set` reads and writes all 256 bytes from EEPROM 0
   and refuses a record that reads as erased. It prints end coordinates as a

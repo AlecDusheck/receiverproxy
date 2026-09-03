@@ -1,0 +1,68 @@
+# Two P2.5-O16S-SMD1415-128x64-E modules on one Colorlight E120: the first on
+# hub J1, the second daisy-chained from its output, so both are one data group
+# and the card's screen is 256x64.
+#
+# The modules are mounted turned 90 degrees and stacked, so the wall reads
+# 64 wide by 256 tall. That is the host's view and lives in the layout file
+# (`rxp card layout-example`), not here: the card always works in the module's
+# own orientation.
+#
+# Everything else is the verified single-module configuration
+# (config/panels/p25-128x64-sm16269s.toml).
+
+name = "p25-2x128x64-chain"
+
+[meta]
+pitch_mm = 2.5
+status = "derived"
+sources = 1
+examples = ["p25-128x64-sm16269s.toml"]
+vendors = ["Colorlight"]
+maker = "Eager LED"
+product = "P2.5-O16S-SMD1415-128x64-E"
+url = "https://eager-led.com/products/outdoor-hd-p2-5-320x160mm-led-screen-module"
+datasheet = "https://assets.receiverproxy.com/datasheets/panels/eager-p25-outdoor-smd1415-320x160.pdf"
+notes = "The verified single-module configuration with the screen widened to two chained modules; the pairing has not been driven yet."
+
+[module]
+gray_bits = 12
+width = 128
+height = 64
+scan = 16
+line_dir = 0
+data_groups = 1
+serial_clock = 8
+
+[screen]
+width = 256
+height = 64
+
+[chip]
+library = "config/chips/sm16269s.toml"
+
+[color]
+swap = 3
+source = [2, 1, 0]
+
+[current]
+gains = [43, 43, 43, 43]
+percent = [0.1, 0.1, 0.1]
+
+[timing]
+gamma = 2.8
+refresh_hz = 60.0
+gclock = 0x14
+min_oe = 0.0001
+luminance_level = 188
+oe_8ns = true
+
+[mapping]
+reversed_groups = true
+reversed_lines = false
+block = 64
+
+[boot]
+arm_at_boot = true
+
+[record01_overrides]
+"0x02F" = 0x01

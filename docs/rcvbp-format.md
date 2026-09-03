@@ -72,7 +72,7 @@ decoded accessor from [`record-0x01-fields.md`](record-0x01-fields.md).
 | `+0x0fc` to `+0x105` | chip-specific block | populated for chip 9929, zeroed for 6618 |
 
 `+0x001` is not the scan denominator; the scan denominator is `+0x020`
-(decoded from `GetScanMode`; factory pack body `[0x07] = 0x10 = 16`).
+(decoded from `GetScanMode`; day-one pack body `[0x07] = 0x10 = 16`).
 
 The driver chip id is a 16-bit value split across `+0x036` (low byte) and
 `+0x204` (high byte). Chip identity on the card is expressed through that id,

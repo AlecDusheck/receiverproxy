@@ -260,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "demos"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -748,7 +748,7 @@ dependencies = [
 
 [[package]]
 name = "rcvbp-wasm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "receiverproxy-panelspec",
@@ -765,7 +765,7 @@ dependencies = [
 
 [[package]]
 name = "receiverproxy"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -778,11 +778,11 @@ dependencies = [
 
 [[package]]
 name = "receiverproxy-colorlight"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "receiverproxy-daemon"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -813,7 +813,7 @@ dependencies = [
 
 [[package]]
 name = "receiverproxy-driver"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "receiverproxy-colorlight",
@@ -823,7 +823,7 @@ dependencies = [
 
 [[package]]
 name = "receiverproxy-ops"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "dirs",
@@ -842,7 +842,7 @@ dependencies = [
 
 [[package]]
 name = "receiverproxy-panelspec"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "serde",
@@ -852,7 +852,7 @@ dependencies = [
 
 [[package]]
 name = "receiverproxy-rawlink"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "libc",
@@ -860,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "receiverproxy-rcvbp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "flate2",
@@ -873,7 +873,7 @@ dependencies = [
 
 [[package]]
 name = "receiverproxy-receivers"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "sha2",
@@ -882,7 +882,7 @@ dependencies = [
 
 [[package]]
 name = "receiverproxy-sources"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "receiverproxy-wall",
@@ -891,7 +891,7 @@ dependencies = [
 
 [[package]]
 name = "receiverproxy-wall"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",

@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/AlecDusheck/receiverproxy"
@@ -22,16 +22,16 @@ codegen-units = 1
 [workspace.dependencies]
 # Published under `receiverproxy-<role>`; the lib name each crate is used by
 # stays the role (`use colorlight::…`), so the dependency key is the role.
-colorlight = { package = "receiverproxy-colorlight", path = "crates/colorlight", version = "0.1.0" }
-panelspec = { package = "receiverproxy-panelspec", path = "crates/panelspec", version = "0.1.0" }
-receivers = { package = "receiverproxy-receivers", path = "crates/receivers", version = "0.1.0" }
-rcvbp = { package = "receiverproxy-rcvbp", path = "crates/rcvbp", version = "0.1.0" }
-rawlink = { package = "receiverproxy-rawlink", path = "crates/rawlink", version = "0.1.0" }
-wall = { package = "receiverproxy-wall", path = "crates/wall", version = "0.1.0" }
-sources = { package = "receiverproxy-sources", path = "crates/sources", version = "0.1.0" }
-driver = { package = "receiverproxy-driver", path = "crates/driver", version = "0.1.0" }
-ops = { package = "receiverproxy-ops", path = "crates/ops", version = "0.1.0" }
-daemon = { package = "receiverproxy-daemon", path = "crates/daemon", version = "0.1.0" }
+colorlight = { package = "receiverproxy-colorlight", path = "crates/colorlight", version = "0.1.1" }
+panelspec = { package = "receiverproxy-panelspec", path = "crates/panelspec", version = "0.1.1" }
+receivers = { package = "receiverproxy-receivers", path = "crates/receivers", version = "0.1.1" }
+rcvbp = { package = "receiverproxy-rcvbp", path = "crates/rcvbp", version = "0.1.1" }
+rawlink = { package = "receiverproxy-rawlink", path = "crates/rawlink", version = "0.1.1" }
+wall = { package = "receiverproxy-wall", path = "crates/wall", version = "0.1.1" }
+sources = { package = "receiverproxy-sources", path = "crates/sources", version = "0.1.1" }
+driver = { package = "receiverproxy-driver", path = "crates/driver", version = "0.1.1" }
+ops = { package = "receiverproxy-ops", path = "crates/ops", version = "0.1.1" }
+daemon = { package = "receiverproxy-daemon", path = "crates/daemon", version = "0.1.1" }
 # Not published: the browser build of rcvbp and wall.
 rcvbp-wasm = { path = "crates/rcvbp-wasm" }
 

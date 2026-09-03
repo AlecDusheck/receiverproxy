@@ -49,16 +49,25 @@ fn frame_period() -> Duration {
     Duration::from_millis(env_or("RXP_FRAME_MS", 33))
 }
 
-/// Send the brightness and sync frames once.
+/// Set the panel's brightness.
+///
+/// The brightness frame, then the latches that commit it, in the order and
+/// with the gap a refresh uses: one latch with no gap leaves a held frame at
+/// its old brightness (docs/rendering.md).
 ///
 /// # Errors
 /// Fails if the link cannot be opened.
 pub fn brightness(ctx: &Ctx, value: u8) -> Result<()> {
+    let timing = wall_settings(ctx).timing;
     let mut dev = open(ctx)?;
     dev.send(&protocol::brightness(value))?;
-    dev.send(&protocol::sync(value))?;
+    std::thread::sleep(timing.latch_gap);
+    for _ in 0..timing.latches {
+        dev.send(&protocol::sync(value))?;
+    }
     Ok(())
 }
+
 
 /// Play a video source onto the wall in `layout`, or a single panel.
 pub fn play(
@@ -244,4 +253,29 @@ pub fn probe(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The frames a brightness change sends, in order.
+    fn frames(value: u8, latches: u32) -> Vec<Vec<u8>> {
+        let mut out = vec![protocol::brightness(value).to_vec()];
+        out.extend(std::iter::repeat_n(protocol::sync(value).to_vec(), latches as usize));
+        out
+    }
+
+    #[test]
+    fn brightness_sends_the_frame_then_the_measured_number_of_latches() {
+        let t = driver::Timing::default();
+        let f = frames(40, t.latches);
+        assert_eq!(f.len(), 1 + t.latches as usize);
+        assert_eq!(f[0][12..14], [0x0a, 40], "brightness frame type carries the value");
+        assert_eq!(f[0][14..17], [40, 40, 0xff], "brightness block");
+        assert_eq!(f[1][12..14], [0x01, 0x07], "latch frame type");
+        assert_eq!(f[1][35], 40, "master brightness");
+        assert_eq!(f[1][38..41], [40, 40, 40], "channel gains");
+        assert!(f[1..].iter().all(|x| *x == f[1]), "every latch identical");
+    }
 }

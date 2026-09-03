@@ -231,7 +231,9 @@ impl Block7Builder {
     pub fn finish(self) -> Block7 {
         let changed_pages = self
             .img
-            .chunks_exact(0x100)
+            .as_chunks::<0x100>()
+            .0
+            .iter()
             .enumerate()
             .filter(|(_, page)| page.iter().any(|&b| b != 0xFF))
             .map(|(i, _)| i as u8)

@@ -101,7 +101,8 @@ pub fn pixel_row_into(buf: &mut Vec<u8>, row: u16, pixel_offset: u16, rgb: &[[u8
     buf[19] = 0x08;
     buf[20] = 0x88;
     let [a, b, c] = order.permutation();
-    for (dst, px) in buf[ROW_PIXELS_AT..].chunks_exact_mut(3).zip(rgb) {
+    let (dst_px, _) = buf[ROW_PIXELS_AT..].as_chunks_mut::<3>();
+    for (dst, px) in dst_px.iter_mut().zip(rgb) {
         dst[0] = px[a];
         dst[1] = px[b];
         dst[2] = px[c];

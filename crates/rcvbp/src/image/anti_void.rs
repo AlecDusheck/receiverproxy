@@ -9,7 +9,8 @@ pub const LEN: usize = 0x1000;
 #[must_use]
 pub fn region() -> [u8; LEN] {
     let mut out = [0u8; LEN];
-    for (pair, n) in out[..0x800].chunks_exact_mut(2).zip(0u16..) {
+    let (pairs, _) = out[..0x800].as_chunks_mut::<2>();
+    for (pair, n) in pairs.iter_mut().zip(0u16..) {
         pair.copy_from_slice(&(0x2000 + n).to_be_bytes());
     }
     out.copy_within(..0x800, 0x800);

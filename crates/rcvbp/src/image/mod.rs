@@ -182,7 +182,9 @@ impl Block7Builder {
         }
         let dst = &mut self.img[self.map.mapping..self.map.mapping + len];
         dst.fill(0);
-        for (d, e) in dst.chunks_exact_mut(3).zip(body.chunks_exact(3)) {
+        let (dst3, _) = dst.as_chunks_mut::<3>();
+        let (src3, _) = body.as_chunks::<3>();
+        for (d, e) in dst3.iter_mut().zip(src3) {
             d.copy_from_slice(&[e[0], e[2], e[1]]);
         }
         let note = if body.len() < len {

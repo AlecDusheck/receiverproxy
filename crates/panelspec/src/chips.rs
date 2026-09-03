@@ -173,7 +173,9 @@ impl ChipLibrary {
             );
         }
         let mut out = [0u8; 256];
-        for (quad, &reg) in out.chunks_exact_mut(4).zip(&self.order) {
+        // as_chunks_mut keeps the fixed width in the type.
+        let (quads, _) = out.as_chunks_mut::<4>();
+        for (quad, &reg) in quads.iter_mut().zip(&self.order) {
             let rgb = if reg == 0x02 {
                 [scan.wrapping_sub(1) & 0x3F; 3]
             } else {

@@ -548,10 +548,18 @@ mod tests {
         }
     }
 
+    /// The archived image, when a local archive exists; the tests that need
+    /// the bytes skip without it (the images are not in the repository).
+    fn archived() -> Option<std::path::PathBuf> {
+        let p = root().join(ARCHIVE).join(NAME);
+        p.is_file().then_some(p)
+    }
+
     #[test]
     fn a_name_resolves_to_the_archive_and_a_path_to_its_entry() {
+        let Some(archived) = archived() else { return };
         let r = resolve_in(&root(), NAME).unwrap();
-        assert_eq!(r.path, root().join(ARCHIVE).join(NAME));
+        assert_eq!(r.path, archived);
         assert_eq!(r.image.map(|i| i.version), Some(receivers::Version(16, 53)));
 
         let by_path = root().join(ARCHIVE).join(NAME);
@@ -714,8 +722,10 @@ mod tests {
     #[test]
     fn fetch_prefers_a_verified_local_copy_and_names_unknown_images() {
         let mut lines = Lines::default();
-        fetch_in(&root(), NAME, &mut lines).unwrap();
-        assert_eq!(lines.out, [root().join(ARCHIVE).join(NAME).display().to_string()]);
+        if let Some(archived) = archived() {
+            fetch_in(&root(), NAME, &mut lines).unwrap();
+            assert_eq!(lines.out, [archived.display().to_string()]);
+        }
         let e = fetch("missing.hex", &mut lines).unwrap_err().to_string();
         assert!(e.contains("not in config/firmware.toml"), "{e}");
     }
